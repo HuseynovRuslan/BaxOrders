@@ -19,7 +19,7 @@ public sealed class DbModelTests : IDisposable
 {
     private readonly BaxOrdersDbContext _context = new(
         new DbContextOptionsBuilder<BaxOrdersDbContext>()
-            .UseSqlServer("Server=model-only;Database=model-only;Integrated Security=true")
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
             .AddInterceptors(new AuditingSaveChangesInterceptor(TimeProvider.System))
             .Options);
 
@@ -119,7 +119,7 @@ public sealed class DbModelTests : IDisposable
     [Fact]
     public void Product_codes_come_from_a_database_sequence()
     {
-        var sequence = DesignTimeModel().FindSequence(SqlServerProductCodeGenerator.SequenceName);
+        var sequence = DesignTimeModel().FindSequence(PostgresProductCodeGenerator.SequenceName);
 
         Assert.NotNull(sequence);
         Assert.Equal(typeof(long), sequence.Type);

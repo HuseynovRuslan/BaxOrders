@@ -9,13 +9,34 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace BaxOrders.Infrastructure.Persistence;
 
 /// <summary>
-/// Stamps CreatedAtUtc / UpdatedAtUtc wherever an entity has them, and refuses hard deletes of
-/// reference data that historical requests point to (those records must be deactivated instead).
+/// Stamps CreatedAtUtc / UpdatedAtUtc wherever an entity has them, moves the concurrency stamp of anything
+/// that carries one, and refuses hard deletes of reference data that historical requests point to (those
+/// records must be deactivated instead).
 /// </summary>
 internal sealed class AuditingSaveChangesInterceptor(TimeProvider timeProvider) : SaveChangesInterceptor
 {
     private const string CreatedAtUtc = "CreatedAtUtc";
     private const string UpdatedAtUtc = "UpdatedAtUtc";
+
+    /// <summary>
+    /// The application's own row version. Moving it here, in one place, is what makes the optimistic
+    /// concurrency check work the same whatever the database is.
+    /// </summary>
+    /// <remarks>
+    /// Recognised by being a concurrency token held as a <see cref="Guid"/>, not by its name: ASP.NET Core
+    /// Identity gives its users and roles a concurrency token of their own, a string that Identity maintains
+    /// itself. Writing to that one would break sign-in, so it is left alone.
+    /// </remarks>
+    private static void StampConcurrencyToken(EntityEntry entry)
+    {
+        foreach (var property in entry.Metadata.GetProperties())
+        {
+            if (property.IsConcurrencyToken && property.ClrType == typeof(Guid))
+            {
+                entry.Property(property.Name).CurrentValue = Guid.NewGuid();
+            }
+        }
+    }
 
     private static readonly HashSet<Type> DeactivateOnlyTypes =
     [
@@ -63,10 +84,13 @@ internal sealed class AuditingSaveChangesInterceptor(TimeProvider timeProvider) 
                 case EntityState.Added:
                     SetIfMapped(entry, CreatedAtUtc, utcNow);
                     SetIfMapped(entry, UpdatedAtUtc, utcNow);
+                    StampConcurrencyToken(entry);
                     break;
 
                 case EntityState.Modified:
                     SetIfMapped(entry, UpdatedAtUtc, utcNow);
+                    // A new value on every change is what a copy read beforehand is compared against.
+                    StampConcurrencyToken(entry);
                     break;
             }
         }

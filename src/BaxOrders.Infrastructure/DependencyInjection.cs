@@ -21,7 +21,7 @@ public static class DependencyInjection
             throw new InvalidOperationException(
                 $"Connection string '{ConnectionStringName}' is not configured. " +
                 $"Provide it via the ConnectionStrings__{ConnectionStringName} environment variable, user secrets, " +
-                "or appsettings.Development.json for local development.");
+                "or by running scripts/dev-postgres.ps1, which stores it in user-secrets.");
         }
 
         services.TryAddSingleton(TimeProvider.System);
@@ -29,14 +29,14 @@ public static class DependencyInjection
 
         services.AddDbContext<BaxOrdersDbContext>((serviceProvider, options) =>
             options
-                .UseSqlServer(connectionString)
+                .UseNpgsql(connectionString)
                 .AddInterceptors(serviceProvider.GetRequiredService<AuditingSaveChangesInterceptor>()));
 
         services.AddScoped<IBaxOrdersDbContext>(serviceProvider => serviceProvider.GetRequiredService<BaxOrdersDbContext>());
-        services.AddScoped<IProductCodeGenerator, SqlServerProductCodeGenerator>();
-        services.AddScoped<ILocationCodeGenerator, SqlServerLocationCodeGenerator>();
-        services.AddScoped<IImportBatchLock, SqlServerImportBatchLock>();
-        services.AddScoped<IOrderRequestLock, SqlServerOrderRequestLock>();
+        services.AddScoped<IProductCodeGenerator, PostgresProductCodeGenerator>();
+        services.AddScoped<ILocationCodeGenerator, PostgresLocationCodeGenerator>();
+        services.AddScoped<IImportBatchLock, PostgresImportBatchLock>();
+        services.AddScoped<IOrderRequestLock, PostgresOrderRequestLock>();
         services.AddSingleton<IExcelWorkbookReader, ExcelDataReaderWorkbookReader>();
 
         return services;

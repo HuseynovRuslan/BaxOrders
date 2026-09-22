@@ -5,6 +5,9 @@
     <Project Path="src/BaxOrders.Domain/BaxOrders.Domain.csproj" />
     <Project Path="src/BaxOrders.Infrastructure/BaxOrders.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/BaxOrders.DataTransfer/BaxOrders.DataTransfer.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BaxOrders.IntegrationTests/BaxOrders.IntegrationTests.csproj" />
     <Project Path="tests/BaxOrders.UnitTests/BaxOrders.UnitTests.csproj" />

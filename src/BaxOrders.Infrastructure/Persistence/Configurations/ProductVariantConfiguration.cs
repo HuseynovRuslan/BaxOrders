@@ -13,15 +13,15 @@ internal sealed class ProductVariantConfiguration : IEntityTypeConfiguration<Pro
         {
             table.HasCheckConstraint(
                 "CK_ProductVariants_SpecificationUnitRequiresValue",
-                "[SpecificationUnitId] IS NULL OR [SpecificationValue] IS NOT NULL");
+                "\"SpecificationUnitId\" IS NULL OR \"SpecificationValue\" IS NOT NULL");
             table.HasCheckConstraint(
                 "CK_ProductVariants_SpecificationDescriptorRequiresValue",
-                "[SpecificationDescriptor] IS NULL OR [SpecificationValue] IS NOT NULL");
+                "\"SpecificationDescriptor\" IS NULL OR \"SpecificationValue\" IS NOT NULL");
 
             // A specification is measured by a unit or described by a word, never both.
             table.HasCheckConstraint(
                 "CK_ProductVariants_SpecificationUnitOrDescriptor",
-                "[SpecificationUnitId] IS NULL OR [SpecificationDescriptor] IS NULL");
+                "\"SpecificationUnitId\" IS NULL OR \"SpecificationDescriptor\" IS NULL");
         });
 
         builder.Property(variant => variant.SpecificationValue).HasMaxLength(ProductVariant.SpecificationValueMaxLength);

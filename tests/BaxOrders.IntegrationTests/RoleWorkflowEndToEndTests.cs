@@ -23,8 +23,8 @@ namespace BaxOrders.IntegrationTests;
 /// approved or returned here, and nothing weakens the production pipeline to let a test through — where a
 /// test expects a refusal, the refusal comes from the same code that refuses a browser.
 /// </remarks>
-[Collection(SqlServerCollection.Name)]
-public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database) : IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class RoleWorkflowEndToEndTests(PostgresDatabaseFixture database) : IAsyncLifetime
 {
     private WebApplicationFactory<Program> factory = null!;
     private readonly List<long> requests = [];
@@ -37,7 +37,7 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
-            builder.UseSetting("ConnectionStrings:BaxOrders", SqlServerDatabaseFixture.ConnectionString);
+            builder.UseSetting("ConnectionStrings:BaxOrders", PostgresDatabaseFixture.ConnectionString);
         });
 
         return Task.CompletedTask;
@@ -46,7 +46,7 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
     /// <summary>Removes everything these scenarios created, children first: no synthetic row outlives them.</summary>
     public async Task DisposeAsync()
     {
-        if (!string.IsNullOrWhiteSpace(SqlServerDatabaseFixture.ConnectionString))
+        if (!string.IsNullOrWhiteSpace(PostgresDatabaseFixture.ConnectionString))
         {
             await using var db = database.CreateContext();
             await db.OrderRequestWorkflowEvents.Where(item => requests.Contains(item.OrderRequestId)).ExecuteDeleteAsync();
@@ -63,7 +63,7 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
 
     // ---- 57: a coordinator submits, a manager approves -----------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_coordinator_submits_and_a_manager_approves()
     {
         var coordinator = await AccountAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru A");
@@ -97,7 +97,7 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
 
     // ---- 58: nobody approves their own submission ----------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_administrator_cannot_approve_what_they_submitted_themselves()
     {
         // An administrator may both submit and decide, which is exactly why this has to be proved on one.
@@ -142,7 +142,7 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
 
     // ---- 59: returned, corrected, submitted again, approved ------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_returned_request_goes_round_again_and_the_history_keeps_all_four_steps()
     {
         var coordinator = await AccountAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru A");
@@ -192,7 +192,7 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
 
     // ---- 60: a password changes, and an account is stopped -------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_administrator_creates_an_account_the_person_then_changes_and_the_administrator_stops()
     {
         var administrator = await AccountAsync(BaxOrdersRoles.Admin, "Sınaq administratoru");
@@ -283,14 +283,14 @@ public sealed class RoleWorkflowEndToEndTests(SqlServerDatabaseFixture database)
         var tag = Guid.NewGuid().ToString("N")[..6];
 
         var location = new Domain.Locations.Location(
-            await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Sınaq obyekti {tag}");
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Sınaq obyekti {tag}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
         locations.Add(location.Id);
 
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
         var product = new Domain.Catalog.Product(
-            await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Sınaq malı {tag}");
+            await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Sınaq malı {tag}");
         db.Products.Add(product);
         await db.SaveChangesAsync();
         products.Add(product.Id);

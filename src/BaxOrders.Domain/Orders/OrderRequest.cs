@@ -142,7 +142,13 @@ public sealed class OrderRequest
     /// Guards the workflow against two people acting on the same request at once: a transition written from a
     /// copy that is no longer current fails instead of overwriting the one that got there first.
     /// </summary>
-    public byte[] RowVersion { get; private set; } = [];
+    /// <remarks>
+    /// Kept by the application rather than by the database: the save interceptor gives it a new value whenever
+    /// the row changes, and EF compares it on every update. That keeps the guard the same on any provider, and
+    /// keeps a provider's internal bookkeeping — SQL Server's <c>rowversion</c>, PostgreSQL's <c>xmin</c> —
+    /// out of an API contract the browser has to echo back.
+    /// </remarks>
+    public Guid ConcurrencyStamp { get; private set; } = Guid.NewGuid();
 
     /// <summary>How many of this request's lines have no price. Requires the items to be loaded.</summary>
     public int MissingPriceItemCount => _items.Count(item => item.UnitPrice is null);

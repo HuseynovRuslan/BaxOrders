@@ -44,8 +44,8 @@ internal sealed class ImportMaterializationGroupConfiguration : IEntityTypeConfi
             // A skipped group has a reason and no request; every other group has a request and no reason.
             table.HasCheckConstraint(
                 "CK_ImportMaterializationGroups_SkipOrRequest",
-                "([Action] = 'Skipped' AND [OrderRequestId] IS NULL AND [SkipReason] IS NOT NULL)" +
-                " OR ([Action] <> 'Skipped' AND [OrderRequestId] IS NOT NULL AND [SkipReason] IS NULL)"));
+                "(\"Action\" = 'Skipped' AND \"OrderRequestId\" IS NULL AND \"SkipReason\" IS NOT NULL)" +
+                " OR (\"Action\" <> 'Skipped' AND \"OrderRequestId\" IS NOT NULL AND \"SkipReason\" IS NULL)"));
 
         builder.Property(group => group.SkipReason).HasMaxLength(ImportMaterializationGroup.SkipReasonMaxLength);
 

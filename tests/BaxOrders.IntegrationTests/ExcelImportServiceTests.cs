@@ -12,10 +12,10 @@ using static BaxOrders.IntegrationTests.ImportWorkbooks;
 
 namespace BaxOrders.IntegrationTests;
 
-[Collection(SqlServerCollection.Name)]
-public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Workbook_with_several_locations_and_months_is_grouped_by_location_and_period()
     {
         await using var db = database.CreateContext();
@@ -46,7 +46,7 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal(3, Assert.Single(result.Sheets).HeaderRowNumber);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Existing_request_is_reported_but_never_changed()
     {
         await using var db = database.CreateContext();
@@ -65,13 +65,13 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal(requestsBefore, await db.OrderRequests.CountAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Fully_resolved_rows_make_the_import_ready()
     {
         await using var db = database.CreateContext();
         var pieces = await db.UnitsOfMeasure.SingleAsync(u => u.Code == "PCS");
         var name = $"Lapatka {Guid.NewGuid():N}";
-        var product = new Product(await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
+        var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
         product.AddVariant(null, null, null, pieces);
         db.Products.Add(product);
         await db.SaveChangesAsync();
@@ -87,13 +87,13 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal("əd.", row.OriginalOrderUnit);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Possible_duplicates_and_invalid_prices_do_not_block_ready_to_import()
     {
         await using var db = database.CreateContext();
         var pieces = await db.UnitsOfMeasure.SingleAsync(u => u.Code == "PCS");
         var name = $"Vedrə {Guid.NewGuid():N}";
-        var product = new Product(await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
+        var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
         product.AddVariant(null, null, null, pieces);
         db.Products.Add(product);
         await db.SaveChangesAsync();
@@ -119,7 +119,7 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal("-1", rows[2].OriginalUnitPrice);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Same_workbook_is_not_processed_twice()
     {
         await using var db = database.CreateContext();
@@ -136,7 +136,7 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, await db.ImportBatches.CountAsync(b => b.FileHash == fileHash));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Failed_workbook_can_be_retried()
     {
         await using var db = database.CreateContext();
@@ -153,7 +153,7 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.NotEqual(failed.ImportBatchId, retried.ImportBatchId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Workbook_without_the_required_columns_fails_with_details()
     {
         await using var db = database.CreateContext();
@@ -170,7 +170,7 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal(0, await db.ImportRows.CountAsync(r => r.ImportBatchId == result.ImportBatchId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Invalid_uploads_are_rejected_before_a_batch_exists()
     {
         await using var db = database.CreateContext();
@@ -185,7 +185,7 @@ public sealed class ExcelImportServiceTests(SqlServerDatabaseFixture database)
         Assert.Equal(batchesBefore, await db.ImportBatches.CountAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_are_paged_and_filtered_on_the_server()
     {
         await using var db = database.CreateContext();

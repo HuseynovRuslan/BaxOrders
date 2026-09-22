@@ -15,10 +15,10 @@ namespace BaxOrders.IntegrationTests;
 /// The step that turns reviewed staging rows into permanent orders. Every fixture is synthetic: no company
 /// workbook is read, and each test uses its own product and location names so nothing leaks between them.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class ImportConfirmationTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_preview_writes_nothing()
     {
         await using var db = database.CreateContext();
@@ -36,7 +36,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal(ImportStatus.ReadyToImport, (await check.ImportBatches.SingleAsync(b => b.Id == fixture.BatchId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task One_location_and_period_becomes_one_request_with_one_item_per_row()
     {
         await using var db = database.CreateContext();
@@ -56,7 +56,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Null(request.ResponsiblePersonId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Two_periods_and_two_locations_become_four_requests()
     {
         await using var db = database.CreateContext();
@@ -78,7 +78,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.All(requests, request => Assert.Single(request.Items));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_excluded_row_becomes_no_item()
     {
         await using var db = database.CreateContext();
@@ -99,7 +99,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.True(excluded.IsExcluded);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_that_look_identical_become_two_items()
     {
         await using var db = database.CreateContext();
@@ -123,7 +123,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal(2, request.Items.Count);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_unknown_price_stays_unknown_and_an_unresolved_supplier_stays_empty()
     {
         await using var db = database.CreateContext();
@@ -146,7 +146,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.All(items, item => Assert.Null(item.SupplierId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_resolved_supplier_is_copied_onto_the_item()
     {
         await using var db = database.CreateContext();
@@ -165,7 +165,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal<long?>(created.TargetId, Assert.Single(request.Items).SupplierId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Every_item_points_back_at_the_row_it_came_from()
     {
         await using var db = database.CreateContext();
@@ -188,7 +188,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         }
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_batch_becomes_imported_and_stops_accepting_review_decisions()
     {
         await using var db = database.CreateContext();
@@ -206,7 +206,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
             new ExcludeRowCommand(fixture.BatchId, rows[0].Id, "gec qaldı"), CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_batch_that_is_not_ready_cannot_be_confirmed()
     {
         await using var db = database.CreateContext();
@@ -220,7 +220,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Empty(await check.OrderRequests.Where(request => request.SourceImportBatchId == batchId).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Confirming_twice_creates_nothing_the_second_time()
     {
         await using var db = database.CreateContext();
@@ -238,7 +238,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Single(await check.ImportMaterializations.Where(item => item.ImportBatchId == fixture.BatchId).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_existing_request_is_never_touched_without_a_decision()
     {
         await using var db = database.CreateContext();
@@ -262,7 +262,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal(ImportStatus.ReadyToImport, (await check.ImportBatches.SingleAsync(b => b.Id == fixture.BatchId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_new_version_leaves_the_earlier_one_untouched()
     {
         await using var db = database.CreateContext();
@@ -290,7 +290,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal(existing.Id, requests[0].Id);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_skipped_group_creates_nothing_and_says_why()
     {
         await using var db = database.CreateContext();
@@ -315,7 +315,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal("bu obyekt ayrıca göndəriləcək", skipped.SkipReason);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Skipping_without_a_reason_is_refused()
     {
         await using var db = database.CreateContext();
@@ -327,7 +327,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
             CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_stale_preview_is_refused_instead_of_imported()
     {
         await using var db = database.CreateContext();
@@ -344,7 +344,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal(ImportStatus.ReadyToImport, (await check.ImportBatches.SingleAsync(b => b.Id == fixture.BatchId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_failure_part_way_through_leaves_no_company_data_behind()
     {
         await using var db = database.CreateContext();
@@ -371,7 +371,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
         Assert.Equal(ImportStatus.ReadyToImport, (await check.ImportBatches.SingleAsync(b => b.Id == fixture.BatchId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_permanent_amount_equals_the_staged_amount()
     {
         await using var db = database.CreateContext();

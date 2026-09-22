@@ -26,8 +26,8 @@ namespace BaxOrders.IntegrationTests;
 /// rows. Everything lives in the throw-away test database, which the fixture drops at the end of the run;
 /// no company request is touched, and nothing in the pipeline is relaxed for a test.
 /// </remarks>
-[Collection(SqlServerCollection.Name)]
-public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class RevisionEndToEndTests(PostgresDatabaseFixture database) : IAsyncLifetime
 {
     private WebApplicationFactory<Program> factory = null!;
 
@@ -36,7 +36,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
-            builder.UseSetting("ConnectionStrings:BaxOrders", SqlServerDatabaseFixture.ConnectionString);
+            builder.UseSetting("ConnectionStrings:BaxOrders", PostgresDatabaseFixture.ConnectionString);
         });
 
         return Task.CompletedTask;
@@ -46,7 +46,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
     // ---- A: returned, then corrected -----------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_coordinator_corrects_a_returned_order_and_the_reviewed_version_stays_as_it_was()
     {
         var world = await ReturnedAsync();
@@ -85,7 +85,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
     // ---- B: the correction is edited -----------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Editing_the_correction_changes_only_the_correction_and_records_every_change()
     {
         var world = await ReturnedAsync();
@@ -123,7 +123,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
     // ---- C: the correction is approved ---------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_edited_correction_is_approved_through_the_existing_workflow_and_analytics_reads_it()
     {
         var world = await ReturnedAsync();
@@ -157,7 +157,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
     // ---- D: the correction is returned and corrected again -------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_returned_correction_is_corrected_into_version_three_whose_lines_lead_to_version_two()
     {
         var world = await ReturnedAsync();
@@ -196,7 +196,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
     // ---- who may do it -------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_coordinator_or_an_administrator_corrects_and_a_manager_only_looks()
     {
         var world = await ReturnedAsync();
@@ -234,7 +234,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
         Assert.Equal(12m, (await db.OrderRequestItems.SingleAsync(item => item.Id == line)).Quantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Whoever_edited_the_correction_cannot_decide_on_it_over_http()
     {
         var world = await ReturnedAsync();
@@ -271,7 +271,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
         Assert.Equal(OrderRequestStatus.Approved, (await WorkflowAsync(freshManager.Client, v2)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_administrator_who_corrects_and_submits_cannot_approve_it()
     {
         var world = await ReturnedAsync();
@@ -287,7 +287,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
     // ---- the contract --------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task What_cannot_be_read_unambiguously_or_applied_safely_is_refused()
     {
         var world = await ReturnedAsync();
@@ -337,7 +337,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
         Assert.Equal(11m, (await db.OrderRequestItems.SingleAsync(item => item.Id == line)).Quantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Correcting_and_editing_need_the_antiforgery_token_like_every_other_write()
     {
         var world = await ReturnedAsync();
@@ -507,7 +507,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
         await using var db = database.CreateContext();
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
         var product = new Product(
-            await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Əlavə mal {Guid.NewGuid():N}"[..20]);
+            await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Əlavə mal {Guid.NewGuid():N}"[..20]);
         db.Products.Add(product);
         await db.SaveChangesAsync();
 
@@ -521,7 +521,7 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
     {
         await using var db = database.CreateContext();
         var header = await db.OrderRequests.AsNoTracking().Where(item => item.Id == request)
-            .Select(item => new { item.Status, item.Version, item.RowVersion, item.UpdatedAtUtc, item.SubmittedByUserId, item.ReturnedAtUtc })
+            .Select(item => new { item.Status, item.Version, item.ConcurrencyStamp, item.UpdatedAtUtc, item.SubmittedByUserId, item.ReturnedAtUtc })
             .SingleAsync();
         var lines = await db.OrderRequestItems.AsNoTracking().Where(item => item.OrderRequestId == request).OrderBy(item => item.Id)
             .Select(item => new { item.Id, item.ProductVariantId, item.Quantity, item.UnitPrice, item.SupplierId, item.SourceOrderRequestItemId })

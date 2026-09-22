@@ -11,10 +11,10 @@ using static BaxOrders.IntegrationTests.ImportWorkbooks;
 
 namespace BaxOrders.IntegrationTests;
 
-[Collection(SqlServerCollection.Name)]
-public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class ImportResolutionServiceTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task One_decision_updates_every_row_with_that_value_and_keeps_unrelated_issues()
     {
         await using var db = database.CreateContext();
@@ -50,7 +50,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.Equal(rows.Count(row => row.ValidationStatus == ImportRowValidationStatus.NeedsReview), batch.WarningRows);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_global_alias_makes_the_next_import_resolve_by_itself()
     {
         await using var db = database.CreateContext();
@@ -73,7 +73,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.DoesNotContain(laterRow.Issues, issue => issue.IssueType == ImportIssueType.UnknownSupplier);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_alias_that_would_be_ambiguous_is_refused_and_nothing_is_stored()
     {
         await using var db = database.CreateContext();
@@ -95,7 +95,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.All(await RowsAsync(check, batchId), row => Assert.Null(row.MatchedSupplierId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Repeating_a_decision_is_idempotent_and_contradicting_it_conflicts()
     {
         await using var db = database.CreateContext();
@@ -123,7 +123,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.Equal(ResolutionScope.GlobalAlias, resolution.Scope);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_created_location_gets_a_generated_code_and_forms_a_preview_group()
     {
         await using var db = database.CreateContext();
@@ -151,20 +151,20 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.Equal((true, 1, GroupSuggestedAction.RequiresOperatorDecision), (refreshed.ExistingRequest, refreshed.LatestVersion, refreshed.SuggestedAction));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Concurrent_location_code_requests_never_collide()
     {
         var codes = await Task.WhenAll(Enumerable.Range(0, 20).Select(async _ =>
         {
             await using var db = database.CreateContext();
-            return await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None);
+            return await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None);
         }));
 
         Assert.Equal(codes.Length, codes.Distinct().Count());
         Assert.All(codes, code => Assert.Matches(@"^LOC-\d{6}$", code));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Creating_a_unit_unblocks_the_rows_that_used_it()
     {
         await using var db = database.CreateContext();
@@ -193,7 +193,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.True(result.AliasSaved);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_specification_unit_decision_leaves_the_order_unit_alone()
     {
         await using var db = database.CreateContext();
@@ -213,7 +213,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.DoesNotContain(row.Issues, issue => issue.IssueType == ImportIssueType.UnknownUnit);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Creating_a_category_path_reuses_the_levels_that_exist()
     {
         await using var db = database.CreateContext();
@@ -247,7 +247,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.All(rows, row => Assert.DoesNotContain(row.Issues, issue => issue.IssueType == ImportIssueType.UnknownCategory));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_category_path_with_a_blank_level_cannot_be_created()
     {
         await using var db = database.CreateContext();
@@ -262,7 +262,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
             new CreateCategoryPathCommand(batchId, key), CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Unresolved_values_are_grouped_by_distinct_value()
     {
         await using var db = database.CreateContext();
@@ -295,7 +295,7 @@ public sealed class ImportResolutionServiceTests(SqlServerDatabaseFixture databa
         Assert.Equal(ImportSourceKeys.Name(supplierB), Assert.Single(filtered!.Items).SourceKey);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Two_decisions_for_the_same_value_cannot_both_be_stored()
     {
         await using var db = database.CreateContext();

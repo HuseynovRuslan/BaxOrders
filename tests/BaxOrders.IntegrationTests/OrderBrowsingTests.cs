@@ -14,10 +14,10 @@ namespace BaxOrders.IntegrationTests;
 /// Browsing permanent orders: which locations have requests, the history of one, a request with its lines and
 /// the audit trail behind a line. Every fixture is synthetic and every assertion is read-only.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class OrderBrowsingTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_summarises_its_requests_periods_items_and_known_money()
     {
         await using var db = database.CreateContext();
@@ -36,7 +36,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal([2026], history.Years);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Money_never_counts_a_line_whose_price_is_unknown()
     {
         await using var db = database.CreateContext();
@@ -49,7 +49,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal(100m, detail.KnownAmountTotal);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_with_no_request_is_still_listed_and_says_so()
     {
         await using var db = database.CreateContext();
@@ -64,7 +64,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Null(row.LatestRequestId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_list_searches_by_name_and_by_code()
     {
         await using var db = database.CreateContext();
@@ -78,7 +78,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.LocationId, Assert.Single(byCode.Locations.Items).LocationId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_history_pages_and_keeps_the_newest_period_first()
     {
         await using var db = database.CreateContext();
@@ -92,7 +92,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.May, Assert.Single(second!.Requests.Items).RequestPeriod);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_month_filter_reads_the_period_not_the_request_date()
     {
         await using var db = database.CreateContext();
@@ -107,7 +107,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Null(entry.RequestDate);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Two_versions_of_one_period_stay_two_rows()
     {
         await using var db = database.CreateContext();
@@ -128,7 +128,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.All(rows, row => Assert.Equal(world.May, row.RequestPeriod));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_order_shows_its_header_and_pages_its_lines_in_source_order()
     {
         await using var db = database.CreateContext();
@@ -146,7 +146,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal(rowNumbers.OrderBy(number => number).ToList(), rowNumbers);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Lines_can_be_searched_by_product_name_code_and_model()
     {
         await using var db = database.CreateContext();
@@ -162,7 +162,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal(byName.Items.Items[0].OrderRequestItemId, byModel.Items.Items[0].OrderRequestItemId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Lines_can_be_filtered_by_supplier_and_by_whether_the_price_is_known()
     {
         await using var db = database.CreateContext();
@@ -178,7 +178,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, bySupplier.Items.TotalCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_line_carries_everything_the_screen_needs()
     {
         await using var db = database.CreateContext();
@@ -203,7 +203,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Null(priceless.SupplierName);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_service_line_keeps_its_month_unit_and_a_unitless_line_keeps_none()
     {
         await using var db = database.CreateContext();
@@ -219,7 +219,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Null(unitless.UnitPrice);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_line_points_back_at_the_exact_row_the_sheet_had()
     {
         await using var db = database.CreateContext();
@@ -246,7 +246,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Contains(item.ProductCode, product.CanonicalValue);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_correction_is_visible_next_to_the_value_the_sheet_had()
     {
         await using var db = database.CreateContext();
@@ -266,7 +266,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Contains("PRD-", product.CanonicalValue);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Unknown_things_answer_with_nothing_instead_of_failing()
     {
         await using var db = database.CreateContext();
@@ -278,7 +278,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         Assert.Null(await orders.GetItemProvenanceAsync(-1, CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_page_size_beyond_the_limit_is_capped()
     {
         await using var db = database.CreateContext();
@@ -316,7 +316,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
 
     private static async Task<Location> EmptyLocationAsync(BaxOrdersDbContext db)
     {
-        var location = new Location(await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Boş obyekt {Unique()}");
+        var location = new Location(await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Boş obyekt {Unique()}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
         return location;
@@ -333,8 +333,8 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         var june = new DateOnly(2026, 6, 1);
 
         // Codes come from the same sequences production uses; they have a fixed shape the domain enforces.
-        var locationCodes = new SqlServerLocationCodeGenerator(db);
-        var productCodes = new SqlServerProductCodeGenerator(db);
+        var locationCodes = new PostgresLocationCodeGenerator(db);
+        var productCodes = new PostgresProductCodeGenerator(db);
         var location = new Location(await locationCodes.NextAsync(CancellationToken.None), $"Obyekt {tag}");
         var supplier = new Supplier($"Təchizatçı {tag}");
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");

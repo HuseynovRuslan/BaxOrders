@@ -13,10 +13,10 @@ namespace BaxOrders.IntegrationTests;
 /// Product and variant decisions against a real SQL Server database. Every fixture here is synthetic: no company
 /// workbook is read and no record of the real catalog is touched.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_unknown_product_keeps_the_batch_out_of_import()
     {
         await using var db = database.CreateContext();
@@ -32,7 +32,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(ImportStatus.NeedsReview, batch.Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_product_decision_resolves_its_rows_and_opens_the_variant_for_review()
     {
         await using var db = database.CreateContext();
@@ -68,7 +68,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Empty(await check.ProductAliases.Where(alias => alias.NormalizedAlias == key).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_created_product_gets_a_generated_code_and_no_variant_of_its_own()
     {
         await using var db = database.CreateContext();
@@ -92,7 +92,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Null(row.MatchedProductVariantId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_product_alias_makes_the_next_import_resolve_by_itself()
     {
         await using var db = database.CreateContext();
@@ -115,7 +115,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.DoesNotContain(laterRow.Issues, issue => issue.IssueType == ImportIssueType.UnknownProduct);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_product_alias_that_would_be_ambiguous_is_refused_and_nothing_is_stored()
     {
         await using var db = database.CreateContext();
@@ -142,7 +142,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.All(await RowsAsync(check, batchId), row => Assert.Null(row.MatchedProductId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_variant_waits_for_the_unit_decision_and_is_counted_as_blocked()
     {
         await using var db = database.CreateContext();
@@ -178,7 +178,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal((1, 1, 0), (summary.DistinctValues, summary.AffectedRows, summary.DependencyBlockedRows));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_created_variant_is_built_from_canonical_units_and_finishes_the_batch()
     {
         await using var db = database.CreateContext();
@@ -216,7 +216,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal((ImportStatus.ReadyToImport, 0, 0), (batch.Status, batch.InvalidRows, batch.WarningRows));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_variant_is_mapped_only_inside_its_own_product_and_order_unit()
     {
         await using var db = database.CreateContext();
@@ -249,7 +249,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Null(Assert.Single(await RowsAsync(check, batchId)).MatchedProductVariantId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Mapping_a_matching_variant_is_idempotent_and_contradicting_it_conflicts()
     {
         await using var db = database.CreateContext();
@@ -287,7 +287,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(2, await check.ProductVariants.CountAsync(variant => variant.ProductId == product.Id));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_variant_cannot_be_decided_while_its_product_is_unknown()
     {
         await using var db = database.CreateContext();
@@ -302,7 +302,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Null(await new ImportReviewQueries(db).GetVariantPlanAsync(batchId, sourceKey, CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Distinct_product_values_are_listed_with_their_spellings_and_can_be_searched()
     {
         await using var db = database.CreateContext();
@@ -329,7 +329,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(ImportSourceKeys.Name(second), Assert.Single(filtered!.Items).SourceKey);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Products_and_variants_are_searched_as_choices_for_a_person()
     {
         await using var db = database.CreateContext();
@@ -361,7 +361,7 @@ public sealed class ProductResolutionTests(SqlServerDatabaseFixture database)
 
     private static async Task<Product> AddProductAsync(BaxOrdersDbContext db, string name)
     {
-        var product = new Product(await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
+        var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
         db.Products.Add(product);
         await db.SaveChangesAsync();
         return product;

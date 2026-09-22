@@ -10,7 +10,7 @@ internal sealed class OrderRequestWorkflowEventConfiguration : IEntityTypeConfig
     {
         builder.ToTable("OrderRequestWorkflowEvents", table =>
             table.HasCheckConstraint(
-                "CK_OrderRequestWorkflowEvents_StatusChanged", "[FromStatus] <> [ToStatus]"));
+                "CK_OrderRequestWorkflowEvents_StatusChanged", "\"FromStatus\" <> \"ToStatus\""));
 
         builder.Property(workflowEvent => workflowEvent.ActorDisplayName)
             .HasMaxLength(OrderRequestWorkflowEvent.ActorDisplayNameMaxLength);

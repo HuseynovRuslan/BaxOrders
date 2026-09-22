@@ -8,25 +8,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.IntegrationTests;
 
-[Collection(SqlServerCollection.Name)]
-public sealed class SqlServerPersistenceTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class PostgresPersistenceTests(PostgresDatabaseFixture database)
 {
     private static readonly DateOnly March = new(2026, 3, 1);
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Concurrent_product_code_requests_never_collide()
     {
         var codes = await Task.WhenAll(Enumerable.Range(0, 25).Select(async _ =>
         {
             await using var db = database.CreateContext();
-            return await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None);
+            return await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None);
         }));
 
         Assert.Equal(codes.Length, codes.Distinct().Count());
         Assert.All(codes, code => Assert.True(ProductCode.IsValid(code), code));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Latest_version_of_a_logical_request_is_found()
     {
         int locationId;
@@ -35,7 +35,7 @@ public sealed class SqlServerPersistenceTests(SqlServerDatabaseFixture database)
         {
             var location = await db.Locations.SingleAsync(l => l.Code == "RAMANA");
             var pieces = await db.UnitsOfMeasure.SingleAsync(u => u.Code == "PCS");
-            var product = new Product(await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), "Lapatka");
+            var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), "Lapatka");
             var shovel = product.AddVariant(null, null, null, pieces);
             db.Products.Add(product);
 
@@ -63,7 +63,7 @@ public sealed class SqlServerPersistenceTests(SqlServerDatabaseFixture database)
         }
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Same_version_of_a_logical_request_cannot_be_stored_twice()
     {
         await using var db = database.CreateContext();
@@ -74,7 +74,7 @@ public sealed class SqlServerPersistenceTests(SqlServerDatabaseFixture database)
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Alias_spellings_that_normalize_equally_are_rejected()
     {
         await using (var db = database.CreateContext())
@@ -94,7 +94,7 @@ public sealed class SqlServerPersistenceTests(SqlServerDatabaseFixture database)
         }
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Canonical_location_names_are_unique()
     {
         await using var db = database.CreateContext();

@@ -17,11 +17,11 @@ internal sealed class ImportResolutionConfiguration : IEntityTypeConfiguration<I
         builder.ToTable("ImportResolutions", table =>
             table.HasCheckConstraint(
                 "CK_ImportResolutions_SingleTarget",
-                "(CASE WHEN [LocationId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [SupplierId] IS NULL THEN 0 ELSE 1 END + " +
-                "CASE WHEN [ResponsiblePersonId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [UnitOfMeasureId] IS NULL THEN 0 ELSE 1 END + " +
-                "CASE WHEN [CategoryId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [ProductId] IS NULL THEN 0 ELSE 1 END + " +
-                "CASE WHEN [ProductVariantId] IS NULL THEN 0 ELSE 1 END) = " +
-                "CASE WHEN [Action] = 'MarkNotAUnit' THEN 0 ELSE 1 END"));
+                "(CASE WHEN \"LocationId\" IS NULL THEN 0 ELSE 1 END + CASE WHEN \"SupplierId\" IS NULL THEN 0 ELSE 1 END + " +
+                "CASE WHEN \"ResponsiblePersonId\" IS NULL THEN 0 ELSE 1 END + CASE WHEN \"UnitOfMeasureId\" IS NULL THEN 0 ELSE 1 END + " +
+                "CASE WHEN \"CategoryId\" IS NULL THEN 0 ELSE 1 END + CASE WHEN \"ProductId\" IS NULL THEN 0 ELSE 1 END + " +
+                "CASE WHEN \"ProductVariantId\" IS NULL THEN 0 ELSE 1 END) = " +
+                "CASE WHEN \"Action\" = 'MarkNotAUnit' THEN 0 ELSE 1 END"));
 
         builder.Property(resolution => resolution.SourceKey).HasMaxLength(ImportResolution.SourceKeyMaxLength);
         builder.Property(resolution => resolution.SourceKeyHash)

@@ -26,8 +26,8 @@ namespace BaxOrders.IntegrationTests;
 /// which is what a copied line has to lead back to. Each operation runs in a context of its own, the way each
 /// web request does. No company request is corrected, edited or moved by a test.
 /// </remarks>
-[Collection(SqlServerCollection.Name)]
-public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class OrderRevisionTests(PostgresDatabaseFixture database)
 {
     private static readonly CancellationToken None = CancellationToken.None;
 
@@ -41,7 +41,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
     // ---- making the correction -----------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_returned_request_is_corrected_as_the_next_version_with_every_line_copied_exactly()
     {
         var world = await ReturnedAsync();
@@ -79,7 +79,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.Coordinator.UserId, created.ActorUserId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_returned_version_is_left_exactly_as_it_was()
     {
         var world = await ReturnedAsync();
@@ -92,7 +92,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(before, await SnapshotAsync(world.V1));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task No_workbook_row_is_materialized_twice()
     {
         var world = await ReturnedAsync();
@@ -105,7 +105,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.False(await db.ImportRowMaterializations.AnyAsync(link => link.OrderRequestItem.OrderRequestId == v2));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_draft_a_waiting_or_an_approved_request_is_not_corrected()
     {
         var draft = await ImportAsync();
@@ -129,7 +129,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
             revision.SourceOrderRequestId == draft || revision.SourceOrderRequestId == waiting || revision.SourceOrderRequestId == approved));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Asking_again_gets_the_same_correction_rather_than_another()
     {
         var world = await ReturnedAsync();
@@ -142,7 +142,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         await AssertVersionsAsync(world, 1, 2);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Several_people_correcting_at_once_make_one_correction()
     {
         var world = await ReturnedAsync();
@@ -162,7 +162,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, await db.OrderRequestRevisions.CountAsync(revision => revision.SourceOrderRequestId == world.V1));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_version_something_newer_has_overtaken_is_not_the_one_to_correct()
     {
         var world = await ReturnedAsync();
@@ -182,7 +182,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         await Assert.ThrowsAsync<ConflictException>(() => RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None)));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_manager_or_nobody_cannot_correct_an_order()
     {
         var world = await ReturnedAsync();
@@ -194,7 +194,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
     // ---- editing the correction ----------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Every_kind_of_edit_changes_the_correction_and_is_recorded()
     {
         var world = await ReturnedAsync();
@@ -244,7 +244,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(4.5m, what.RootElement.GetProperty("unitPrice").GetDecimal());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_money_and_the_missing_prices_are_those_of_the_correction()
     {
         var world = await ReturnedAsync();
@@ -263,7 +263,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal((1, 33.5m, 3), (reviewed.MissingPriceItemCount, reviewed.KnownAmountTotal, reviewed.ItemCount));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_price_or_a_supplier_can_be_cleared_back_to_nothing()
     {
         var world = await ReturnedAsync();
@@ -284,7 +284,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Null(history[^1].NewValue);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_edit_made_from_a_stale_copy_is_refused_and_overwrites_nothing()
     {
         var world = await ReturnedAsync();
@@ -305,7 +305,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(11m, (await db.OrderRequestItems.SingleAsync(item => item.Id == line)).Quantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Only_a_correction_draft_is_edited()
     {
         var world = await ReturnedAsync();
@@ -327,7 +327,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
             await service.RemoveItemAsync(v2, copied, (await service.GetAsync(v2, None))!.RowVersion, None)));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Bad_input_is_refused_before_anything_is_written()
     {
         var world = await ReturnedAsync();
@@ -351,7 +351,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(before, await SnapshotAsync(v2));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_manager_cannot_edit_a_correction()
     {
         var world = await ReturnedAsync();
@@ -361,7 +361,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         await Assert.ThrowsAsync<ForbiddenException>(() => EditAsync(world.Manager, v2, line, new(null, Quantity: new(11m))));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_history_keeps_the_name_a_person_had_when_they_acted()
     {
         var world = await ReturnedAsync();
@@ -379,7 +379,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal("Sınaq koordinatoru", state.RevisedFrom!.CreatedByDisplayName);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Later_edits_add_to_the_history_and_never_rewrite_it()
     {
         var world = await ReturnedAsync();
@@ -399,7 +399,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
     // ---- provenance ----------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_copied_line_leads_back_through_every_version_to_its_workbook_row()
     {
         var world = await ReturnedAsync();
@@ -431,7 +431,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
             (source.OrderRequestItemId, source.ImportRowId, source.ImportBatchId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_line_added_by_hand_has_no_workbook_row_and_none_is_made_up()
     {
         var world = await ReturnedAsync();
@@ -452,7 +452,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
     // ---- the order as it is read ---------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_order_says_which_version_it_corrects_and_which_corrects_it()
     {
         var world = await ReturnedAsync();
@@ -477,7 +477,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.False(managerView.CanEditRevision);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Before_it_is_corrected_a_returned_version_offers_the_correction()
     {
         var world = await ReturnedAsync();
@@ -492,7 +492,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
     // ---- the correction in the workflow --------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_correction_goes_through_the_existing_workflow_and_keeps_its_version()
     {
         var world = await ReturnedAsync();
@@ -511,7 +511,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(2, await db.OrderRequestWorkflowEvents.CountAsync(entry => entry.OrderRequestId == v2));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_corrected_version_is_not_sent_back_unchanged()
     {
         var world = await ReturnedAsync();
@@ -528,7 +528,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.True(correction.AllowedActions.CanSubmit);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_administrator_who_corrects_and_submits_still_cannot_approve_it()
     {
         var world = await ReturnedAsync();
@@ -541,7 +541,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
             service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Whoever_edited_the_correction_cannot_decide_on_it_and_somebody_else_can()
     {
         var world = await ReturnedAsync();
@@ -576,7 +576,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(OrderRequestStatus.Approved, approved.Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_imported_request_is_still_decided_on_the_submitter_rule_alone()
     {
         var request = await ImportAsync();
@@ -590,7 +590,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         Assert.Equal(OrderRequestStatus.Approved, approved.Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_returned_correction_is_corrected_again_one_version_at_a_time()
     {
         var world = await ReturnedAsync();
@@ -620,7 +620,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
     // ---- analytics -----------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Analytics_reads_the_correction_as_soon_as_it_exists()
     {
         var world = await ReturnedAsync();
@@ -724,13 +724,13 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
     private async Task<T> RevisingAs<T>(ICurrentUserContext user, Func<OrderRevisionService, Task<T>> work)
     {
         await using var db = database.CreateContext();
-        return await work(new OrderRevisionService(db, user, new SqlServerOrderRequestLock(db), NullLogger<OrderRevisionService>.Instance));
+        return await work(new OrderRevisionService(db, user, new PostgresOrderRequestLock(db), NullLogger<OrderRevisionService>.Instance));
     }
 
     private async Task<T> WorkflowAs<T>(ICurrentUserContext user, Func<OrderWorkflowService, Task<T>> work)
     {
         await using var db = database.CreateContext();
-        return await work(new OrderWorkflowService(db, user, new SqlServerOrderRequestLock(db)));
+        return await work(new OrderWorkflowService(db, user, new PostgresOrderRequestLock(db)));
     }
 
     private async Task<TestCurrentUser> UserAsync(string role, string displayName)
@@ -758,7 +758,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         await using var db = database.CreateContext();
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
         var product = new Product(
-            await new SqlServerProductCodeGenerator(db).NextAsync(None), $"Əlavə mal {Guid.NewGuid():N}"[..20]);
+            await new PostgresProductCodeGenerator(db).NextAsync(None), $"Əlavə mal {Guid.NewGuid():N}"[..20]);
         db.Products.Add(product);
         await db.SaveChangesAsync();
 
@@ -790,7 +790,7 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         var header = await db.OrderRequests.AsNoTracking().Where(item => item.Id == request)
             .Select(item => new
             {
-                item.Status, item.Version, item.RowVersion, item.UpdatedAtUtc, item.RequestDate,
+                item.Status, item.Version, item.ConcurrencyStamp, item.UpdatedAtUtc, item.RequestDate,
                 item.SubmittedByUserId, item.SubmittedAtUtc, item.ReturnedAtUtc, item.ApprovedAtUtc,
             })
             .SingleAsync();

@@ -12,8 +12,8 @@ internal sealed class ImportBatchConfiguration : IEntityTypeConfiguration<Import
         {
             table.HasCheckConstraint(
                 "CK_ImportBatches_RowCounts",
-                "[TotalRows] >= 0 AND [ValidRows] >= 0 AND [WarningRows] >= 0 AND [InvalidRows] >= 0 " +
-                "AND [ValidRows] + [WarningRows] + [InvalidRows] <= [TotalRows]");
+                "\"TotalRows\" >= 0 AND \"ValidRows\" >= 0 AND \"WarningRows\" >= 0 AND \"InvalidRows\" >= 0 " +
+                "AND \"ValidRows\" + \"WarningRows\" + \"InvalidRows\" <= \"TotalRows\"");
         });
 
         builder.Property(batch => batch.OriginalFileName).HasMaxLength(ImportBatch.OriginalFileNameMaxLength);
@@ -34,6 +34,6 @@ internal sealed class ImportBatchConfiguration : IEntityTypeConfiguration<Import
         // be retried; concurrent uploads of the same file cannot both be staged.
         builder.HasIndex(batch => batch.FileHash)
             .IsUnique()
-            .HasFilter("[FileHash] IS NOT NULL AND [Status] <> 'Failed'");
+            .HasFilter("\"FileHash\" IS NOT NULL AND \"Status\" <> 'Failed'");
     }
 }

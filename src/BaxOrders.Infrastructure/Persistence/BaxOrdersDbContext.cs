@@ -78,8 +78,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.HasSequence<long>(SqlServerProductCodeGenerator.SequenceName).StartsAt(1).IncrementsBy(1);
-        modelBuilder.HasSequence<long>(SqlServerLocationCodeGenerator.SequenceName).StartsAt(1).IncrementsBy(1);
+        modelBuilder.HasSequence<long>(PostgresProductCodeGenerator.SequenceName).StartsAt(1).IncrementsBy(1);
+        modelBuilder.HasSequence<long>(PostgresLocationCodeGenerator.SequenceName).StartsAt(1).IncrementsBy(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BaxOrdersDbContext).Assembly);
     }
 

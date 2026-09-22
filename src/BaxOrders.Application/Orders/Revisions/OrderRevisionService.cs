@@ -216,7 +216,7 @@ public sealed class OrderRevisionService(
     /// record that makes it a correction. A copy the caller read before somebody else's change is refused here,
     /// before anything is looked at.
     /// </summary>
-    private async Task<OrderRequest> EditableAsync(long orderRequestId, byte[] token, CancellationToken cancellationToken)
+    private async Task<OrderRequest> EditableAsync(long orderRequestId, Guid token, CancellationToken cancellationToken)
     {
         var request = await db.OrderRequests
             .Include(order => order.RevisedFrom)
@@ -224,7 +224,7 @@ public sealed class OrderRevisionService(
             .FirstOrDefaultAsync(order => order.Id == orderRequestId, cancellationToken)
             ?? throw new NotFoundException($"Order request #{orderRequestId} was not found.");
 
-        if (!ConcurrencyToken.Matches(request.RowVersion, token))
+        if (!ConcurrencyToken.Matches(request.ConcurrencyStamp, token))
         {
             throw new ConflictException(
                 "This order was changed by someone else since you opened it. Reload it and try again.");
@@ -288,7 +288,7 @@ public sealed class OrderRevisionService(
                 request.RequestPeriod,
                 request.Version,
                 request.Status,
-                request.RowVersion,
+                request.ConcurrencyStamp,
                 ItemCount = request.Items.Count,
                 MissingPrice = request.Items.Count(item => item.UnitPrice == null),
                 KnownPrice = request.Items.Count(item => item.UnitPrice != null),
@@ -363,7 +363,7 @@ public sealed class OrderRevisionService(
             IsLatestVersion: !header.HasNewerVersion,
             RevisionPermissions.CanCreate(header.Status, revisedInto is not null, !header.HasNewerVersion, currentUser),
             RevisionPermissions.CanEdit(header.Status, revisedFrom is not null, currentUser),
-            ConcurrencyToken.Of(header.RowVersion),
+            ConcurrencyToken.Of(header.ConcurrencyStamp),
             header.ItemCount,
             header.MissingPrice,
             // Unknown money is not zero money: a request with nothing priced has no amount at all.

@@ -12,10 +12,10 @@ namespace BaxOrders.IntegrationTests;
 /// Row-level corrections and exclusions against a real SQL Server database. Every fixture is synthetic: no company
 /// workbook is read, and the staged original values are expected to survive every operation.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class RowCorrectionTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_correction_resolves_the_row_and_keeps_the_workbook_value()
     {
         await using var db = database.CreateContext();
@@ -42,7 +42,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Equal("H.Ə.M", Assert.Single(await check.ImportRowCorrections.Where(item => item.ImportRowId == row.Id).ToListAsync()).CorrectedValue);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Correcting_a_value_reparses_the_row_and_leaves_unrelated_issues_alone()
     {
         await using var db = database.CreateContext();
@@ -67,7 +67,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Equal("0", corrected.OriginalQuantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_correction_is_held_to_the_same_rules_as_a_workbook_cell()
     {
         await using var db = database.CreateContext();
@@ -94,7 +94,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Empty(await check.ImportRowCorrections.Where(item => item.ImportRowId == row.Id).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_corrected_row_stops_inheriting_the_decision_made_for_the_old_value()
     {
         await using var db = database.CreateContext();
@@ -132,7 +132,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Empty(await reverted.ImportRowCorrections.Where(item => item.ImportRowId == corrected[0].Id).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Correcting_a_row_refreshes_the_possible_duplicates_of_both_groups()
     {
         await using var db = database.CreateContext();
@@ -156,7 +156,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.All(refreshed, row => Assert.NotEqual(ImportRowValidationStatus.Invalid, row.ValidationStatus));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_excluded_row_stays_staged_and_stops_holding_the_batch_back()
     {
         await using var db = database.CreateContext();
@@ -199,7 +199,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
             item => item.Kind == ImportResolutionKind.Location).DistinctValues);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Excluding_the_last_blocking_row_makes_the_batch_ready()
     {
         await using var db = database.CreateContext();
@@ -232,7 +232,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Equal((2, 1, 1), (after.TotalRows, after.IncludedRows, after.ExcludedRows));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Readiness_explains_what_is_still_missing()
     {
         await using var db = database.CreateContext();
@@ -263,7 +263,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Contains(readiness.Blockers, blocker => blocker.Area == ImportReadinessQueries.RowArea);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_candidate_queue_lists_rows_that_need_a_row_specific_decision()
     {
         await using var db = database.CreateContext();
@@ -297,7 +297,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         Assert.Contains("Pis miqdar", candidate.ProductName!);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task One_cell_never_holds_two_corrections()
     {
         await using var db = database.CreateContext();
@@ -321,7 +321,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
         await Assert.ThrowsAsync<DbUpdateException>(() => other.SaveChangesAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_row_of_another_import_is_never_touched()
     {
         await using var db = database.CreateContext();
@@ -335,7 +335,7 @@ public sealed class RowCorrectionTests(SqlServerDatabaseFixture database)
 
     private static async Task<Domain.Catalog.Product> AddProductAsync(BaxOrdersDbContext db, string name)
     {
-        var product = new Domain.Catalog.Product(await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
+        var product = new Domain.Catalog.Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
         db.Products.Add(product);
         await db.SaveChangesAsync();
         return product;

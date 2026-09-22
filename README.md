@@ -1241,6 +1241,76 @@ Task 9B changed no analytics. Tasks 6 and 7 still select the highest version of 
 so a correction draft is what analytics reads from the moment it exists. Approved-only analytics remains a
 separate business decision.
 
+## PostgreSQL (Task 9C)
+
+The database is PostgreSQL, through Npgsql. Nothing in the application talks to SQL Server any more; the one
+place that still can is `tools/BaxOrders.DataTransfer`, which exists to have read the old database once.
+
+### What had to change, and what did not
+
+Switching the connection string would not have been enough. The provider-specific things were:
+
+| Was | Is |
+| --- | --- |
+| `rowversion` concurrency column | An application-managed `Guid` stamp, moved by the save interceptor |
+| `WITH (UPDLOCK, ROWLOCK)` | `SELECT … FOR UPDATE` |
+| `NEXT VALUE FOR [dbo].[Seq]` | `nextval('"Seq"')` |
+| `[Brackets]` in 13 check constraints and a partial index | `"Quoted identifiers"` |
+| `DATEPART(day, x) = 1` | `EXTRACT(DAY FROM x) = 1` |
+| Case-insensitive collation hiding a case-sensitive search | An explicit fold where codes are searched |
+
+The business rules, the analytics formulas and the API contracts are untouched, and the frontend needed no
+change at all.
+
+### The concurrency token
+
+SQL Server maintained `rowversion` itself. PostgreSQL's equivalent would be `xmin`, which is the database's
+own bookkeeping and would leak into an API the browser has to echo back. Instead `OrderRequest` carries a
+`ConcurrencyStamp` — a `Guid` the save interceptor gives a new value whenever the row changes, and EF compares
+on every update.
+
+The behaviour a caller sees is the same: `GET …/revision` returns a `rowVersion` string, every edit sends it
+back, and a stale one is refused with **409**. The wire name stays `rowVersion` because that is what it is —
+the version of that row — and because the frontend had no reason to change. Identity's own `ConcurrencyStamp`
+is a string it maintains itself, and is deliberately left alone.
+
+### Row locks
+
+`IImportBatchLock` and `IOrderRequestLock` kept their shape; only the statement behind them changed, to
+`SELECT 1 FROM … WHERE "Id" = … FOR UPDATE`. It blocks other writers asking for the same row and leaves plain
+readers alone — the same bargain `UPDLOCK` struck — and, like `UPDLOCK`, it means something only inside a
+transaction, which every caller opens. The invariants it protects are unchanged: one import confirmation, one
+correction per returned version, and no workflow transition racing a correction.
+
+### Behaviour that genuinely differs
+
+- **Search is case-sensitive.** SQL Server's default collation is not, which had been quietly covering a
+  mismatch: the search needle is normalized (lower-cased), while product and location codes are stored
+  upper-case. Searching `PRD-000011` worked by accident. The three places that compare a needle to a code now
+  fold the column explicitly, so the behaviour is the same and no longer depends on the collation.
+- **Sorting.** The cluster is created with an ICU `az-AZ` collation so names sort the way the screens present
+  them; the C locale would put `Ə` after `Z`.
+- **Timestamps** are `timestamp with time zone`, and Npgsql refuses a `DateTime` that is not marked UTC. Every
+  timestamp here is a UTC instant — each column is named for it — so the value converter marks an unlabelled
+  one rather than converting it, which would have moved the instant by the machine's offset.
+
+### The Development data
+
+The 167 requests were not rebuilt by re-running the earlier tasks: `tools/BaxOrders.DataTransfer` copied the
+whole Development database across once, ids and all, so every foreign key still points where it pointed. It
+reads the table order from the EF model, so no table can be forgotten, and it resets the identity sequences
+afterwards — the step whose absence only shows up later, when somebody adds a location and the database
+refuses it.
+
+It reconciles both sides before and after, table by table and on the figures that carry meaning:
+
+```
+dotnet run --project tools/BaxOrders.DataTransfer -- --reset       # copy, then reconcile
+dotnet run --project tools/BaxOrders.DataTransfer -- --verify-only # reconcile only
+```
+
+The SQL Server database is left in place. It is the fallback until PostgreSQL has been used in anger.
+
 ## Data protection rules
 
 - Locations, categories, units, products, variants, suppliers and responsible persons are **deactivated,
@@ -1257,23 +1327,40 @@ separate business decision.
 ## Prerequisites
 
 - .NET SDK 10 (built with 10.0.301)
-- SQL Server. For development, SQL Server Express **LocalDB** works out of the box.
+- PostgreSQL 16+. `scripts/dev-postgres.ps1` runs a private one for this repository without Docker or admin
+  rights; `docker-compose.yml` is there for people who would rather use Docker.
 - Node.js 22+ and npm
 - EF Core CLI: `dotnet tool install --global dotnet-ef`
 
 ## Database setup
 
-The API reads the connection string `ConnectionStrings:BaxOrders`. No secrets are committed:
+The database is **PostgreSQL**. The API reads the connection string `ConnectionStrings:BaxOrders`, and no
+secrets are committed — there is no default connection string anywhere in the repository.
 
-- **Development** uses LocalDB via `src/BaxOrders.Api/appsettings.Development.json`
-  (`Server=(localdb)\MSSQLLocalDB;Database=BaxOrders_Dev;Trusted_Connection=True`).
-  To use another server locally, override with user secrets:
-  ```
-  dotnet user-secrets init --project src/BaxOrders.Api
-  dotnet user-secrets set "ConnectionStrings:BaxOrders" "<connection string>" --project src/BaxOrders.Api
-  ```
-- **Other environments** must set the environment variable `ConnectionStrings__BaxOrders`.
-  The API refuses to start without it.
+One command sets up Development:
+
+```
+./scripts/dev-postgres.ps1
+```
+
+It starts a private cluster for this repository (its own data directory under `%LOCALAPPDATA%\BaxOrders`,
+port **55434**, role **baxorders**, database **baxorders_dev**), invents a password on first run, keeps it
+outside the repository, and writes the connection strings into user-secrets — the API's, and the integration
+tests' admin connection. It never touches the system PostgreSQL service, and its port is its own, so another
+project's cluster on this machine is left alone. `./scripts/dev-postgres.ps1 -Stop` stops it.
+
+With Docker instead:
+
+```
+$env:POSTGRES_PASSWORD = "<choose one>"
+docker compose up -d
+dotnet user-secrets set "ConnectionStrings:BaxOrders" `
+  "Host=localhost;Port=55434;Database=baxorders_dev;Username=baxorders;Password=$env:POSTGRES_PASSWORD" `
+  --project src/BaxOrders.Api
+```
+
+**Other environments** set the environment variable `ConnectionStrings__BaxOrders`. The API refuses to start
+without it.
 
 In Development only, `Database:ApplyMigrationsOnStartup=true` applies pending migrations when the API
 starts. Nothing is migrated automatically in any other environment.
@@ -1314,6 +1401,17 @@ dotnet ef migrations script --idempotent --project src/BaxOrders.Infrastructure 
 ```
 
 The unit test `Model_matches_the_latest_migration` fails if the model changes without a migration.
+
+### Migration history
+
+PostgreSQL starts from a single baseline, **`InitialPostgres`**, generated from the model as it stood at the
+end of Task 9B. The eleven SQL Server migrations that built the database through Tasks 1–9B are kept in
+`Persistence/MigrationsArchive.SqlServer/`, excluded from compilation and invisible to EF Core.
+
+They are not rewritten to pretend they were always PostgreSQL — they carry `rowversion`, `nvarchar`,
+`datetime2` and `NEXT VALUE FOR`, and applying them here would fail. They are kept because they are the record
+of how each column and constraint came to exist. Nothing was in production yet, so a clean baseline costs
+nothing and reads honestly.
 
 ## Running the backend
 
@@ -1369,15 +1467,21 @@ details.
 
 ### Integration tests (opt-in)
 
-`tests/BaxOrders.IntegrationTests` checks behaviour that only a real SQL Server can prove: product code
-uniqueness under concurrency, unique request versions, unique names and aliases. The tests are skipped
-unless `BAXORDERS_TEST_SQLSERVER` is set. The fixture creates the database from the migrations and
-**drops it afterwards**, so it refuses database names that do not end with `_Test`.
+`tests/BaxOrders.IntegrationTests` checks behaviour that only a real PostgreSQL can prove: row locks, unique
+indexes, check constraints, sequence allocation under concurrency, and the concurrency token. Nothing there is
+mocked — a mock of a database proves only that the mock behaves.
+
+They run against whatever `scripts/dev-postgres.ps1` set up, and are skipped when nothing is configured, so a
+fresh clone still has a passing test run:
 
 ```
-$env:BAXORDERS_TEST_SQLSERVER = "Server=(localdb)\MSSQLLocalDB;Database=BaxOrders_Test;Trusted_Connection=True;TrustServerCertificate=True"
+./scripts/dev-postgres.ps1            # once; writes TestDatabase:AdminConnectionString to user-secrets
 dotnet test tests/BaxOrders.IntegrationTests
 ```
+
+On a build server, point `BAXORDERS_TEST_POSTGRES` at a server instead. Either way the fixture **creates its
+own database for the run and drops it at the end**, named for that run, so two runs on one server cannot
+tread on each other and nothing outside the run is touched.
 
 ## Running the frontend
 
@@ -1599,6 +1703,22 @@ Task 9A (correcting a returned order, backend only, migration `AddOrderRequestRe
 - `CanReviseOrders` (Coordinator, Admin); managers read only; row-version tokens turn stale edits into 409s
 - The existing workflow carries the correction; a corrected version takes no further workflow action
 - Analytics policy unchanged — a correction is the newest version, so it is read at once; screens are 9B
+
+Task 9C (PostgreSQL, migration history restarted at `InitialPostgres`):
+
+- Npgsql replaces the SQL Server provider; no application path touches SQL Server any more
+- `scripts/dev-postgres.ps1` runs a private cluster per repository without Docker; `docker-compose.yml` for
+  those who prefer Docker
+- Concurrency moved from `rowversion` to an application-managed `Guid` stamp — same 409 behaviour, same wire
+  contract, no `xmin` in the API
+- `UPDLOCK` became `FOR UPDATE`; the lock abstractions kept their shape and their invariants
+- 13 check constraints, one partial index and two sequence readers rewritten for PostgreSQL
+- A case-sensitivity difference that SQL Server's collation had been hiding, fixed explicitly where codes are
+  searched
+- The Development data moved across once by `tools/BaxOrders.DataTransfer`, ids preserved, sequences reset,
+  both sides reconciled — 36,202 rows, 167 requests, 431,670.91404 unchanged
+- Integration tests run against a real PostgreSQL that the fixture creates and drops per run
+- Frontend untouched
 
 Task 9B (the correction screens, no migration):
 

@@ -16,12 +16,12 @@ internal sealed class OrderRequestEditEventConfiguration : IEntityTypeConfigurat
             // A "changed" entry says which field changed, and nothing else carries a field.
             table.HasCheckConstraint(
                 "CK_OrderRequestEditEvents_FieldMatchesAction",
-                $"([Action] IN ({ChangedActions}) AND [Field] IS NOT NULL) OR ([Action] NOT IN ({ChangedActions}) AND [Field] IS NULL)");
+                $"(\"Action\" IN ({ChangedActions}) AND \"Field\" IS NOT NULL) OR (\"Action\" NOT IN ({ChangedActions}) AND \"Field\" IS NULL)");
 
             // Everything but the creation of the version is about one line.
             table.HasCheckConstraint(
                 "CK_OrderRequestEditEvents_ItemEventNamesItem",
-                "[Action] = 'RevisionCreated' OR ([OrderRequestItemId] IS NOT NULL AND [ProductVariantId] IS NOT NULL)");
+                "\"Action\" = 'RevisionCreated' OR (\"OrderRequestItemId\" IS NOT NULL AND \"ProductVariantId\" IS NOT NULL)");
         });
 
         builder.Property(editEvent => editEvent.ActorDisplayName)

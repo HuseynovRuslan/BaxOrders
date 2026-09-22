@@ -78,9 +78,9 @@ internal static class ImportWorkbooks
             Planner(db, maxItems),
             new ImportRevalidator(db, new ImportCatalogLoader(db)),
             new ImportPreviewQueries(db),
-            new SqlServerLocationCodeGenerator(db),
-            new SqlServerProductCodeGenerator(db),
-            new SqlServerImportBatchLock(db),
+            new PostgresLocationCodeGenerator(db),
+            new PostgresProductCodeGenerator(db),
+            new PostgresImportBatchLock(db),
             NullLogger<BulkResolutionService>.Instance);
 
     public static ImportRowCorrectionService CorrectionService(BaxOrdersDbContext db) =>
@@ -89,7 +89,7 @@ internal static class ImportWorkbooks
             new ImportRevalidator(db, new ImportCatalogLoader(db)),
             new ImportRowDetailQueries(db),
             new ImportPreviewQueries(db),
-            new SqlServerImportBatchLock(db),
+            new PostgresImportBatchLock(db),
             TimeProvider.System,
             NullLogger<ImportRowCorrectionService>.Instance);
 
@@ -98,9 +98,9 @@ internal static class ImportWorkbooks
             db,
             new ImportRevalidator(db, new ImportCatalogLoader(db)),
             new ImportPreviewQueries(db),
-            new SqlServerLocationCodeGenerator(db),
-            new SqlServerProductCodeGenerator(db),
-            new SqlServerImportBatchLock(db),
+            new PostgresLocationCodeGenerator(db),
+            new PostgresProductCodeGenerator(db),
+            new PostgresImportBatchLock(db),
             NullLogger<ImportResolutionService>.Instance);
 
     public static ImportConfirmationPlanner ConfirmationPlanner(BaxOrdersDbContext db) => new(db);
@@ -109,7 +109,7 @@ internal static class ImportWorkbooks
         new(
             db,
             ConfirmationPlanner(db),
-            new SqlServerImportBatchLock(db),
+            new PostgresImportBatchLock(db),
             clock ?? TimeProvider.System,
             NullLogger<ImportConfirmationService>.Instance);
 

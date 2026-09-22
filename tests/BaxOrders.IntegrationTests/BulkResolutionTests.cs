@@ -14,10 +14,10 @@ namespace BaxOrders.IntegrationTests;
 /// Bulk review against a real SQL Server database: select, preview, confirm, apply. Every fixture is synthetic —
 /// no company workbook is read and no record of the real catalog is touched.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class BulkResolutionTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_preview_writes_nothing()
     {
         await using var db = database.CreateContext();
@@ -40,7 +40,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.All(await RowsAsync(check, batchId), row => Assert.Null(row.MatchedProductId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Selected_products_are_created_and_matched_in_one_operation()
     {
         await using var db = database.CreateContext();
@@ -79,7 +79,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Empty(await check.ProductAliases.Where(alias => created.Select(product => product.Id).Contains(alias.ProductId)).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Several_spellings_can_be_mapped_to_one_existing_record()
     {
         await using var db = database.CreateContext();
@@ -109,7 +109,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
             resolution => Assert.Equal(ResolutionScope.BatchOnly, resolution.Scope));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Global_aliases_are_saved_only_where_the_operator_asked_for_them()
     {
         await using var db = database.CreateContext();
@@ -135,7 +135,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(remembered, alias.Alias);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task One_conflicting_value_stops_the_whole_operation()
     {
         await using var db = database.CreateContext();
@@ -168,7 +168,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.All(await RowsAsync(check, batchId), row => Assert.Null(row.MatchedSupplierId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Repeating_a_bulk_operation_writes_nothing_the_second_time()
     {
         await using var db = database.CreateContext();
@@ -187,7 +187,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(2, await check.ImportResolutions.CountAsync(resolution => resolution.ImportBatchId == batchId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_catalog_change_between_preview_and_apply_is_caught()
     {
         await using var db = database.CreateContext();
@@ -210,7 +210,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(0, await check.Products.CountAsync(product => product.Name == names[0]));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Units_and_category_paths_are_never_created_in_bulk()
     {
         await using var db = database.CreateContext();
@@ -247,7 +247,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal((pieces.Id, target.Id), (row.MatchedOrderUnitId, row.MatchedCategoryId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_item_limit_is_enforced_before_anything_is_read()
     {
         await using var db = database.CreateContext();
@@ -263,7 +263,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Empty(await check.ImportResolutions.Where(resolution => resolution.ImportBatchId == batchId).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Dependency_ready_variants_are_created_in_one_operation_and_finish_the_batch()
     {
         await using var db = database.CreateContext();
@@ -308,7 +308,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal((ImportStatus.ReadyToImport, 0, 0), (batch.Status, batch.InvalidRows, batch.WarningRows));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_variant_whose_dependencies_are_missing_cannot_be_applied()
     {
         await using var db = database.CreateContext();
@@ -342,7 +342,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, await check.ImportRows.CountAsync(row => row.ImportBatchId == batchId && row.VariantSourceKey == null));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_existing_variant_is_mapped_but_never_duplicated()
     {
         await using var db = database.CreateContext();
@@ -373,7 +373,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
         Assert.Equal((0, 0), (variants.DistinctValues, variants.DependencyBlockedRows));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_work_queue_counts_decided_and_remaining_values()
     {
         await using var db = database.CreateContext();
@@ -408,7 +408,7 @@ public sealed class BulkResolutionTests(SqlServerDatabaseFixture database)
 
     private static async Task<Product> AddProductAsync(BaxOrdersDbContext db, string name)
     {
-        var product = new Product(await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
+        var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
         db.Products.Add(product);
         await db.SaveChangesAsync();
         return product;

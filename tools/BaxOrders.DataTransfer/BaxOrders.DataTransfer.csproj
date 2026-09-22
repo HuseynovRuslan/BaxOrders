@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>BaxOrders.DataTransfer</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The one place in the repository that still talks to SQL Server, and it is not part of the application:
+      it exists to read the old Development database once and is never referenced by anything that runs.
+    -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.12" />
+    <PackageReference Include="Npgsql" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BaxOrders.Infrastructure\BaxOrders.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

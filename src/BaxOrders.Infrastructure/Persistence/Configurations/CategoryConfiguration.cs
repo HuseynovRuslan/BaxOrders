@@ -10,10 +10,10 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
     {
         builder.ToTable("Categories", table =>
         {
-            table.HasCheckConstraint("CK_Categories_NotOwnParent", "[ParentId] IS NULL OR [ParentId] <> [Id]");
+            table.HasCheckConstraint("CK_Categories_NotOwnParent", "\"ParentId\" IS NULL OR \"ParentId\" <> \"Id\"");
             table.HasCheckConstraint(
                 "CK_Categories_Level",
-                $"([ParentId] IS NULL AND [Level] = {Category.RootLevel}) OR ([ParentId] IS NOT NULL AND [Level] > {Category.RootLevel})");
+                $"(\"ParentId\" IS NULL AND \"Level\" = {Category.RootLevel}) OR (\"ParentId\" IS NOT NULL AND \"Level\" > {Category.RootLevel})");
         });
 
         builder.Property(category => category.Name).HasMaxLength(Category.NameMaxLength);

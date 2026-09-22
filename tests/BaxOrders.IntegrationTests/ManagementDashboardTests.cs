@@ -12,12 +12,12 @@ namespace BaxOrders.IntegrationTests;
 /// The company's month across every location, against a real SQL Server. Each test builds its own locations
 /// and filters the dashboard down to them, because the database is shared with every other test in the suite.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
 {
     // ---- periods -------------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_period_list_names_every_month_the_company_ordered_in()
     {
         await using var db = database.CreateContext();
@@ -35,7 +35,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- the three distinct situations ----------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_with_this_month_and_the_one_before_is_compared()
     {
         await using var db = database.CreateContext();
@@ -50,7 +50,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.SteadyJulyRequestId, row.CurrentRequestId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_with_this_month_but_no_month_before_is_not_a_shop_full_of_new_products()
     {
         await using var db = database.CreateContext();
@@ -68,7 +68,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Null(row.Baseline.KnownAmount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_that_ordered_before_but_not_this_month_says_so_instead_of_showing_zero()
     {
         await using var db = database.CreateContext();
@@ -92,7 +92,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(200m, row.Baseline.KnownAmount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_three_situations_are_three_different_answers()
     {
         await using var db = database.CreateContext();
@@ -108,7 +108,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- history coverage ----------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_three_month_window_reports_the_months_the_location_never_ordered_in()
     {
         await using var db = database.CreateContext();
@@ -123,7 +123,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.True(partial.ComparisonAvailable);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_six_month_window_counts_the_months_that_exist()
     {
         await using var db = database.CreateContext();
@@ -139,7 +139,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.DoesNotContain(world.July, row.MissingBaselinePeriods);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Only_the_highest_version_of_a_month_contributes()
     {
         await using var db = database.CreateContext();
@@ -156,7 +156,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- money ---------------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_amount_is_the_money_of_its_priced_lines()
     {
         await using var db = database.CreateContext();
@@ -172,7 +172,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(row.Current.KnownAmount - 200m, row.KnownAmountDelta);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_baseline_of_several_months_is_the_money_of_an_average_month()
     {
         await using var db = database.CreateContext();
@@ -184,7 +184,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(200m, row.Baseline.KnownAmount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_line_with_no_price_leaves_the_amount_known_but_incomplete()
     {
         await using var db = database.CreateContext();
@@ -200,7 +200,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- services ------------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_service_counts_towards_money_but_never_towards_a_quantity_state()
     {
         await using var db = database.CreateContext();
@@ -217,7 +217,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- agreement with the location screen ----------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_dashboard_row_says_the_same_as_the_location_comparison_it_links_to()
     {
         await using var db = database.CreateContext();
@@ -253,7 +253,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- filters, search, sorting, paging -------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_searched_by_location_name_and_code()
     {
         await using var db = database.CreateContext();
@@ -266,7 +266,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.SteadyId, Assert.Single(byCode.Rows.Items).LocationId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_filtered_by_history_coverage()
     {
         await using var db = database.CreateContext();
@@ -284,7 +284,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.DoesNotContain(complete.Rows.Items, row => row.LocationId == world.NoHistoryId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_filtered_to_the_locations_that_did_not_order_this_month()
     {
         await using var db = database.CreateContext();
@@ -297,7 +297,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.All(with.Rows.Items, row => Assert.True(row.HasCurrentRequest));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_filtered_by_the_price_coverage_of_the_current_month()
     {
         await using var db = database.CreateContext();
@@ -308,7 +308,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.UnpricedId, Assert.Single(partial.Rows.Items).LocationId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_sort_by_name_by_default_and_by_money_when_asked()
     {
         await using var db = database.CreateContext();
@@ -326,7 +326,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(amounts.OrderByDescending(amount => amount), amounts);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_row_with_no_figure_to_sort_by_goes_last_in_both_directions()
     {
         await using var db = database.CreateContext();
@@ -343,7 +343,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         }
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_are_paged_and_the_page_size_is_capped()
     {
         await using var db = database.CreateContext();
@@ -359,7 +359,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(ManagementDashboardQueries.MaxPageSize, capped.Rows.PageSize);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_summary_describes_the_whole_company_whatever_the_filter_or_the_page()
     {
         await using var db = database.CreateContext();
@@ -378,7 +378,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Equal(everything.Summary.LocationsWithoutCurrentRequest, filtered.FilteredLocationCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_summary_counts_history_coverage_and_missing_prices()
     {
         await using var db = database.CreateContext();
@@ -404,7 +404,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
 
     // ---- shape of the answer --------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Every_row_carries_what_is_needed_to_open_its_own_comparison()
     {
         await using var db = database.CreateContext();
@@ -419,7 +419,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         });
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_month_nobody_ordered_in_is_answered_with_nothing()
     {
         await using var db = database.CreateContext();
@@ -430,7 +430,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         Assert.Null(missing);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Reading_the_dashboard_writes_nothing()
     {
         await using var db = database.CreateContext();
@@ -504,7 +504,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
         var month = await ServiceUnitAsync(db, tag);
 
-        var codes = new SqlServerLocationCodeGenerator(db);
+        var codes = new PostgresLocationCodeGenerator(db);
         var steady = await LocationAsync(db, codes, $"Daimi {tag}");
         var noHistory = await LocationAsync(db, codes, $"Tarixsiz {tag}");
         var dormant = await LocationAsync(db, codes, $"Susmuş {tag}");
@@ -514,7 +514,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         var service = await LocationAsync(db, codes, $"Xidmətli {tag}");
         await db.SaveChangesAsync();
 
-        var productCodes = new SqlServerProductCodeGenerator(db);
+        var productCodes = new PostgresProductCodeGenerator(db);
         var material = await ProductAsync(db, productCodes, $"Mop {tag}");
         var other = await ProductAsync(db, productCodes, $"Süpürgə {tag}");
         var cleaning = await ProductAsync(db, productCodes, $"Təmizlik xidməti {tag}");
@@ -590,7 +590,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
     }
 
     private static async Task<Location> LocationAsync(
-        BaxOrdersDbContext db, SqlServerLocationCodeGenerator codes, string name)
+        BaxOrdersDbContext db, PostgresLocationCodeGenerator codes, string name)
     {
         var location = new Location(await codes.NextAsync(CancellationToken.None), name);
         db.Locations.Add(location);
@@ -598,7 +598,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
     }
 
     private static async Task<Product> ProductAsync(
-        BaxOrdersDbContext db, SqlServerProductCodeGenerator codes, string name)
+        BaxOrdersDbContext db, PostgresProductCodeGenerator codes, string name)
     {
         var product = new Product(await codes.NextAsync(CancellationToken.None), name);
         db.Products.Add(product);

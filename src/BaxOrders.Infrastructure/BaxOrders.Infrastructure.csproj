@@ -8,7 +8,13 @@
   <ItemGroup>
     <PackageReference Include="ExcelDataReader" Version="3.9.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The SQL Server migration history is kept for archaeology only; see the folder's README. -->
+    <Compile Remove="Persistence\MigrationsArchive.SqlServer\**" />
+    <None Include="Persistence\MigrationsArchive.SqlServer\**" />
   </ItemGroup>
 
   <ItemGroup>

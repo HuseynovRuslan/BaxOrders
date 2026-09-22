@@ -10,7 +10,7 @@ internal sealed class OrderRequestRevisionConfiguration : IEntityTypeConfigurati
     {
         builder.ToTable("OrderRequestRevisions", table =>
             table.HasCheckConstraint(
-                "CK_OrderRequestRevisions_NotItself", "[SourceOrderRequestId] <> [RevisionOrderRequestId]"));
+                "CK_OrderRequestRevisions_NotItself", "\"SourceOrderRequestId\" <> \"RevisionOrderRequestId\""));
 
         builder.Property(revision => revision.CreatedByDisplayName)
             .HasMaxLength(OrderRequestRevision.CreatedByDisplayNameMaxLength);

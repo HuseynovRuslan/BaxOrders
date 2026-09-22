@@ -10,8 +10,8 @@ internal sealed class OrderRequestConfiguration : IEntityTypeConfiguration<Order
     {
         builder.ToTable("OrderRequests", table =>
         {
-            table.HasCheckConstraint("CK_OrderRequests_RequestPeriodIsMonthStart", "DATEPART(day, [RequestPeriod]) = 1");
-            table.HasCheckConstraint("CK_OrderRequests_Version", "[Version] >= 1");
+            table.HasCheckConstraint("CK_OrderRequests_RequestPeriodIsMonthStart", "EXTRACT(DAY FROM \"RequestPeriod\") = 1");
+            table.HasCheckConstraint("CK_OrderRequests_Version", "\"Version\" >= 1");
         });
 
         builder.HasOne(request => request.Location)
@@ -40,7 +40,8 @@ internal sealed class OrderRequestConfiguration : IEntityTypeConfiguration<Order
         builder.HasIndex(request => request.Status);
 
         // Two people acting on the same request at once: the second write finds the row changed and fails
-        // rather than quietly overwriting the first.
-        builder.Property(request => request.RowVersion).IsRowVersion();
+        // rather than quietly overwriting the first. The value is the application's own (see the interceptor),
+        // so the guard does not depend on a provider-specific column type.
+        builder.Property(request => request.ConcurrencyStamp).IsConcurrencyToken();
     }
 }

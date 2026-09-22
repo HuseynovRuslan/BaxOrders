@@ -14,10 +14,10 @@ namespace BaxOrders.IntegrationTests;
 /// identical-looking lines, a specification descriptor, a monthly service, a unitless service and a footer
 /// row — carried through review, preview, confirmation, reconciliation and a retry.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class ImportConfirmationEndToEndTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class ImportConfirmationEndToEndTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_whole_workbook_goes_from_staging_to_orders_and_back_adds_nothing()
     {
         var tag = Guid.NewGuid().ToString("N")[..6];

@@ -13,10 +13,10 @@ namespace BaxOrders.IntegrationTests;
 /// measure, and a line that legitimately has no order unit. Every fixture is synthetic; no company workbook is
 /// read, and the staged <c>Original*</c> values are expected to survive every operation.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class UnitlessAndDescriptorTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_word_that_is_not_a_unit_stops_blocking_without_becoming_one()
     {
         await using var db = database.CreateContext();
@@ -46,7 +46,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.DoesNotContain(resolved.Issues, issue => issue.IssueType == ImportIssueType.UnknownUnit);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_descriptor_keeps_the_variant_apart_from_the_plain_number()
     {
         await using var db = database.CreateContext();
@@ -72,7 +72,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.DoesNotContain(null, keys);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_suffix_forms_resolve_to_one_descriptor()
     {
         await using var db = database.CreateContext();
@@ -94,7 +94,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.Single(rows.Select(row => row.VariantSourceKey).Distinct());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Marking_a_value_that_is_already_a_unit_is_refused()
     {
         await using var db = database.CreateContext();
@@ -104,7 +104,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
             new MarkNotAUnitCommand(batchId, ImportResolutionKind.SpecificationUnit, "santimetr"), CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Marking_the_same_value_twice_changes_nothing()
     {
         await using var db = database.CreateContext();
@@ -122,7 +122,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.Single(await check.ImportResolutions.Where(item => item.ImportBatchId == batchId).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_order_unit_cell_is_only_unitless_once_someone_says_so()
     {
         await using var db = database.CreateContext();
@@ -153,7 +153,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.Null(correction.CorrectedValue);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_currency_in_the_order_unit_column_never_becomes_a_unit()
     {
         await using var db = database.CreateContext();
@@ -177,7 +177,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.DoesNotContain(reviewed.Issues, issue => issue.IssueType == ImportIssueType.UnknownUnit);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Reverting_the_decision_puts_the_blocker_back()
     {
         await using var db = database.CreateContext();
@@ -194,7 +194,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
         Assert.Contains(reverted.Issues, issue => issue.IssueType == ImportIssueType.MissingRequiredValue);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Only_the_order_unit_may_be_left_empty_on_purpose()
     {
         await using var db = database.CreateContext();
@@ -205,7 +205,7 @@ public sealed class UnitlessAndDescriptorTests(SqlServerDatabaseFixture database
             batchId, row.Id, ImportCorrectionField.Location, CancellationToken.None));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Unrelated_problems_of_the_row_are_left_alone()
     {
         await using var db = database.CreateContext();

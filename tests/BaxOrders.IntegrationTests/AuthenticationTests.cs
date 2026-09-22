@@ -21,8 +21,8 @@ namespace BaxOrders.IntegrationTests;
 /// Nothing here is relaxed to make a test pass. The users are created through the real manager, the requests
 /// go through the real middleware, and what is asserted is what a browser would meet.
 /// </remarks>
-[Collection(SqlServerCollection.Name)]
-public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class AuthenticationTests(PostgresDatabaseFixture database) : IAsyncLifetime
 {
     private WebApplicationFactory<Program> factory = null!;
 
@@ -34,7 +34,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
             // Pointed at the suite's own database through configuration, so the application wires itself up
             // exactly as it does in production rather than having pieces swapped out underneath it.
-            builder.UseSetting("ConnectionStrings:BaxOrders", SqlServerDatabaseFixture.ConnectionString);
+            builder.UseSetting("ConnectionStrings:BaxOrders", PostgresDatabaseFixture.ConnectionString);
         });
 
         return Task.CompletedTask;
@@ -44,7 +44,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- the door is shut ----------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_stranger_cannot_read_the_company_s_data()
     {
         using var client = Anonymous();
@@ -62,7 +62,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         }
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_stranger_cannot_change_anything()
     {
         using var client = Anonymous();
@@ -74,7 +74,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Null(response.Headers.Location);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Health_stays_open_so_a_monitor_can_still_ask()
     {
         using var client = Anonymous();
@@ -84,7 +84,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- signing in ----------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_correct_password_signs_you_in()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru");
@@ -100,7 +100,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.False(me.CanManageUsers);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_wrong_password_does_not_say_whether_the_name_exists()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator);
@@ -114,7 +114,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(await wrongPassword.Content.ReadAsStringAsync(), await noSuchUser.Content.ReadAsStringAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Signing_out_ends_the_session()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Manager);
@@ -129,7 +129,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/dashboard/periods")).StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_anonymous_caller_is_told_so_rather_than_refused()
     {
         using var client = Anonymous();
@@ -140,7 +140,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Null(me.Role);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Too_many_wrong_passwords_lock_the_account_for_a_while()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator);
@@ -161,7 +161,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.NotNull(stored.LockoutEnd);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_disabled_account_cannot_sign_in()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator);
@@ -179,7 +179,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- what each role may do -----------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_coordinator_may_run_imports_and_submit_but_not_decide()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator);
@@ -197,7 +197,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/admin/users")).StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_manager_may_decide_but_not_submit_or_import()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Manager);
@@ -216,7 +216,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
             (await PostAsync(client, "/api/v1/imports/1/rows/1/exclude", new { reason = "yox" })).StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_administrator_may_do_both_and_manage_users()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -230,7 +230,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
             (await PostAsync(client, "/api/v1/orders/999999/workflow/approve", new { })).StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Everybody_signed_in_may_read_the_operational_screens()
     {
         foreach (var role in BaxOrdersRoles.All)
@@ -246,7 +246,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- antiforgery ---------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_signed_in_request_without_the_antiforgery_token_is_refused()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -260,7 +260,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_same_request_with_the_token_goes_through()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -278,7 +278,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Signing_in_hands_back_a_token_that_works_for_the_session_it_just_created()
     {
         // What a page actually does: ask for a token once, sign in, then write — without asking again. The
@@ -319,7 +319,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.BadRequest, stale.StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Signing_out_hands_back_a_token_for_the_anonymous_page_that_is_left()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator);
@@ -341,7 +341,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- user administration -------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_name_that_is_already_taken_is_refused()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -359,7 +359,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_role_the_system_does_not_have_is_refused()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -377,7 +377,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task There_is_no_way_to_delete_a_user()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -392,7 +392,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- passwords -----------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Changing_your_own_password_needs_the_old_one_and_keeps_you_signed_in()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator);
@@ -424,7 +424,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.True(me.IsAuthenticated);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_administrator_can_reset_somebody_s_password()
     {
         var admin = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -441,7 +441,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.True((await SignInAsync(personClient, person.UserName, "Sifirlanmis-1")).IsAuthenticated);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_password_that_is_too_weak_is_refused()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
@@ -461,7 +461,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
 
     // ---- the audit trail -----------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Renaming_somebody_does_not_rewrite_what_the_history_says_they_did()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Coordinator, "Köhnə ad");
@@ -469,7 +469,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         await using var db = database.CreateContext();
         var world = await SeedRequestAsync(db);
         var actor = new TestCurrentUser(account.Id, "Köhnə ad", BaxOrdersRoles.Coordinator);
-        await new Application.Orders.Workflow.OrderWorkflowService(db, actor, new SqlServerOrderRequestLock(db))
+        await new Application.Orders.Workflow.OrderWorkflowService(db, actor, new PostgresOrderRequestLock(db))
             .SubmitAsync(world, new Application.Orders.Workflow.SubmitForApprovalCommand(), CancellationToken.None);
 
         await WithScopeAsync(async services =>
@@ -486,7 +486,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         Assert.Equal("Köhnə ad", workflowEvent.ActorDisplayName);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_action_recorded_before_sign_in_existed_is_still_readable()
     {
         await using var db = database.CreateContext();
@@ -527,13 +527,13 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
     {
         var tag = Guid.NewGuid().ToString("N")[..6];
         var location = new Domain.Locations.Location(
-            await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Auth obyekti {tag}");
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Auth obyekti {tag}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
 
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
         var product = new Domain.Catalog.Product(
-            await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Auth malı {tag}");
+            await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Auth malı {tag}");
         db.Products.Add(product);
         await db.SaveChangesAsync();
 

@@ -20,12 +20,12 @@ namespace BaxOrders.IntegrationTests;
 /// The actor comes from the signed-in person, so these tests supply one. A coordinator submits and a manager
 /// decides, because the same person may not do both to the same request.
 /// </remarks>
-[Collection(SqlServerCollection.Name)]
-public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
 {
     // ---- the happy path ------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Submitting_moves_the_request_and_records_who_did_it()
     {
         await using var db = database.CreateContext();
@@ -56,7 +56,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(DateTimeKind.Utc, workflowEvent.OccurredAtUtc.Kind);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Approving_moves_the_request_and_records_who_decided()
     {
         await using var db = database.CreateContext();
@@ -78,7 +78,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal("Sınaq rəhbəri", approval.ActorDisplayName);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Returning_a_request_keeps_the_reason_it_was_returned_for()
     {
         await using var db = database.CreateContext();
@@ -99,7 +99,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.Approver.UserId, returned.ActorUserId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_returned_request_goes_round_again_and_the_whole_story_is_kept_in_order()
     {
         await using var db = database.CreateContext();
@@ -130,7 +130,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, state.Version);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_history_is_added_to_and_never_rewritten()
     {
         await using var db = database.CreateContext();
@@ -157,7 +157,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
 
     // ---- who may do what -----------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_person_who_submitted_a_request_cannot_decide_on_it()
     {
         await using var db = database.CreateContext();
@@ -179,7 +179,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             (await check.OrderRequests.SingleAsync(request => request.Id == world.RequestId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Somebody_else_can_decide_on_it()
     {
         await using var db = database.CreateContext();
@@ -194,7 +194,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(OrderRequestStatus.Approved, state.Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_resubmission_moves_the_rule_to_whoever_resubmitted()
     {
         await using var db = database.CreateContext();
@@ -221,7 +221,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(OrderRequestStatus.Approved, state.Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task What_a_person_may_do_is_their_role_and_the_state_together()
     {
         await using var db = database.CreateContext();
@@ -242,7 +242,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             (await Service(db, world.Submitter).GetAsync(world.RequestId, CancellationToken.None))!.AllowedActions);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_decider_who_is_the_submitter_is_told_why_they_cannot_act()
     {
         await using var db = database.CreateContext();
@@ -261,7 +261,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.True(state.AllowedActions.BlockedBySelfApproval);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_anonymous_caller_cannot_act_even_if_it_reaches_the_service()
     {
         await using var db = database.CreateContext();
@@ -277,7 +277,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
 
     // ---- what is refused -----------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_draft_cannot_be_approved_without_being_submitted()
     {
         await using var db = database.CreateContext();
@@ -293,7 +293,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             .Where(item => item.OrderRequestId == world.RequestId).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_approved_request_cannot_be_moved_again()
     {
         await using var db = database.CreateContext();
@@ -311,7 +311,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(2, await check.OrderRequestWorkflowEvents.CountAsync(item => item.OrderRequestId == world.RequestId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Approving_twice_does_not_happen_twice()
     {
         await using var db = database.CreateContext();
@@ -330,7 +330,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             .ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Two_people_acting_at_once_do_not_both_win()
     {
         await using var setup = database.CreateContext();
@@ -358,7 +358,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             && item.Action != OrderWorkflowAction.SubmittedForApproval).ToListAsync());
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Handing_back_without_a_reason_is_refused()
     {
         await using var db = database.CreateContext();
@@ -374,7 +374,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             (await check.OrderRequests.SingleAsync(request => request.Id == world.RequestId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_unknown_request_is_answered_with_nothing()
     {
         await using var db = database.CreateContext();
@@ -387,7 +387,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
 
     // ---- unpriced lines ------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_server_counts_the_unpriced_lines_itself()
     {
         await using var db = database.CreateContext();
@@ -402,7 +402,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.False(state.AmountIsComplete);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_order_with_an_unpriced_line_is_not_approved_by_accident()
     {
         await using var db = database.CreateContext();
@@ -422,7 +422,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
             (await check.OrderRequests.SingleAsync(request => request.Id == world.RequestId)).Status);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_order_with_an_unpriced_line_is_approved_once_that_is_acknowledged()
     {
         await using var db = database.CreateContext();
@@ -445,7 +445,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, approval.MissingPriceItemCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Nothing_needs_acknowledging_when_every_line_has_a_price()
     {
         await using var db = database.CreateContext();
@@ -461,7 +461,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
 
     // ---- what the workflow leaves alone --------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Moving_through_the_workflow_changes_no_line_and_no_version()
     {
         await using var db = database.CreateContext();
@@ -482,7 +482,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         Assert.Equal(before, await LinesAsync(check, world.RequestId));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Analytics_reads_a_month_the_same_way_whatever_its_approval_status()
     {
         await using var db = database.CreateContext();
@@ -528,7 +528,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
     // ---- fixture -------------------------------------------------------------------------------------
 
     private static OrderWorkflowService Service(BaxOrdersDbContext db, ICurrentUserContext user) =>
-        new(db, user, new SqlServerOrderRequestLock(db));
+        new(db, user, new PostgresOrderRequestLock(db));
 
     private static WorkflowActor Actor(TestCurrentUser user) =>
         WorkflowActor.User(user.UserId!.Value, user.DisplayName!);
@@ -577,13 +577,13 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         var approver = await TestCurrentUser.ManagerAsync(db, "Sınaq rəhbəri");
 
         var location = new Location(
-            await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"İş axını obyekti {tag}");
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"İş axını obyekti {tag}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
 
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
         var product = new Product(
-            await new SqlServerProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Mop {tag}");
+            await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), $"Mop {tag}");
         db.Products.Add(product);
         await db.SaveChangesAsync();
 

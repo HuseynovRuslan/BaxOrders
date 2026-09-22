@@ -30,7 +30,7 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
         if (Search.Of(query.Search) is { } search)
         {
             locations = locations.Where(location =>
-                location.NormalizedName.Contains(search) || location.Code.Contains(search));
+                location.NormalizedName.Contains(search) || location.Code.ToLower().Contains(search));
         }
 
         // Ordering happens on the source query, not on the projection: a sort key that is itself a subquery

@@ -10,8 +10,8 @@ internal sealed class OrderRequestItemConfiguration : IEntityTypeConfiguration<O
     {
         builder.ToTable("OrderRequestItems", table =>
         {
-            table.HasCheckConstraint("CK_OrderRequestItems_Quantity", "[Quantity] > 0");
-            table.HasCheckConstraint("CK_OrderRequestItems_UnitPrice", "[UnitPrice] IS NULL OR [UnitPrice] >= 0");
+            table.HasCheckConstraint("CK_OrderRequestItems_Quantity", "\"Quantity\" > 0");
+            table.HasCheckConstraint("CK_OrderRequestItems_UnitPrice", "\"UnitPrice\" IS NULL OR \"UnitPrice\" >= 0");
         });
 
         builder.Property(item => item.Quantity)

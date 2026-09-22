@@ -1,0 +1,37 @@
+# PostgreSQL for BaxOrders development, for people who have Docker.
+#
+# It is the same database on the same port as scripts/dev-postgres.ps1, which does the job without Docker on
+# a Windows machine that already has PostgreSQL installed. Use whichever suits you; do not run both, since
+# they would want the same port.
+#
+#   docker compose up -d
+#   dotnet user-secrets set "ConnectionStrings:BaxOrders" \
+#     "Host=localhost;Port=55434;Database=baxorders_dev;Username=baxorders;Password=$POSTGRES_PASSWORD" \
+#     --project src/BaxOrders.Api
+#
+# The password comes from the environment — there is no default here, so nothing usable is committed:
+#   $env:POSTGRES_PASSWORD = "<choose one>"   (PowerShell)
+#   export POSTGRES_PASSWORD=<choose one>     (bash)
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: baxorders-postgres
+    environment:
+      POSTGRES_DB: baxorders_dev
+      POSTGRES_USER: baxorders
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD before starting}
+      # Azerbaijani names sort the way the screens present them; the C locale would put "Ə" after "Z".
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=az-AZ --locale=C"
+    ports:
+      - "55434:5432"
+    volumes:
+      - baxorders-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U baxorders -d baxorders_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  baxorders-pgdata:

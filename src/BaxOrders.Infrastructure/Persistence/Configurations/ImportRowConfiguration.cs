@@ -16,10 +16,10 @@ internal sealed class ImportRowConfiguration : IEntityTypeConfiguration<ImportRo
     {
         builder.ToTable("ImportRows", table =>
         {
-            table.HasCheckConstraint("CK_ImportRows_RowNumber", "[RowNumber] > 0");
+            table.HasCheckConstraint("CK_ImportRows_RowNumber", "\"RowNumber\" > 0");
             table.HasCheckConstraint(
                 "CK_ImportRows_ParsedRequestPeriodIsMonthStart",
-                "[ParsedRequestPeriod] IS NULL OR DATEPART(day, [ParsedRequestPeriod]) = 1");
+                "\"ParsedRequestPeriod\" IS NULL OR EXTRACT(DAY FROM \"ParsedRequestPeriod\") = 1");
         });
 
         builder.Property(row => row.SheetName).HasMaxLength(ImportRow.SheetNameMaxLength);

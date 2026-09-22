@@ -71,8 +71,10 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
         {
             items = items.Where(item =>
                 item.ProductVariant.Product.NormalizedName.Contains(search)
-                || item.ProductVariant.Product.Code.Contains(search)
-                || (item.ProductVariant.ModelCode != null && item.ProductVariant.ModelCode.Contains(search)));
+                // The needle is normalized, which lower-cases it; codes are stored upper-case. SQL Server's
+                // case-insensitive collation hid that, PostgreSQL's does not, so the fold is explicit here.
+                || item.ProductVariant.Product.Code.ToLower().Contains(search)
+                || (item.ProductVariant.ModelCode != null && item.ProductVariant.ModelCode.ToLower().Contains(search)));
         }
 
         if (query.SupplierId is { } supplierId)

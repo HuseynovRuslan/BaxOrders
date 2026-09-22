@@ -12,10 +12,10 @@ namespace BaxOrders.IntegrationTests;
 /// may belong to two different catalogs at once, and a service period is a legitimate order unit. Every fixture
 /// is synthetic; no company workbook is read.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class OperationalCatalogTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class OperationalCatalogTests(PostgresDatabaseFixture database)
 {
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_short_operational_name_can_be_canonical_as_written()
     {
         // "EXPO" is how the company writes it. Nothing waits for a longer official name, and nothing invents one.
@@ -38,7 +38,7 @@ public sealed class OperationalCatalogTests(SqlServerDatabaseFixture database)
         Assert.DoesNotContain(row.Issues, issue => issue.IssueType == ImportIssueType.UnknownLocation);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task One_name_may_be_both_a_location_and_a_supplier()
     {
         // Two catalogs, two identities. Sharing a name is not a conflict and never merges the entity types.
@@ -62,7 +62,7 @@ public sealed class OperationalCatalogTests(SqlServerDatabaseFixture database)
             issue.IssueType is ImportIssueType.UnknownLocation or ImportIssueType.UnknownSupplier);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_service_period_is_a_normal_order_unit()
     {
         await using var db = database.CreateContext();
@@ -90,7 +90,7 @@ public sealed class OperationalCatalogTests(SqlServerDatabaseFixture database)
         Assert.Equal("ay", resolved.OriginalOrderUnit);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Resolving_the_last_reference_clears_the_blocker_it_caused()
     {
         var written = $"Bayıl yolu {Unique()}";
@@ -112,7 +112,7 @@ public sealed class OperationalCatalogTests(SqlServerDatabaseFixture database)
         Assert.Equal(0, after.UnresolvedReferences.Locations);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_variant_plan_shows_the_descriptor_and_says_when_there_is_no_order_unit()
     {
         await using var db = database.CreateContext();

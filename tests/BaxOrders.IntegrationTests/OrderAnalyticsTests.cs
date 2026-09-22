@@ -11,12 +11,12 @@ namespace BaxOrders.IntegrationTests;
 /// Comparing a location's month with its own history against a real SQL Server. The fixture is synthetic and
 /// every assertion reads: nothing in analytics writes.
 /// </summary>
-[Collection(SqlServerCollection.Name)]
-public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
+[Collection(PostgresCollection.Name)]
+public sealed class OrderAnalyticsTests(PostgresDatabaseFixture database)
 {
     // ---- current period and versions ----------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_selected_month_resolves_to_that_location_s_request()
     {
         await using var db = database.CreateContext();
@@ -30,7 +30,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(OrderRequestStatus.Draft, comparison.Summary.CurrentStatus);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_month_the_location_never_ordered_in_is_answered_with_nothing_not_an_empty_month()
     {
         await using var db = database.CreateContext();
@@ -42,7 +42,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Null(missing);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Only_the_highest_version_of_a_month_contributes()
     {
         await using var db = database.CreateContext();
@@ -61,7 +61,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, row.Baseline.ItemCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Two_versions_of_a_month_are_never_added_together()
     {
         await using var db = database.CreateContext();
@@ -76,7 +76,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- baseline windows ---------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_previous_month_baseline_is_the_single_month_before()
     {
         await using var db = database.CreateContext();
@@ -90,7 +90,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.True(comparison.Summary.BaselineAvailable);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_three_month_window_reports_the_month_the_location_never_ordered_in_as_missing()
     {
         await using var db = database.CreateContext();
@@ -104,7 +104,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal([world.April, world.May], comparison.Summary.BaselinePeriods.Select(period => period.Period));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_six_month_window_stops_at_the_month_before_the_selected_one()
     {
         await using var db = database.CreateContext();
@@ -120,7 +120,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal([new DateOnly(2025, 12, 1), world.March], comparison.Summary.MissingBaselinePeriods);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_average_divides_by_the_months_that_exist_not_by_the_months_that_were_asked_for()
     {
         await using var db = database.CreateContext();
@@ -134,7 +134,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal((2, 3), (row.Baseline.AvailablePeriodCount, row.Baseline.ExpectedPeriodCount));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task An_available_month_without_the_product_contributes_a_zero()
     {
         await using var db = database.CreateContext();
@@ -147,7 +147,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(25m, row.Baseline.Quantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_location_with_no_history_at_all_is_insufficient_history_not_a_list_of_new_products()
     {
         await using var db = database.CreateContext();
@@ -164,7 +164,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- states -------------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_bigger_order_than_last_month_is_an_increase()
     {
         await using var db = database.CreateContext();
@@ -177,7 +177,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal((10m, 50m), (row.Delta.QuantityDelta, row.Delta.QuantityPercentChange));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_smaller_order_than_last_month_is_a_decrease()
     {
         await using var db = database.CreateContext();
@@ -190,7 +190,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(-20m, row.Delta.QuantityPercentChange);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_product_ordered_for_the_first_time_is_new_and_has_no_percentage()
     {
         await using var db = database.CreateContext();
@@ -203,7 +203,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Null(row.Delta.QuantityPercentChange);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_product_that_stopped_being_ordered_is_still_a_row()
     {
         await using var db = database.CreateContext();
@@ -218,7 +218,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(-100m, row.Delta.QuantityPercentChange);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_same_quantity_as_last_month_is_unchanged()
     {
         await using var db = database.CreateContext();
@@ -232,7 +232,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- identity -----------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task One_product_ordered_in_pieces_and_in_packs_stays_two_rows()
     {
         await using var db = database.CreateContext();
@@ -249,7 +249,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(7m, packs.Current.Quantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_descriptor_variant_stays_apart_from_the_plain_one()
     {
         await using var db = database.CreateContext();
@@ -265,7 +265,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.NotEqual(toothed.Variant.ProductVariantId, plain.Variant.ProductVariantId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Several_lines_of_one_variant_become_one_row_without_touching_the_stored_lines()
     {
         await using var db = database.CreateContext();
@@ -282,7 +282,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- services -----------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_monthly_service_is_compared_by_money_and_never_by_quantity()
     {
         await using var db = database.CreateContext();
@@ -298,7 +298,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal((50m, 50m), (row.Delta.AmountDelta, row.Delta.AmountPercentChange));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_service_billed_per_occasion_is_not_a_quantity_either()
     {
         await using var db = database.CreateContext();
@@ -311,7 +311,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Null(row.Current.Quantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_variant_with_no_order_unit_is_a_service_too()
     {
         await using var db = database.CreateContext();
@@ -327,7 +327,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- money --------------------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_weighted_price_follows_the_quantity_of_each_line()
     {
         await using var db = database.CreateContext();
@@ -340,7 +340,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(190m, row.Current.KnownAmount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_line_with_no_price_is_never_read_as_a_free_line()
     {
         await using var db = database.CreateContext();
@@ -354,7 +354,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(1, row.Current.PriceCoverage.MissingPriceItemCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Partial_price_coverage_is_reported_rather_than_hidden()
     {
         await using var db = database.CreateContext();
@@ -368,7 +368,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(10m, row.Current.PriceCoverage.MissingPriceQuantity);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_summary_money_is_the_money_that_is_known_and_says_when_it_is_partial()
     {
         await using var db = database.CreateContext();
@@ -386,7 +386,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
             comparison.Summary.CurrentMissingPriceItemCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_summary_counts_every_state_of_the_whole_comparison()
     {
         await using var db = database.CreateContext();
@@ -410,7 +410,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- filtering and paging -----------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_searched_by_product_name_code_and_model()
     {
         await using var db = database.CreateContext();
@@ -426,7 +426,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.DescriptorVariantId, Assert.Single(byModel.Rows.Items).Variant.ProductVariantId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_search_narrows_the_rows_but_never_the_summary()
     {
         await using var db = database.CreateContext();
@@ -438,7 +438,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.True(comparison.Summary.TotalVariantCount > 2);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_filtered_to_one_state()
     {
         await using var db = database.CreateContext();
@@ -452,7 +452,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(world.RetiredVariantId, Assert.Single(onlyGone.Rows.Items).Variant.ProductVariantId);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_can_be_split_into_materials_and_services()
     {
         await using var db = database.CreateContext();
@@ -475,7 +475,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(3, services.Rows.TotalCount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Rows_are_paged_and_the_page_size_is_capped()
     {
         await using var db = database.CreateContext();
@@ -493,7 +493,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- periods and trend --------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task The_period_list_offers_every_month_the_location_ordered_in()
     {
         await using var db = database.CreateContext();
@@ -508,7 +508,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.DoesNotContain(world.March, periods.Periods.Select(period => period.Period));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_trend_has_a_point_for_every_month_the_location_ordered_in_and_none_for_the_others()
     {
         await using var db = database.CreateContext();
@@ -526,7 +526,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.DoesNotContain(world.March, trend.Points.Select(point => point.Period));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_month_the_location_ordered_in_without_this_product_is_a_zero_point()
     {
         await using var db = database.CreateContext();
@@ -542,7 +542,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Null(april.KnownAmount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_trend_can_be_limited_to_a_range_of_months()
     {
         await using var db = database.CreateContext();
@@ -555,7 +555,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal([10m, 20m], trend.Points.Select(point => point.Quantity));
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task A_service_has_no_quantity_in_its_trend_either()
     {
         await using var db = database.CreateContext();
@@ -569,7 +569,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.Equal(150m, Assert.Single(trend.Points, point => point.Period == world.June).KnownAmount);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Unknown_locations_and_variants_answer_with_nothing()
     {
         await using var db = database.CreateContext();
@@ -584,7 +584,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
 
     // ---- status and writes --------------------------------------------------------------------------
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Draft_requests_are_included_because_no_approval_workflow_exists_yet()
     {
         await using var db = database.CreateContext();
@@ -597,7 +597,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         Assert.NotEmpty(comparison.Rows.Items);
     }
 
-    [SqlServerFact]
+    [PostgresFact]
     public async Task Reading_analytics_writes_nothing()
     {
         await using var db = database.CreateContext();
@@ -693,7 +693,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         var (april, may, june) = (new DateOnly(2026, 4, 1), new DateOnly(2026, 5, 1), new DateOnly(2026, 6, 1));
 
         var location = new Location(
-            await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Analitika obyekti {tag}");
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Analitika obyekti {tag}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
 
@@ -702,7 +702,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         var month = await ServiceUnitAsync(db, AnalyticsUnits.Month, "Ay", tag);
         var time = await ServiceUnitAsync(db, AnalyticsUnits.Time, "Dəfə", tag);
 
-        var codes = new SqlServerProductCodeGenerator(db);
+        var codes = new PostgresProductCodeGenerator(db);
         var material = await ProductAsync(db, codes, $"Mop {tag}");
         var declining = await ProductAsync(db, codes, $"Süpürgə {tag}");
         var newcomer = await ProductAsync(db, codes, $"Yeni alət {tag}");
@@ -797,12 +797,12 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         var (may, june) = (new DateOnly(2026, 5, 1), new DateOnly(2026, 6, 1));
 
         var location = new Location(
-            await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Versiyalı obyekt {tag}");
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Versiyalı obyekt {tag}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
 
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
-        var product = await ProductAsync(db, new SqlServerProductCodeGenerator(db), $"Versiyalı mal {tag}");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Versiyalı mal {tag}");
         await db.SaveChangesAsync();
 
         var variant = product.AddVariant(null, null, null, pieces);
@@ -836,12 +836,12 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         var june = new DateOnly(2026, 6, 1);
 
         var location = new Location(
-            await new SqlServerLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Tək aylıq obyekt {tag}");
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Tək aylıq obyekt {tag}");
         db.Locations.Add(location);
         await db.SaveChangesAsync();
 
         var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
-        var product = await ProductAsync(db, new SqlServerProductCodeGenerator(db), $"Tək mal {tag}");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Tək mal {tag}");
         await db.SaveChangesAsync();
 
         var variant = product.AddVariant(null, null, null, pieces);
@@ -855,7 +855,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         return new LonelyWorld(location.Id, june);
     }
 
-    private static async Task<Product> ProductAsync(BaxOrdersDbContext db, SqlServerProductCodeGenerator codes, string name)
+    private static async Task<Product> ProductAsync(BaxOrdersDbContext db, PostgresProductCodeGenerator codes, string name)
     {
         var product = new Product(await codes.NextAsync(CancellationToken.None), name);
         db.Products.Add(product);
