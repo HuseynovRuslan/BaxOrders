@@ -34,3 +34,16 @@ public sealed record WorkflowActor(Guid? UserId, string DisplayName)
 /// </remarks>
 public sealed class SelfApprovalNotAllowedException(string action)
     : DomainException($"You cannot {action} a request you submitted yourself; somebody else has to look at it.");
+
+/// <summary>
+/// Raised when somebody tries to decide on a correction version whose content they helped shape.
+/// </summary>
+/// <remarks>
+/// The same reasoning as <see cref="SelfApprovalNotAllowedException"/>, one step further. Submitting is not
+/// the only way to author a version: whoever changed a quantity, a price or a supplier on this correction,
+/// added a line to it, removed one, or created the correction in the first place, has already made the
+/// judgements an approval is supposed to check. It holds for an administrator too.
+/// </remarks>
+public sealed class OwnContributionNotApprovableException(string action)
+    : DomainException(
+        $"You cannot {action} a correction you worked on yourself; somebody who did not edit it has to look at it.");

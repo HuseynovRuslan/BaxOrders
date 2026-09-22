@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\BaxOrders.Application\BaxOrders.Application.csproj" />
@@ -19,6 +19,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>9009c03b-5170-410c-aa43-9cd30c88c6ae</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

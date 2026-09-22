@@ -5,21 +5,19 @@ import {
   returnForCorrection,
   submitForApproval,
   type OrderWorkflow,
-  type WorkflowEvent,
 } from '../../api/workflow'
-import { systemActorLabel } from '../../auth/labels'
 import { formatCount, formatMoney, unknownValue } from '../analytics/format'
 import { WorkflowDialog, type WorkflowDialogKind } from './WorkflowDialog'
+import { WorkflowHistory } from './WorkflowHistory'
 import {
   approveLabel,
   formatWorkflowMoment,
   missingPriceNote,
+  ownContributionBlockedNote,
   resubmitLabel,
   returnLabel,
   selfApprovalBlockedNote,
   submitLabel,
-  workflowActionClass,
-  workflowActionLabels,
   workflowStatusClass,
   workflowStatusLabels,
   workflowStatusSign,
@@ -28,6 +26,8 @@ import {
 interface WorkflowPanelProps {
   orderRequestId: number
   onStatusChanged?: (workflow: OrderWorkflow) => void
+  /** False where the page shows the history itself, so it is not on the screen twice. */
+  showHistory?: boolean
 }
 
 /**
@@ -35,11 +35,11 @@ interface WorkflowPanelProps {
  * <para>
  * Which buttons appear is the server's answer, not this component's opinion: the state, the signed-in
  * person's role and whether this is their own submission all fold into <c>allowedActions</c>, and the
- * endpoint checks the same rules again when the action is taken. Nothing here edits an order — a returned
- * request says that correction is needed, and correcting it is not yet built.
+ * endpoint checks the same rules again when the action is taken. Nothing here edits an order: a returned
+ * request is put right by creating its correction version, which the revision panel offers.
  * </para>
  */
-export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanelProps) {
+export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = true }: WorkflowPanelProps) {
   const [workflow, setWorkflow] = useState<OrderWorkflow | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<WorkflowDialogKind | null>(null)
@@ -135,43 +135,24 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanel
         </p>
       )}
 
-      {workflow.status === 'ReturnedForCorrection' && (
-        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-          Bu sifariş düzəliş üçün qaytarılıb. Sətirlərin redaktəsi hələ sistemdə yoxdur — düzəliş Excel
-          idxalından yeni versiya kimi gəlir.
+      {allowed.blockedByOwnContribution && (
+        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700" role="status">
+          {ownContributionBlockedNote}
         </p>
       )}
 
-      {workflow.history.length > 0 && (
+      {workflow.status === 'ReturnedForCorrection' && (
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+          Bu sifariş düzəliş üçün qaytarılıb. Düzəliş bu versiyada aparılmır: yeni qaralama versiyası yaradılır.
+        </p>
+      )}
+
+      {showHistory && workflow.history.length > 0 && (
         <div className="mt-4 border-t border-slate-100 pt-3">
           <h3 className="text-xs font-medium text-slate-500">Əməliyyat tarixçəsi</h3>
-          <ol className="mt-2 space-y-2.5">
-            {workflow.history.map((entry) => (
-              <li key={entry.id} className="flex gap-3 text-sm">
-                <span
-                  className={`mt-0.5 h-fit rounded px-1.5 py-0.5 text-xs font-medium ${workflowActionClass[entry.action]}`}
-                >
-                  {workflowActionLabels[entry.action]}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-slate-900">
-                    {actorOf(entry)}
-                    <span className="ml-2 text-xs text-slate-500">{formatWorkflowMoment(entry.occurredAtUtc)}</span>
-                  </p>
-                  {entry.comment && (
-                    <p className="text-xs text-slate-600">
-                      {entry.action === 'ReturnedForCorrection' ? <>Səbəb: {entry.comment}</> : entry.comment}
-                    </p>
-                  )}
-                  {entry.missingPricesAcknowledged && (
-                    <p className="text-xs text-amber-800">
-                      {formatCount(entry.missingPriceItemCount)} qiymətsiz sətir təsdiq zamanı qeyd edilib.
-                    </p>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
+          <div className="mt-2">
+            <WorkflowHistory entries={workflow.history} />
+          </div>
         </div>
       )}
 
@@ -193,13 +174,4 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanel
       )}
     </section>
   )
-}
-
-/**
- * The name recorded at the time, shown exactly as it was recorded. Nothing is looked up: if the person has
- * since been renamed or disabled, the history still says who acted then. Events with no user behind them —
- * anything from before sign-in existed — read as the system.
- */
-function actorOf(entry: WorkflowEvent): string {
-  return entry.actorDisplayName.trim().length > 0 ? entry.actorDisplayName : systemActorLabel
 }

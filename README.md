@@ -921,7 +921,8 @@ and `change-password` only require a session.
 ### Nobody approves their own submission
 
 A request remembers **who put it into its current approval cycle** (`SubmittedByUserId`). That person cannot
-approve it or return it — **including an administrator**, who may otherwise do both. Approving your own work
+approve it or return it — **including an administrator**, who may otherwise do both. Since Task 9B the same
+holds for anybody who *edited* the correction, which is the other way to author a version. Approving your own work
 is not a second pair of eyes, and the rule is in the domain, so no route reaches around it:
 
 ```
@@ -1162,9 +1163,83 @@ Existing rows are not rewritten — the new column is `NULL` on all 3,618 import
 
 ### What is not built
 
-The screens (Task 9B): "Düzəliş versiyası yarat", the correction editor, the line dialogs and the edit
-history. Correcting an approved month. Per-object approvers. None of the company's 167 requests has been
-corrected, edited or moved — they are all drafts, and a draft is not corrected.
+Correcting an approved month. Per-object approvers. None of the company's 167 requests has been corrected,
+edited or moved — they are all drafts, and a draft is not corrected. The screens arrived with Task 9B, below.
+
+## The correction screens (Task 9B)
+
+Task 9A built the correction; Task 9B is how somebody actually performs one. The whole flow lives on the
+order detail page: a returned order offers the correction, the correction opens as an editable draft, and it
+goes to approval through the workflow that already existed.
+
+### Creating it
+
+A returned order shows **Düzəliş versiyası yarat**, and says before anything happens that *"Köhnə versiya
+dəyişdirilməyəcək. Yeni qaralama versiyası yaradılacaq."* — because "correct" could otherwise be read as
+"change what was reviewed". The confirm button disables itself while the request is in flight, and a double
+click could not produce two corrections anyway: the server answers the second call with the first correction.
+A version that has already been corrected shows **Düzəliş versiyasına bax** instead, and a correction that was
+itself returned shows **Yeni düzəliş versiyası yarat** — never a way back into the version that was reviewed.
+
+### Knowing where you are
+
+Every version says which it is, what it was made from, and what was made from it: *Versiya 2 · Qaralama*,
+*Versiya 1 əsasında yaradılıb*, with links both ways. The links are shown to everybody — the history of a
+month is not a permission.
+
+### Editing
+
+Editing is offered **only where `canEditRevision` says so**. The browser never works that out from the status
+or the role, so an imported draft — which all 167 company requests are — never becomes editable by looking
+like one.
+
+A line is edited through a row-level **Redaktə et** rather than by making every cell permanently editable: a
+dialog shows the product read-only, with quantity, price and supplier. The product is deliberately not
+editable, and the dialog says so: a different product is a different line.
+
+**Only what changed is sent.** A field the person did not touch has no entry in the request at all, which is
+how the server tells "leave it alone" from "make it empty". Clearing a price is a deliberate tick of
+*Qiymət yoxdur* and is sent as `{"value": null}` — never as a zero, and never by accident.
+
+**Sətir əlavə et** picks a product and then one of its variants from the catalog, in two steps, because a
+variant is what a line actually is. Typed text is a search and nothing else. **Sil** asks first and says how
+far the removal reaches: *"Bu sətir yalnız cari qaralama versiyasından silinəcək. Əvvəlki versiya
+dəyişməyəcək."*
+
+Every dialog sends the `rowVersion` it was opened with. On a **409** the screen says *"Məlumat bu vaxt ərzində
+dəyişib. Səhifə yeniləndi."*, closes and re-reads everything — it never retries the write over somebody else's
+change.
+
+### The two histories
+
+One **Tarixçə** area with two tabs, **Düzəlişlər** and **Təsdiq prosesi**. They are not merged into one
+timeline: they answer different questions, and interleaving them would invent a chronology neither record
+claims. Each edit reads as what it was — *Miqdar: 10 → 12,5*, *Qiymət: Qiymət yoxdur → 4,50 ₼*, *Təchizatçı:
+Anbar → Qala baza* — rendered from the stored values, never recomputed from what the line says now.
+
+### Where a line came from
+
+**Mənbəyə bax** now answers for every line. A copied line shows the versions it came through, ending at the
+workbook row that started it; a line somebody added by hand says *"Əl ilə əlavə edilib — Excel mənbəsi
+yoxdur."* rather than reporting a line nobody can account for. The endpoint answers 404 only when the line
+does not exist.
+
+### Nobody approves what they worked on
+
+Task 9B tightens the approval rule. Submitting was only the last of the ways to author a version: **whoever
+changed a quantity, a price or a supplier on a correction, added a line, removed one, or created the
+correction at all, may not approve or return it.** It is enforced in the domain from the edit history, it
+holds for an administrator, and `AllowedActions` reports it separately as `BlockedByOwnContribution` so the
+screen can say which of the two rules applies: *"Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə
+bilməzsiniz."* The endpoint refuses it with a 422 carrying `code: OwnContributionNotApprovable`.
+
+The existing submitter rule is unchanged and takes precedence in the message, since it was true first.
+
+### Analytics, still unchanged
+
+Task 9B changed no analytics. Tasks 6 and 7 still select the highest version of a month whatever its status,
+so a correction draft is what analytics reads from the moment it exists. Approved-only analytics remains a
+separate business decision.
 
 ## Data protection rules
 
@@ -1524,6 +1599,19 @@ Task 9A (correcting a returned order, backend only, migration `AddOrderRequestRe
 - `CanReviseOrders` (Coordinator, Admin); managers read only; row-version tokens turn stale edits into 409s
 - The existing workflow carries the correction; a corrected version takes no further workflow action
 - Analytics policy unchanged — a correction is the newest version, so it is read at once; screens are 9B
+
+Task 9B (the correction screens, no migration):
+
+- The whole flow on the order detail page: create the correction, edit its lines, add and remove, submit
+- Editing appears only where the server says `canEditRevision`; an imported draft never becomes editable
+- A field the person did not touch is not sent; clearing a price is a deliberate `{"value": null}`, not a zero
+- Row-level edit dialog with the product read-only; adding a line picks a catalog product, then its variant
+- Every write carries the row version it read; a 409 reloads and says so, and never overwrites
+- Two histories in one place under tabs, kept as two records rather than one invented timeline
+- "Mənbəyə bax" answers for every line: the versions a copy came through, or that it was added by hand
+- **Own-contribution approval rule**: whoever edited a correction — or created it — may not decide on it,
+  administrators included, reported as `BlockedByOwnContribution`
+- No analytics change; no approved-order corrections; no approval inbox
 
 Task 7B (dashboard screen, no migration):
 

@@ -15,6 +15,8 @@ export interface AllowedWorkflowActions {
   canReturn: boolean
   /** The state and the role would both allow a decision; the only thing stopping it is that they submitted it. */
   blockedBySelfApproval: boolean
+  /** Likewise, but the reason is that they worked on this correction — edited a line, added or removed one. */
+  blockedByOwnContribution: boolean
 }
 
 export interface WorkflowEvent {

@@ -28,6 +28,7 @@ const nobody: AllowedWorkflowActions = {
   canApprove: false,
   canReturn: false,
   blockedBySelfApproval: false,
+  blockedByOwnContribution: false,
 }
 
 function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
@@ -102,12 +103,12 @@ describe('what each state shows', () => {
     expect(screen.queryByRole('button', { name: /Təsdiqə göndər/ })).toBeNull()
   })
 
-  it('asks a returned request to be sent again, and says editing is not built', async () => {
+  it('asks a returned request to be sent again, and says a correction is a new version', async () => {
     await renderPanel(workflow({ status: 'ReturnedForCorrection' }))
 
     expect(screen.getByText('Düzəlişə qaytarılıb')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Yenidən təsdiqə göndər' })).toBeInTheDocument()
-    expect(screen.getByText(/Sətirlərin redaktəsi hələ sistemdə yoxdur/)).toBeInTheDocument()
+    expect(screen.getByText(/yeni qaralama versiyası yaradılır/)).toBeInTheDocument()
   })
 })
 
@@ -175,6 +176,20 @@ describe('a request the reader submitted themselves', () => {
   it('offers neither approval nor return, whatever the role', async () => {
     await renderPanel(ownSubmission)
 
+    expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Düzəlişə qaytar' })).toBeNull()
+  })
+})
+
+describe('a correction the reader worked on', () => {
+  it('says that editing it is what rules them out, not who submitted it', async () => {
+    await renderPanel(workflow({
+      status: 'PendingApproval',
+      allowedActions: { ...nobody, blockedByOwnContribution: true },
+    }))
+
+    expect(screen.getByText(/Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz/)).toBeInTheDocument()
+    expect(screen.queryByText(/Özünüzün təsdiqə göndərdiyiniz/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Düzəlişə qaytar' })).toBeNull()
   })

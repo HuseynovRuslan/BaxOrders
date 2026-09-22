@@ -35,6 +35,15 @@ internal sealed class GlobalExceptionHandler(
                 Extensions = { ["code"] = "SelfApprovalNotAllowed" },
             },
 
+            // Also a business refusal rather than a permission one: the role is right, the person is not.
+            OwnContributionNotApprovableException ownContribution => new ProblemDetails
+            {
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Title = "Own contribution is not approvable",
+                Detail = ownContribution.Message,
+                Extensions = { ["code"] = "OwnContributionNotApprovable" },
+            },
+
             MissingPriceAcknowledgementRequiredException acknowledgement => new ProblemDetails
             {
                 Status = StatusCodes.Status422UnprocessableEntity,

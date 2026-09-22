@@ -96,7 +96,10 @@ export interface OrderRequestItem {
   supplierId: number | null
   supplierName: string | null
   categoryPath: string[]
+  /** The workbook row this very line came from. Null for a copied line — its row is reached through the chain. */
   source: OrderItemSourceRef | null
+  /** The line of the previous version this one was copied from, if any. */
+  sourceOrderRequestItemId: number | null
 }
 
 export interface OrderRequestDetail {
@@ -114,6 +117,17 @@ export interface OrderRequestDetail {
   knownPriceItemCount: number
   missingPriceItemCount: number
   knownAmountTotal: number | null
+  /** True when this version was made as the correction of a returned one. */
+  isRevision: boolean
+  sourceOrderRequestId: number | null
+  sourceVersion: number | null
+  /** True when a correction has been made from this version; it is then superseded. */
+  hasRevision: boolean
+  revisionOrderRequestId: number | null
+  revisionVersion: number | null
+  /** Decided by the server, like every other permission. The endpoints check again. */
+  canCreateRevision: boolean
+  canEditRevision: boolean
   items: PagedResult<OrderRequestItem>
 }
 
@@ -126,6 +140,33 @@ export interface OrderItemSourceField {
   isIntentionallyEmpty: boolean
   /** The catalog record the value was resolved to, when the column has one. */
   canonicalValue: string | null
+}
+
+/** Where a line ultimately comes from. */
+export type OrderItemOrigin = 'Imported' | 'ManuallyAdded'
+
+/** One version a line passed through on its way from the workbook row to here. */
+export interface OrderItemLineageStep {
+  orderRequestItemId: number
+  orderRequestId: number
+  version: number
+  status: OrderRequestStatus
+  /** True for the one step that has a workbook row behind it. */
+  isImported: boolean
+}
+
+/**
+ * Where one line came from, whatever the answer is. A line added by hand while correcting an order says so
+ * — `ManuallyAdded`, with no source — rather than reading as a line nobody can account for.
+ */
+export interface OrderItemProvenance {
+  orderRequestItemId: number
+  orderRequestId: number
+  version: number
+  origin: OrderItemOrigin
+  /** The line asked about, then each line it was copied from, newest first. */
+  lineage: OrderItemLineageStep[]
+  source: OrderItemSource | null
 }
 
 export interface OrderItemSource {
@@ -178,6 +219,6 @@ export function fetchOrder(
   return getJson<OrderRequestDetail>(`/api/v1/orders/${orderRequestId}?${params.toString()}`, signal)
 }
 
-export function fetchOrderItemSource(orderRequestItemId: number, signal?: AbortSignal): Promise<OrderItemSource> {
-  return getJson<OrderItemSource>(`/api/v1/orders/items/${orderRequestItemId}/source`, signal)
+export function fetchOrderItemSource(orderRequestItemId: number, signal?: AbortSignal): Promise<OrderItemProvenance> {
+  return getJson<OrderItemProvenance>(`/api/v1/orders/items/${orderRequestItemId}/source`, signal)
 }

@@ -187,10 +187,11 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
         Assert.DoesNotContain(v3Lines, line => v1Lines.Any(original => original.Id == line.SourceOrderRequestItemId));
 
         // And a line of version 3 still reaches its workbook row, through version 2 and version 1.
-        var source = await ReadAsync<OrderItemSourceDto>(
+        var provenance = await ReadAsync<OrderItemProvenanceDto>(
             await world.Coordinator.Client.GetAsync($"/api/v1/orders/items/{v3Lines[0].Id}/source"));
-        Assert.Equal(3, source.Lineage.Count);
-        Assert.Equal(world.Order.ImportBatchId, source.ImportBatchId);
+        Assert.Equal(OrderItemOrigin.Imported, provenance.Origin);
+        Assert.Equal([3, 2, 1], provenance.Lineage.Select(step => step.Version));
+        Assert.Equal(world.Order.ImportBatchId, provenance.Source!.ImportBatchId);
     }
 
     // ---- who may do it -------------------------------------------------------------------------------
@@ -231,6 +232,43 @@ public sealed class RevisionEndToEndTests(SqlServerDatabaseFixture database) : I
 
         await using var db = database.CreateContext();
         Assert.Equal(12m, (await db.OrderRequestItems.SingleAsync(item => item.Id == line)).Quantity);
+    }
+
+    [SqlServerFact]
+    public async Task Whoever_edited_the_correction_cannot_decide_on_it_over_http()
+    {
+        var world = await ReturnedAsync();
+        using var editingAdmin = await SignedInAsync(BaxOrdersRoles.Admin, "Düzəliş edən administrator");
+        using var freshManager = await SignedInAsync(BaxOrdersRoles.Manager, "Toxunmayan rəhbər");
+
+        var v2 = await CorrectAsync(world.Coordinator, world.V1);
+        await ExpectAsync(HttpStatusCode.OK,
+            EditAsync(editingAdmin, v2, await LineIdAsync(v2, 10m), new() { ["quantity"] = new { value = 11m } }));
+        await ExpectAsync(HttpStatusCode.OK,
+            AuthenticatedApi.PostAsync(world.Coordinator.Client, $"/api/v1/orders/{v2}/workflow/submit", new { }));
+
+        // The screen would not offer it, and the endpoint refuses it anyway.
+        var offered = await WorkflowAsync(editingAdmin.Client, v2);
+        Assert.False(offered.AllowedActions.CanApprove);
+        Assert.True(offered.AllowedActions.BlockedByOwnContribution);
+        Assert.False(offered.AllowedActions.BlockedBySelfApproval);
+
+        var ownApproval = await AuthenticatedApi.PostAsync(editingAdmin.Client,
+            $"/api/v1/orders/{v2}/workflow/approve", new { acknowledgeMissingPrices = true });
+        var ownReturn = await AuthenticatedApi.PostAsync(editingAdmin.Client,
+            $"/api/v1/orders/{v2}/workflow/return", new { reason = "Yenidən bax" });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownApproval.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownReturn.StatusCode);
+        Assert.Contains("OwnContributionNotApprovable", await ownApproval.Content.ReadAsStringAsync());
+
+        // Somebody who touched nothing still decides.
+        var free = await WorkflowAsync(freshManager.Client, v2);
+        Assert.True(free.AllowedActions.CanApprove);
+        await ExpectAsync(HttpStatusCode.OK, AuthenticatedApi.PostAsync(freshManager.Client,
+            $"/api/v1/orders/{v2}/workflow/approve", new { acknowledgeMissingPrices = true }));
+
+        Assert.Equal(OrderRequestStatus.Approved, (await WorkflowAsync(freshManager.Client, v2)).Status);
     }
 
     [SqlServerFact]

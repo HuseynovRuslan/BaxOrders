@@ -226,10 +226,18 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         var world = await WorldAsync(db);
         var item = (await Detail(db, world.MayRequestId)).Items.Items[0];
 
-        var source = await new OrderRequestQueries(db, TestCurrentUser.Anonymous()).GetItemSourceAsync(item.OrderRequestItemId, CancellationToken.None);
+        var provenance = await new OrderRequestQueries(db, TestCurrentUser.Anonymous())
+            .GetItemProvenanceAsync(item.OrderRequestItemId, CancellationToken.None);
 
-        Assert.NotNull(source);
-        Assert.Equal(item.OrderRequestItemId, source!.OrderRequestItemId);
+        Assert.NotNull(provenance);
+        Assert.Equal(OrderItemOrigin.Imported, provenance!.Origin);
+
+        // Imported straight into this version: one step, and it is the one with the workbook row.
+        var step = Assert.Single(provenance.Lineage);
+        Assert.Equal((item.OrderRequestItemId, true), (step.OrderRequestItemId, step.IsImported));
+
+        var source = provenance.Source!;
+        Assert.Equal(item.OrderRequestItemId, source.OrderRequestItemId);
         Assert.Equal((item.Source!.ImportRowId, item.Source.SheetName, item.Source.RowNumber), (source.ImportRowId, source.SheetName, source.RowNumber));
         Assert.False(source.IsExcluded);
 
@@ -244,8 +252,10 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
 
-        var source = await new OrderRequestQueries(db, TestCurrentUser.Anonymous()).GetItemSourceAsync(world.CorrectedItemId, CancellationToken.None);
-        var unit = Assert.Single(source!.Fields, field => field.Column == "Ö/v");
+        var provenance = await new OrderRequestQueries(db, TestCurrentUser.Anonymous())
+            .GetItemProvenanceAsync(world.CorrectedItemId, CancellationToken.None);
+        var source = provenance!.Source!;
+        var unit = Assert.Single(source.Fields, field => field.Column == "Ö/v");
 
         // The sheet said nothing; an operator said "ədəd". Both are shown, and the workbook value is not rewritten.
         Assert.Equal((string.Empty, "ədəd", true), (unit.SourceValue ?? string.Empty, unit.EffectiveValue, unit.IsCorrected));
@@ -265,7 +275,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
 
         Assert.Null(await queries.GetHistoryAsync(-1, new LocationHistoryQuery(), CancellationToken.None));
         Assert.Null(await orders.GetAsync(-1, new OrderItemQuery(), CancellationToken.None));
-        Assert.Null(await orders.GetItemSourceAsync(-1, CancellationToken.None));
+        Assert.Null(await orders.GetItemProvenanceAsync(-1, CancellationToken.None));
     }
 
     [SqlServerFact]

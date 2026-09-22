@@ -210,33 +210,66 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
     /// <remarks>
     /// A line copied into a correction version was not materialized from a workbook row itself, and no second
     /// materialization is ever made for it: its trail is found by following the copies back, one version at a
-    /// time, to the imported line that has one. A line added by hand anywhere along the way has no workbook
-    /// row, and none is made up for it.
+    /// time, to the imported line that has one. A line somebody added by hand has none anywhere behind it,
+    /// and none is made up for it — the answer says so rather than reporting the line as unknown.
     /// </remarks>
-    /// <returns>Null when the item does not exist, or neither it nor anything it was copied from was imported.</returns>
-    public async Task<OrderItemSourceDto?> GetItemSourceAsync(long orderRequestItemId, CancellationToken cancellationToken)
+    /// <returns>Null only when the item does not exist at all.</returns>
+    public async Task<OrderItemProvenanceDto?> GetItemProvenanceAsync(long orderRequestItemId, CancellationToken cancellationToken)
     {
-        var lineage = new List<long> { orderRequestItemId };
-        var imported = orderRequestItemId;
+        var steps = new List<OrderItemLineageStepDto>();
+        var current = orderRequestItemId;
 
-        while (!await db.ImportRowMaterializations.AnyAsync(item => item.OrderRequestItemId == imported, cancellationToken))
+        while (true)
         {
-            var copiedFrom = await db.OrderRequestItems.AsNoTracking()
-                .Where(item => item.Id == imported)
-                .Select(item => item.SourceOrderRequestItemId)
+            var line = await db.OrderRequestItems.AsNoTracking()
+                .Where(item => item.Id == current)
+                .Select(item => new
+                {
+                    item.Id,
+                    item.OrderRequestId,
+                    item.OrderRequest.Version,
+                    item.OrderRequest.Status,
+                    item.SourceOrderRequestItemId,
+                    IsImported = db.ImportRowMaterializations.Any(link => link.OrderRequestItemId == item.Id),
+                })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (copiedFrom is null || lineage.Count > MaxLineageDepth)
+            if (line is null)
             {
-                return null;
+                // The first step missing means the line itself does not exist; a later one would mean a
+                // broken chain, which the foreign key does not allow.
+                return steps.Count == 0 ? null : throw new InvalidOperationException(
+                    $"Order item #{current} is named as a source but does not exist.");
             }
 
-            imported = copiedFrom.Value;
-            lineage.Add(imported);
+            steps.Add(new OrderItemLineageStepDto(line.Id, line.OrderRequestId, line.Version, line.Status, line.IsImported));
+
+            if (line.IsImported || line.SourceOrderRequestItemId is not { } copiedFrom || steps.Count > MaxLineageDepth)
+            {
+                break;
+            }
+
+            current = copiedFrom;
         }
 
+        var head = steps[0];
+        var oldest = steps[^1];
+        if (!oldest.IsImported)
+        {
+            // Nobody imported this line or anything it was copied from: somebody typed it into a correction.
+            return new OrderItemProvenanceDto(
+                head.OrderRequestItemId, head.OrderRequestId, head.Version, OrderItemOrigin.ManuallyAdded, steps, Source: null);
+        }
+
+        var source = await ImportSourceAsync(oldest.OrderRequestItemId, cancellationToken);
+        return new OrderItemProvenanceDto(
+            head.OrderRequestItemId, head.OrderRequestId, head.Version, OrderItemOrigin.Imported, steps, source);
+    }
+
+    private async Task<OrderItemSourceDto?> ImportSourceAsync(long orderRequestItemId, CancellationToken cancellationToken)
+    {
         var link = await db.ImportRowMaterializations.AsNoTracking()
-            .Where(item => item.OrderRequestItemId == imported)
+            .Where(item => item.OrderRequestItemId == orderRequestItemId)
             .Select(item => new
             {
                 item.OrderRequestItemId,
@@ -280,8 +313,6 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
             .ToList();
 
         return new OrderItemSourceDto(
-            orderRequestItemId,
-            lineage,
             link.OrderRequestItemId,
             link.OrderRequestId,
             link.CreatedAtUtc,

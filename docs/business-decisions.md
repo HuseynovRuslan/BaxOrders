@@ -708,3 +708,15 @@ reversible if the business decides otherwise.
 | OC-13 | A copy keeps a line's variant and supplier **even if they have been deactivated since**; new and changed values must be active. An inactive location or responsible person blocks a correction, as it blocks any new version. | Refusing the copy would make a returned order uncorrectable; the person correcting it removes and replaces the retired line. | Refuse corrections that carry retired records. |
 | OC-14 | The self-approval rule follows the **submitter** of the current cycle only. Someone who edited a correction but did not submit it may still approve it. | That is the Task 8B rule, which Task 9A was told to leave unchanged. | A "four eyes on edits" rule: whoever edited a correction may not decide on it. |
 | OC-15 | Removing a line from a correction draft deletes it from that draft; the history keeps the whole line as it was. | Hiding "removed" lines instead would have to be taught to every query that reads lines — analytics, the dashboard, totals — with a real chance of one being missed. | Keep removed lines as soft-deleted rows, with that cost. |
+
+### Task 9B — the approval rule the business tightened
+
+| # | Decision |
+| --- | --- |
+| OC-16 | **Whoever worked on a correction may not approve or return it.** Submitting was only the last way to author a version: changing a quantity, a price or a supplier, adding a line, removing one, or creating the correction all count. Enforced in the domain from the edit history, reported to screens as `BlockedByOwnContribution`, refused by the endpoint with a 422. Administrators are not exempt. The existing submitter rule stands alongside it. |
+
+| # | Decided in implementation | Why | If the business wants otherwise |
+| --- | --- | --- | --- |
+| OC-17 | **Creating a correction counts as working on it**, even when the person changed no line afterwards. | The instruction was to read the rule off `OrderRequestEditEvents`, and creating a correction is recorded there. Choosing to correct a month is itself a judgement about it. | Narrow the check to the four content actions, leaving `RevisionCreated` out. |
+| OC-18 | A person who is blocked by **both** rules is told the submitter one. | Two explanations for one blocked button reads as a fault; the submitter rule was true first. | Show both reasons together. |
+| OC-19 | **Operational risk to watch:** an approver who helps fix a correction can no longer approve it. With one manager and one administrator, an administrator who edits a correction leaves only that manager able to decide it. | The rule is the point — it is what "a second pair of eyes" means. | Exempt administrators, which weakens the rule to a convention. |

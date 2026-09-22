@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Orders.Revisions;
@@ -452,6 +453,96 @@ public sealed class OrderRevisionTests
     }
 
     [Fact]
+    public void Whoever_edited_a_correction_cannot_decide_on_it()
+    {
+        var (revision, line) = Correction(creator: Coordinator);
+        revision.ChangeItemQuantity(line, 12m, Manager, Now);
+        revision.SubmitForApproval(Coordinator, null, Now.AddHours(1));
+
+        // The manager only changed a quantity — and that is already the judgement an approval checks.
+        Assert.Throws<OwnContributionNotApprovableException>(() => revision.Approve(Manager, null, false, Now.AddHours(2)));
+        Assert.Throws<OwnContributionNotApprovableException>(() => revision.ReturnForCorrection(Manager, "Yenidən", Now.AddHours(2)));
+    }
+
+    [Fact]
+    public void Creating_a_correction_counts_as_working_on_it()
+    {
+        var (revision, _) = Correction(creator: Admin);
+        revision.SubmitForApproval(Coordinator, null, Now.AddHours(1));
+
+        Assert.Throws<OwnContributionNotApprovableException>(() => revision.Approve(Admin, null, false, Now.AddHours(2)));
+    }
+
+    [Theory]
+    [InlineData(OrderEditKind.Price)]
+    [InlineData(OrderEditKind.Supplier)]
+    [InlineData(OrderEditKind.Added)]
+    [InlineData(OrderEditKind.Removed)]
+    public void Any_kind_of_edit_blocks_its_author(OrderEditKind kind)
+    {
+        var (revision, line) = Correction(creator: Coordinator);
+        var second = revision.AddRevisionItem(Variant("İkinci"), 1m, 1m, null, Coordinator);
+        TestEntities.WithId(second, 900L);
+        revision.RecordItemAdded(second, Coordinator, Now);
+
+        switch (kind)
+        {
+            case OrderEditKind.Price:
+                revision.ChangeItemUnitPrice(line, 9m, Manager, Now);
+                break;
+            case OrderEditKind.Supplier:
+                revision.ChangeItemSupplier(line, Supplier(7, "Anbar"), Manager, Now);
+                break;
+            case OrderEditKind.Added:
+                var added = revision.AddRevisionItem(Variant("Üçüncü"), 2m, null, null, Manager);
+                TestEntities.WithId(added, 901L);
+                revision.RecordItemAdded(added, Manager, Now);
+                break;
+            default:
+                revision.RemoveRevisionItem(second, Manager, Now);
+                break;
+        }
+
+        revision.SubmitForApproval(Coordinator, null, Now.AddHours(1));
+
+        Assert.Throws<OwnContributionNotApprovableException>(() => revision.Approve(Manager, null, false, Now.AddHours(2)));
+    }
+
+    [Fact]
+    public void Somebody_who_did_not_touch_the_correction_may_decide_on_it()
+    {
+        var (revision, line) = Correction(creator: Coordinator);
+        revision.ChangeItemQuantity(line, 12m, Coordinator, Now);
+        revision.SubmitForApproval(Coordinator, null, Now.AddHours(1));
+
+        revision.Approve(Manager, null, false, Now.AddHours(2));
+
+        Assert.Equal(OrderRequestStatus.Approved, revision.Status);
+    }
+
+    [Fact]
+    public void An_ordinary_request_nobody_corrected_is_decided_on_the_submitter_rule_alone()
+    {
+        var request = InStatus(OrderRequestStatus.PendingApproval);
+
+        request.Approve(Manager, null, false, Now.AddHours(2));
+
+        Assert.Equal(OrderRequestStatus.Approved, request.Status);
+    }
+
+    [Fact]
+    public void Deciding_on_a_correction_whose_history_was_not_loaded_fails_loudly()
+    {
+        // What an unloaded edit history looks like to the domain: a correction with no entries at all. Passing
+        // silently would let its own author approve it.
+        var (revision, _) = Correction(creator: Coordinator);
+        revision.SubmitForApproval(Coordinator, null, Now.AddHours(1));
+        Unload(revision);
+
+        Assert.Throws<InvalidOperationException>(() => revision.Approve(Manager, null, false, Now.AddHours(2)));
+    }
+
+    [Fact]
     public void Unpriced_lines_of_a_correction_still_need_acknowledging()
     {
         var (revision, _) = Correction(price: null);
@@ -467,6 +558,31 @@ public sealed class OrderRevisionTests
             OrderRequestStatus.ReturnedForCorrection, null, new StubUser(BaxOrdersRoles.Coordinator), superseded: true);
 
         Assert.Equal(new AllowedWorkflowActionsDto(false, false, false), allowed);
+    }
+
+    [Fact]
+    public void The_allowed_actions_say_which_of_the_two_reasons_is_stopping_a_decision()
+    {
+        var manager = new StubUser(BaxOrdersRoles.Manager);
+        var admin = new StubUser(BaxOrdersRoles.Admin);
+
+        var edited = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, null, manager, contributedEdits: true);
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, false, true), edited);
+
+        // Somebody who both submitted and edited reads the submitter reason: only one is shown, and that one
+        // is the one that was true first.
+        var both = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, admin.UserId, admin, contributedEdits: true);
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, true, false), both);
+
+        var free = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, null, manager);
+        Assert.Equal(new AllowedWorkflowActionsDto(false, true, true), free);
+
+        // A coordinator is not offered a decision, and is not told why: they never could.
+        var coordinator = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, null, new StubUser(BaxOrdersRoles.Coordinator), contributedEdits: true);
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false), coordinator);
     }
 
     // ---- how values are written ----------------------------------------------------------------------
@@ -582,6 +698,20 @@ public sealed class OrderRevisionTests
     }
 
     // ---- fixture -------------------------------------------------------------------------------------
+
+    public enum OrderEditKind
+    {
+        Price,
+        Supplier,
+        Added,
+        Removed,
+    }
+
+    /// <summary>Empties the edit history, the way loading a request without including it would.</summary>
+    private static void Unload(OrderRequest revision) =>
+        ((List<OrderRequestEditEvent>)typeof(OrderRequest)
+            .GetField("_editEvents", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(revision)!).Clear();
 
     private static void AssertLocked(OrderRequest revision, OrderRequestItem line)
     {

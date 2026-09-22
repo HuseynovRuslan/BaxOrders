@@ -412,16 +412,23 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
         await using var db = database.CreateContext();
         var queries = new OrderRequestQueries(db, TestCurrentUser.Anonymous());
-        var imported = await queries.GetItemSourceAsync(v1Line, None);
-        var throughV2 = await queries.GetItemSourceAsync(v2Line, None);
-        var throughV3 = await queries.GetItemSourceAsync(v3Line, None);
+        var imported = await queries.GetItemProvenanceAsync(v1Line, None);
+        var throughV2 = await queries.GetItemProvenanceAsync(v2Line, None);
+        var throughV3 = await queries.GetItemProvenanceAsync(v3Line, None);
 
         Assert.NotNull(imported);
-        Assert.Equal([v3Line, v2Line, v1Line], throughV3!.Lineage);
-        Assert.Equal([v2Line, v1Line], throughV2!.Lineage);
-        Assert.Equal(v3Line, throughV3.RequestedOrderRequestItemId);
-        Assert.Equal((v1Line, imported!.ImportRowId, world.Order.ImportBatchId),
-            (throughV3.OrderRequestItemId, throughV3.ImportRowId, throughV3.ImportBatchId));
+        Assert.Equal(OrderItemOrigin.Imported, throughV3!.Origin);
+
+        // One step per version, newest first, and only the oldest carries the workbook row.
+        Assert.Equal([v3Line, v2Line, v1Line], throughV3.Lineage.Select(step => step.OrderRequestItemId));
+        Assert.Equal([3, 2, 1], throughV3.Lineage.Select(step => step.Version));
+        Assert.Equal([false, false, true], throughV3.Lineage.Select(step => step.IsImported));
+        Assert.Equal([v2Line, v1Line], throughV2!.Lineage.Select(step => step.OrderRequestItemId));
+        Assert.Equal(v3Line, throughV3.OrderRequestItemId);
+
+        var source = throughV3.Source!;
+        Assert.Equal((v1Line, imported!.Source!.ImportRowId, world.Order.ImportBatchId),
+            (source.OrderRequestItemId, source.ImportRowId, source.ImportBatchId));
     }
 
     [SqlServerFact]
@@ -432,7 +439,14 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
         var scenario = await EditScenarioAsync(world, v2);
 
         await using var db = database.CreateContext();
-        Assert.Null(await new OrderRequestQueries(db, TestCurrentUser.Anonymous()).GetItemSourceAsync(scenario.AddedItemId, None));
+        var provenance = await new OrderRequestQueries(db, TestCurrentUser.Anonymous())
+            .GetItemProvenanceAsync(scenario.AddedItemId, None);
+
+        // Said plainly, rather than reported as a line nobody can find.
+        Assert.Equal(OrderItemOrigin.ManuallyAdded, provenance!.Origin);
+        Assert.Null(provenance.Source);
+        Assert.Single(provenance.Lineage);
+        Assert.False(provenance.Lineage[0].IsImported);
         Assert.False(await db.ImportRowMaterializations.AnyAsync(link => link.OrderRequestItemId == scenario.AddedItemId));
     }
 
@@ -525,6 +539,55 @@ public sealed class OrderRevisionTests(SqlServerDatabaseFixture database)
 
         await Assert.ThrowsAsync<SelfApprovalNotAllowedException>(() => WorkflowAs(admin, service =>
             service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
+    }
+
+    [SqlServerFact]
+    public async Task Whoever_edited_the_correction_cannot_decide_on_it_and_somebody_else_can()
+    {
+        var world = await ReturnedAsync();
+        var editingManager = await UserAsync(BaxOrdersRoles.Manager, "Düzəliş edən rəhbər");
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+
+        // A manager cannot edit a correction, so an administrator is who could have both roles here.
+        var admin = await UserAsync(BaxOrdersRoles.Admin, "Düzəliş edən administrator");
+        await EditAsync(admin, v2, await LineAsync(v2, quantity: 10m), new(null, Quantity: new(11m)));
+        await WorkflowAs(world.Coordinator, service => service.SubmitAsync(v2, new SubmitForApprovalCommand(), None));
+
+        // The administrator edited it, so deciding on it is no longer a second pair of eyes.
+        await Assert.ThrowsAsync<OwnContributionNotApprovableException>(() => WorkflowAs(admin, service =>
+            service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
+        await Assert.ThrowsAsync<OwnContributionNotApprovableException>(() => WorkflowAs(admin, service =>
+            service.ReturnAsync(v2, new ReturnForCorrectionCommand("Fikrimi dəyişdim"), None)));
+
+        var blocked = (await WorkflowAs(admin, service => service.GetAsync(v2, None)))!;
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, false, true), blocked.AllowedActions);
+
+        // The coordinator who created and submitted it is offered nothing, and is told no reason: a
+        // coordinator never decides, so there is no decision for either rule to be blocking.
+        var submitter = (await WorkflowAs(world.Coordinator, service => service.GetAsync(v2, None)))!;
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false), submitter.AllowedActions);
+
+        // A manager who touched nothing decides as usual.
+        var free = (await WorkflowAs(editingManager, service => service.GetAsync(v2, None)))!;
+        Assert.True(free.AllowedActions.CanApprove);
+
+        var approved = await WorkflowAs(editingManager, service =>
+            service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None));
+        Assert.Equal(OrderRequestStatus.Approved, approved.Status);
+    }
+
+    [SqlServerFact]
+    public async Task An_imported_request_is_still_decided_on_the_submitter_rule_alone()
+    {
+        var request = await ImportAsync();
+        var coordinator = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru");
+        var manager = await UserAsync(BaxOrdersRoles.Manager, "Sınaq rəhbəri");
+
+        await WorkflowAs(coordinator, service => service.SubmitAsync(request, new SubmitForApprovalCommand(), None));
+        var approved = await WorkflowAs(manager, service =>
+            service.ApproveAsync(request, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None));
+
+        Assert.Equal(OrderRequestStatus.Approved, approved.Status);
     }
 
     [SqlServerFact]

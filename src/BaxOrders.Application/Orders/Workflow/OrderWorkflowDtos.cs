@@ -16,8 +16,17 @@ namespace BaxOrders.Application.Orders.Workflow;
 /// True when the state and the role would both allow a decision, and the only thing stopping it is that this
 /// person submitted the request. The screen says so rather than silently offering nothing.
 /// </param>
+/// <param name="BlockedByOwnContribution">
+/// True when the only thing stopping a decision is that this person worked on the correction — changed a
+/// line, added or removed one, or created the correction. Reported separately from
+/// <paramref name="BlockedBySelfApproval"/> because the two are different reasons and the screen says which.
+/// </param>
 public sealed record AllowedWorkflowActionsDto(
-    bool CanSubmit, bool CanApprove, bool CanReturn, bool BlockedBySelfApproval = false)
+    bool CanSubmit,
+    bool CanApprove,
+    bool CanReturn,
+    bool BlockedBySelfApproval = false,
+    bool BlockedByOwnContribution = false)
 {
     /// <summary>What the workflow state allows, before anything is known about who is asking.</summary>
     public static AllowedWorkflowActionsDto ForState(OrderRequestStatus status) => status switch
@@ -34,8 +43,16 @@ public sealed record AllowedWorkflowActionsDto(
     /// True when a correction version has been made from this request. It then takes no further workflow
     /// action: the correction is the version that is live.
     /// </param>
+    /// <param name="contributedEdits">
+    /// True when this person appears in the request's edit history — they corrected it, or created the
+    /// correction. They may then not decide on it either.
+    /// </param>
     public static AllowedWorkflowActionsDto For(
-        OrderRequestStatus status, Guid? submittedByUserId, ICurrentUserContext currentUser, bool superseded = false)
+        OrderRequestStatus status,
+        Guid? submittedByUserId,
+        ICurrentUserContext currentUser,
+        bool superseded = false,
+        bool contributedEdits = false)
     {
         ArgumentNullException.ThrowIfNull(currentUser);
 
@@ -49,15 +66,19 @@ public sealed record AllowedWorkflowActionsDto(
         var maySubmit = role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin;
         var mayDecide = role is BaxOrdersRoles.Manager or BaxOrdersRoles.Admin;
 
-        // Approving your own submission is not a second pair of eyes, whatever role you hold.
+        // Approving your own work is not a second pair of eyes, whatever role you hold — whether you authored
+        // it by submitting it or by editing what it says.
         var ownSubmission = currentUser.UserId is { } userId && submittedByUserId == userId;
-        var canDecide = state.CanApprove && mayDecide && !ownSubmission;
+        var wouldDecide = state.CanApprove && mayDecide;
+        var canDecide = wouldDecide && !ownSubmission && !contributedEdits;
 
         return new AllowedWorkflowActionsDto(
             state.CanSubmit && maySubmit,
             canDecide,
-            state.CanReturn && mayDecide && !ownSubmission,
-            BlockedBySelfApproval: state.CanApprove && mayDecide && ownSubmission);
+            state.CanReturn && mayDecide && !ownSubmission && !contributedEdits,
+            BlockedBySelfApproval: wouldDecide && ownSubmission,
+            // Only the reason that is actually left: somebody who both submitted and edited reads the first.
+            BlockedByOwnContribution: wouldDecide && !ownSubmission && contributedEdits);
     }
 }
 

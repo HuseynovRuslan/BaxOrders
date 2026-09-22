@@ -40,8 +40,9 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         var totals = await TotalsAsync(orderRequestId, cancellationToken);
         var history = await HistoryAsync(orderRequestId, cancellationToken);
         var correction = await CorrectionOfAsync(orderRequestId, cancellationToken);
+        var contributed = await ContributedAsync(orderRequestId, cancellationToken);
 
-        return Describe(request, totals, history, superseded: correction is not null);
+        return Describe(request, totals, history, superseded: correction is not null, contributedEdits: contributed);
     }
 
     public Task<OrderWorkflowDto> SubmitAsync(
@@ -89,9 +90,13 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
 
         // Tracked and with its items, because the domain needs them: a request with no line cannot be
         // submitted, and the unpriced lines are what an approver has to acknowledge.
+        // The edit history and the correction link come too: the domain refuses a decision by anybody who
+        // worked on the correction, and it can only see that if they are loaded.
         var request = await db.OrderRequests
             .Include(order => order.Location)
             .Include(order => order.Items)
+            .Include(order => order.RevisedFrom)
+            .Include(order => order.EditEvents)
             .FirstOrDefaultAsync(order => order.Id == orderRequestId, cancellationToken)
             ?? throw new NotFoundException($"Order request #{orderRequestId} was not found.");
 
@@ -120,9 +125,17 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
 
         var totals = await TotalsAsync(orderRequestId, cancellationToken);
         var history = await HistoryAsync(orderRequestId, cancellationToken);
+        var contributed = await ContributedAsync(orderRequestId, cancellationToken);
 
-        return Describe(request, totals, history, superseded: false);
+        return Describe(request, totals, history, superseded: false, contributedEdits: contributed);
     }
+
+    /// <summary>Whether the signed-in person appears in this request's edit history.</summary>
+    private Task<bool> ContributedAsync(long orderRequestId, CancellationToken cancellationToken) =>
+        currentUser.UserId is { } userId
+            ? db.OrderRequestEditEvents.AsNoTracking()
+                .AnyAsync(editEvent => editEvent.OrderRequestId == orderRequestId && editEvent.ActorUserId == userId, cancellationToken)
+            : Task.FromResult(false);
 
     /// <summary>The correction version made from this request, if one has been.</summary>
     private Task<CorrectionRef?> CorrectionOfAsync(long orderRequestId, CancellationToken cancellationToken) =>
@@ -173,14 +186,15 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         OrderRequest request,
         (int ItemCount, int MissingPriceItemCount, decimal PricedAmount, int KnownPriceItemCount) totals,
         IReadOnlyList<WorkflowEventDto> history,
-        bool superseded) =>
+        bool superseded,
+        bool contributedEdits) =>
         new(request.Id,
             request.LocationId,
             request.Location.Name,
             request.RequestPeriod,
             request.Version,
             request.Status,
-            AllowedWorkflowActionsDto.For(request.Status, request.SubmittedByUserId, currentUser, superseded),
+            AllowedWorkflowActionsDto.For(request.Status, request.SubmittedByUserId, currentUser, superseded, contributedEdits),
             request.SubmittedByUserId,
             request.SubmittedAtUtc,
             request.ApprovedAtUtc,

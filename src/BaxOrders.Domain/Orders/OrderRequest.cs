@@ -469,6 +469,7 @@ public sealed class OrderRequest
         ArgumentNullException.ThrowIfNull(actor);
         EnsureStatus("approve", OrderRequestStatus.PendingApproval);
         EnsureNotOwnSubmission(actor, "approve");
+        EnsureNotOwnContribution(actor, "approve");
 
         if (MissingPriceItemCount > 0 && !missingPricesAcknowledged)
         {
@@ -488,6 +489,7 @@ public sealed class OrderRequest
         ArgumentNullException.ThrowIfNull(actor);
         EnsureStatus("return", OrderRequestStatus.PendingApproval);
         EnsureNotOwnSubmission(actor, "return");
+        EnsureNotOwnContribution(actor, "return");
 
         var trimmed = Guard.RequiredText(reason, OrderRequestWorkflowEvent.CommentMaxLength, "Return reason");
 
@@ -507,6 +509,31 @@ public sealed class OrderRequest
         if (actor.UserId is { } userId && SubmittedByUserId == userId)
         {
             throw new SelfApprovalNotAllowedException(action);
+        }
+    }
+
+    /// <summary>
+    /// Whoever shaped this correction's content does not get to decide it is right, whatever role they hold.
+    /// </summary>
+    /// <remarks>
+    /// Submitting is only the last of the ways to author a version. Changing a quantity, a price or a
+    /// supplier, adding or removing a line, or creating the correction at all, are all recorded in the edit
+    /// history — so the history is what this reads. A request nobody has corrected has none, and is decided
+    /// on the submitter rule alone.
+    /// </remarks>
+    private void EnsureNotOwnContribution(WorkflowActor actor, string action)
+    {
+        // A correction always carries at least the entry that created it. None loaded would silently let its
+        // own author approve it, so say so instead of quietly allowing it.
+        if (IsRevision && _editEvents.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "The edit history must be loaded to decide on a correction version.");
+        }
+
+        if (actor.UserId is { } userId && _editEvents.Any(editEvent => editEvent.ActorUserId == userId))
+        {
+            throw new OwnContributionNotApprovableException(action);
         }
     }
 

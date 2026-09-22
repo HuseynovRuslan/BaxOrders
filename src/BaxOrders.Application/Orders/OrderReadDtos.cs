@@ -175,20 +175,53 @@ public sealed record OrderItemSourceFieldDto(
     bool IsIntentionallyEmpty,
     string? CanonicalValue);
 
+/// <summary>Where a permanent line ultimately comes from.</summary>
+public enum OrderItemOrigin
+{
+    /// <summary>It was created by an Excel import, or copied from a line that was.</summary>
+    Imported = 1,
+
+    /// <summary>Somebody added it by hand while correcting a returned order. It has no workbook row.</summary>
+    ManuallyAdded = 2,
+}
+
+/// <param name="Version">The version of the request this step's line belongs to.</param>
+/// <param name="IsImported">True for the one step that has a workbook row behind it.</param>
+public sealed record OrderItemLineageStepDto(
+    long OrderRequestItemId,
+    long OrderRequestId,
+    int Version,
+    OrderRequestStatus Status,
+    bool IsImported);
+
 /// <summary>
-/// The whole audit trail of one permanent item: the file it came from, the row as the sheet had it, the
+/// Where one line came from, whatever the answer is.
+/// </summary>
+/// <remarks>
+/// A line copied into a correction has no workbook row of its own: its trail is the one of the imported line
+/// it descends from, reached by following <see cref="Lineage"/>. A line somebody added by hand has no
+/// workbook row anywhere behind it, which is a fact about it rather than a failure to find one — so this says
+/// <see cref="OrderItemOrigin.ManuallyAdded"/> and no import block, instead of answering "not found".
+/// </remarks>
+/// <param name="Lineage">The line asked about, then each line it was copied from, newest first.</param>
+/// <param name="Source">The workbook row behind the oldest line, or null when nobody imported it.</param>
+public sealed record OrderItemProvenanceDto(
+    long OrderRequestItemId,
+    long OrderRequestId,
+    int Version,
+    OrderItemOrigin Origin,
+    IReadOnlyList<OrderItemLineageStepDto> Lineage,
+    OrderItemSourceDto? Source);
+
+/// <summary>
+/// The whole audit trail of one imported line: the file it came from, the row as the sheet had it, the
 /// corrections an operator recorded, and what the import resolved each value to.
 /// </summary>
 /// <remarks>
-/// A line copied into a correction has no workbook row of its own; its trail is the one of the imported line
-/// it descends from. <see cref="OrderRequestItemId"/> and <see cref="OrderRequestId"/> then name that imported
-/// line, <see cref="RequestedOrderRequestItemId"/> the line that was asked about, and <see cref="Lineage"/> the
-/// way from one to the other, newest first.
+/// <see cref="OrderRequestItemId"/> and <see cref="OrderRequestId"/> name the imported line itself, which is
+/// the line that was asked about only when nothing was copied on the way.
 /// </remarks>
-/// <param name="Lineage">The line asked about, then each line it was copied from, ending with the imported one.</param>
 public sealed record OrderItemSourceDto(
-    long RequestedOrderRequestItemId,
-    IReadOnlyList<long> Lineage,
     long OrderRequestItemId,
     long OrderRequestId,
     DateTime MaterializedAtUtc,

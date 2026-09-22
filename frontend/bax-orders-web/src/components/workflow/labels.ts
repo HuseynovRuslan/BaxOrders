@@ -54,6 +54,13 @@ export const acknowledgeMissingPricesLabel = 'Qiyməti olmayan sətirlərin möv
 export const selfApprovalBlockedNote =
   'Özünüzün təsdiqə göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz. Başqa bir istifadəçi baxmalıdır.'
 
+/**
+ * Said where the only thing in the way is that this person worked on the correction. Reported apart from the
+ * submitter rule because it is a different reason, and somebody reading it needs to know which one applies.
+ */
+export const ownContributionBlockedNote =
+  'Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.'
+
 export function missingPriceWarning(count: number): string {
   return `Bu sifarişdə ${count} qiymətsiz sətir var. Təsdiq edilən məbləğ tam maliyyə məbləği deyil.`
 }

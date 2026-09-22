@@ -183,16 +183,17 @@ public sealed class OrdersController(
         revisions.RemoveItemAsync(orderRequestId, orderRequestItemId, rowVersion, cancellationToken);
 
     /// <summary>
-    /// The audit trail of one line: the workbook row it came from, the corrections recorded on it and the
-    /// canonical records its values were resolved to. A line copied into a correction answers with the trail
-    /// of the imported line it descends from, and says how it got there.
+    /// Where one line came from: the versions it was copied through, and — for a line that descends from an
+    /// import — the workbook row behind it, the corrections recorded on it and the canonical records its
+    /// values were resolved to. A line somebody added by hand while correcting an order is reported as such
+    /// rather than as missing.
     /// </summary>
-    /// <response code="404">No such item, or neither it nor anything it was copied from was imported.</response>
+    /// <response code="404">No such item.</response>
     [HttpGet("items/{orderRequestItemId:long}/source")]
-    [ProducesResponseType<OrderItemSourceDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<OrderItemProvenanceDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<OrderItemSourceDto>> GetSource(long orderRequestItemId, CancellationToken cancellationToken) =>
-        await queries.GetItemSourceAsync(orderRequestItemId, cancellationToken) is { } source
-            ? source
-            : throw new NotFoundException($"Order item #{orderRequestItemId} has no import source.");
+    public async Task<ActionResult<OrderItemProvenanceDto>> GetSource(long orderRequestItemId, CancellationToken cancellationToken) =>
+        await queries.GetItemProvenanceAsync(orderRequestItemId, cancellationToken) is { } provenance
+            ? provenance
+            : throw new NotFoundException($"Order item #{orderRequestItemId} was not found.");
 }
