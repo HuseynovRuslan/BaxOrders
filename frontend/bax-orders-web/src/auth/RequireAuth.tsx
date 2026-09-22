@@ -33,7 +33,7 @@ export function RequireAuth() {
  * The permission flags come from the server, which checks them again on every request the screen makes —
  * hiding a page is a courtesy to the person, not a lock on the data.
  */
-export function RequirePermission({ permission }: { permission: 'canManageImports' | 'canManageUsers' }) {
+export function RequirePermission({ permission }: { permission: 'canManageImports' | 'canManageUsers' | 'canDecideOrders' }) {
   const { user } = useAuth()
 
   if (!user[permission]) {

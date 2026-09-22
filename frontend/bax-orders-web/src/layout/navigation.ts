@@ -1,4 +1,5 @@
 import {
+  CheckCheck,
   ClipboardList,
   Users,
   FileSpreadsheet,
@@ -18,11 +19,12 @@ export interface NavItem {
    * The permission a signed-in person needs before this is offered. Hiding an entry is a courtesy — the
    * endpoints behind it refuse anybody who is not allowed, whether they saw the link or not.
    */
-  requires?: 'canManageImports' | 'canManageUsers'
+  requires?: 'canManageImports' | 'canManageUsers' | 'canDecideOrders'
 }
 
 export const navItems: NavItem[] = [
   { to: '/dashboard', label: 'İdarəetmə paneli', icon: LayoutDashboard },
+  { to: '/approvals', label: 'Təsdiq gözləyənlər', icon: CheckCheck, requires: 'canDecideOrders' },
   { to: '/orders', label: 'Sifarişlər', icon: ClipboardList },
   { to: '/imports', label: 'Excel importları', icon: FileSpreadsheet, requires: 'canManageImports' },
   { to: '/locations', label: 'Obyektlər', icon: MapPin },

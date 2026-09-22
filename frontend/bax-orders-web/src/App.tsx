@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import { RequireAuth, RequirePermission } from './auth/RequireAuth'
 import { AppLayout } from './layout/AppLayout'
 import { AdminUsersPage } from './pages/AdminUsersPage'
+import { ApprovalInboxPage } from './pages/ApprovalInboxPage'
 import { ImportsPage } from './pages/ImportsPage'
 import { LocationAnalyticsPage } from './pages/LocationAnalyticsPage'
 import { LocationDetailPage } from './pages/LocationDetailPage'
@@ -25,6 +26,12 @@ export function App() {
           {/* The old root was a placeholder; the management dashboard is the landing screen now. */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<ManagementDashboardPage />} />
+
+          {/* A coordinator's own submissions are not theirs to decide, so this queue is not offered to them. */}
+          <Route element={<RequirePermission permission="canDecideOrders" />}>
+            <Route path="approvals" element={<ApprovalInboxPage />} />
+          </Route>
+
           <Route path="orders" element={<OrdersPage />} />
           <Route path="orders/:orderRequestId" element={<OrderDetailPage />} />
           <Route path="locations" element={<LocationsPage />} />

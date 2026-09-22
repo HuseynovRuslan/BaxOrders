@@ -1,5 +1,6 @@
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
+using BaxOrders.Application.Approvals;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
@@ -26,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<OrderRevisionService>();
         services.AddScoped<OrderAnalyticsQueries>();
         services.AddScoped<ManagementDashboardQueries>();
+        services.AddScoped<ApprovalInboxQueries>();
 
         services.AddScoped<ImportCatalogLoader>();
         services.AddScoped<ImportPreviewQueries>();
