@@ -174,7 +174,7 @@ export const orderStatusLabels: Record<string, string> = {
   Draft: 'Qaralama',
   PendingApproval: 'Təsdiq gözləyir',
   Approved: 'Təsdiqlənib',
-  Rejected: 'Rədd edilib',
+  ReturnedForCorrection: 'Düzəlişə qaytarılıb',
 }
 
 /** What a line with no price says. One convention everywhere, never a zero. */

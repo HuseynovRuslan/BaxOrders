@@ -146,7 +146,7 @@ numbers.
 
 One **logical request** exists per `Location + RequestPeriod`. Corrections and resubmissions are stored
 as new versions (1, 2, 3, …); earlier versions are never overwritten. `(LocationId, RequestPeriod, Version)`
-is unique.
+is unique. A workflow status change is **not** a new version — see *Approving an order (Task 8A)*.
 
 - `OrderRequest.CreateNextVersion(...)` starts version N+1 as a new draft for the same location and
   period. Only non-draft requests are versioned; a draft is corrected in place.
@@ -731,6 +731,126 @@ presentation rules that carry business meaning rather than the look of the pages
   shared with the dashboard)
 
 
+## Approving an order (Task 8A)
+
+Until now a permanent order had a status nobody could change. Task 8A makes the workflow real: a request is
+handed to whoever approves it, approved or handed back, and every one of those actions is recorded.
+
+```
+Draft ──submit──▶ PendingApproval ──approve──▶ Approved
+                        │  ▲
+                 return │  │ submit
+                        ▼  │
+              ReturnedForCorrection
+```
+
+Those four transitions are the whole state machine, and nothing else is allowed. `Draft → Approved`,
+`Approved → anything` and submitting a request that is already waiting all fail; an illegal transition is a
+422 and writes nothing.
+
+**Approved is the end of the road.** There is no unapprove, no cancel and no reopen. An approved month that
+turns out to be wrong is corrected the way every other correction works — as a **new version** of the
+request — never by editing the one that was approved.
+
+**A status change is not a revision.** Submitting and approving leave the version where it is. The version
+moves when the order itself changes, which is not what approving it does.
+
+### Unpriced lines are acknowledged, not forbidden
+
+95 of the 3,618 permanent lines have no price. A missing price does not make an order wrong — it means the
+money is not the whole money — so it does not block approval. What it does is make the approver say so:
+
+- `GET …/workflow` reports `MissingPriceItemCount`, `KnownAmountTotal`, `AmountIsComplete` and
+  `RequiresMissingPriceAcknowledgement`.
+- Approving a request that has unpriced lines without `acknowledgeMissingPrices: true` is refused with a
+  **422** carrying `code: MissingPriceAcknowledgementRequired` and the count.
+- The count is recomputed from the stored lines on every call. A client never supplies it, and saying nothing
+  about unpriced lines is not a claim that there are none.
+- What was acknowledged, and how many lines it covered, is kept on the approval event.
+
+When every line is priced the flag is unnecessary and is ignored.
+
+### Who did it — a temporary answer
+
+There is no authentication yet, so there is no user to attribute an action to. Every state-changing call
+therefore carries an **`actorDisplayName`**, which is stored in the audit trail as text.
+
+It is a label, not an identity: **nothing verifies it**. The screen says so where it is typed. Task 8B
+replaces it with the id of the signed-in user, and these strings become the record of what was claimed before
+sign-in existed.
+
+### The audit trail
+
+`OrderRequestWorkflowEvent` records one action: what was done, from which status to which, by whom, when, any
+comment, and how many unpriced lines existed at that moment. The event is written **by the transition
+itself**, so no status can change without leaving a trace.
+
+It is **append-only**. There is no endpoint to edit or delete an event, and a later transition adds a new one
+rather than rewriting an old one. A returned request keeps the reason it was returned for even after it has
+been resubmitted and approved.
+
+- **A return needs a reason.** It is the whole point of the action, and "Returned" with no explanation tells
+  the person who has to fix it nothing. Blank and whitespace-only are refused.
+- **A comment on submitting or approving is optional.**
+
+### Two people at once
+
+`OrderRequests` carries a row version. A transition written from a copy that is no longer current fails
+instead of overwriting the one that got there first, and the caller gets a **409** telling them to reload. A
+second click on Approve finds the request already approved and is refused, so one action never becomes two
+events.
+
+### Approval does not filter analytics
+
+**Approval status is currently displayed metadata, not an analytics inclusion filter.** Tasks 6A and 7A keep
+selecting the latest version of each location-month whatever its status, exactly as before.
+
+This is deliberate. Every one of the 167 company requests is a draft, so switching analytics to approved-only
+would empty the comparison screens and the dashboard overnight. Whether analytics should eventually count
+only approved months is a business decision to take once approval is actually in use, not a side effect of
+building it. An integration test asserts that approving a month changes no analytics or dashboard figure.
+
+### What is not built
+
+**Editing a returned request is not implemented.** `ReturnedForCorrection` says a correction is needed; the
+correction itself still arrives the way every order does, as a new version from an Excel import. The screen
+says this where a returned request is shown. A returned request can be submitted again without anything
+having changed — the state machine allows it, and that is documented rather than prevented.
+
+### The screen
+
+The order detail page carries the workflow panel: the current status as a badge, the actions the state
+allows, and the full history as a list — *Təsdiqə göndərildi · Ruslan · 22.09.2026 14:32*, with the reason
+under a return. Which buttons appear is the server's answer (`AllowedActions`), and the server checks again
+when the action is taken.
+
+| Status | Buttons |
+| --- | --- |
+| Qaralama | Təsdiqə göndər |
+| Təsdiq gözləyir | Təsdiqlə · Düzəlişə qaytar |
+| Düzəlişə qaytarılıb | Yenidən təsdiqə göndər |
+| Təsdiqlənib | none |
+
+Each action opens a dialog showing what is about to be acted on — object, month, version, line count, money
+and unpriced lines — because approving an order is a decision about those and not about a button. Approve
+stays disabled until the unpriced lines are ticked; Return stays disabled until a reason is written. Nothing
+on these screens edits an order.
+
+```
+GET  /api/v1/orders/{id}/workflow
+POST /api/v1/orders/{id}/workflow/submit    { actorDisplayName, comment? }
+POST /api/v1/orders/{id}/workflow/approve   { actorDisplayName, comment?, acknowledgeMissingPrices? }
+POST /api/v1/orders/{id}/workflow/return    { actorDisplayName, reason }
+```
+
+There is no generic status endpoint: a client cannot post an arbitrary status.
+
+### The company's 167 requests
+
+All 167 remain **Draft**. Task 8A adds the capability and moves nothing; every real transition is an
+operator's explicit action through the screen. The tests and the end-to-end verification use synthetic
+requests, which are removed afterwards.
+
 ## Data protection rules
 
 - Locations, categories, units, products, variants, suppliers and responsible persons are **deactivated,
@@ -831,6 +951,8 @@ dotnet run --project src/BaxOrders.Api --launch-profile http
 - Order confirmation: `GET /api/v1/imports/{id}/confirmation/preview`, `POST /api/v1/imports/{id}/confirmation`
 - Order browsing: `GET /api/v1/locations/orders`, `GET /api/v1/locations/{id}/orders`,
   `GET /api/v1/orders/{id}`, `GET /api/v1/orders/items/{id}/source`
+- Approval workflow: `GET /api/v1/orders/{id}/workflow`,
+  `POST /api/v1/orders/{id}/workflow/{submit|approve|return}`
 - Dashboard: `GET /api/v1/dashboard/periods`,
   `GET /api/v1/dashboard?period=&basis=&search=&historyCoverage=&priceCoverage=&hasCurrentRequest=&sort=&descending=&page=&pageSize=`
 - Analytics: `GET /api/v1/analytics/locations/{id}/periods`,
@@ -1028,6 +1150,19 @@ Task 6B (comparison screen, no migration):
 - One dependency added: recharts 3.10, lazily loaded
 - The screen reads and only reads
 
+Task 8A (approval workflow, migration `AddOrderApprovalWorkflow`):
+
+- Four transitions and no others: draft or returned to pending, pending to approved or returned. Approved is
+  terminal; a correction to an approved month is a new version, never a reopening
+- A status change is not a revision, so the version does not move
+- Unpriced lines do not block approval; they must be acknowledged, and the server counts them itself
+- `OrderRequestWorkflowEvent` is append-only and written by the transition, so no status changes untraced
+- A row version on `OrderRequests`: a second actor working from a stale copy is refused, not applied
+- One application service behind typed per-action endpoints; no generic status setter
+- A temporary `actorDisplayName` stands in for the signed-in user until Task 8B, and says so on screen
+- Analytics is unchanged: approval status is displayed metadata, not an inclusion filter
+- All 167 company requests remain Draft
+
 Task 7B (dashboard screen, no migration):
 
 - `/dashboard` is the landing screen and `/` redirects to it; period, basis, search, three filters, sort,
@@ -1067,7 +1202,9 @@ Task 7A (dashboard read model, no migration):
 - Any "best" or "worst" object: a rise or fall in what an object ordered is a fact, not a verdict
 - Anomaly detection, forecasting, recommendations and any generated explanation of why a number moved
 - Category as an analytics dimension, until products carry a canonical category
-- Approval workflow UI and rules beyond basic status transitions
+- Editing the lines of a returned request: the state says a correction is needed, but the correction still
+  arrives as a new version from an Excel import
+- Unapproving, cancelling or reopening an approved request
 - Authentication and roles (Admin, Coordinator, Manager / Approver)
 - AI assistant
 - Unit conversion rules (for example pack ↔ pieces)

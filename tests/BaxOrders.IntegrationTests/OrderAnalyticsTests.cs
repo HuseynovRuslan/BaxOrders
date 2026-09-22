@@ -814,7 +814,7 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
         await db.SaveChangesAsync();
 
         // Only a request that left draft may be versioned; a draft is corrected where it stands.
-        first.Submit(DateTime.UtcNow);
+        first.SubmitForApproval("Test", null, DateTime.UtcNow);
         var second = first.CreateNextVersion();
         second.AddItem(variant, 40m, 1m);
 

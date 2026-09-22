@@ -45,6 +45,8 @@ public interface IBaxOrdersDbContext
 
     DbSet<OrderRequestItem> OrderRequestItems { get; }
 
+    DbSet<OrderRequestWorkflowEvent> OrderRequestWorkflowEvents { get; }
+
     DbSet<ImportBatch> ImportBatches { get; }
 
     DbSet<ImportRow> ImportRows { get; }

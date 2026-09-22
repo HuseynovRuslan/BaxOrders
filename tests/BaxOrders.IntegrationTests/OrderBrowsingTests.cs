@@ -114,7 +114,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         var world = await WorldAsync(db);
 
         var submitted = await db.OrderRequests.Include(request => request.Location).SingleAsync(request => request.Id == world.MayRequestId);
-        submitted.Submit(DateTime.UtcNow);
+        submitted.SubmitForApproval("Test", null, DateTime.UtcNow);
         var next = submitted.CreateNextVersion();
         next.AddItem(await db.ProductVariants.SingleAsync(variant => variant.Id == world.VariantId), 1m, 1m);
         db.OrderRequests.Add(next);

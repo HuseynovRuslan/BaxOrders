@@ -1293,9 +1293,6 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Property<int>("LocationId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("RejectedAtUtc")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateOnly?>("RequestDate")
                         .HasColumnType("date");
 
@@ -1304,6 +1301,15 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("ResponsiblePersonId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("ReturnedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<long?>("SourceImportBatchId")
                         .HasColumnType("bigint");
@@ -1390,6 +1396,60 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_OrderRequestItems_Quantity", "[Quantity] > 0");
 
                             t.HasCheckConstraint("CK_OrderRequestItems_UnitPrice", "[UnitPrice] IS NULL OR [UnitPrice] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestWorkflowEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FromStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("MissingPriceItemCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("MissingPricesAcknowledged")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("OrderRequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderRequestId", "OccurredAtUtc");
+
+                    b.ToTable("OrderRequestWorkflowEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OrderRequestWorkflowEvents_StatusChanged", "[FromStatus] <> [ToStatus]");
                         });
                 });
 
@@ -1841,6 +1901,17 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Navigation("Supplier");
                 });
 
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestWorkflowEvent", b =>
+                {
+                    b.HasOne("BaxOrders.Domain.Orders.OrderRequest", "OrderRequest")
+                        .WithMany("WorkflowEvents")
+                        .HasForeignKey("OrderRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrderRequest");
+                });
+
             modelBuilder.Entity("BaxOrders.Domain.ResponsiblePeople.ResponsiblePersonAlias", b =>
                 {
                     b.HasOne("BaxOrders.Domain.ResponsiblePeople.ResponsiblePerson", "ResponsiblePerson")
@@ -1897,6 +1968,8 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequest", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("WorkflowEvents");
                 });
 #pragma warning restore 612, 618
         }

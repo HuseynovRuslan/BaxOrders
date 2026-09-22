@@ -1,6 +1,7 @@
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Domain;
+using BaxOrders.Domain.Orders;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,19 @@ internal sealed class GlobalExceptionHandler(
 
         var problem = exception switch
         {
+            // Not "this is invalid" but "say that you know": the caller gets the count and can try again.
+            MissingPriceAcknowledgementRequiredException acknowledgement => new ProblemDetails
+            {
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Title = "Missing price acknowledgement required",
+                Detail = acknowledgement.Message,
+                Extensions =
+                {
+                    ["code"] = "MissingPriceAcknowledgementRequired",
+                    ["missingPriceItemCount"] = acknowledgement.MissingPriceItemCount,
+                },
+            },
+
             DomainException domainException => new ProblemDetails
             {
                 Status = StatusCodes.Status422UnprocessableEntity,

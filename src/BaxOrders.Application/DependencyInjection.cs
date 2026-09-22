@@ -6,6 +6,7 @@ using BaxOrders.Application.Imports.Matching;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
+using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Application.UnitsOfMeasure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<OrderRequestVersions>();
         services.AddScoped<LocationOrderQueries>();
         services.AddScoped<OrderRequestQueries>();
+        services.AddScoped<OrderWorkflowService>();
         services.AddScoped<OrderAnalyticsQueries>();
         services.AddScoped<ManagementDashboardQueries>();
 

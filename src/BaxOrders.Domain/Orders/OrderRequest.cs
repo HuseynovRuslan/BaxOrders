@@ -28,6 +28,7 @@ public sealed class OrderRequest
     public const int InitialVersion = 1;
 
     private readonly List<OrderRequestItem> _items = [];
+    private readonly List<OrderRequestWorkflowEvent> _workflowEvents = [];
 
     private OrderRequest()
     {
@@ -114,6 +115,18 @@ public sealed class OrderRequest
 
     public IReadOnlyCollection<OrderRequestItem> Items => _items;
 
+    /// <summary>Every workflow action taken on this request, oldest first. Append-only.</summary>
+    public IReadOnlyCollection<OrderRequestWorkflowEvent> WorkflowEvents => _workflowEvents;
+
+    /// <summary>
+    /// Guards the workflow against two people acting on the same request at once: a transition written from a
+    /// copy that is no longer current fails instead of overwriting the one that got there first.
+    /// </summary>
+    public byte[] RowVersion { get; private set; } = [];
+
+    /// <summary>How many of this request's lines have no price. Requires the items to be loaded.</summary>
+    public int MissingPriceItemCount => _items.Count(item => item.UnitPrice is null);
+
     public DateTime CreatedAtUtc { get; private set; }
 
     public DateTime UpdatedAtUtc { get; private set; }
@@ -122,7 +135,8 @@ public sealed class OrderRequest
 
     public DateTime? ApprovedAtUtc { get; private set; }
 
-    public DateTime? RejectedAtUtc { get; private set; }
+    /// <summary>When it was last handed back for correction, if it ever was.</summary>
+    public DateTime? ReturnedAtUtc { get; private set; }
 
     public static DateOnly PeriodOf(DateOnly date) => new(date.Year, date.Month, 1);
 
@@ -140,7 +154,8 @@ public sealed class OrderRequest
     {
         if (Status == OrderRequestStatus.Draft)
         {
-            throw new DomainException("A draft is corrected in place; only submitted, approved or rejected requests get a new version.");
+            throw new DomainException(
+                "A draft is corrected in place; only a submitted, approved or returned request gets a new version.");
         }
 
         if (Location is null)
@@ -159,7 +174,7 @@ public sealed class OrderRequest
         string? originalProductName = null,
         string? notes = null)
     {
-        EnsureStatus(OrderRequestStatus.Draft, "add items to");
+        EnsureStatus("add items to", OrderRequestStatus.Draft);
 
         var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName, notes);
         _items.Add(item);
@@ -168,7 +183,7 @@ public sealed class OrderRequest
 
     public void RemoveItem(OrderRequestItem item)
     {
-        EnsureStatus(OrderRequestStatus.Draft, "remove items from");
+        EnsureStatus("remove items from", OrderRequestStatus.Draft);
 
         if (!_items.Remove(item))
         {
@@ -176,39 +191,105 @@ public sealed class OrderRequest
         }
     }
 
-    /// <remarks>Requires <see cref="Items"/> to be loaded; an unloaded request is treated as empty and rejected.</remarks>
-    public void Submit(DateTime utcNow)
+    /// <summary>
+    /// Hands the request to whoever approves it. A returned request may be sent again; a status change is not
+    /// a new revision, so the version does not move.
+    /// </summary>
+    /// <remarks>Requires <see cref="Items"/> to be loaded; an unloaded request looks empty and is refused.</remarks>
+    public OrderRequestWorkflowEvent SubmitForApproval(string actorDisplayName, string? comment, DateTime utcNow)
     {
-        EnsureStatus(OrderRequestStatus.Draft, "submit");
+        EnsureStatus("submit", OrderRequestStatus.Draft, OrderRequestStatus.ReturnedForCorrection);
 
         if (_items.Count == 0)
         {
             throw new DomainException("A request without items cannot be submitted.");
         }
 
+        var from = Status;
         SubmittedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
         Status = OrderRequestStatus.PendingApproval;
+
+        return Record(OrderWorkflowAction.SubmittedForApproval, from, actorDisplayName, comment, false, utcNow);
     }
 
-    public void Approve(DateTime utcNow)
+    /// <summary>
+    /// Approves the request. Approval is the end of the road: an approved month is corrected by a new version,
+    /// never by reopening this one.
+    /// </summary>
+    /// <param name="missingPricesAcknowledged">
+    /// Whether the approver said they know some lines have no price. A missing price does not make an order
+    /// wrong, so it does not block approval — but it does mean the approved money is not the whole money, and
+    /// that has to be a decision somebody took rather than something that slipped past.
+    /// </param>
+    public OrderRequestWorkflowEvent Approve(
+        string actorDisplayName, string? comment, bool missingPricesAcknowledged, DateTime utcNow)
     {
-        EnsureStatus(OrderRequestStatus.PendingApproval, "approve");
+        EnsureStatus("approve", OrderRequestStatus.PendingApproval);
+
+        if (MissingPriceItemCount > 0 && !missingPricesAcknowledged)
+        {
+            throw new MissingPriceAcknowledgementRequiredException(MissingPriceItemCount);
+        }
+
+        var from = Status;
         ApprovedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
         Status = OrderRequestStatus.Approved;
+
+        return Record(OrderWorkflowAction.Approved, from, actorDisplayName, comment, missingPricesAcknowledged, utcNow);
     }
 
-    public void Reject(DateTime utcNow)
+    /// <summary>Hands the request back to be put right. The reason is the point of the action, so it is required.</summary>
+    public OrderRequestWorkflowEvent ReturnForCorrection(string actorDisplayName, string reason, DateTime utcNow)
     {
-        EnsureStatus(OrderRequestStatus.PendingApproval, "reject");
-        RejectedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
-        Status = OrderRequestStatus.Rejected;
+        EnsureStatus("return", OrderRequestStatus.PendingApproval);
+
+        var trimmed = Guard.RequiredText(reason, OrderRequestWorkflowEvent.CommentMaxLength, "Return reason");
+
+        var from = Status;
+        ReturnedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
+        Status = OrderRequestStatus.ReturnedForCorrection;
+
+        return Record(OrderWorkflowAction.ReturnedForCorrection, from, actorDisplayName, trimmed, false, utcNow);
     }
 
-    private void EnsureStatus(OrderRequestStatus required, string action)
+    private OrderRequestWorkflowEvent Record(
+        OrderWorkflowAction action,
+        OrderRequestStatus from,
+        string actorDisplayName,
+        string? comment,
+        bool missingPricesAcknowledged,
+        DateTime utcNow)
     {
-        if (Status != required)
+        // The event is written by the transition itself, so no status can change without leaving a trace.
+        var workflowEvent = new OrderRequestWorkflowEvent(
+            this, action, from, Status, actorDisplayName, comment,
+            MissingPriceItemCount, missingPricesAcknowledged, utcNow);
+
+        _workflowEvents.Add(workflowEvent);
+        return workflowEvent;
+    }
+
+    private void EnsureStatus(string action, params OrderRequestStatus[] allowed)
+    {
+        if (!allowed.Contains(Status))
         {
-            throw new DomainException($"Cannot {action} a request in status {Status}; it must be {required}.");
+            throw new DomainException(
+                $"Cannot {action} a request in status {Status}; it must be {string.Join(" or ", allowed)}.");
         }
     }
+}
+
+/// <summary>
+/// Raised when an approval would cover lines whose price nobody knows, and the approver has not said so.
+/// </summary>
+/// <remarks>
+/// Its own type because the answer is not "this is invalid" but "confirm you know": the caller is expected to
+/// show the count, get an acknowledgement and try again.
+/// </remarks>
+public sealed class MissingPriceAcknowledgementRequiredException(int missingPriceItemCount)
+    : DomainException(
+        $"This request has {missingPriceItemCount} line(s) without a price, so the approved amount is not the "
+        + "complete amount. The approver must acknowledge that before it can be approved.")
+{
+    public int MissingPriceItemCount { get; } = missingPriceItemCount;
 }

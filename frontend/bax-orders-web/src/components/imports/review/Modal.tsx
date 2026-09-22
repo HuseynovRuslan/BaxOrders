@@ -15,6 +15,9 @@ export function Modal({ title, subtitle, onClose, children, footer, width = 'def
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={subtitle ? `${title} — ${subtitle}` : title}
         className={`mt-10 w-full rounded-lg border border-slate-200 bg-white shadow-lg ${
           width === 'wide' ? 'max-w-3xl' : 'max-w-lg'
         }`}

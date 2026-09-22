@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router'
 import { fetchOrder, type OrderRequestDetail } from '../api/orders'
 import { PageHeader } from '../components/PageHeader'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
+import { WorkflowPanel } from '../components/workflow/WorkflowPanel'
+import { workflowStatusLabels } from '../components/workflow/labels'
 import {
   formatAmount,
   formatItemSpecification,
@@ -12,7 +14,6 @@ import {
   formatQuantity,
   knownAmountLabel,
   noPriceLabel,
-  orderStatusLabels,
   unknownSupplierLabel,
 } from '../components/imports/labels'
 
@@ -68,7 +69,7 @@ export function OrderDetailPage() {
         title={data?.locationName ?? 'Sifariş'}
         description={
           data
-            ? `${formatPeriod(data.requestPeriod)} · Versiya ${data.version} · ${orderStatusLabels[data.status] ?? data.status}`
+            ? `${formatPeriod(data.requestPeriod)} · Versiya ${data.version} · ${workflowStatusLabels[data.status] ?? data.status}`
             : undefined
         }
         actions={
@@ -83,8 +84,10 @@ export function OrderDetailPage() {
         }
       />
 
+      {data && <WorkflowPanel orderRequestId={data.orderRequestId} />}
+
       {data && (
-        <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4">
+        <dl className="mt-4 mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4">
           <Fact label="Sətir sayı" value={formatNumber(data.itemCount)} />
           <Fact label="Qiyməti məlum sətirlər" value={formatNumber(data.knownPriceItemCount)} />
           <Fact label="Qiymətsiz" value={formatNumber(data.missingPriceItemCount)} warn={data.missingPriceItemCount > 0} />

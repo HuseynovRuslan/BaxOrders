@@ -575,7 +575,7 @@ public sealed class ManagementDashboardTests(SqlServerDatabaseFixture database)
         await db.SaveChangesAsync();
 
         // Only a request that has left draft may be versioned; a draft is corrected where it stands.
-        versionedJune.Submit(DateTime.UtcNow);
+        versionedJune.SubmitForApproval("Test", null, DateTime.UtcNow);
         var versionedJuneV2 = versionedJune.CreateNextVersion();
         versionedJuneV2.AddItem(materialVariant, 40m, 10m);
         db.OrderRequests.Add(versionedJuneV2);

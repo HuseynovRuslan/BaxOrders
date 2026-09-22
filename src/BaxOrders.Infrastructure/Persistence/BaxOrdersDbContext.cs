@@ -42,6 +42,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
 
     public DbSet<OrderRequestItem> OrderRequestItems => Set<OrderRequestItem>();
 
+    public DbSet<OrderRequestWorkflowEvent> OrderRequestWorkflowEvents => Set<OrderRequestWorkflowEvent>();
+
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     public DbSet<ImportRow> ImportRows => Set<ImportRow>();
@@ -74,6 +76,7 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
         // Enums are stored by name so the database stays readable for reporting and support.
         StoreAsString<UnitType>(configurationBuilder);
         StoreAsString<OrderRequestStatus>(configurationBuilder);
+        StoreAsString<OrderWorkflowAction>(configurationBuilder);
         StoreAsString<ImportStatus>(configurationBuilder);
         StoreAsString<ImportRowValidationStatus>(configurationBuilder);
         StoreAsString<ImportIssueType>(configurationBuilder);

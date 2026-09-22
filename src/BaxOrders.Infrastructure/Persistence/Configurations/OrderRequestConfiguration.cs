@@ -38,5 +38,9 @@ internal sealed class OrderRequestConfiguration : IEntityTypeConfiguration<Order
         // Identity of a request version. Leads with (LocationId, RequestPeriod), so it also serves period lookups.
         builder.HasIndex(request => new { request.LocationId, request.RequestPeriod, request.Version }).IsUnique();
         builder.HasIndex(request => request.Status);
+
+        // Two people acting on the same request at once: the second write finds the row changed and fails
+        // rather than quietly overwriting the first.
+        builder.Property(request => request.RowVersion).IsRowVersion();
     }
 }

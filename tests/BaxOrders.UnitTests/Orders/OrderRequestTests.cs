@@ -98,7 +98,7 @@ public sealed class OrderRequestTests
     {
         var request = new OrderRequest(Mastaga(), March);
 
-        Assert.Throws<DomainException>(() => request.Submit(DateTime.UtcNow));
+        Assert.Throws<DomainException>(() => request.SubmitForApproval("Ruslan", null, DateTime.UtcNow));
     }
 
     [Fact]
@@ -109,22 +109,22 @@ public sealed class OrderRequestTests
         var submittedAt = new DateTime(2026, 3, 18, 8, 0, 0, DateTimeKind.Utc);
         var approvedAt = submittedAt.AddHours(3);
 
-        request.Submit(submittedAt);
-        request.Approve(approvedAt);
+        request.SubmitForApproval("Ruslan", null, submittedAt);
+        request.Approve("Enver", null, false, approvedAt);
 
         Assert.Equal(OrderRequestStatus.Approved, request.Status);
         Assert.Equal(submittedAt, request.SubmittedAtUtc);
         Assert.Equal(approvedAt, request.ApprovedAtUtc);
-        Assert.Null(request.RejectedAtUtc);
+        Assert.Null(request.ReturnedAtUtc);
     }
 
     [Fact]
-    public void Draft_cannot_be_approved_or_rejected()
+    public void Draft_cannot_be_approved_or_returned()
     {
         var request = new OrderRequest(Mastaga(), March);
 
-        Assert.Throws<DomainException>(() => request.Approve(DateTime.UtcNow));
-        Assert.Throws<DomainException>(() => request.Reject(DateTime.UtcNow));
+        Assert.Throws<DomainException>(() => request.Approve("Enver", null, false, DateTime.UtcNow));
+        Assert.Throws<DomainException>(() => request.ReturnForCorrection("Enver", "Yoxlanmalidir", DateTime.UtcNow));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class OrderRequestTests
     {
         var request = new OrderRequest(Mastaga(), March);
         var item = request.AddItem(Shovel(), 1m, 1m);
-        request.Submit(DateTime.UtcNow);
+        request.SubmitForApproval("Ruslan", null, DateTime.UtcNow);
 
         Assert.Throws<DomainException>(() => request.AddItem(Shovel(), 1m, 1m));
         Assert.Throws<DomainException>(() => request.RemoveItem(item));
@@ -144,7 +144,7 @@ public sealed class OrderRequestTests
         var request = new OrderRequest(Mastaga(), March);
         request.AddItem(Shovel(), 1m, 1m);
 
-        Assert.Throws<DomainException>(() => request.Submit(new DateTime(2026, 3, 18, 8, 0, 0, DateTimeKind.Local)));
+        Assert.Throws<DomainException>(() => request.SubmitForApproval("Ruslan", null, new DateTime(2026, 3, 18, 8, 0, 0, DateTimeKind.Local)));
     }
 
     [Fact]
@@ -196,8 +196,8 @@ public sealed class OrderRequestTests
     {
         var second = SubmittedRequest().CreateNextVersion();
         second.AddItem(Shovel(), 1m, 1m);
-        second.Submit(DateTime.UtcNow);
-        second.Reject(DateTime.UtcNow);
+        second.SubmitForApproval("Ruslan", null, DateTime.UtcNow);
+        second.ReturnForCorrection("Enver", "Miqdarlar yoxlanmalidir", DateTime.UtcNow);
 
         var third = second.CreateNextVersion();
 
@@ -216,7 +216,7 @@ public sealed class OrderRequestTests
     {
         var request = new OrderRequest(Mastaga(), March);
         request.AddItem(Shovel(), 100m, 7m);
-        request.Submit(DateTime.UtcNow);
+        request.SubmitForApproval("Ruslan", null, DateTime.UtcNow);
         return request;
     }
 

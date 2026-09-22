@@ -1,7 +1,7 @@
 import { getJson } from './client'
 
 /** A request lives in one of these states. Task 5 only ever displays them. */
-export type OrderRequestStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'Rejected'
+export type OrderRequestStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'ReturnedForCorrection'
 
 export type LocationOrderSort = 'Name' | 'LatestPeriod' | 'OrderRequestCount'
 
