@@ -1,6 +1,8 @@
-using BaxOrders.Application.Imports;
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports.Review;
+using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Imports;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BaxOrders.Api.Controllers;
@@ -39,6 +41,7 @@ public sealed class ImportRowCorrectionsController(
     /// the batch summary. The workbook value stays untouched.
     /// </summary>
     /// <response code="400">The corrected value does not pass the rules a workbook cell has to pass.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPut("rows/{rowId:long}/corrections/{field}")]
     [ProducesResponseType<RowCorrectionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -51,6 +54,7 @@ public sealed class ImportRowCorrectionsController(
     /// Confirms that a cell is empty on purpose — a service line with no order unit, for example. It is not the
     /// same as having no correction: a missing value blocks the import, a reviewed empty one does not.
     /// </summary>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("rows/{rowId:long}/corrections/{field}/clear")]
     [ProducesResponseType<RowCorrectionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -58,6 +62,7 @@ public sealed class ImportRowCorrectionsController(
         long id, long rowId, ImportCorrectionField field, CancellationToken cancellationToken) =>
         corrections.ClearAsync(id, rowId, field, cancellationToken);
 
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpDelete("rows/{rowId:long}/corrections/{field}")]
     [ProducesResponseType<RowCorrectionResult>(StatusCodes.Status200OK)]
     public Task<RowCorrectionResult> RevertCorrection(
@@ -69,6 +74,7 @@ public sealed class ImportRowCorrectionsController(
     /// auditable, and simply stops counting towards readiness.
     /// </summary>
     /// <response code="400">A reason is required.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("rows/{rowId:long}/exclude")]
     [ProducesResponseType<RowCorrectionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -76,6 +82,7 @@ public sealed class ImportRowCorrectionsController(
         corrections.ExcludeAsync(new ExcludeRowCommand(id, rowId, request.Reason), cancellationToken);
 
     /// <summary>Puts an excluded row back into the import and evaluates it again. Its corrections are kept.</summary>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("rows/{rowId:long}/include")]
     [ProducesResponseType<RowCorrectionResult>(StatusCodes.Status200OK)]
     public Task<RowCorrectionResult> Include(long id, long rowId, CancellationToken cancellationToken) =>

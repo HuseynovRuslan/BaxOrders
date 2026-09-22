@@ -26,6 +26,15 @@ internal sealed class GlobalExceptionHandler(
         var problem = exception switch
         {
             // Not "this is invalid" but "say that you know": the caller gets the count and can try again.
+            // Refused for a business reason rather than a permission one, so it says which.
+            SelfApprovalNotAllowedException selfApproval => new ProblemDetails
+            {
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Title = "Self-approval is not allowed",
+                Detail = selfApproval.Message,
+                Extensions = { ["code"] = "SelfApprovalNotAllowed" },
+            },
+
             MissingPriceAcknowledgementRequiredException acknowledgement => new ProblemDetails
             {
                 Status = StatusCodes.Status422UnprocessableEntity,
@@ -50,6 +59,13 @@ internal sealed class GlobalExceptionHandler(
                 Title = "Not found",
                 Detail = notFound.Message,
             },
+            ForbiddenException forbidden => new ProblemDetails
+            {
+                Status = StatusCodes.Status403Forbidden,
+                Title = "Not allowed",
+                Detail = forbidden.Message,
+            },
+
             ValidationException validation => new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,

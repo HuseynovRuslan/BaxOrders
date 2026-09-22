@@ -1,3 +1,4 @@
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Catalog;
@@ -22,7 +23,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Priced();
 
-        request.SubmitForApproval("Ruslan", "İyul sifarişi yoxlanıldı", Now);
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), "İyul sifarişi yoxlanıldı", Now);
 
         Assert.Equal(OrderRequestStatus.PendingApproval, request.Status);
         Assert.Equal(Now, request.SubmittedAtUtc);
@@ -32,10 +33,10 @@ public sealed class OrderWorkflowTests
     public void A_returned_request_can_be_handed_over_again()
     {
         var request = Priced();
-        request.SubmitForApproval("Ruslan", null, Now);
-        request.ReturnForCorrection("Ənvər", "Miqdarlar yoxlanmalıdır", Now.AddHours(1));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now);
+        request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "Miqdarlar yoxlanmalıdır", Now.AddHours(1));
 
-        request.SubmitForApproval("Ruslan", "Düzəldildi", Now.AddHours(2));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), "Düzəldildi", Now.AddHours(2));
 
         Assert.Equal(OrderRequestStatus.PendingApproval, request.Status);
     }
@@ -45,7 +46,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Submitted();
 
-        request.Approve("Ənvər", "Razıyam", false, Now.AddHours(1));
+        request.Approve(Actor("Sınaq rəhbəri"), "Razıyam", false, Now.AddHours(1));
 
         Assert.Equal(OrderRequestStatus.Approved, request.Status);
         Assert.Equal(Now.AddHours(1), request.ApprovedAtUtc);
@@ -56,7 +57,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Submitted();
 
-        request.ReturnForCorrection("Ənvər", "Qiymətlər dəqiqləşdirilməlidir", Now.AddHours(1));
+        request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "Qiymətlər dəqiqləşdirilməlidir", Now.AddHours(1));
 
         Assert.Equal(OrderRequestStatus.ReturnedForCorrection, request.Status);
         Assert.Equal(Now.AddHours(1), request.ReturnedAtUtc);
@@ -69,7 +70,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Priced();
 
-        Assert.Throws<DomainException>(() => request.Approve("Ənvər", null, false, Now));
+        Assert.Throws<DomainException>(() => request.Approve(Actor("Sınaq rəhbəri"), null, false, Now));
     }
 
     [Fact]
@@ -78,9 +79,9 @@ public sealed class OrderWorkflowTests
         // Correcting an approved month is a new version of the request, never a reopening of this one.
         var request = Approved();
 
-        Assert.Throws<DomainException>(() => request.SubmitForApproval("Ruslan", null, Now));
-        Assert.Throws<DomainException>(() => request.Approve("Ənvər", null, false, Now));
-        Assert.Throws<DomainException>(() => request.ReturnForCorrection("Ənvər", "Fikrimi dəyişdim", Now));
+        Assert.Throws<DomainException>(() => request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now));
+        Assert.Throws<DomainException>(() => request.Approve(Actor("Sınaq rəhbəri"), null, false, Now));
+        Assert.Throws<DomainException>(() => request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "Fikrimi dəyişdim", Now));
     }
 
     [Fact]
@@ -88,7 +89,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Submitted();
 
-        Assert.Throws<DomainException>(() => request.SubmitForApproval("Ruslan", null, Now));
+        Assert.Throws<DomainException>(() => request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now));
     }
 
     [Fact]
@@ -96,7 +97,7 @@ public sealed class OrderWorkflowTests
     {
         var request = new OrderRequest(Location(), July);
 
-        Assert.Throws<DomainException>(() => request.SubmitForApproval("Ruslan", null, Now));
+        Assert.Throws<DomainException>(() => request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now));
     }
 
     // ---- the reason ----------------------------------------------------------------------------------
@@ -110,7 +111,7 @@ public sealed class OrderWorkflowTests
         // "Returned" with no explanation tells the person who has to fix it nothing.
         var request = Submitted();
 
-        Assert.Throws<DomainException>(() => request.ReturnForCorrection("Ənvər", reason!, Now));
+        Assert.Throws<DomainException>(() => request.ReturnForCorrection(Actor("Sınaq rəhbəri"), reason!, Now));
         Assert.Equal(OrderRequestStatus.PendingApproval, request.Status);
     }
 
@@ -119,7 +120,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Submitted();
 
-        request.ReturnForCorrection("Ənvər", "  Zibil paketi sayı çoxdur  ", Now);
+        request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "  Zibil paketi sayı çoxdur  ", Now);
 
         Assert.Equal("Zibil paketi sayı çoxdur", Assert.Single(request.WorkflowEvents, e => e.Action == OrderWorkflowAction.ReturnedForCorrection).Comment);
     }
@@ -128,8 +129,8 @@ public sealed class OrderWorkflowTests
     public void A_comment_on_submitting_or_approving_is_optional()
     {
         var request = Priced();
-        request.SubmitForApproval("Ruslan", null, Now);
-        request.Approve("Ənvər", null, false, Now.AddHours(1));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now);
+        request.Approve(Actor("Sınaq rəhbəri"), null, false, Now.AddHours(1));
 
         Assert.All(request.WorkflowEvents, workflowEvent => Assert.Null(workflowEvent.Comment));
     }
@@ -142,7 +143,7 @@ public sealed class OrderWorkflowTests
         var request = SubmittedWithMissingPrice();
 
         var error = Assert.Throws<MissingPriceAcknowledgementRequiredException>(
-            () => request.Approve("Ənvər", null, false, Now));
+            () => request.Approve(Actor("Sınaq rəhbəri"), null, false, Now));
 
         Assert.Equal(1, error.MissingPriceItemCount);
         Assert.Equal(OrderRequestStatus.PendingApproval, request.Status);
@@ -155,7 +156,7 @@ public sealed class OrderWorkflowTests
         // has to be somebody's decision rather than something nobody noticed.
         var request = SubmittedWithMissingPrice();
 
-        request.Approve("Ənvər", null, true, Now);
+        request.Approve(Actor("Sınaq rəhbəri"), null, true, Now);
 
         Assert.Equal(OrderRequestStatus.Approved, request.Status);
         var approval = Assert.Single(request.WorkflowEvents, e => e.Action == OrderWorkflowAction.Approved);
@@ -168,7 +169,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Submitted();
 
-        request.Approve("Ənvər", null, false, Now);
+        request.Approve(Actor("Sınaq rəhbəri"), null, false, Now);
 
         Assert.Equal(OrderRequestStatus.Approved, request.Status);
         Assert.False(Assert.Single(request.WorkflowEvents, e => e.Action == OrderWorkflowAction.Approved).MissingPricesAcknowledged);
@@ -180,10 +181,10 @@ public sealed class OrderWorkflowTests
     public void Every_transition_leaves_an_event_behind()
     {
         var request = Priced();
-        request.SubmitForApproval("Ruslan", null, Now);
-        request.ReturnForCorrection("Ənvər", "Yenidən bax", Now.AddHours(1));
-        request.SubmitForApproval("Ruslan", null, Now.AddHours(2));
-        request.Approve("Ənvər", null, false, Now.AddHours(3));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now);
+        request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "Yenidən bax", Now.AddHours(1));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now.AddHours(2));
+        request.Approve(Actor("Sınaq rəhbəri"), null, false, Now.AddHours(3));
 
         Assert.Equal(
             [OrderWorkflowAction.SubmittedForApproval, OrderWorkflowAction.ReturnedForCorrection,
@@ -195,13 +196,13 @@ public sealed class OrderWorkflowTests
     public void An_event_records_where_the_request_came_from_and_went_to()
     {
         var request = Submitted();
-        request.ReturnForCorrection("Ənvər", "Səbəb", Now.AddHours(1));
+        request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "Səbəb", Now.AddHours(1));
 
         var returned = request.WorkflowEvents.Last();
 
         Assert.Equal((OrderRequestStatus.PendingApproval, OrderRequestStatus.ReturnedForCorrection),
             (returned.FromStatus, returned.ToStatus));
-        Assert.Equal("Ənvər", returned.ActorDisplayName);
+        Assert.Equal("Sınaq rəhbəri", returned.ActorDisplayName);
         Assert.Equal(Now.AddHours(1), returned.OccurredAtUtc);
     }
 
@@ -210,7 +211,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Submitted();
 
-        Assert.Throws<DomainException>(() => request.ReturnForCorrection("Ənvər", "  ", Now));
+        Assert.Throws<DomainException>(() => request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "  ", Now));
 
         Assert.Single(request.WorkflowEvents);
     }
@@ -223,7 +224,7 @@ public sealed class OrderWorkflowTests
         var request = Priced();
 
         Assert.Throws<DomainException>(
-            () => request.SubmitForApproval("Ruslan", null, new DateTime(2026, 9, 22, 10, 0, 0, kind)));
+            () => request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, new DateTime(2026, 9, 22, 10, 0, 0, kind)));
     }
 
     [Fact]
@@ -231,7 +232,7 @@ public sealed class OrderWorkflowTests
     {
         var request = Priced();
 
-        Assert.Throws<DomainException>(() => request.SubmitForApproval("   ", null, Now));
+        Assert.Throws<DomainException>(() => request.SubmitForApproval(Actor("   "), null, Now));
     }
 
     // ---- the version ---------------------------------------------------------------------------------
@@ -242,10 +243,10 @@ public sealed class OrderWorkflowTests
         var request = Priced();
         var version = request.Version;
 
-        request.SubmitForApproval("Ruslan", null, Now);
-        request.ReturnForCorrection("Ənvər", "Səbəb", Now.AddHours(1));
-        request.SubmitForApproval("Ruslan", null, Now.AddHours(2));
-        request.Approve("Ənvər", null, false, Now.AddHours(3));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now);
+        request.ReturnForCorrection(Actor("Sınaq rəhbəri"), "Səbəb", Now.AddHours(1));
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now.AddHours(2));
+        request.Approve(Actor("Sınaq rəhbəri"), null, false, Now.AddHours(3));
 
         Assert.Equal(version, request.Version);
     }
@@ -257,14 +258,91 @@ public sealed class OrderWorkflowTests
     [InlineData(OrderRequestStatus.ReturnedForCorrection, true, false, false)]
     [InlineData(OrderRequestStatus.PendingApproval, false, true, true)]
     [InlineData(OrderRequestStatus.Approved, false, false, false)]
-    public void What_a_state_allows(OrderRequestStatus status, bool submit, bool approve, bool @return)
+    public void What_a_state_allows_before_anybody_is_considered(
+        OrderRequestStatus status, bool submit, bool approve, bool @return)
     {
-        var allowed = AllowedWorkflowActionsDto.For(status);
+        var allowed = AllowedWorkflowActionsDto.ForState(status);
 
         Assert.Equal((submit, approve, @return), (allowed.CanSubmit, allowed.CanApprove, allowed.CanReturn));
     }
 
+    // ---- what a person may do ------------------------------------------------------------------------
+
+    [Theory]
+    // A draft: whoever may submit, may send it. A manager has nothing to do with it yet.
+    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Coordinator, true, false, false)]
+    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Manager, false, false, false)]
+    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Admin, true, false, false)]
+    // Waiting: the decision is the manager's, and the coordinator who sent it has no say.
+    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Coordinator, false, false, false)]
+    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Manager, false, true, true)]
+    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Admin, false, true, true)]
+    // Returned: back with whoever submits.
+    [InlineData(OrderRequestStatus.ReturnedForCorrection, BaxOrdersRoles.Coordinator, true, false, false)]
+    [InlineData(OrderRequestStatus.ReturnedForCorrection, BaxOrdersRoles.Manager, false, false, false)]
+    // Approved: nothing, for anybody.
+    [InlineData(OrderRequestStatus.Approved, BaxOrdersRoles.Admin, false, false, false)]
+    public void What_a_role_may_do_in_a_state(
+        OrderRequestStatus status, string role, bool submit, bool approve, bool @return)
+    {
+        var somebodyElse = Guid.NewGuid();
+        var allowed = AllowedWorkflowActionsDto.For(status, somebodyElse, User(role, Guid.NewGuid()));
+
+        Assert.Equal((submit, approve, @return), (allowed.CanSubmit, allowed.CanApprove, allowed.CanReturn));
+        Assert.False(allowed.BlockedBySelfApproval);
+    }
+
+    [Theory]
+    [InlineData(BaxOrdersRoles.Manager)]
+    [InlineData(BaxOrdersRoles.Admin)]
+    public void Nobody_may_decide_on_what_they_submitted_themselves(string role)
+    {
+        // The role says yes and the state says yes; being the submitter is what stops it.
+        var me = Guid.NewGuid();
+        var allowed = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, me, User(role, me));
+
+        Assert.False(allowed.CanApprove);
+        Assert.False(allowed.CanReturn);
+        Assert.True(allowed.BlockedBySelfApproval);
+    }
+
+    [Fact]
+    public void An_anonymous_caller_may_do_nothing_at_all()
+    {
+        var allowed = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, null, User(null, null));
+
+        Assert.Equal((false, false, false), (allowed.CanSubmit, allowed.CanApprove, allowed.CanReturn));
+    }
+
+    private static ICurrentUserContext User(string? role, Guid? userId) => new StubUser(role, userId);
+
+    private sealed class StubUser(string? role, Guid? userId) : ICurrentUserContext
+    {
+        public bool IsAuthenticated => userId is not null;
+
+        public Guid? UserId => userId;
+
+        public string? UserName => role;
+
+        public string? DisplayName => role;
+
+        public string? Role => role;
+    }
+
     // ---- fixture -------------------------------------------------------------------------------------
+
+    /// <summary>Two names, two people: a submitter and an approver are never the same user here.</summary>
+    private static readonly Dictionary<string, Guid> Ids = [];
+
+    private static WorkflowActor Actor(string name)
+    {
+        if (!Ids.TryGetValue(name, out var id))
+        {
+            Ids[name] = id = Guid.NewGuid();
+        }
+
+        return WorkflowActor.User(id, name);
+    }
 
     private static Location Location() => new("MASTAGA", "Maştağa");
 
@@ -284,14 +362,14 @@ public sealed class OrderWorkflowTests
     private static OrderRequest Submitted()
     {
         var request = Priced();
-        request.SubmitForApproval("Ruslan", null, Now);
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now);
         return request;
     }
 
     private static OrderRequest Approved()
     {
         var request = Submitted();
-        request.Approve("Ənvər", null, false, Now.AddHours(1));
+        request.Approve(Actor("Sınaq rəhbəri"), null, false, Now.AddHours(1));
         return request;
     }
 
@@ -300,7 +378,7 @@ public sealed class OrderWorkflowTests
         var request = new OrderRequest(Location(), July);
         request.AddItem(Variant(), 10m, 7m);
         request.AddItem(Variant(), 5m, null);
-        request.SubmitForApproval("Ruslan", null, Now);
+        request.SubmitForApproval(Actor("Sınaq koordinatoru"), null, Now);
         return request;
     }
 }

@@ -2,13 +2,14 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrderRequestStatus } from '../../api/orders'
-import type { OrderWorkflow } from '../../api/workflow'
+import type { AllowedWorkflowActions, OrderWorkflow } from '../../api/workflow'
 import { WorkflowPanel } from './WorkflowPanel'
 
 /**
- * What the approval panel is allowed to show and to send. The state decides which buttons exist — the server
- * says so and checks again — and an order whose money is partly unknown cannot be approved by someone who
- * has not said they know that.
+ * What the approval panel is allowed to show and to send. Which buttons exist is the server's answer — the
+ * state, the role and whose submission it is are all folded into `allowedActions`, and the endpoint checks
+ * them again — and an order whose money is partly unknown cannot be approved by someone who has not said
+ * they know that. Nothing here names the person acting: the session does.
  */
 const workflowApi = vi.hoisted(() => ({
   fetchWorkflow: vi.fn(),
@@ -22,6 +23,13 @@ vi.mock('../../api/workflow', async () => {
   return { ...actual, ...workflowApi }
 })
 
+const nobody: AllowedWorkflowActions = {
+  canSubmit: false,
+  canApprove: false,
+  canReturn: false,
+  blockedBySelfApproval: false,
+}
+
 function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
   const status: OrderRequestStatus = overrides.status ?? 'Draft'
   return {
@@ -32,10 +40,12 @@ function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
     version: 1,
     status,
     allowedActions: {
+      ...nobody,
       canSubmit: status === 'Draft' || status === 'ReturnedForCorrection',
       canApprove: status === 'PendingApproval',
       canReturn: status === 'PendingApproval',
     },
+    submittedByUserId: null,
     submittedAtUtc: null,
     approvedAtUtc: null,
     returnedAtUtc: null,
@@ -101,32 +111,98 @@ describe('what each state shows', () => {
   })
 })
 
+/**
+ * The panel never works out a role for itself. These fix what it does with the answer the server gives for
+ * each one, which is the answer the endpoints then enforce.
+ */
+describe('what each role is offered', () => {
+  it('lets a coordinator send a draft on, and does not offer them a decision', async () => {
+    await renderPanel(workflow({
+      status: 'Draft',
+      allowedActions: { ...nobody, canSubmit: true },
+    }))
+
+    expect(screen.getByRole('button', { name: 'Təsdiqə göndər' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+  })
+
+  it('offers a coordinator nothing on a waiting request', async () => {
+    await renderPanel(workflow({ status: 'PendingApproval', allowedActions: nobody }))
+
+    expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Düzəlişə qaytar' })).toBeNull()
+    expect(screen.queryByText(/Özünüzün təsdiqə göndərdiyiniz/)).toBeNull()
+  })
+
+  it('lets a manager decide on a waiting request but not submit a draft', async () => {
+    await renderPanel(workflow({
+      status: 'PendingApproval',
+      allowedActions: { ...nobody, canApprove: true, canReturn: true },
+    }))
+
+    expect(screen.getByRole('button', { name: 'Təsdiqlə' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Düzəlişə qaytar' })).toBeInTheDocument()
+
+    await renderPanel(workflow({ status: 'Draft', allowedActions: nobody }))
+    expect(screen.queryByRole('button', { name: 'Təsdiqə göndər' })).toBeNull()
+  })
+
+  it('lets an admin decide on somebody else’s submission', async () => {
+    await renderPanel(workflow({
+      status: 'PendingApproval',
+      submittedByUserId: '4f1f0a2e-0000-4000-8000-000000000001',
+      allowedActions: { ...nobody, canApprove: true, canReturn: true },
+    }))
+
+    expect(screen.getByRole('button', { name: 'Təsdiqlə' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Düzəlişə qaytar' })).toBeInTheDocument()
+  })
+})
+
+describe('a request the reader submitted themselves', () => {
+  const ownSubmission = workflow({
+    status: 'PendingApproval',
+    submittedByUserId: '4f1f0a2e-0000-4000-8000-000000000001',
+    allowedActions: { ...nobody, blockedBySelfApproval: true },
+  })
+
+  it('says why there is nothing to press, rather than showing an empty row', async () => {
+    await renderPanel(ownSubmission)
+
+    expect(screen.getByText(/Özünüzün təsdiqə göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz/)).toBeInTheDocument()
+  })
+
+  it('offers neither approval nor return, whatever the role', async () => {
+    await renderPanel(ownSubmission)
+
+    expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Düzəlişə qaytar' })).toBeNull()
+  })
+})
+
 describe('taking an action', () => {
-  it('will not act until somebody is named', async () => {
+  it('asks for nothing but a note, and never for a name', async () => {
     const user = userEvent.setup()
     await renderPanel(workflow({ status: 'Draft' }))
     await user.click(screen.getByRole('button', { name: 'Təsdiqə göndər' }))
 
     const dialog = screen.getByRole('dialog')
-    const confirm = within(dialog).getByRole('button', { name: 'Təsdiqə göndər' })
-    expect(confirm).toBeDisabled()
-
-    await user.type(screen.getByPlaceholderText('Ad, soyad'), 'Ruslan')
-    expect(confirm).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Təsdiqə göndər' })).toBeEnabled()
+    expect(screen.queryByPlaceholderText('Ad, soyad')).toBeNull()
+    expect(screen.queryByText('Əməliyyatı edən')).toBeNull()
+    expect(screen.queryByText(/Sistemdə hələ istifadəçi girişi yoxdur/)).toBeNull()
   })
 
-  it('sends the name and the note that were typed', async () => {
+  it('sends only the note that was typed; who is acting comes from the session', async () => {
     const user = userEvent.setup()
     workflowApi.submitForApproval.mockResolvedValue(workflow({ status: 'PendingApproval' }))
     await renderPanel(workflow({ status: 'Draft' }))
 
     await user.click(screen.getByRole('button', { name: 'Təsdiqə göndər' }))
-    await user.type(screen.getByPlaceholderText('Ad, soyad'), 'Ruslan')
     await user.type(screen.getByRole('textbox', { name: /Qeyd/ }), 'İyul sifarişi yoxlanıldı')
     await user.click(screen.getAllByRole('button', { name: 'Təsdiqə göndər' }).at(-1)!)
 
     await waitFor(() => expect(workflowApi.submitForApproval).toHaveBeenCalledWith(105, {
-      actorDisplayName: 'Ruslan',
       comment: 'İyul sifarişi yoxlanıldı',
     }))
   })
@@ -136,7 +212,6 @@ describe('taking an action', () => {
     await renderPanel(workflow({ status: 'PendingApproval' }))
 
     await user.click(screen.getByRole('button', { name: 'Düzəlişə qaytar' }))
-    await user.type(screen.getByPlaceholderText('Ad, soyad'), 'Ənvər')
 
     const confirm = screen.getAllByRole('button', { name: 'Düzəlişə qaytar' }).at(-1)!
     expect(confirm).toBeDisabled()
@@ -153,10 +228,23 @@ describe('taking an action', () => {
     await renderPanel(workflow({ status: 'PendingApproval' }))
 
     await user.click(screen.getByRole('button', { name: 'Təsdiqlə' }))
-    await user.type(screen.getByPlaceholderText('Ad, soyad'), 'Ənvər')
     await user.click(screen.getAllByRole('button', { name: 'Təsdiqlə' }).at(-1)!)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu sifariş artıq təsdiqlənib.')
+  })
+
+  it('shows the server’s refusal when it disagrees with what was offered', async () => {
+    const user = userEvent.setup()
+    const { ApiError } = await vi.importActual<typeof import('../../api/client')>('../../api/client')
+    workflowApi.approveOrder.mockRejectedValue(
+      new ApiError(403, 'Bu əməliyyat üçün icazəniz yoxdur.'),
+    )
+    await renderPanel(workflow({ status: 'PendingApproval' }))
+
+    await user.click(screen.getByRole('button', { name: 'Təsdiqlə' }))
+    await user.click(screen.getAllByRole('button', { name: 'Təsdiqlə' }).at(-1)!)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bu əməliyyat üçün icazəniz yoxdur.')
   })
 })
 
@@ -181,7 +269,6 @@ describe('an order whose money is partly unknown', () => {
     await renderPanel(unpriced)
 
     await user.click(screen.getByRole('button', { name: 'Təsdiqlə' }))
-    await user.type(screen.getByPlaceholderText('Ad, soyad'), 'Ənvər')
 
     const confirm = screen.getAllByRole('button', { name: 'Təsdiqlə' }).at(-1)!
     expect(screen.getByText(/3 qiymətsiz sətir var/)).toBeInTheDocument()
@@ -197,12 +284,10 @@ describe('an order whose money is partly unknown', () => {
     await renderPanel(unpriced)
 
     await user.click(screen.getByRole('button', { name: 'Təsdiqlə' }))
-    await user.type(screen.getByPlaceholderText('Ad, soyad'), 'Ənvər')
     await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getAllByRole('button', { name: 'Təsdiqlə' }).at(-1)!)
 
     await waitFor(() => expect(workflowApi.approveOrder).toHaveBeenCalledWith(105, {
-      actorDisplayName: 'Ənvər',
       comment: undefined,
       acknowledgeMissingPrices: true,
     }))
@@ -210,7 +295,7 @@ describe('an order whose money is partly unknown', () => {
 })
 
 describe('the history', () => {
-  it('reads as the story of the request, oldest first', async () => {
+  it('reads as the story of the request, oldest first, in the names recorded at the time', async () => {
     await renderPanel(workflow({
       status: 'Approved',
       submittedAtUtc: '2026-09-22T10:32:00Z',
@@ -221,7 +306,8 @@ describe('the history', () => {
           action: 'SubmittedForApproval',
           fromStatus: 'Draft',
           toStatus: 'PendingApproval',
-          actorDisplayName: 'Ruslan',
+          actorUserId: '4f1f0a2e-0000-4000-8000-000000000001',
+          actorDisplayName: 'Test Koordinator',
           comment: 'İyul sifarişi yoxlanıldı',
           missingPriceItemCount: 0,
           missingPricesAcknowledged: false,
@@ -232,7 +318,8 @@ describe('the history', () => {
           action: 'ReturnedForCorrection',
           fromStatus: 'PendingApproval',
           toStatus: 'ReturnedForCorrection',
-          actorDisplayName: 'Ənvər',
+          actorUserId: '4f1f0a2e-0000-4000-8000-000000000002',
+          actorDisplayName: 'Test Rəhbər',
           comment: 'Zibil paketi sayı çoxdur',
           missingPriceItemCount: 0,
           missingPricesAcknowledged: false,
@@ -244,9 +331,51 @@ describe('the history', () => {
     const entries = screen.getAllByRole('listitem')
     expect(entries).toHaveLength(2)
     expect(entries[0]).toHaveTextContent('Təsdiqə göndərildi')
-    expect(entries[0]).toHaveTextContent('Ruslan')
+    expect(entries[0]).toHaveTextContent('Test Koordinator')
     expect(entries[1]).toHaveTextContent('Düzəlişə qaytarıldı')
+    expect(entries[1]).toHaveTextContent('Test Rəhbər')
     expect(entries[1]).toHaveTextContent('Səbəb: Zibil paketi sayı çoxdur')
+  })
+
+  it('keeps the name as it was stored, without looking the person up again', async () => {
+    await renderPanel(workflow({
+      status: 'Approved',
+      history: [{
+        id: 4,
+        action: 'Approved',
+        fromStatus: 'PendingApproval',
+        toStatus: 'Approved',
+        actorUserId: '4f1f0a2e-0000-4000-8000-000000000002',
+        // The person has since been renamed; the record still says who acted that day.
+        actorDisplayName: 'Köhnə ad',
+        comment: null,
+        missingPriceItemCount: 0,
+        missingPricesAcknowledged: false,
+        occurredAtUtc: '2026-09-22T12:00:00Z',
+      }],
+    }))
+
+    expect(screen.getByText(/Köhnə ad/)).toBeInTheDocument()
+  })
+
+  it('reads an event with nobody behind it as the system', async () => {
+    await renderPanel(workflow({
+      status: 'PendingApproval',
+      history: [{
+        id: 5,
+        action: 'SubmittedForApproval',
+        fromStatus: 'Draft',
+        toStatus: 'PendingApproval',
+        actorUserId: null,
+        actorDisplayName: '',
+        comment: null,
+        missingPriceItemCount: 0,
+        missingPricesAcknowledged: false,
+        occurredAtUtc: '2026-09-22T09:00:00Z',
+      }],
+    }))
+
+    expect(screen.getByRole('listitem')).toHaveTextContent('Sistem')
   })
 
   it('records that unpriced lines were acknowledged', async () => {
@@ -257,7 +386,8 @@ describe('the history', () => {
         action: 'Approved',
         fromStatus: 'PendingApproval',
         toStatus: 'Approved',
-        actorDisplayName: 'Ənvər',
+        actorUserId: '4f1f0a2e-0000-4000-8000-000000000002',
+        actorDisplayName: 'Test Rəhbər',
         comment: null,
         missingPriceItemCount: 3,
         missingPricesAcknowledged: true,
@@ -266,15 +396,5 @@ describe('the history', () => {
     }))
 
     expect(screen.getByText(/3 qiymətsiz sətir təsdiq zamanı qeyd edilib/)).toBeInTheDocument()
-  })
-})
-
-describe('the temporary actor field', () => {
-  it('says plainly that the name is not a verified identity', async () => {
-    const user = userEvent.setup()
-    await renderPanel(workflow({ status: 'Draft' }))
-    await user.click(screen.getByRole('button', { name: 'Təsdiqə göndər' }))
-
-    expect(screen.getByText(/Sistemdə hələ istifadəçi girişi yoxdur/)).toBeInTheDocument()
   })
 })

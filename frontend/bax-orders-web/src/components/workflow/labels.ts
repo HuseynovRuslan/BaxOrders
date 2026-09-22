@@ -47,14 +47,12 @@ export const returnLabel = 'Düzəlişə qaytar'
 
 export const acknowledgeMissingPricesLabel = 'Qiyməti olmayan sətirlərin mövcud olduğunu bilirəm.'
 
-export const actorFieldLabel = 'Əməliyyatı edən'
-
 /**
- * Said next to the actor field. There is no sign-in yet, so a name typed here is a label on the record and
- * not a verified identity; the next task replaces it with the user who is actually signed in.
+ * Said where the state and the role would both allow a decision and the only thing in the way is that this
+ * person submitted the request. Offering nothing without a word would read as a bug.
  */
-export const actorFieldHint =
-  'Sistemdə hələ istifadəçi girişi yoxdur. Yazdığınız ad əməliyyat tarixçəsində qeyd olunur, lakin yoxlanılmır.'
+export const selfApprovalBlockedNote =
+  'Özünüzün təsdiqə göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz. Başqa bir istifadəçi baxmalıdır.'
 
 export function missingPriceWarning(count: number): string {
   return `Bu sifarişdə ${count} qiymətsiz sətir var. Təsdiq edilən məbləğ tam maliyyə məbləği deyil.`
@@ -68,8 +66,8 @@ export function missingPriceNote(count: number): string {
 export const workflowErrors = {
   alreadyApproved: 'Bu sifariş artıq təsdiqlənib.',
   reasonRequired: 'Düzəlişə qaytarmaq üçün səbəb yazılmalıdır.',
-  actorRequired: 'Əməliyyatı edən şəxsin adı yazılmalıdır.',
   acknowledgementRequired: 'Qiyməti olmayan sətirləri təsdiqlədiyinizi qeyd edin.',
+  forbidden: 'Bu əməliyyat üçün icazəniz yoxdur.',
   conflict: 'Bu sifariş siz işləyərkən başqası tərəfindən dəyişdirilib. Səhifəni yeniləyib yenidən cəhd edin.',
   unknown: 'Əməliyyat yerinə yetirilmədi.',
 } as const

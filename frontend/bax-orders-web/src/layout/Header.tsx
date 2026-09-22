@@ -1,6 +1,7 @@
 import { Menu } from 'lucide-react'
 import { fetchHealth } from '../api/health'
 import { useApiResource } from '../hooks/useApiResource'
+import { CurrentUserMenu } from './CurrentUserMenu'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -18,8 +19,9 @@ export function Header({ onMenuClick }: HeaderProps) {
         <Menu className="size-5" />
       </button>
       <p className="text-sm font-medium text-slate-700">Material sifarişlərinin idarə edilməsi</p>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-4">
         <ApiStatus />
+        <CurrentUserMenu />
       </div>
     </header>
   )

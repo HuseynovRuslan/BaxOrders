@@ -1,10 +1,13 @@
 using System.Text.Json.Serialization;
+using BaxOrders.Api;
 using BaxOrders.Api.ErrorHandling;
 using BaxOrders.Application;
 using BaxOrders.Application.Imports;
 using Microsoft.AspNetCore.Http.Features;
 using BaxOrders.Infrastructure;
+using BaxOrders.Infrastructure.Identity;
 using BaxOrders.Infrastructure.Persistence;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 
@@ -35,6 +38,8 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = 
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddBaxOrdersSecurity(builder.Configuration);
+builder.Services.AddDisplayNameClaim();
 
 builder.Services.AddHealthChecks().AddDbContextCheck<BaxOrdersDbContext>("database");
 
@@ -56,7 +61,23 @@ if (app.Environment.IsDevelopment())
     }
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
-app.MapHealthChecks("/health");
+
+// Anonymous on purpose: a monitor has to be able to ask whether the service is up without an account.
+app.MapHealthChecks("/health").AllowAnonymous();
+
+// Roles exist from the first run, and the first administrator is created only when there is nobody at all.
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<IdentityInitializer>().InitializeAsync(
+        scope.ServiceProvider.GetRequiredService<IOptions<BootstrapAdminOptions>>().Value,
+        CancellationToken.None);
+}
 
 app.Run();
+
+/// <summary>Named so the integration tests can host the real application rather than a stand-in.</summary>
+public partial class Program;

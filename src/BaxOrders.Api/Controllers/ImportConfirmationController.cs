@@ -1,6 +1,8 @@
 using BaxOrders.Api.ErrorHandling;
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Confirmation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BaxOrders.Api.Controllers;
@@ -36,6 +38,7 @@ public sealed class ImportConfirmationController(
     /// </summary>
     /// <response code="400">A decision is not usable, for example a skip without a reason.</response>
     /// <response code="409">The import is not ready, a group needs a decision, or the staged data changed since the preview.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost]
     [ProducesResponseType<ImportConfirmationResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]

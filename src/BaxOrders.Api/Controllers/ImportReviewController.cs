@@ -1,8 +1,10 @@
-using BaxOrders.Application.Imports;
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports.Review;
-using BaxOrders.Domain;
+using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Imports;
+using BaxOrders.Domain;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BaxOrders.Api.Controllers;
@@ -75,6 +77,7 @@ public sealed class ImportReviewController(
     /// totals the confirmation screen shows. Nothing is written.
     /// </summary>
     /// <response code="400">Too many values, a duplicate value, or an action this kind does not allow.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("review/bulk/preview")]
     [ProducesResponseType<BulkPreviewResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -87,6 +90,7 @@ public sealed class ImportReviewController(
     /// </summary>
     /// <response code="400">The request itself is not valid.</response>
     /// <response code="409">At least one value conflicts; the answer lists them in 'items'.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("review/bulk/apply")]
     [ProducesResponseType<BulkApplyResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -96,6 +100,7 @@ public sealed class ImportReviewController(
 
     /// <summary>Maps a distinct value to an existing canonical record.</summary>
     /// <response code="409">The value is already resolved to another record, or the alias would be ambiguous.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/map")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
@@ -122,27 +127,32 @@ public sealed class ImportReviewController(
     /// unitless. The workbook value is kept as it was.
     /// </summary>
     /// <response code="409">The value is already resolved to a real unit in this import.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/not-a-unit")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public Task<ResolutionResult> MarkNotAUnit(long id, MarkNotAUnitRequest request, CancellationToken cancellationToken) =>
         resolutions.MarkNotAUnitAsync(new MarkNotAUnitCommand(id, request.Kind, request.SourceKey), cancellationToken);
 
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/locations")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     public Task<ResolutionResult> CreateLocation(long id, CreateLocationRequest request, CancellationToken cancellationToken) =>
         resolutions.CreateLocationAsync(new CreateLocationCommand(id, request.SourceKey, request.Name, request.Scope), cancellationToken);
 
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/suppliers")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     public Task<ResolutionResult> CreateSupplier(long id, CreateSupplierRequest request, CancellationToken cancellationToken) =>
         resolutions.CreateSupplierAsync(new CreateSupplierCommand(id, request.SourceKey, request.Name, request.Code, request.Scope), cancellationToken);
 
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/responsible-people")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     public Task<ResolutionResult> CreateResponsiblePerson(long id, CreateResponsiblePersonRequest request, CancellationToken cancellationToken) =>
         resolutions.CreateResponsiblePersonAsync(new CreateResponsiblePersonCommand(id, request.SourceKey, request.Name, request.Scope), cancellationToken);
 
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/units")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     public Task<ResolutionResult> CreateUnit(long id, CreateUnitRequest request, CancellationToken cancellationToken) =>
@@ -151,6 +161,7 @@ public sealed class ImportReviewController(
             cancellationToken);
 
     /// <summary>Creates the missing levels of a category path and reuses the levels that already exist.</summary>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/category-paths")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     public Task<ResolutionResult> CreateCategoryPath(long id, CreateCategoryPathRequest request, CancellationToken cancellationToken) =>
@@ -158,6 +169,7 @@ public sealed class ImportReviewController(
 
     /// <summary>Creates a new base product for one unresolved name.</summary>
     /// <response code="409">The name already belongs to a product or to one of its aliases.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/products")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
@@ -168,6 +180,7 @@ public sealed class ImportReviewController(
 
     /// <summary>Creates the variant the staged rows describe, from the product and units already resolved.</summary>
     /// <response code="409">A decision it depends on is missing, or the variant already exists.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("resolutions/product-variants")]
     [ProducesResponseType<ResolutionResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]

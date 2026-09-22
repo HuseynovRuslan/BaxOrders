@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { NavLink } from 'react-router'
+import { useAuth } from '../auth/AuthProvider'
 import { navItems } from './navigation'
 
 interface SidebarProps {
@@ -8,6 +9,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
+  const { user } = useAuth()
+  const visible = navItems.filter((item) => item.requires === undefined || user[item.requires])
+
   return (
     <>
       {open && (
@@ -44,7 +48,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {visible.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}

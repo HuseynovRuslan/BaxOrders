@@ -1,5 +1,8 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Domain.Catalog;
+using BaxOrders.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
@@ -9,8 +12,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Infrastructure.Persistence;
 
+/// <summary>
+/// The one database the system uses, business data and identity together.
+/// </summary>
+/// <remarks>
+/// Identity lives here rather than in a second database because a workflow event points at the user who
+/// caused it: splitting the two would turn that reference into something nothing could enforce.
+/// </remarks>
 public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> options)
-    : DbContext(options), IBaxOrdersDbContext
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options), IBaxOrdersDbContext
 {
     private const int EnumMaxLength = 32;
 
@@ -62,6 +72,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.HasSequence<long>(SqlServerProductCodeGenerator.SequenceName).StartsAt(1).IncrementsBy(1);
         modelBuilder.HasSequence<long>(SqlServerLocationCodeGenerator.SequenceName).StartsAt(1).IncrementsBy(1);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BaxOrdersDbContext).Assembly);

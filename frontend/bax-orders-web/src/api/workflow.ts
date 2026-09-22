@@ -5,13 +5,16 @@ import type { OrderRequestStatus } from './orders'
 export type OrderWorkflowAction = 'SubmittedForApproval' | 'Approved' | 'ReturnedForCorrection'
 
 /**
- * What the request's current state allows. These are state permissions only — nobody is authenticated yet,
- * so they say what the workflow permits, never who is permitted to do it.
+ * What the signed-in person may do to this request right now: the state, narrowed by their role, narrowed
+ * again by whether it is their own submission. It is the server's answer and it decides what is offered —
+ * never whether the action succeeds. The endpoints check the same rules again.
  */
 export interface AllowedWorkflowActions {
   canSubmit: boolean
   canApprove: boolean
   canReturn: boolean
+  /** The state and the role would both allow a decision; the only thing stopping it is that they submitted it. */
+  blockedBySelfApproval: boolean
 }
 
 export interface WorkflowEvent {
@@ -19,7 +22,9 @@ export interface WorkflowEvent {
   action: OrderWorkflowAction
   fromStatus: OrderRequestStatus
   toStatus: OrderRequestStatus
-  /** A name the caller stated. Temporary: nothing authenticates it until users exist. */
+  /** The signed-in user who acted, or null for an action recorded before sign-in existed. */
+  actorUserId: string | null
+  /** Their name as it read at the time. A snapshot: never refreshed, never looked up again. */
   actorDisplayName: string
   comment: string | null
   missingPriceItemCount: number
@@ -35,6 +40,8 @@ export interface OrderWorkflow {
   version: number
   status: OrderRequestStatus
   allowedActions: AllowedWorkflowActions
+  /** Who put it into its current approval cycle; null for one nobody has submitted. */
+  submittedByUserId: string | null
   submittedAtUtc: string | null
   approvedAtUtc: string | null
   returnedAtUtc: string | null
@@ -49,19 +56,20 @@ export interface OrderWorkflow {
   history: WorkflowEvent[]
 }
 
+/**
+ * None of these carry an actor. Who is acting comes from the session cookie, so the browser cannot claim to
+ * be somebody else by putting a name in the body.
+ */
 export interface SubmitForApprovalCommand {
-  actorDisplayName: string
   comment?: string
 }
 
 export interface ApproveOrderCommand {
-  actorDisplayName: string
   comment?: string
   acknowledgeMissingPrices?: boolean
 }
 
 export interface ReturnForCorrectionCommand {
-  actorDisplayName: string
   reason: string
 }
 

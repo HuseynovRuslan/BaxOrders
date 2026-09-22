@@ -1,6 +1,8 @@
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Orders;
 using BaxOrders.Application.Orders.Workflow;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BaxOrders.Api.Controllers;
@@ -39,6 +41,7 @@ public sealed class OrdersController(OrderRequestQueries queries, OrderWorkflowS
     /// <response code="404">No such order request.</response>
     /// <response code="409">Someone else changed the request first.</response>
     /// <response code="422">The request is in a status this action is not allowed from.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanSubmitOrders)]
     [HttpPost("{orderRequestId:long}/workflow/submit")]
     [ProducesResponseType<OrderWorkflowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -55,6 +58,7 @@ public sealed class OrdersController(OrderRequestQueries queries, OrderWorkflowS
     /// <response code="404">No such order request.</response>
     /// <response code="409">Someone else changed the request first.</response>
     /// <response code="422">Not allowed from this status, or the unpriced lines were not acknowledged.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanDecideOrders)]
     [HttpPost("{orderRequestId:long}/workflow/approve")]
     [ProducesResponseType<OrderWorkflowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -68,6 +72,7 @@ public sealed class OrdersController(OrderRequestQueries queries, OrderWorkflowS
     /// <response code="404">No such order request.</response>
     /// <response code="409">Someone else changed the request first.</response>
     /// <response code="422">Not allowed from this status, or no reason was given.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanDecideOrders)]
     [HttpPost("{orderRequestId:long}/workflow/return")]
     [ProducesResponseType<OrderWorkflowDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

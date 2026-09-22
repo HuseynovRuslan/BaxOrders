@@ -12,12 +12,12 @@ namespace BaxOrders.Application.Orders.Workflow;
 /// Every write goes through here, and the transition itself is the domain's: this service loads the request
 /// with its items, hands the decision to <see cref="OrderRequest"/> and saves. It never sets a status.
 /// <para>
-/// Two facts are recomputed here on every call rather than taken from the caller: how many lines have no
-/// price, and what the request's money actually is. A client that claims a request is fully priced does not
-/// make it so.
+/// Three facts are taken from the server rather than from the caller: who is acting, how many lines have no
+/// price, and what the request's money actually is. A client that claims to be somebody else, or that a
+/// request is fully priced, does not make either true.
 /// </para>
 /// </remarks>
-public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
+public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserContext currentUser)
 {
     /// <returns>Null when the request does not exist.</returns>
     public async Task<OrderWorkflowDto?> GetAsync(long orderRequestId, CancellationToken cancellationToken)
@@ -44,7 +44,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
 
         return TransitionAsync(
             orderRequestId,
-            request => request.SubmitForApproval(command.ActorDisplayName, command.Comment, DateTime.UtcNow),
+            request => request.SubmitForApproval(Actor(), command.Comment, DateTime.UtcNow),
             cancellationToken);
     }
 
@@ -56,7 +56,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
         return TransitionAsync(
             orderRequestId,
             request => request.Approve(
-                command.ActorDisplayName, command.Comment, command.AcknowledgeMissingPrices, DateTime.UtcNow),
+                Actor(), command.Comment, command.AcknowledgeMissingPrices, DateTime.UtcNow),
             cancellationToken);
     }
 
@@ -67,9 +67,18 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
 
         return TransitionAsync(
             orderRequestId,
-            request => request.ReturnForCorrection(command.ActorDisplayName, command.Reason, DateTime.UtcNow),
+            request => request.ReturnForCorrection(Actor(), command.Reason, DateTime.UtcNow),
             cancellationToken);
     }
+
+    /// <summary>
+    /// The person acting, from the session and from nowhere else. Endpoints require authentication, so an
+    /// anonymous caller never reaches this; if one somehow did, refusing is the only safe answer.
+    /// </summary>
+    private WorkflowActor Actor() =>
+        currentUser is { IsAuthenticated: true, UserId: { } userId }
+            ? WorkflowActor.User(userId, currentUser.DisplayName ?? currentUser.UserName ?? userId.ToString())
+            : throw new ForbiddenException("You must be signed in to act on an order.");
 
     private async Task<OrderWorkflowDto> TransitionAsync(
         long orderRequestId, Action<OrderRequest> transition, CancellationToken cancellationToken)
@@ -132,6 +141,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
                 workflowEvent.Action,
                 workflowEvent.FromStatus,
                 workflowEvent.ToStatus,
+                workflowEvent.ActorUserId,
                 workflowEvent.ActorDisplayName,
                 workflowEvent.Comment,
                 workflowEvent.MissingPriceItemCount,
@@ -139,7 +149,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
                 workflowEvent.OccurredAtUtc))
             .ToListAsync(cancellationToken);
 
-    private static OrderWorkflowDto Describe(
+    private OrderWorkflowDto Describe(
         OrderRequest request,
         (int ItemCount, int MissingPriceItemCount, decimal PricedAmount, int KnownPriceItemCount) totals,
         IReadOnlyList<WorkflowEventDto> history) =>
@@ -149,7 +159,8 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db)
             request.RequestPeriod,
             request.Version,
             request.Status,
-            AllowedWorkflowActionsDto.For(request.Status),
+            AllowedWorkflowActionsDto.For(request.Status, request.SubmittedByUserId, currentUser),
+            request.SubmittedByUserId,
             request.SubmittedAtUtc,
             request.ApprovedAtUtc,
             request.ReturnedAtUtc,

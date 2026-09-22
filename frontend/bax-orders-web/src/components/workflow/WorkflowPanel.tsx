@@ -5,7 +5,9 @@ import {
   returnForCorrection,
   submitForApproval,
   type OrderWorkflow,
+  type WorkflowEvent,
 } from '../../api/workflow'
+import { systemActorLabel } from '../../auth/labels'
 import { formatCount, formatMoney, unknownValue } from '../analytics/format'
 import { WorkflowDialog, type WorkflowDialogKind } from './WorkflowDialog'
 import {
@@ -14,6 +16,7 @@ import {
   missingPriceNote,
   resubmitLabel,
   returnLabel,
+  selfApprovalBlockedNote,
   submitLabel,
   workflowActionClass,
   workflowActionLabels,
@@ -30,9 +33,10 @@ interface WorkflowPanelProps {
 /**
  * Where a request stands, what may be done to it now, and everything that has been done to it.
  * <para>
- * Which buttons appear is the server's answer, not this component's opinion: the state decides, and the
- * server checks again when the action is taken. Nothing here edits an order — a returned request says that
- * correction is needed, and correcting it is not yet built.
+ * Which buttons appear is the server's answer, not this component's opinion: the state, the signed-in
+ * person's role and whether this is their own submission all fold into <c>allowedActions</c>, and the
+ * endpoint checks the same rules again when the action is taken. Nothing here edits an order — a returned
+ * request says that correction is needed, and correcting it is not yet built.
  * </para>
  */
 export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanelProps) {
@@ -52,24 +56,14 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanel
     return () => controller.abort()
   }, [orderRequestId])
 
-  async function run(
-    kind: WorkflowDialogKind,
-    input: { actorDisplayName: string; comment: string; acknowledge: boolean },
-  ) {
+  async function run(kind: WorkflowDialogKind, input: { comment: string; acknowledge: boolean }) {
     const comment = input.comment.length > 0 ? input.comment : undefined
     const updated =
       kind === 'submit'
-        ? await submitForApproval(orderRequestId, { actorDisplayName: input.actorDisplayName, comment })
+        ? await submitForApproval(orderRequestId, { comment })
         : kind === 'approve'
-          ? await approveOrder(orderRequestId, {
-              actorDisplayName: input.actorDisplayName,
-              comment,
-              acknowledgeMissingPrices: input.acknowledge,
-            })
-          : await returnForCorrection(orderRequestId, {
-              actorDisplayName: input.actorDisplayName,
-              reason: input.comment,
-            })
+          ? await approveOrder(orderRequestId, { comment, acknowledgeMissingPrices: input.acknowledge })
+          : await returnForCorrection(orderRequestId, { reason: input.comment })
 
     setWorkflow(updated)
     setDialog(null)
@@ -135,6 +129,12 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanel
         </span>
       </div>
 
+      {allowed.blockedBySelfApproval && (
+        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700" role="status">
+          {selfApprovalBlockedNote}
+        </p>
+      )}
+
       {workflow.status === 'ReturnedForCorrection' && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
           Bu sifariş düzəliş üçün qaytarılıb. Sətirlərin redaktəsi hələ sistemdə yoxdur — düzəliş Excel
@@ -155,7 +155,7 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanel
                 </span>
                 <div className="min-w-0">
                   <p className="text-slate-900">
-                    {entry.actorDisplayName}
+                    {actorOf(entry)}
                     <span className="ml-2 text-xs text-slate-500">{formatWorkflowMoment(entry.occurredAtUtc)}</span>
                   </p>
                   {entry.comment && (
@@ -193,4 +193,13 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged }: WorkflowPanel
       )}
     </section>
   )
+}
+
+/**
+ * The name recorded at the time, shown exactly as it was recorded. Nothing is looked up: if the person has
+ * since been renamed or disabled, the history still says who acted then. Events with no user behind them —
+ * anything from before sign-in existed — read as the system.
+ */
+function actorOf(entry: WorkflowEvent): string {
+  return entry.actorDisplayName.trim().length > 0 ? entry.actorDisplayName : systemActorLabel
 }

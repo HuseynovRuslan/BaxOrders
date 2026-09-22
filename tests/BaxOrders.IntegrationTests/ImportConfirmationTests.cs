@@ -456,7 +456,7 @@ public sealed class ImportConfirmationTests(SqlServerDatabaseFixture database)
 
         var request = new OrderRequest(location, fixture.Period);
         request.AddItem(variant, 1m, 1m);
-        request.SubmitForApproval("Test", null, DateTime.UtcNow);
+        request.SubmitForApproval(WorkflowActor.System("Test"), null, DateTime.UtcNow);
         db.OrderRequests.Add(request);
         await db.SaveChangesAsync();
         return request;

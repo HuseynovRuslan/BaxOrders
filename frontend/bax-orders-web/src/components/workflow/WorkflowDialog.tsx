@@ -6,8 +6,6 @@ import { formatMoney, formatMonth } from '../analytics/format'
 import { Modal } from '../imports/review/Modal'
 import {
   acknowledgeMissingPricesLabel,
-  actorFieldHint,
-  actorFieldLabel,
   approveLabel,
   missingPriceNote,
   missingPriceWarning,
@@ -22,7 +20,7 @@ interface WorkflowDialogProps {
   kind: WorkflowDialogKind
   workflow: OrderWorkflow
   onClose: () => void
-  onConfirm: (input: { actorDisplayName: string; comment: string; acknowledge: boolean }) => Promise<void>
+  onConfirm: (input: { comment: string; acknowledge: boolean }) => Promise<void>
 }
 
 const titles: Record<WorkflowDialogKind, string> = {
@@ -35,9 +33,11 @@ const titles: Record<WorkflowDialogKind, string> = {
  * The one place a workflow action is taken. It shows what is about to be acted on before it is acted on —
  * which month, which version, how many lines and how much money — because approving an order is a decision
  * about those things and not about a button.
+ * <para>
+ * Nobody says who they are here. The signed-in session answers that, and the server records it.
+ * </para>
  */
 export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowDialogProps) {
-  const [actor, setActor] = useState('')
   const [comment, setComment] = useState('')
   const [acknowledge, setAcknowledge] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -47,15 +47,14 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
   const needsAcknowledgement = kind === 'approve' && workflow.requiresMissingPriceAcknowledgement
   const reasonRequired = kind === 'return'
 
-  const actorMissing = actor.trim().length === 0
   const reasonMissing = reasonRequired && comment.trim().length === 0
-  const blocked = actorMissing || reasonMissing || (needsAcknowledgement && !acknowledge)
+  const blocked = reasonMissing || (needsAcknowledgement && !acknowledge)
 
   async function confirm() {
     setBusy(true)
     setError(null)
     try {
-      await onConfirm({ actorDisplayName: actor.trim(), comment: comment.trim(), acknowledge })
+      await onConfirm({ comment: comment.trim(), acknowledge })
     } catch (problem: unknown) {
       // The server is the authority; its message is shown when it has one.
       setError(problem instanceof ApiError ? problem.message : workflowErrors.unknown)
@@ -108,18 +107,6 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
             <span>{kind === 'approve' ? missingPriceWarning(missing) : missingPriceNote(missing)}</span>
           </p>
         )}
-
-        <label className="block">
-          <span className="text-xs text-slate-600">{actorFieldLabel}</span>
-          <input
-            type="text"
-            value={actor}
-            onChange={(event) => setActor(event.target.value)}
-            placeholder="Ad, soyad"
-            className="mt-1 w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm"
-          />
-          <span className="mt-1 block text-xs text-slate-500">{actorFieldHint}</span>
-        </label>
 
         <label className="block">
           <span className="text-xs text-slate-600">

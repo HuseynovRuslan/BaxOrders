@@ -1,4 +1,6 @@
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BaxOrders.Api.Controllers;
@@ -14,6 +16,7 @@ public sealed class ImportsController(ExcelImportService importService, ImportPr
     /// <response code="400">The upload was refused (missing file, extension, size or content type).</response>
     /// <response code="409">The same workbook is already staged or imported; see the importBatchId extension.</response>
     /// <response code="422">The workbook could not be processed; the import is marked Failed.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
     [HttpPost("excel")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<ImportUploadResponse>(StatusCodes.Status201Created)]

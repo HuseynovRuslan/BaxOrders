@@ -16,10 +16,13 @@ public enum OrderWorkflowAction
 /// afterwards — a later transition adds another event rather than rewriting this one. There is no API to
 /// change one, which is the point of keeping it.
 /// <para>
-/// <b>The actor is temporary.</b> Until authentication exists there is no user to attribute an action to, so
-/// the caller states a name and it is stored as text. It is a label, not an identity: nothing verifies it.
-/// When authentication arrives it will be replaced by the id of the user who acted, and this text becomes the
-/// historical record of what was claimed before then.
+/// The actor is recorded twice on purpose. <see cref="ActorUserId"/> is the signed-in user, stable across a
+/// rename; <see cref="ActorDisplayName"/> is the name as it read when the action happened, and is never
+/// rewritten afterwards — renaming somebody does not change what the history says about what they did.
+/// </para>
+/// <para>
+/// <see cref="ActorUserId"/> is null for the events recorded before authentication existed, and would be null
+/// for a system-generated action. That is a fact about the action, not a gap to fill with an invented user.
 /// </para>
 /// </remarks>
 public sealed class OrderRequestWorkflowEvent
@@ -36,20 +39,22 @@ public sealed class OrderRequestWorkflowEvent
         OrderWorkflowAction action,
         OrderRequestStatus fromStatus,
         OrderRequestStatus toStatus,
-        string actorDisplayName,
+        WorkflowActor actor,
         string? comment,
         int missingPriceItemCount,
         bool missingPricesAcknowledged,
         DateTime occurredAtUtc)
     {
         ArgumentNullException.ThrowIfNull(orderRequest);
+        ArgumentNullException.ThrowIfNull(actor);
 
         OrderRequest = orderRequest;
         OrderRequestId = orderRequest.Id;
         Action = action;
         FromStatus = fromStatus;
         ToStatus = toStatus;
-        ActorDisplayName = Guard.RequiredText(actorDisplayName, ActorDisplayNameMaxLength, nameof(actorDisplayName));
+        ActorUserId = actor.UserId;
+        ActorDisplayName = Guard.RequiredText(actor.DisplayName, ActorDisplayNameMaxLength, nameof(actor));
         Comment = Guard.OptionalText(comment, CommentMaxLength, nameof(comment));
         MissingPriceItemCount = missingPriceItemCount;
         MissingPricesAcknowledged = missingPricesAcknowledged;
@@ -68,7 +73,10 @@ public sealed class OrderRequestWorkflowEvent
 
     public OrderRequestStatus ToStatus { get; private set; }
 
-    /// <summary>A name the caller stated. Temporary: nothing authenticates it until Task 8B.</summary>
+    /// <summary>The signed-in user who acted. Null for an action with no person behind it.</summary>
+    public Guid? ActorUserId { get; private set; }
+
+    /// <summary>The actor's name as it read when this happened. A snapshot: never refreshed, never rewritten.</summary>
     public string ActorDisplayName { get; private set; } = null!;
 
     /// <summary>The reason a request was returned, or the optional note left when submitting or approving.</summary>

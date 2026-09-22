@@ -41,7 +41,7 @@ public sealed class SqlServerPersistenceTests(SqlServerDatabaseFixture database)
 
             var original = new OrderRequest(location, March);
             original.AddItem(shovel, 100m, 7m);
-            original.SubmitForApproval("Test", null, DateTime.UtcNow);
+            original.SubmitForApproval(WorkflowActor.System("Test"), null, DateTime.UtcNow);
             db.OrderRequests.Add(original);
             await db.SaveChangesAsync();
 

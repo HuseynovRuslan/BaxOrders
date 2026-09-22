@@ -730,6 +730,13 @@ presentation rules that carry business meaning rather than the look of the pages
 - a service has no quantity and is compared by money (Task 6B behaviour, retained now that the formatting is
   shared with the dashboard)
 
+Task 8B added the same kind of coverage for signing in: the sign-in form and its deliberately identical
+error, the guard that renders a screen for a session and redirects without one, the role label in the header,
+signing out, the workflow buttons each role is offered, the self-approval explanation, the actor snapshot in
+the history (and *Sistem* where there is none), which navigation an administrator sees, the shared request
+helper's antiforgery header, and the difference between 401 and 403. It also asserts the negative: the
+temporary "Əməliyyatı edən" input is gone, and nothing is written to browser storage.
+
 
 ## Approving an order (Task 8A)
 
@@ -770,14 +777,12 @@ money is not the whole money — so it does not block approval. What it does is 
 
 When every line is priced the flag is unnecessary and is ignored.
 
-### Who did it — a temporary answer
+### Who did it
 
-There is no authentication yet, so there is no user to attribute an action to. Every state-changing call
-therefore carries an **`actorDisplayName`**, which is stored in the audit trail as text.
-
-It is a label, not an identity: **nothing verifies it**. The screen says so where it is typed. Task 8B
-replaces it with the id of the signed-in user, and these strings become the record of what was claimed before
-sign-in existed.
+Task 8A had no authentication, so every state-changing call carried an unverified `actorDisplayName` typed
+into the dialog. **Task 8B removed that field entirely.** The actor now comes from the signed-in session —
+see [Signing in, roles and permissions](#signing-in-roles-and-permissions-task-8b) — and no request body
+anywhere names the person acting.
 
 ### The audit trail
 
@@ -820,16 +825,18 @@ having changed — the state machine allows it, and that is documented rather th
 ### The screen
 
 The order detail page carries the workflow panel: the current status as a badge, the actions the state
-allows, and the full history as a list — *Təsdiqə göndərildi · Ruslan · 22.09.2026 14:32*, with the reason
-under a return. Which buttons appear is the server's answer (`AllowedActions`), and the server checks again
-when the action is taken.
+allows, and the full history as a list — *Təsdiqə göndərildi · Koordinator adı · 22.09.2026 14:32*, with the
+reason under a return. Which buttons appear is the server's answer (`AllowedActions`), and the server checks
+again when the action is taken.
 
-| Status | Buttons |
+| Status | Buttons the state allows |
 | --- | --- |
 | Qaralama | Təsdiqə göndər |
 | Təsdiq gözləyir | Təsdiqlə · Düzəlişə qaytar |
 | Düzəlişə qaytarılıb | Yenidən təsdiqə göndər |
 | Təsdiqlənib | none |
+
+Since Task 8B the role narrows that further, and so does whose submission it is.
 
 Each action opens a dialog showing what is about to be acted on — object, month, version, line count, money
 and unpriced lines — because approving an order is a decision about those and not about a button. Approve
@@ -838,9 +845,9 @@ on these screens edits an order.
 
 ```
 GET  /api/v1/orders/{id}/workflow
-POST /api/v1/orders/{id}/workflow/submit    { actorDisplayName, comment? }
-POST /api/v1/orders/{id}/workflow/approve   { actorDisplayName, comment?, acknowledgeMissingPrices? }
-POST /api/v1/orders/{id}/workflow/return    { actorDisplayName, reason }
+POST /api/v1/orders/{id}/workflow/submit    { comment? }
+POST /api/v1/orders/{id}/workflow/approve   { comment?, acknowledgeMissingPrices? }
+POST /api/v1/orders/{id}/workflow/return    { reason }
 ```
 
 There is no generic status endpoint: a client cannot post an arbitrary status.
@@ -850,6 +857,162 @@ There is no generic status endpoint: a client cannot post an arbitrary status.
 All 167 remain **Draft**. Task 8A adds the capability and moves nothing; every real transition is an
 operator's explicit action through the screen. The tests and the end-to-end verification use synthetic
 requests, which are removed afterwards.
+
+## Signing in, roles and permissions (Task 8B)
+
+Until now the system had no idea who was using it. Task 8B gives it one, and makes every write answer to it.
+
+### Nothing was hand-rolled
+
+Password hashing, password storage, the sign-in check, the session cookie and role storage are **ASP.NET Core
+Identity**, used as it comes. `ApplicationUser : IdentityUser<Guid>` adds three fields and nothing else:
+`DisplayName`, `IsActive` and `CreatedAtUtc`. There is no custom hashing, no custom token, no password
+column this project wrote itself.
+
+### The session is a cookie
+
+Sign-in issues an **HttpOnly** cookie (`BaxOrders.Auth`, `SameSite=Strict`, `Secure` when the request is,
+10-hour sliding expiry). Script cannot read it, so nothing is kept in `localStorage` or `sessionStorage` —
+a page that believed a stale copy of "I am an administrator" would show private data to somebody whose
+session had already ended.
+
+This is an API, so it **never redirects to an HTML sign-in page**: an unauthenticated call gets **401** and a
+forbidden one gets **403**, both as ProblemDetails, and a `fetch()` can tell them apart. The browser signs the
+person out on 401 and keeps the session on 403, because signing in again does not grant a permission.
+
+The security stamp is re-validated every 5 minutes, so disabling an account or changing its role ends the
+sessions it already had without waiting for the cookie to expire.
+
+### Antiforgery is not left to SameSite
+
+The cookie travels with any request to this origin, including one another site provoked. Every unsafe method
+therefore also needs the antiforgery token: `GET /api/v1/auth/csrf` sets the readable `BAXORDERS-CSRF`
+cookie, and the browser sends it back in `X-CSRF-TOKEN`. A global authorization filter validates it for every
+`POST`/`PUT`/`PATCH`/`DELETE` — sign-in included — so a controller cannot forget. `SameSite=Strict` is a
+second line, not the only one.
+
+**A token belongs to the identity it was issued to.** The one a page holds while anonymous stops validating
+the moment that page signs in, so `login` and `logout` both hand back a fresh pair on their own response —
+otherwise the first write after signing in would be refused with a 400 nothing on the screen could explain.
+The browser needs no extra round trip: it reads the cookie each time it writes.
+
+> The filter is written here rather than taken from MVC because `AutoValidateAntiforgeryToken` lives in
+> ViewFeatures, which an `AddControllers()` application does not have.
+
+### Three roles
+
+| Role | Azerbaijani | Excel import | Submit | Approve / return | Users |
+| --- | --- | --- | --- | --- | --- |
+| Coordinator | Koordinator | ✓ | ✓ | — | — |
+| Manager | Rəhbər | — | — | ✓ | — |
+| Admin | Administrator | ✓ | ✓ | ✓ | ✓ |
+
+Everybody signed in reads the dashboard, the objects, the orders and the analytics. One person holds exactly
+one role. The roles are created at startup, idempotently, so no migration carries a hard-coded identifier.
+
+Four policies carry this: `CanManageImports`, `CanSubmitOrders`, `CanDecideOrders`, `CanManageUsers`. Every
+one of the **24 write endpoints** names one of them — 18 across the import path, 3 workflow transitions and
+3 for user administration — and the application's fallback policy requires an authenticated user, so a new
+endpoint is closed until somebody opens it. The three `auth` writes are the exceptions and say so:
+`login` is anonymous by necessity, `logout` and `change-password` only require a session.
+
+### Nobody approves their own submission
+
+A request remembers **who put it into its current approval cycle** (`SubmittedByUserId`). That person cannot
+approve it or return it — **including an administrator**, who may otherwise do both. Approving your own work
+is not a second pair of eyes, and the rule is in the domain, so no route reaches around it:
+
+```
+Admin A submits  →  Admin A approves   422 SelfApprovalNotAllowed
+                 →  Manager B approves  ✓
+```
+
+Resubmitting sets a new current submitter, so a request returned to somebody else and sent back by them is
+decided by whoever did not send it.
+
+`GET …/workflow` answers with `AllowedActions`, which folds all three things together — the state, the role,
+and whose submission it is — plus `BlockedBySelfApproval`, so the screen can say *why* it is offering nothing
+instead of showing an empty row. **That DTO is a courtesy, never the authorization.** The endpoint checks
+again, and the integration tests prove the refusal by posting anyway.
+
+### Approval is global, for now
+
+There is no per-location approver: any Manager or Admin may decide on any object. No `UserLocation`,
+`ApproverLocation` or approval-scope table exists. This is a deliberate MVP decision for an organisation with
+one approving manager — scoping approval by object is a later, explicit decision, not an oversight.
+
+### What the audit trail says now
+
+`OrderRequestWorkflowEvent` carries **both** `ActorUserId` (the signed-in user) and `ActorDisplayName` (their
+name **as it read at that moment**). The name is a snapshot and is never refreshed: renaming somebody changes
+what they are called from now on, not what the history says they did. The foreign key is `RESTRICT`, which is
+why there is **no delete user** — an account that should stop working is deactivated.
+
+`ActorUserId` is **nullable**, because the events written before sign-in existed have no user behind them.
+Those read as *Sistem* on the screen. No historical request was given a `SubmittedByUserId`, and none was
+invented for them.
+
+### The first administrator
+
+There is no seeded account and no password anywhere in source control or in a migration. On startup, if
+**no user exists at all**, the first administrator is created from `Auth:BootstrapAdmin` — supplied through
+`dotnet user-secrets` or the environment, never a committed `appsettings`. Once anybody exists this does
+nothing, so it cannot quietly re-create an account somebody disabled on purpose. The password is never
+logged, in any environment; when the section is missing the log says only that nobody can sign in and which
+keys to set.
+
+```
+dotnet user-secrets --project src/BaxOrders.Api set "Auth:BootstrapAdmin:UserName" "<login>"
+dotnet user-secrets --project src/BaxOrders.Api set "Auth:BootstrapAdmin:DisplayName" "<name shown in history>"
+dotnet user-secrets --project src/BaxOrders.Api set "Auth:BootstrapAdmin:Password" "<at least 10 characters>"
+```
+
+### Passwords and accounts
+
+- At least **10 characters**, with a digit and a lowercase letter. Length is what makes a password hard to
+  guess, so the rule asks for length rather than for punctuation nobody remembers.
+- **5 wrong attempts** lock an account for 15 minutes. A wrong password and an unknown user get the *same*
+  401 body, so the response never says which names exist.
+- Anybody can change their own password with their current one, and stays signed in on that device.
+- An administrator can reset somebody's password and is told to pass it on themselves; the system never shows
+  it again.
+- **Deactivating** an account stops sign-in and ends the sessions it holds. There is no hard delete — a
+  workflow event names that person for as long as the record is kept.
+
+### On the screen
+
+The header shows the display name, the Azerbaijani role label, a change-password dialog and a sign-out
+button — no internal claims, no user id. Navigation hides what a role cannot use, and the routes behind it
+are guarded as well, but neither is the protection: **the endpoints are**.
+
+Signing in lands on the screen that was being asked for, not always the dashboard. Nothing private renders
+until the server has answered who is signed in.
+
+```
+GET  /api/v1/auth/csrf            sets the antiforgery cookie
+POST /api/v1/auth/login           { userName, password }
+POST /api/v1/auth/logout
+GET  /api/v1/auth/me              anonymous answers 200 with isAuthenticated: false
+POST /api/v1/auth/change-password { currentPassword, newPassword }
+
+GET   /api/v1/admin/users                     Admin only
+POST  /api/v1/admin/users                     { userName, displayName, role, password }
+PATCH /api/v1/admin/users/{id}                { displayName?, role?, isActive? }
+POST  /api/v1/admin/users/{id}/reset-password { newPassword }
+```
+
+There is no `DELETE /api/v1/admin/users/{id}`. `/health` stays anonymous so a monitor can still ask.
+
+### Analytics did not change
+
+Task 8B is identity and authorization. Tasks 6 and 7 still select the latest version of each location-month
+whatever its status, and an integration test asserts that approving a month moves no analytics or dashboard
+figure. Approved-only analytics remains a future business decision.
+
+### The company's 167 requests, again
+
+All 167 are still **Draft**, with no workflow events and no `SubmittedByUserId`. Every end-to-end scenario
+creates its own users, object, product and request, and deletes them afterwards.
 
 ## Data protection rules
 
@@ -933,8 +1096,14 @@ dotnet run --project src/BaxOrders.Api --launch-profile http
 ```
 
 - API: `http://localhost:5080`
-- Swagger UI (Development): `http://localhost:5080/swagger`
-- Health (includes a database connectivity check): `GET /health`
+- Swagger UI (Development): `http://localhost:5080/swagger` — it documents the endpoints; calling a protected
+  one from there still needs a session and the antiforgery header, and no bootstrap secret appears in it
+- Health (includes a database connectivity check): `GET /health` — anonymous on purpose
+- **Everything else needs a session.** On a fresh database nobody can sign in until the first administrator is
+  bootstrapped (see [The first administrator](#the-first-administrator)).
+- Sign-in and accounts: `GET /api/v1/auth/csrf`, `POST /api/v1/auth/{login|logout|change-password}`,
+  `GET /api/v1/auth/me`, `GET|POST /api/v1/admin/users`, `PATCH /api/v1/admin/users/{id}`,
+  `POST /api/v1/admin/users/{id}/reset-password`
 - Read endpoints: `GET /api/v1/locations?includeInactive=true`, `GET /api/v1/units-of-measure`
 - Excel import: `POST /api/v1/imports/excel` (multipart field `file`), `GET /api/v1/imports/{id}`,
   `GET /api/v1/imports/{id}/rows?page=&pageSize=&status=&issueType=&locationId=&period=&search=`
@@ -963,8 +1132,9 @@ Import settings (`appsettings.json`): `Imports:MaxUploadBytes` (default 20 MB) a
 `Imports:HeaderSearchRowLimit` (default 30). Full import rules: [docs/excel-import-notes.md](docs/excel-import-notes.md).
 
 Errors are returned as RFC 7807 ProblemDetails: business-rule violations as 422, a malformed request (an
-unknown comparison basis, a month that is not `yyyy-MM`) as 400, a record that does not exist as 404, and
-unexpected errors as 500 without internal details.
+unknown comparison basis, a month that is not `yyyy-MM`) as 400, a record that does not exist as 404, no
+session as 401, a session without the permission as 403, and unexpected errors as 500 without internal
+details.
 
 ### Integration tests (opt-in)
 
@@ -988,10 +1158,13 @@ npm run test     # Vitest + Testing Library over jsdom
 npm run build    # type-check and production build into dist/
 ```
 
-Pages (Azerbaijani UI): İdarəetmə paneli `/dashboard` (and `/`, which redirects to it),
-Sifarişlər `/orders`, Sifariş `/orders/:orderRequestId`, Excel importları `/imports`,
-Obyektlər `/locations`, Obyekt `/locations/:locationId`, Müqayisə `/locations/:locationId/analytics`,
-Məhsullar `/products`, Təchizatçılar `/suppliers`. The dashboard, the import screens, the whole
+Pages (Azerbaijani UI): Giriş `/login`, İdarəetmə paneli `/dashboard` (and `/`, which redirects to it),
+Sifarişlər `/orders`, Sifariş `/orders/:orderRequestId`, Excel importları `/imports` (Koordinator ·
+Administrator), Obyektlər `/locations`, Obyekt `/locations/:locationId`,
+Müqayisə `/locations/:locationId/analytics`, Məhsullar `/products`, Təchizatçılar `/suppliers`,
+İstifadəçilər `/admin/users` (Administrator). Everything but `/login` is behind a sign-in, and the two marked
+screens are behind a permission as well — the endpoints they call enforce the same thing independently. The
+dashboard, the import screens, the whole
 order-browsing path (`/locations` → `/locations/:id` → `/orders/:id` → source), the comparison screen and the
 header's server status read real API data; Məhsullar and Təchizatçılar are still honest placeholders.
 `/orders` itself is a signpost: a request is opened from its object, because it always belongs to one object
@@ -1159,9 +1332,25 @@ Task 8A (approval workflow, migration `AddOrderApprovalWorkflow`):
 - `OrderRequestWorkflowEvent` is append-only and written by the transition, so no status changes untraced
 - A row version on `OrderRequests`: a second actor working from a stale copy is refused, not applied
 - One application service behind typed per-action endpoints; no generic status setter
-- A temporary `actorDisplayName` stands in for the signed-in user until Task 8B, and says so on screen
+- A temporary `actorDisplayName` stood in for the signed-in user, and said so on screen — removed in 8B
 - Analytics is unchanged: approval status is displayed metadata, not an inclusion filter
 - All 167 company requests remain Draft
+
+Task 8B (authentication, roles and permissions, migration `AddAuthenticationAndRoles`):
+
+- ASP.NET Core Identity as it comes: no hand-written hashing, storage, session token or credential check
+- HttpOnly cookie session; nothing in browser storage; 401 and 403 as ProblemDetails, never an HTML redirect
+- Antiforgery token on every unsafe method, validated by a global filter rather than per controller
+- Coordinator / Rəhbər / Administrator, four policies, all 21 write endpoints named, authenticated fallback
+- Self-approval refused in the domain, administrators included; `SubmittedByUserId` says whose cycle it is
+- Audit events carry `ActorUserId` plus the display name as it read then; nullable for actions from before
+  sign-in existed, which read as *Sistem*
+- No delete user: an account is deactivated, and its sessions end within the security-stamp interval
+- The first administrator comes from user-secrets or the environment, only when no user exists; no password
+  in source, in a migration or in a log
+- Approval is global: no per-location approvers and no scope tables, deliberately, for the MVP
+- The temporary actor input is gone from every workflow dialog
+- Analytics policy untouched; all 167 company requests still Draft, with no workflow events
 
 Task 7B (dashboard screen, no migration):
 

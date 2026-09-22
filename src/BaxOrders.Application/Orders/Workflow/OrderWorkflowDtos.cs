@@ -1,19 +1,26 @@
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Orders.Workflow;
 
 /// <summary>
-/// What the request's current state allows.
+/// What this person may do to this request right now.
 /// </summary>
 /// <remarks>
-/// These are <b>state</b> permissions and nothing else: they say what the workflow allows from here, not who
-/// is allowed to do it. There is no authentication yet, so nobody is being checked. When users and roles
-/// arrive they will narrow these further — a caller must keep treating them as the most that is possible,
-/// never as proof that this particular person may act.
+/// Three things have to agree: the workflow state allows the action, the signed-in person's role allows it,
+/// and they are not deciding on their own submission. It is computed here so a screen never has to work it
+/// out — but it is <b>not</b> the security check. The endpoints enforce the same rules again, because a
+/// browser can post whatever it likes whatever this said.
 /// </remarks>
-public sealed record AllowedWorkflowActionsDto(bool CanSubmit, bool CanApprove, bool CanReturn)
+/// <param name="BlockedBySelfApproval">
+/// True when the state and the role would both allow a decision, and the only thing stopping it is that this
+/// person submitted the request. The screen says so rather than silently offering nothing.
+/// </param>
+public sealed record AllowedWorkflowActionsDto(
+    bool CanSubmit, bool CanApprove, bool CanReturn, bool BlockedBySelfApproval = false)
 {
-    public static AllowedWorkflowActionsDto For(OrderRequestStatus status) => status switch
+    /// <summary>What the workflow state allows, before anything is known about who is asking.</summary>
+    public static AllowedWorkflowActionsDto ForState(OrderRequestStatus status) => status switch
     {
         OrderRequestStatus.Draft => new AllowedWorkflowActionsDto(true, false, false),
         OrderRequestStatus.ReturnedForCorrection => new AllowedWorkflowActionsDto(true, false, false),
@@ -21,14 +28,43 @@ public sealed record AllowedWorkflowActionsDto(bool CanSubmit, bool CanApprove, 
         // Approval is the end of the road; a correction is a new version, not a reopening of this one.
         _ => new AllowedWorkflowActionsDto(false, false, false),
     };
+
+    /// <summary>The state narrowed by the role, and then by whether this is the person's own submission.</summary>
+    public static AllowedWorkflowActionsDto For(
+        OrderRequestStatus status, Guid? submittedByUserId, ICurrentUserContext currentUser)
+    {
+        ArgumentNullException.ThrowIfNull(currentUser);
+
+        var state = ForState(status);
+        if (!currentUser.IsAuthenticated)
+        {
+            return new AllowedWorkflowActionsDto(false, false, false);
+        }
+
+        var role = currentUser.Role;
+        var maySubmit = role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin;
+        var mayDecide = role is BaxOrdersRoles.Manager or BaxOrdersRoles.Admin;
+
+        // Approving your own submission is not a second pair of eyes, whatever role you hold.
+        var ownSubmission = currentUser.UserId is { } userId && submittedByUserId == userId;
+        var canDecide = state.CanApprove && mayDecide && !ownSubmission;
+
+        return new AllowedWorkflowActionsDto(
+            state.CanSubmit && maySubmit,
+            canDecide,
+            state.CanReturn && mayDecide && !ownSubmission,
+            BlockedBySelfApproval: state.CanApprove && mayDecide && ownSubmission);
+    }
 }
 
-/// <param name="ActorDisplayName">A name the caller stated. Temporary: nothing authenticates it yet.</param>
+/// <param name="ActorUserId">The signed-in user who acted, or null for an action recorded before sign-in existed.</param>
+/// <param name="ActorDisplayName">Their name as it read at the time. A snapshot: never refreshed.</param>
 public sealed record WorkflowEventDto(
     long Id,
     OrderWorkflowAction Action,
     OrderRequestStatus FromStatus,
     OrderRequestStatus ToStatus,
+    Guid? ActorUserId,
     string ActorDisplayName,
     string? Comment,
     int MissingPriceItemCount,
@@ -47,6 +83,10 @@ public sealed record WorkflowEventDto(
 /// approver has to say they know.
 /// </param>
 /// <param name="History">Oldest first, so it reads as the story of the request.</param>
+/// <param name="SubmittedByUserId">
+/// Who put the request into its current approval cycle. Null for one nobody has submitted — including every
+/// request imported before sign-in existed.
+/// </param>
 public sealed record OrderWorkflowDto(
     long OrderRequestId,
     int LocationId,
@@ -55,6 +95,7 @@ public sealed record OrderWorkflowDto(
     int Version,
     OrderRequestStatus Status,
     AllowedWorkflowActionsDto AllowedActions,
+    Guid? SubmittedByUserId,
     DateTime? SubmittedAtUtc,
     DateTime? ApprovedAtUtc,
     DateTime? ReturnedAtUtc,
@@ -65,19 +106,19 @@ public sealed record OrderWorkflowDto(
     bool RequiresMissingPriceAcknowledgement,
     IReadOnlyList<WorkflowEventDto> History);
 
-/// <param name="ActorDisplayName">
-/// Who is doing this. Required, and stored in the audit trail as text. Temporary until authentication exists.
-/// </param>
-public sealed record SubmitForApprovalCommand(string ActorDisplayName, string? Comment = null);
+/// <remarks>
+/// No actor. Who is doing this comes from the authenticated session, so a browser cannot claim to be someone
+/// else by putting a name in the body.
+/// </remarks>
+public sealed record SubmitForApprovalCommand(string? Comment = null);
 
 /// <param name="AcknowledgeMissingPrices">
 /// Required when the request has lines without a price. The server counts those lines itself; a caller
 /// claiming there are none does not make it so.
 /// </param>
 public sealed record ApproveOrderCommand(
-    string ActorDisplayName,
     string? Comment = null,
     bool AcknowledgeMissingPrices = false);
 
 /// <param name="Reason">Why it is being handed back. Required: it is the whole point of the action.</param>
-public sealed record ReturnForCorrectionCommand(string ActorDisplayName, string Reason);
+public sealed record ReturnForCorrectionCommand(string Reason);

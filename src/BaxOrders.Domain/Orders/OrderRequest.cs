@@ -127,6 +127,16 @@ public sealed class OrderRequest
     /// <summary>How many of this request's lines have no price. Requires the items to be loaded.</summary>
     public int MissingPriceItemCount => _items.Count(item => item.UnitPrice is null);
 
+    /// <summary>
+    /// Who put the request into its <b>current</b> approval cycle, so that person cannot also decide on it.
+    /// </summary>
+    /// <remarks>
+    /// Rewritten on every submission, so a request that was returned and sent again belongs to whoever sent
+    /// it the second time. Null for a request nobody has submitted yet — including every request that was
+    /// imported before sign-in existed, which is a fact about them rather than a missing value.
+    /// </remarks>
+    public Guid? SubmittedByUserId { get; private set; }
+
     public DateTime CreatedAtUtc { get; private set; }
 
     public DateTime UpdatedAtUtc { get; private set; }
@@ -196,8 +206,9 @@ public sealed class OrderRequest
     /// a new revision, so the version does not move.
     /// </summary>
     /// <remarks>Requires <see cref="Items"/> to be loaded; an unloaded request looks empty and is refused.</remarks>
-    public OrderRequestWorkflowEvent SubmitForApproval(string actorDisplayName, string? comment, DateTime utcNow)
+    public OrderRequestWorkflowEvent SubmitForApproval(WorkflowActor actor, string? comment, DateTime utcNow)
     {
+        ArgumentNullException.ThrowIfNull(actor);
         EnsureStatus("submit", OrderRequestStatus.Draft, OrderRequestStatus.ReturnedForCorrection);
 
         if (_items.Count == 0)
@@ -207,9 +218,11 @@ public sealed class OrderRequest
 
         var from = Status;
         SubmittedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
+        // Whoever sends it now is the one who may not decide on it — not whoever sent it the first time.
+        SubmittedByUserId = actor.UserId;
         Status = OrderRequestStatus.PendingApproval;
 
-        return Record(OrderWorkflowAction.SubmittedForApproval, from, actorDisplayName, comment, false, utcNow);
+        return Record(OrderWorkflowAction.SubmittedForApproval, from, actor, comment, false, utcNow);
     }
 
     /// <summary>
@@ -222,9 +235,11 @@ public sealed class OrderRequest
     /// that has to be a decision somebody took rather than something that slipped past.
     /// </param>
     public OrderRequestWorkflowEvent Approve(
-        string actorDisplayName, string? comment, bool missingPricesAcknowledged, DateTime utcNow)
+        WorkflowActor actor, string? comment, bool missingPricesAcknowledged, DateTime utcNow)
     {
+        ArgumentNullException.ThrowIfNull(actor);
         EnsureStatus("approve", OrderRequestStatus.PendingApproval);
+        EnsureNotOwnSubmission(actor, "approve");
 
         if (MissingPriceItemCount > 0 && !missingPricesAcknowledged)
         {
@@ -235,13 +250,15 @@ public sealed class OrderRequest
         ApprovedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
         Status = OrderRequestStatus.Approved;
 
-        return Record(OrderWorkflowAction.Approved, from, actorDisplayName, comment, missingPricesAcknowledged, utcNow);
+        return Record(OrderWorkflowAction.Approved, from, actor, comment, missingPricesAcknowledged, utcNow);
     }
 
     /// <summary>Hands the request back to be put right. The reason is the point of the action, so it is required.</summary>
-    public OrderRequestWorkflowEvent ReturnForCorrection(string actorDisplayName, string reason, DateTime utcNow)
+    public OrderRequestWorkflowEvent ReturnForCorrection(WorkflowActor actor, string reason, DateTime utcNow)
     {
+        ArgumentNullException.ThrowIfNull(actor);
         EnsureStatus("return", OrderRequestStatus.PendingApproval);
+        EnsureNotOwnSubmission(actor, "return");
 
         var trimmed = Guard.RequiredText(reason, OrderRequestWorkflowEvent.CommentMaxLength, "Return reason");
 
@@ -249,20 +266,32 @@ public sealed class OrderRequest
         ReturnedAtUtc = Guard.Utc(utcNow, nameof(utcNow));
         Status = OrderRequestStatus.ReturnedForCorrection;
 
-        return Record(OrderWorkflowAction.ReturnedForCorrection, from, actorDisplayName, trimmed, false, utcNow);
+        return Record(OrderWorkflowAction.ReturnedForCorrection, from, actor, trimmed, false, utcNow);
+    }
+
+    /// <summary>
+    /// An approval is a second pair of eyes. A request decided on by the person who submitted it has not had
+    /// any, whatever role that person holds.
+    /// </summary>
+    private void EnsureNotOwnSubmission(WorkflowActor actor, string action)
+    {
+        if (actor.UserId is { } userId && SubmittedByUserId == userId)
+        {
+            throw new SelfApprovalNotAllowedException(action);
+        }
     }
 
     private OrderRequestWorkflowEvent Record(
         OrderWorkflowAction action,
         OrderRequestStatus from,
-        string actorDisplayName,
+        WorkflowActor actor,
         string? comment,
         bool missingPricesAcknowledged,
         DateTime utcNow)
     {
         // The event is written by the transition itself, so no status can change without leaving a trace.
         var workflowEvent = new OrderRequestWorkflowEvent(
-            this, action, from, Status, actorDisplayName, comment,
+            this, action, from, Status, actor, comment,
             MissingPriceItemCount, missingPricesAcknowledged, utcNow);
 
         _workflowEvents.Add(workflowEvent);
