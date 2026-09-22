@@ -180,7 +180,51 @@ public static class OrderAnalyticsCalculator
     /// Percentage change, or null where a percentage would be meaningless. A rise from nothing has no
     /// percentage — it is reported as new instead of as infinity.
     /// </summary>
-    private static decimal? PercentChange(decimal current, decimal baseline) => baseline == 0
+    public static decimal? PercentChange(decimal current, decimal baseline) => baseline == 0
         ? null
         : Math.Round((current - baseline) / baseline * 100m, PercentScale, MidpointRounding.AwayFromZero);
+
+    /// <summary>Everything a set of snapshots says about lines and money, added up.</summary>
+    public static AmountTotals Totals(IEnumerable<VariantPeriodSnapshot> snapshots)
+    {
+        ArgumentNullException.ThrowIfNull(snapshots);
+
+        int items = 0, known = 0, missing = 0;
+        decimal amount = 0m;
+        foreach (var snapshot in snapshots)
+        {
+            items += snapshot.ItemCount;
+            known += snapshot.KnownPriceItemCount;
+            missing += snapshot.MissingPriceItemCount;
+            amount += snapshot.PricedAmount;
+        }
+
+        return new AmountTotals(items, known, missing, amount);
+    }
+
+    /// <summary>The money of one period. Null when nothing in it has a price — unknown is never zero.</summary>
+    public static decimal? KnownAmount(AmountTotals totals) =>
+        totals.KnownPriceItemCount == 0 ? null : totals.PricedAmount;
+
+    /// <summary>
+    /// The money of an average baseline month: the priced amounts of the available months divided by how many
+    /// of them there are. One month is compared with an average month, never with a three-month total.
+    /// </summary>
+    public static decimal? AverageKnownAmount(AmountTotals totals, int availablePeriodCount) =>
+        availablePeriodCount == 0 || totals.KnownPriceItemCount == 0
+            ? null
+            : Math.Round(totals.PricedAmount / availablePeriodCount, MoneyScale, MidpointRounding.AwayFromZero);
+
+    /// <summary>The money difference between two sides, and its percentage where one exists.</summary>
+    public static (decimal? Delta, decimal? Percent) AmountDifference(decimal? current, decimal? baseline) =>
+        current is { } currentValue && baseline is { } baselineValue
+            ? (currentValue - baselineValue, PercentChange(currentValue, baselineValue))
+            : (null, null);
 }
+
+/// <summary>Lines and money of a set of snapshots, before anything is compared.</summary>
+public sealed record AmountTotals(
+    int ItemCount,
+    int KnownPriceItemCount,
+    int MissingPriceItemCount,
+    decimal PricedAmount);

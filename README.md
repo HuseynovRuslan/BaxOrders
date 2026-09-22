@@ -554,6 +554,111 @@ no category filter either, for the reason given above: the data does not yet sup
 Added dependency: **recharts 3.10** — one chart library, loaded lazily, used only by the trend chart.
 
 
+## The company's month (Task 7A)
+
+The location screen answers "how did this object's July differ from its June?". The dashboard read model
+answers the same question for every object at once:
+
+```
+GET /api/v1/dashboard/periods
+GET /api/v1/dashboard?period=2026-07&basis=PreviousMonth&search=&historyCoverage=&priceCoverage=&hasCurrentRequest=&sort=&descending=&page=&pageSize=
+```
+
+It is **read-only and deterministic**, it reuses the Task 6A calculator rather than restating its rules, and
+it has no screen — Task 7B builds that. There is no ranking of objects as doing well or badly: a rise in what
+an object ordered may be a new project, a restocking, seasonal work or waste, and the dashboard reports the
+number rather than reading it.
+
+### Which objects are on it
+
+Every location that has **at least one permanent order request in any month**, not every location in the
+catalogue. Three of the 29 seeded locations have never ordered; they would only be noise. An object that has
+ordered before stays on the dashboard even in a month it did not order in, which is exactly what makes "this
+object has no request this month" visible.
+
+### Three situations, never collapsed into two
+
+| `ComparisonAvailability` | What happened | What the row says |
+| --- | --- | --- |
+| `Available` | A request this month, and at least one baseline month | the full comparison |
+| `NoBaselineHistory` | A request this month, no baseline month at all | `HistoryCoverage = Unavailable`, products as *history not sufficient* — never as *new* |
+| `NoCurrentRequest` | Ordered before, nothing this month | `HasCurrentRequest = false`, current money **null**, no product states |
+
+The second and third are the ones that get misreported if they are not kept apart. An object that did not
+order is not an object that ordered nothing, so its money stays unknown rather than becoming a zero, and no
+product state is derived from a request that does not exist. Both are real in the current data: EXPO has a
+July but no June, and Puşkin parkı last ordered in May.
+
+### History coverage
+
+`HistoryCoverage` is about **months**, not products: how many of the calendar months the basis asked for have
+a request for this location.
+
+| | Rule |
+| --- | --- |
+| `Complete` | every month of the window exists |
+| `Partial` | some do, some do not — the average is of the ones that do |
+| `Unavailable` | none do |
+
+The previous-month basis asks for one month, so it can only be complete or unavailable. Each row also carries
+`ExpectedBaselinePeriodCount`, `AvailableBaselinePeriodCount`, the missing months by name, and the request id
+and version of each month that did contribute.
+
+### Money
+
+Company money is `SUM(Quantity × UnitPrice)` over the **priced** lines and nothing else, with
+`IsComplete = false` as soon as one line has no price. A figure with that flag false is *money that is known*,
+never "company total expense" or "total spending". Every amount travels with its item count, its priced and
+unpriced line counts, and the number of locations that have unpriced lines.
+
+For the average bases, a location's baseline amount is the money of an **average baseline month** — the priced
+amounts of its available months divided by how many of them there are — so one month is compared with one
+month. The company baseline is the sum of those per-location averages, which keeps the company figure the
+company's average month. `KnownAmountPercentChange` is null when the baseline is zero; it is never infinity.
+
+**There is no company quantity.** Adding pieces of glove to square metres of tile produces a number with no
+unit and no meaning. Quantity is compared inside a variant, which is what the location screen does.
+
+### What is reused, and what is not summed
+
+Each location's variants go through the same `OrderAnalyticsCalculator` the location screen uses, so the state
+counts on a dashboard row and the counts on the screen it links to are the same numbers — an integration test
+asserts field-by-field agreement, and it was checked against real data for three locations across all three
+bases. Services keep their meaning: they contribute money, missing-price counts and the service count, and
+never a quantity increase or decrease.
+
+Requests are included **whatever their status**, because every current request is a draft and no approval
+workflow exists; when approval arrives this is the policy to revisit. Each location and month contributes its
+**highest version** only, never two versions added together.
+
+### Rows, and what the summary describes
+
+Rows are searched by location name and code, filtered by history coverage, current-period price coverage and
+whether there is a request at all, sorted by any of ten plain facts (default: location name), and paged 25 at
+a time up to 100. A row with no figure to sort by goes **last in both directions** — a missing number is not a
+small one.
+
+The **summary always describes the whole company** for the selected month and basis, whatever search or filter
+was applied; `FilteredLocationCount` describes the filtered table instead. Both are in every response.
+
+Each row carries `LocationId`, `DeepLinkPeriod` and `DeepLinkBasis` — the values a caller needs to open that
+object's own comparison. The backend returns the values, never a front-end URL.
+
+### Shape and cost
+
+```
+locations that have ordered  →  latest request per location and month  →  items aggregated per request and variant
+                             →  variant kinds  →  calculator  →  rows → summary → filter → sort → page
+```
+
+Four SQL queries, **independent of the number of locations, the basis and the page size** — measured, not
+assumed. This is deliberately not the location comparison called once per object. On the real data the
+dashboard answers in 25–52 ms warm and the period list in 5 ms; nothing is cached and there are no reporting
+tables.
+
+A month no location ordered in is a **404**, which the period list prevents a caller from asking for. A
+malformed month, basis, filter or sort is a 400.
+
 ## Data protection rules
 
 - Locations, categories, units, products, variants, suppliers and responsible persons are **deactivated,
@@ -654,6 +759,8 @@ dotnet run --project src/BaxOrders.Api --launch-profile http
 - Order confirmation: `GET /api/v1/imports/{id}/confirmation/preview`, `POST /api/v1/imports/{id}/confirmation`
 - Order browsing: `GET /api/v1/locations/orders`, `GET /api/v1/locations/{id}/orders`,
   `GET /api/v1/orders/{id}`, `GET /api/v1/orders/items/{id}/source`
+- Dashboard: `GET /api/v1/dashboard/periods`,
+  `GET /api/v1/dashboard?period=&basis=&search=&historyCoverage=&priceCoverage=&hasCurrentRequest=&sort=&descending=&page=&pageSize=`
 - Analytics: `GET /api/v1/analytics/locations/{id}/periods`,
   `GET /api/v1/analytics/locations/{id}/periods/{yyyy-MM}/comparison?basis=&search=&state=&page=&pageSize=`,
   `GET /api/v1/analytics/locations/{id}/variants/{variantId}/trend?from=&to=`
@@ -845,13 +952,29 @@ Task 6B (comparison screen, no migration):
 - One dependency added: recharts 3.10, lazily loaded
 - The screen reads and only reads
 
+Task 7A (dashboard read model, no migration):
+
+- `GET /api/v1/dashboard/periods` and `GET /api/v1/dashboard`: one month across every location that has ever
+  ordered, in four SQL queries whatever the number of objects
+- Three situations kept apart — compared, no baseline history, no request this month — so an object that did
+  not order is never shown as one that ordered nothing
+- History coverage per location in months, with the missing ones named and each contributing version given
+- Company money is money that is known, with its coverage; a location's baseline is its average baseline
+  month, and there is no company quantity because there is no unit for one
+- The same `OrderAnalyticsCalculator` as the location screen, so a row and the screen it links to agree
+- Search, three filters, ten factual sorts with nulls last, paging 25/100; the summary always describes the
+  whole company while `FilteredLocationCount` describes the filtered table
+- No ranking of objects as good or bad, and no writes
+
 ## Intentionally deferred
 
 - Undo or history of review decisions
 - Reading the legacy request-form `.xls` layout (location, person and period in a header block)
 - Fuzzy or AI-assisted matching
-- The management dashboard and anything company-wide: cross-location ranking, "top 10", "the object that
-  grew most". Task 6B stays inside one location
+- The dashboard **screen** (Task 7B). Its read model exists; see *The company's month (Task 7A)*
+- Company-wide product ranking ("most ordered product across all objects", "largest increase company-wide"):
+  it needs unit and scope semantics the data does not yet support
+- Any "best" or "worst" object: a rise or fall in what an object ordered is a fact, not a verdict
 - Anomaly detection, forecasting, recommendations and any generated explanation of why a number moved
 - Category as an analytics dimension, until products carry a canonical category
 - Approval workflow UI and rules beyond basic status transitions

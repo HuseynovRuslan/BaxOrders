@@ -414,25 +414,14 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
         IEnumerable<VariantPeriodSnapshot> baselineSnapshots,
         IReadOnlyList<VariantComparisonDto> rows)
     {
-        var currentTotals = Totals(currentSnapshots);
-        var baselineTotals = Totals(baselineSnapshots);
+        // The same money rules the dashboard uses, because they live in one place and are called from both.
+        var currentTotals = OrderAnalyticsCalculator.Totals(currentSnapshots);
+        var baselineTotals = OrderAnalyticsCalculator.Totals(baselineSnapshots);
         var available = baseline.Count;
 
-        decimal? currentAmount = currentTotals.KnownPriceItemCount == 0 ? null : currentTotals.PricedAmount;
-        decimal? baselineAmount = available == 0 || baselineTotals.KnownPriceItemCount == 0
-            ? null
-            : Math.Round(baselineTotals.PricedAmount / available, OrderAnalyticsCalculator.MoneyScale, MidpointRounding.AwayFromZero);
-
-        decimal? amountDelta = null;
-        decimal? amountPercent = null;
-        if (currentAmount is { } currentValue && baselineAmount is { } baselineValue)
-        {
-            amountDelta = currentValue - baselineValue;
-            amountPercent = baselineValue == 0
-                ? null
-                : Math.Round((currentValue - baselineValue) / baselineValue * 100m,
-                    OrderAnalyticsCalculator.PercentScale, MidpointRounding.AwayFromZero);
-        }
+        var currentAmount = OrderAnalyticsCalculator.KnownAmount(currentTotals);
+        var baselineAmount = OrderAnalyticsCalculator.AverageKnownAmount(baselineTotals, available);
+        var (amountDelta, amountPercent) = OrderAnalyticsCalculator.AmountDifference(currentAmount, baselineAmount);
 
         return new ComparisonSummaryDto(
             location.Id,
@@ -468,22 +457,6 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             rows.Count(row => row.AnalyticsKind == AnalyticsKind.QuantityComparable),
             rows.Count(row => row.AnalyticsKind == AnalyticsKind.AmountOrientedService),
             rows.Count);
-    }
-
-    private static (int ItemCount, int KnownPriceItemCount, int MissingPriceItemCount, decimal PricedAmount) Totals(
-        IEnumerable<VariantPeriodSnapshot> snapshots)
-    {
-        int items = 0, known = 0, missing = 0;
-        decimal amount = 0m;
-        foreach (var snapshot in snapshots)
-        {
-            items += snapshot.ItemCount;
-            known += snapshot.KnownPriceItemCount;
-            missing += snapshot.MissingPriceItemCount;
-            amount += snapshot.PricedAmount;
-        }
-
-        return (items, known, missing, amount);
     }
 
     private sealed record LocationRef(int Id, string Code, string Name);
