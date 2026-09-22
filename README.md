@@ -659,6 +659,78 @@ tables.
 A month no location ordered in is a **404**, which the period list prevents a caller from asking for. A
 malformed month, basis, filter or sort is a 400.
 
+### The dashboard screen (Task 7B)
+
+`/dashboard` is the landing screen, and `/` redirects to it. It renders the Task 7A response and nothing else:
+no amount is added up, no percentage is worked out and no object's history is judged complete in the browser.
+
+**What it answers.** Bu ay neçə obyekt sifariş verib, hansı verməyib, məlum qiymətlər üzrə məbləğ nə qədərdir,
+qiymət məlumatında boşluq varmı, hansı obyektlərin tarixçəsi tamdır — and then it sends the reader into that
+object's own comparison.
+
+**What is in the URL.** `period`, `basis`, `search`, `historyCoverage`, `priceCoverage`, `hasCurrentRequest`,
+`sort`, `descending` and `page`, so a view survives a refresh, a shared link and the Back button:
+
+```
+/dashboard?period=2026-07&basis=Previous3MonthAverage&historyCoverage=Partial
+```
+
+The period selector only offers months the company actually ordered in, and a month is read from its
+`yyyy-MM` text rather than through a local-time `Date`.
+
+**Money.** The headline figure is headed **Məlum qiymətlər üzrə məbləğ** unless the backend says the coverage
+is complete; it is never called a total. Current and baseline completeness are separate, and when **either**
+is short of prices the card says *"Məbləğ müqayisəsi məlum qiymətlər üzrə hesablanıb"* with the unpriced line
+counts and how many objects are affected. In the current data July is fully priced while its June baseline is
+not, so the delta is exactly the figure that needs that sentence.
+
+**The three situations, kept apart.** A row shows one of them and never the wrong one:
+
+| | On the screen |
+| --- | --- |
+| compared | the full row: money, difference, and the New / Artıb / Azalıb / Artıq sifariş olunmur counts |
+| no baseline history | **Tarixçə yoxdur**, no comparison figures, and its variants named as *Tarixçə kifayət deyil* — never as new |
+| no request this month | **Bu ay sifariş yoxdur**, money as an em dash rather than `0 ₼`, and no product counts at all |
+
+History coverage is a badge carrying its own denominator — *Tam tarixçə 1/1 ay*, *Natamam tarixçə 2/3 ay* —
+so what an average rests on is on the row rather than behind a hover, and the missing months are in its title.
+
+**Coverage, filters and sorting.** A *Məlumatın əhatəsi* strip counts objects with complete, partial and
+missing history, objects whose prices are incomplete, and objects with no request. The same states are filter
+chips, plus a price-coverage select and a search over name and code. Ten factual sorts are offered, default
+**Obyekt adı** — never "biggest increase", and no column is coloured as good or bad. Rows are shown in the
+order the server returned them, including its nulls-last rule; nothing is re-sorted after arrival.
+
+The summary always describes the whole company; **N obyekt göstərilir** describes the filtered table.
+
+**Drill-down.** Every row links to `/locations/{id}/analytics` on the `DeepLinkPeriod` and `DeepLinkBasis` the
+backend named, so the screen the reader lands on is the same comparison the row summarised. Verified against
+real data: the Fəvvarələr row and its drill-down agree on money, difference, percentage, coverage and all
+four change counts.
+
+**Cost.** Two requests per view — the period list once, and one dashboard call per selection, filter or page.
+Nothing is preloaded per object. Warm, on the real data: periods 6 ms, dashboard 21–56 ms depending on basis
+and filter.
+
+**Scope.** Read-only: no create, edit, approve, reject or delete, and every request keeps its status. There is
+no company-wide product ranking, no "top 10", no category analytics and no chart — the trends belong to the
+location screen, which already owns them.
+
+### Frontend tests
+
+`npm run test` runs Vitest with Testing Library over jsdom. The suite is deliberately small and covers the
+presentation rules that carry business meaning rather than the look of the pages:
+
+- a percentage the backend did not give renders as **—**, never `0%`, `∞` or `NaN`
+- money that is only partly known is headed **Məlum qiymətlər üzrə**, and a complete figure is not
+- an object with no request renders **Bu ay sifariş yoxdur** with an em dash instead of `0 ₼`
+- an object with no history renders the history warning, and its variants as *Tarixçə kifayət deyil*
+- partial history renders `2/3 ay`, complete history `1/1 ay`
+- a drill-down link carries the period and basis the backend named
+- a service has no quantity and is compared by money (Task 6B behaviour, retained now that the formatting is
+  shared with the dashboard)
+
+
 ## Data protection rules
 
 - Locations, categories, units, products, variants, suppliers and responsible persons are **deactivated,
@@ -790,17 +862,21 @@ dotnet test tests/BaxOrders.IntegrationTests
 cd frontend/bax-orders-web
 npm install
 npm run dev      # http://localhost:5173, proxies /api and /health to http://localhost:5080
+npm run test     # Vitest + Testing Library over jsdom
 npm run build    # type-check and production build into dist/
 ```
 
-Pages (Azerbaijani UI): İdarə paneli `/`, Sifarişlər `/orders`, Sifariş `/orders/:orderRequestId`,
-Excel importları `/imports`, Obyektlər `/locations`, Obyekt `/locations/:locationId`,
-Müqayisə `/locations/:locationId/analytics`, Məhsullar `/products`, Təchizatçılar `/suppliers`. The import screens, the whole order-browsing path
-(`/locations` → `/locations/:id` → `/orders/:id` → source) and the header's server status read real API
-data; Məhsullar and Təchizatçılar are still honest placeholders. `/orders` itself is a signpost: a request is
-opened from its object, because it always belongs to one object and one month.
+Pages (Azerbaijani UI): İdarəetmə paneli `/dashboard` (and `/`, which redirects to it),
+Sifarişlər `/orders`, Sifariş `/orders/:orderRequestId`, Excel importları `/imports`,
+Obyektlər `/locations`, Obyekt `/locations/:locationId`, Müqayisə `/locations/:locationId/analytics`,
+Məhsullar `/products`, Təchizatçılar `/suppliers`. The dashboard, the import screens, the whole
+order-browsing path (`/locations` → `/locations/:id` → `/orders/:id` → source), the comparison screen and the
+header's server status read real API data; Məhsullar and Təchizatçılar are still honest placeholders.
+`/orders` itself is a signpost: a request is opened from its object, because it always belongs to one object
+and one month.
 
-There is no frontend test runner; `npm run build` type-checks with `tsc -b` before building.
+`npm run build` type-checks with `tsc -b` before building, and `npm run test` runs the presentation-rule
+suite described under *Frontend tests* above.
 
 ## Current scope (Task 1)
 
@@ -952,6 +1028,21 @@ Task 6B (comparison screen, no migration):
 - One dependency added: recharts 3.10, lazily loaded
 - The screen reads and only reads
 
+Task 7B (dashboard screen, no migration):
+
+- `/dashboard` is the landing screen and `/` redirects to it; period, basis, search, three filters, sort,
+  direction and page all live in the URL
+- Renders the Task 7A response as it is; nothing is calculated in the browser
+- Money is headed as money that is known unless the backend says otherwise, and a comparison whose either
+  side is short of prices says so next to the difference
+- The three situations stay apart on screen: compared, **Tarixçə yoxdur**, and **Bu ay sifariş yoxdur** with
+  an em dash instead of a zero
+- History coverage badges carry their own denominator; filters, search and ten factual sorts, default by
+  object name, with server ordering preserved
+- Every row links to that object's own comparison on the month and basis the backend named
+- Vitest + Testing Library added for the presentation rules that carry business meaning
+- No ranking, no charts, no company-wide product list, and no writes
+
 Task 7A (dashboard read model, no migration):
 
 - `GET /api/v1/dashboard/periods` and `GET /api/v1/dashboard`: one month across every location that has ever
@@ -971,7 +1062,6 @@ Task 7A (dashboard read model, no migration):
 - Undo or history of review decisions
 - Reading the legacy request-form `.xls` layout (location, person and period in a header block)
 - Fuzzy or AI-assisted matching
-- The dashboard **screen** (Task 7B). Its read model exists; see *The company's month (Task 7A)*
 - Company-wide product ranking ("most ordered product across all objects", "largest increase company-wide"):
   it needs unit and scope semantics the data does not yet support
 - Any "best" or "worst" object: a rise or fall in what an object ordered is a fact, not a verdict

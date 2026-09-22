@@ -1,10 +1,10 @@
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import { AppLayout } from './layout/AppLayout'
-import { DashboardPage } from './pages/DashboardPage'
 import { ImportsPage } from './pages/ImportsPage'
 import { LocationAnalyticsPage } from './pages/LocationAnalyticsPage'
 import { LocationDetailPage } from './pages/LocationDetailPage'
 import { LocationsPage } from './pages/LocationsPage'
+import { ManagementDashboardPage } from './pages/ManagementDashboardPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrdersPage } from './pages/OrdersPage'
@@ -15,7 +15,9 @@ export function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<DashboardPage />} />
+        {/* The old root was a placeholder; the management dashboard is the landing screen now. */}
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<ManagementDashboardPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:orderRequestId" element={<OrderDetailPage />} />
         <Route path="imports" element={<ImportsPage />} />

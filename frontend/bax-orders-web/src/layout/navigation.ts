@@ -16,7 +16,7 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { to: '/', label: 'İdarə paneli', icon: LayoutDashboard, end: true },
+  { to: '/dashboard', label: 'İdarəetmə paneli', icon: LayoutDashboard },
   { to: '/orders', label: 'Sifarişlər', icon: ClipboardList },
   { to: '/imports', label: 'Excel importları', icon: FileSpreadsheet },
   { to: '/locations', label: 'Obyektlər', icon: MapPin },
