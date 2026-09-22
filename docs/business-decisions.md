@@ -654,6 +654,7 @@ What each task did with the plan above. Batch #6 was never touched by any of the
 | **3G-B** | CB-38, CB-39 and CB-40 — operational location names, `Qala baza` in both catalogs, `ay` as the `MONTH` unit — plus the Review Center screens for the new decisions. | Batch #50010 reached `ReadyToImport`; readiness was never forced. |
 | **4** | Step 6 — confirmation of batch #50010. | **167 `OrderRequest`s and 3,618 `OrderRequestItem`s**, reconciled to 431 670.9140 over the priced lines. One excluded row became no item. Batch #50010 is `Imported`. |
 | **5** | Nothing. Task 5 is read-only and applied no decision. | The browsing screens display the confirmed decisions (`Vahidsiz`, `ay`/MONTH, `Qiymət yoxdur` instead of a zero) but cannot change them. |
+| **6A** | Nothing. The analytics engine is read-only and applied no decision. | It *reads* the confirmed service semantics: a variant with no order unit, with `MONTH` (CB-40) or with `TIME` is compared by money and never by quantity, because "1 ay → 2 ay" is not a doubling of consumption. Descriptor variants (CB-33 family) stay separate comparison rows. No product carries a canonical category, so category is **not** an analytics dimension yet — see UR notes below. |
 
 ## Write log
 

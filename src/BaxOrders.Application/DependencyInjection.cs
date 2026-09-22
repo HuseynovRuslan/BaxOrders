@@ -1,3 +1,4 @@
+using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<OrderRequestVersions>();
         services.AddScoped<LocationOrderQueries>();
         services.AddScoped<OrderRequestQueries>();
+        services.AddScoped<OrderAnalyticsQueries>();
 
         services.AddScoped<ImportCatalogLoader>();
         services.AddScoped<ImportPreviewQueries>();

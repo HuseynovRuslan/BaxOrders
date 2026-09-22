@@ -248,7 +248,8 @@ A reviewed batch becomes permanent orders in one explicit step: `ReadyToImport` 
 - **Service lines keep their semantics.** A monthly service unit, an intentionally unitless variant and a
   specification descriptor are copied as they are. Comparing them is an analytics question, not an import one:
   ordinary material variants can be compared by quantity only when the variant identity and order-unit
-  semantics match, while service-like lines need amount-based reporting. No analytics code exists yet.
+  semantics match, while service-like lines need amount-based reporting. That is exactly what
+  *Comparing months (Task 6A)* below implements.
 
 ## Browsing permanent orders (Task 5)
 
@@ -314,6 +315,171 @@ import review centre. A line whose batch is gone simply has no source link.
 - Totals and counts are aggregated in SQL; the pages are projections, not loaded graphs.
 - Category is read from the product and falls back to the category matched on the staged row, because
   products imported from the workbook carry no category of their own yet.
+
+## Comparing months (Task 6A)
+
+Once a location has several months of permanent orders, the question stops being "what did they order?" and
+becomes "how does this month differ from before?". Task 6A is the engine that answers it. It is **read-only**
+and deterministic: no AI, no fuzzy matching, no guessing at what a difference means, and no screen — Task 6B
+builds the UI on top of these endpoints.
+
+```
+GET /api/v1/analytics/locations/{id}/periods
+GET /api/v1/analytics/locations/{id}/periods/{yyyy-MM}/comparison?basis=…&search=…&state=…&page=…&pageSize=…
+GET /api/v1/analytics/locations/{id}/variants/{variantId}/trend?from=yyyy-MM&to=yyyy-MM
+```
+
+### Comparison basis and the calendar window
+
+Three bases, as a typed enum — never a magic string:
+
+| Basis | Baseline for 2026-07 | UI wording (Task 6B) |
+| --- | --- | --- |
+| `PreviousMonth` | 2026-06 | Keçən ay |
+| `Previous3MonthAverage` | 2026-04, 2026-05, 2026-06 | Son 3 ayın ortalaması |
+| `Previous6MonthAverage` | 2026-01 … 2026-06 | Son 6 ayın ortalaması |
+
+The window is made of **calendar months**, not "the last three requests". It ends with the month before the
+selected one, and the selected month is never part of its own baseline.
+
+### A missing month is not a zero
+
+This is the rule the whole engine turns on, and the two cases must never be confused.
+
+- **The location ordered that month, but not this product.** The product ordered zero that month, and that
+  zero is real: it counts in the average.
+- **The location has no request for that month at all.** The month is *not available*. It never enters an
+  average, and an average is divided by the months that are available — not by the months the basis asked for.
+
+Every comparison therefore reports `ExpectedBaselinePeriodCount`, `AvailableBaselinePeriodCount` and
+`MissingBaselinePeriods`, so a "three-month average" built from one month can never pass for a full one. When
+**no** baseline month is available the answer is `InsufficientHistory` for every row — not a location full of
+products that all look new.
+
+Real example: EXPO has no request for 2026-06. Comparing its 2026-07 against the previous month reports
+`BaselineAvailable = false` and all 15 variants as `InsufficientHistory`. Against the three-month average it
+uses 2026-04 and 2026-05 and reports 2026-06 as missing.
+
+### One version per month
+
+A location and month may have several request versions. Analytics uses the **highest version** of each month
+and never adds two versions together; the response names the `OrderRequestId` and `Version` it used, for the
+current month and for every baseline month. Earlier versions stay in the database and stay visible in the
+order browser.
+
+Requests are included **whatever their status**. Every current request is a draft and no approval workflow
+exists yet, so filtering by status would hide all the data; when approval arrives, this policy is the thing to
+revisit.
+
+### What a quantity is compared within
+
+Quantities are compared **per `ProductVariantId`** — never per product name, product id or model code. The
+variant already carries specification, specification unit, descriptor, model code and order unit, so 30 pieces
+never meets 30 packs, 50 mm never meets 100 mm, and "28 diş" never meets a plain 28.
+
+Within one request several permanent items may reference the same variant. Analytics adds them into one
+snapshot per request and variant; the stored items keep their source-line cardinality and are not touched.
+Items flagged as possible duplicates are ordinary items — Task 4 materialized them separately on purpose — and
+they contribute their quantity, their money and their count like any other.
+
+A comparison row is the **union** of the variants of the current month and of the available baseline months,
+so a product that stopped being ordered is as visible as one that just started.
+
+### Material or service
+
+| Kind | When | Compared by |
+| --- | --- | --- |
+| `QuantityComparable` | any ordinary order unit | quantity, and money |
+| `AmountOrientedService` | no order unit, or `MONTH` / `TIME` | money only |
+
+"One month became two months" is not a doubling of consumption, so a service carries **no quantity figure at
+all** on either side and its state is `NotComparable`. Its comparison is `KnownAmount`, `AmountDelta` and
+`AmountPercentChange`. This follows the business answers recorded in Tasks 3G and 4.
+
+### Quantity formulas
+
+```
+QuantityDelta         = Current − Baseline
+QuantityPercentChange = (Current − Baseline) / Baseline × 100      when Baseline > 0
+BaselineQuantity      = SUM(quantity of each available month) / AvailableBaselinePeriodCount
+```
+
+| Situation | State | Percent |
+| --- | --- | --- |
+| both sides > 0 | `Increased` / `Decreased` / `Unchanged` | calculated |
+| baseline 0, current > 0 | `New` | **null** — a rise from nothing is not a percentage, and never infinity |
+| current 0, baseline > 0 | `NoLongerOrdered` | −100 |
+| no baseline month available | `InsufficientHistory` | null |
+| service | `NotComparable` | null |
+
+### Weighted unit price
+
+A variant may appear several times in a month with different quantities, prices and suppliers, so no single
+line's price is taken as "the" price:
+
+```
+WeightedUnitPrice = SUM(Quantity × UnitPrice) / SUM(Quantity)    over the priced items only
+```
+
+One unit at 10 and nine at 20 give **19.00**, not the 15.00 an unweighted mean would give.
+
+For the average bases the baseline price is **pooled over every available month** rather than being an average
+of monthly averages, so a month of one unit cannot weigh as much as a month of a thousand. `PriceDelta` is the
+difference of the two weighted prices; `PricePercentChange` is null when the baseline price is zero, and both
+are null when either side has no priced quantity.
+
+### Money that is known
+
+`KnownAmount` is `SUM(Quantity × UnitPrice)` over the priced items and **null** when nothing is priced — never
+zero, because the workbook did not say zero. Each side also reports its price coverage:
+
+| Coverage | Meaning |
+| --- | --- |
+| `Complete` | every unit of the side's quantity has a price |
+| `Partial` | some of the quantity is priced and some is not; the money is a partial figure |
+| `Unavailable` | no priced quantity at all; the money is unknown |
+
+At summary level the location's current and baseline money are reported with their missing-price counts and
+with `AmountIsComplete`, which is false as soon as either side has an unpriced line. A UI must label such a
+figure **Məlum qiymətlər üzrə** and never simply "total".
+
+### Averages, precision and nulls
+
+Everything is `decimal`; nothing is cast to `double` or `float`. Quantities keep the domain's three decimals
+and money its four, and an average is rounded **once**, at that scale, so a caller's `Delta` is exactly
+`Current − Baseline`. Percentages are rounded to four decimals.
+
+`null` always means "there is no such figure" — a missing weighted price, a percentage with a zero baseline, a
+service's quantity, an unknown amount. `0`, `-1` and `999` are never used as stand-ins.
+
+### Shape of the pipeline
+
+```
+permanent items  →  SQL aggregate per (request, variant)  →  OrderAnalyticsCalculator  →  DTOs → filter → page
+```
+
+`OrderAnalyticsCalculator` is pure: snapshots in, comparison figures out, no EF and no database, which is why
+every rule above has a unit test that needs no SQL Server. `OrderAnalyticsQueries` does the reading, in a
+fixed **four** queries regardless of how many products or baseline months are involved.
+
+Rows are searched on product name, product code and model code through the same normalizer the rest of the
+system matches names with — deterministic and case-insensitive, never fuzzy — and may be filtered to one
+state. Search and filter are applied before paging (default 50, maximum 200), while the **summary always
+describes the complete comparison**, not the page and not the filtered subset.
+
+### Trend
+
+The trend endpoint returns one point per month the location actually ordered in. A month in which the
+location ordered but this variant did not is a point with quantity `0`; a month the location has no request
+for produces **no point at all**. A service variant's points carry no quantity, only money.
+
+### Category is deliberately not a filter yet
+
+Comparison rows carry no category, and there is no category filter. In the current data **no product carries a
+canonical category at all** — category lives on the staged import row, which is what the order browser falls
+back to per line. Aggregating a variant's lines is exactly where that breaks down: 1,376 variants resolve to
+one category path but **4 resolve to several**, so a category filter would have to silently pick one. That is
+a data-model decision for the business, not something analytics should invent.
 
 ## Data protection rules
 
@@ -412,12 +578,19 @@ dotnet run --project src/BaxOrders.Api --launch-profile http
   `POST /api/v1/imports/{id}/rows/{rowId}/{exclude|include}`, `GET /api/v1/imports/{id}/readiness`
 - Reference search for review: `GET /api/v1/reference/{locations|suppliers|responsible-people|units|categories|products}?search=`
   and `GET /api/v1/reference/products/{productId}/variants?search=`
+- Order confirmation: `GET /api/v1/imports/{id}/confirmation/preview`, `POST /api/v1/imports/{id}/confirmation`
+- Order browsing: `GET /api/v1/locations/orders`, `GET /api/v1/locations/{id}/orders`,
+  `GET /api/v1/orders/{id}`, `GET /api/v1/orders/items/{id}/source`
+- Analytics: `GET /api/v1/analytics/locations/{id}/periods`,
+  `GET /api/v1/analytics/locations/{id}/periods/{yyyy-MM}/comparison?basis=&search=&state=&page=&pageSize=`,
+  `GET /api/v1/analytics/locations/{id}/variants/{variantId}/trend?from=&to=`
 
 Import settings (`appsettings.json`): `Imports:MaxUploadBytes` (default 20 MB) and
 `Imports:HeaderSearchRowLimit` (default 30). Full import rules: [docs/excel-import-notes.md](docs/excel-import-notes.md).
 
-Errors are returned as RFC 7807 ProblemDetails: business-rule violations as 422, unexpected errors as
-500 without internal details.
+Errors are returned as RFC 7807 ProblemDetails: business-rule violations as 422, a malformed request (an
+unknown comparison basis, a month that is not `yyyy-MM`) as 400, a record that does not exist as 404, and
+unexpected errors as 500 without internal details.
 
 ### Integration tests (opt-in)
 
@@ -568,12 +741,31 @@ Task 5 (order browsing, no migration):
   intentionally-empty cells, and changes nothing
 - Nothing on these screens writes: no create, edit, approve, reject or delete, and no status transition
 
+Task 6A (analytics engine, no migration):
+
+- Deterministic comparison of one location-month against `PreviousMonth`, `Previous3MonthAverage` or
+  `Previous6MonthAverage`, as calendar windows that never include the selected month
+- A month the location has no request for is missing history, not a zero; averages divide by the months that
+  are available and the response names the ones that are not
+- The highest version of each month is used and two versions are never added together; requests of any status
+  are included while no approval workflow exists
+- `OrderAnalyticsCalculator` is a pure calculator with no database; `OrderAnalyticsQueries` reads in four
+  queries whatever the number of products or months
+- Quantity is compared per `ProductVariantId`; services (`MONTH`, `TIME`, no order unit) are compared by money
+  and carry no quantity figure at all
+- Weighted unit price, price coverage, known-amount and null-percentage rules as documented above
+- `AnalyticsController` with the comparison, available-periods and trend endpoints; typed DTOs only
+- Nothing writes: no endpoint, no service and no query in this layer changes a row
+
 ## Intentionally deferred
 
 - Undo or history of review decisions
 - Reading the legacy request-form `.xls` layout (location, person and period in a header block)
 - Fuzzy or AI-assisted matching
-- Analytics (period comparison, averages, price/quantity changes, anomaly detection)
+- Analytics **screens**: the comparison UI, charts and the management dashboard (Task 6B onwards). The
+  calculation engine behind them exists; see *Comparing months (Task 6A)*
+- Anomaly detection, forecasting, recommendations and any generated explanation of why a number moved
+- Category as an analytics dimension, until products carry a canonical category
 - Approval workflow UI and rules beyond basic status transitions
 - Authentication and roles (Admin, Coordinator, Manager / Approver)
 - AI assistant
