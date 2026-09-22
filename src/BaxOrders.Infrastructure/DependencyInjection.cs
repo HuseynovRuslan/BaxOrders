@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IProductCodeGenerator, SqlServerProductCodeGenerator>();
         services.AddScoped<ILocationCodeGenerator, SqlServerLocationCodeGenerator>();
         services.AddScoped<IImportBatchLock, SqlServerImportBatchLock>();
+        services.AddScoped<IOrderRequestLock, SqlServerOrderRequestLock>();
         services.AddSingleton<IExcelWorkbookReader, ExcelDataReaderWorkbookReader>();
 
         return services;

@@ -655,6 +655,7 @@ What each task did with the plan above. Batch #6 was never touched by any of the
 | **4** | Step 6 — confirmation of batch #50010. | **167 `OrderRequest`s and 3,618 `OrderRequestItem`s**, reconciled to 431 670.9140 over the priced lines. One excluded row became no item. Batch #50010 is `Imported`. |
 | **5** | Nothing. Task 5 is read-only and applied no decision. | The browsing screens display the confirmed decisions (`Vahidsiz`, `ay`/MONTH, `Qiymət yoxdur` instead of a zero) but cannot change them. |
 | **6A** | Nothing. The analytics engine is read-only and applied no decision. | It *reads* the confirmed service semantics: a variant with no order unit, with `MONTH` (CB-40) or with `TIME` is compared by money and never by quantity, because "1 ay → 2 ay" is not a doubling of consumption. Descriptor variants (CB-33 family) stay separate comparison rows. No product carries a canonical category, so category is **not** an analytics dimension yet — see UR notes below. |
+| **9A** | Nothing. Task 9A adds the correction of returned orders (see *Order corrections* below) and applied it to no company request. | All 167 requests are still `Draft` at version 1: no correction, no edit, no lineage link, no workflow event. The migration added a nullable column and left the 3,618 imported lines unwritten. |
 
 ## Write log
 
@@ -676,3 +677,34 @@ source rows by 3,618 `ImportRowMaterializations` under one `ImportMaterializatio
 
 Two things did not change at any point: **batch #6 still holds its original 2,672 staged rows**, and no
 `Original*` value in any staged row was ever rewritten. Writing documentation is not a database write.
+
+## Order corrections (Task 9A)
+
+How a returned order is put right. The first table is what the business fixed when it set the task; the
+second is what the implementation had to decide on its way, each chosen to be the safer reading and each
+reversible if the business decides otherwise.
+
+### Fixed by the business
+
+| # | Decision |
+| --- | --- |
+| OC-01 | A request that has entered review — `PendingApproval`, `Approved`, `ReturnedForCorrection` — is an immutable business snapshot. Its lines are never edited. |
+| OC-02 | A returned request is corrected by a **new version**: same location, same period, next version, `Draft`, with an exact copy of every line. |
+| OC-03 | Only `ReturnedForCorrection` may be corrected. Correcting an **approved** month is a future decision, not implied by this one. |
+| OC-04 | One returned version produces at most one correction. A returned correction is corrected again (V2 → V3), never reopened. |
+| OC-05 | A copied line records the line it was copied from, one version back. Import provenance is inherited through that chain; no workbook row is materialized twice, and a line added by hand has no workbook row. |
+| OC-06 | Editable in a correction draft: quantity (> 0), price (a price or *unknown* — never zero for unknown), supplier (a catalog supplier or none). The product of a line does not change: remove it and add the other. Lines may be added and removed. |
+| OC-07 | Every change is recorded, append-only, with the actor's identity and name at the time, and structured old and new values. |
+| OC-08 | Coordinator and Admin correct and edit; Manager reads only. Self-approval (Task 8B) is unchanged. |
+| OC-09 | Only a draft that was made as a correction is editable. The 167 imported drafts are **not** made editable. |
+| OC-10 | Analytics keeps selecting the highest version of a month whatever its status, so **a correction draft becomes the analytics version the moment it exists**. Approved-only analytics remains a separate, future decision. |
+
+### Decided in implementation — for the business to confirm
+
+| # | Decision | Why | If the business wants otherwise |
+| --- | --- | --- | --- |
+| OC-11 | Once a returned version has been corrected, it can no longer be **resubmitted unchanged**. Before it is corrected it still can, as Task 8A allowed. | Otherwise V1 (resubmitted) and V2 (the correction) would both be live versions of one month in front of the approver. | Drop one check in the workflow service. |
+| OC-12 | Only the **newest** version of a month may be corrected. | Correcting an older one after something newer exists (a second import) would fork the history and hand analytics a stale month. | Allow it and decide which of the two forks analytics should read. |
+| OC-13 | A copy keeps a line's variant and supplier **even if they have been deactivated since**; new and changed values must be active. An inactive location or responsible person blocks a correction, as it blocks any new version. | Refusing the copy would make a returned order uncorrectable; the person correcting it removes and replaces the retired line. | Refuse corrections that carry retired records. |
+| OC-14 | The self-approval rule follows the **submitter** of the current cycle only. Someone who edited a correction but did not submit it may still approve it. | That is the Task 8B rule, which Task 9A was told to leave unchanged. | A "four eyes on edits" rule: whoever edited a correction may not decide on it. |
+| OC-15 | Removing a line from a correction draft deletes it from that draft; the history keeps the whole line as it was. | Hiding "removed" lines instead would have to be taught to every query that reads lines — analytics, the dashboard, totals — with a real chance of one being missed. | Keep removed lines as soft-deleted rows, with that cost. |

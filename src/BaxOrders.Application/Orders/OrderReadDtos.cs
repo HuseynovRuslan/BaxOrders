@@ -93,6 +93,11 @@ public sealed record OrderItemSourceRefDto(long ImportBatchId, long ImportRowId,
 /// The canonical category, root first. Products imported in bulk carry no category of their own, so this falls
 /// back to the category resolved for the source row, which is the same kind of canonical record.
 /// </param>
+/// <param name="Source">
+/// The workbook row this very line was created from. Null for a line copied into a correction version — its
+/// row is reached through <paramref name="SourceOrderRequestItemId"/> — and for a line added by hand.
+/// </param>
+/// <param name="SourceOrderRequestItemId">The line of the previous version this one was copied from, if any.</param>
 public sealed record OrderRequestItemDto(
     long OrderRequestItemId,
     long ProductId,
@@ -112,8 +117,18 @@ public sealed record OrderRequestItemDto(
     int? SupplierId,
     string? SupplierName,
     IReadOnlyList<string> CategoryPath,
-    OrderItemSourceRefDto? Source);
+    OrderItemSourceRefDto? Source,
+    long? SourceOrderRequestItemId);
 
+/// <param name="IsRevision">True when this version was made as the correction of a returned one.</param>
+/// <param name="SourceOrderRequestId">The returned version this one corrects, when it is a correction.</param>
+/// <param name="HasRevision">True when a correction version has been made from this one; it is then superseded.</param>
+/// <param name="RevisionOrderRequestId">That correction, when there is one.</param>
+/// <param name="CanCreateRevision">
+/// Whether this person may correct this version now. Decided by the server, like everything else about
+/// permissions; the endpoint checks again.
+/// </param>
+/// <param name="CanEditRevision">Whether this person may edit this version's lines now.</param>
 public sealed record OrderRequestDetailDto(
     long OrderRequestId,
     int LocationId,
@@ -129,6 +144,14 @@ public sealed record OrderRequestDetailDto(
     int KnownPriceItemCount,
     int MissingPriceItemCount,
     decimal? KnownAmountTotal,
+    bool IsRevision,
+    long? SourceOrderRequestId,
+    int? SourceVersion,
+    bool HasRevision,
+    long? RevisionOrderRequestId,
+    int? RevisionVersion,
+    bool CanCreateRevision,
+    bool CanEditRevision,
     PagedResult<OrderRequestItemDto> Items);
 
 /// <param name="Search">Matches the product name, the product code or the model code.</param>
@@ -156,7 +179,16 @@ public sealed record OrderItemSourceFieldDto(
 /// The whole audit trail of one permanent item: the file it came from, the row as the sheet had it, the
 /// corrections an operator recorded, and what the import resolved each value to.
 /// </summary>
+/// <remarks>
+/// A line copied into a correction has no workbook row of its own; its trail is the one of the imported line
+/// it descends from. <see cref="OrderRequestItemId"/> and <see cref="OrderRequestId"/> then name that imported
+/// line, <see cref="RequestedOrderRequestItemId"/> the line that was asked about, and <see cref="Lineage"/> the
+/// way from one to the other, newest first.
+/// </remarks>
+/// <param name="Lineage">The line asked about, then each line it was copied from, ending with the imported one.</param>
 public sealed record OrderItemSourceDto(
+    long RequestedOrderRequestItemId,
+    IReadOnlyList<long> Lineage,
     long OrderRequestItemId,
     long OrderRequestId,
     DateTime MaterializedAtUtc,

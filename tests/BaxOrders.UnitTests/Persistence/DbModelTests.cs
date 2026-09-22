@@ -43,6 +43,10 @@ public sealed class DbModelTests : IDisposable
     [InlineData(typeof(LocationAlias), typeof(Location))]
     [InlineData(typeof(SupplierAlias), typeof(Supplier))]
     [InlineData(typeof(ResponsiblePersonAlias), typeof(ResponsiblePerson))]
+    [InlineData(typeof(OrderRequestEditEvent), typeof(ProductVariant))]
+    // A reviewed version is never deleted while a correction descends from it.
+    [InlineData(typeof(OrderRequestItem), typeof(OrderRequestItem))]
+    [InlineData(typeof(OrderRequestRevision), typeof(OrderRequest))]
     public void Deleting_reference_data_never_cascades_into_history(Type dependent, Type principal)
     {
         var foreignKeys = Entity(dependent).GetForeignKeys()
@@ -92,6 +96,24 @@ public sealed class DbModelTests : IDisposable
             nameof(OrderRequest.Version));
 
         Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void A_returned_version_is_corrected_at_most_once_and_a_correction_has_one_source()
+    {
+        Assert.True(Index(typeof(OrderRequestRevision), nameof(OrderRequestRevision.SourceOrderRequestId)).IsUnique);
+        Assert.True(Index(typeof(OrderRequestRevision), nameof(OrderRequestRevision.RevisionOrderRequestId)).IsUnique);
+    }
+
+    [Fact]
+    public void The_edit_history_outlives_the_lines_it_describes()
+    {
+        // A line removed from a draft is deleted; a foreign key from its history would either block that or
+        // take the history with it.
+        var toItems = Entity(typeof(OrderRequestEditEvent)).GetForeignKeys()
+            .Where(foreignKey => foreignKey.PrincipalEntityType.ClrType == typeof(OrderRequestItem));
+
+        Assert.Empty(toItems);
     }
 
     [Fact]

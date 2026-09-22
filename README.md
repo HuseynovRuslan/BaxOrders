@@ -817,10 +817,11 @@ building it. An integration test asserts that approving a month changes no analy
 
 ### What is not built
 
-**Editing a returned request is not implemented.** `ReturnedForCorrection` says a correction is needed; the
-correction itself still arrives the way every order does, as a new version from an Excel import. The screen
-says this where a returned request is shown. A returned request can be submitted again without anything
-having changed — the state machine allows it, and that is documented rather than prevented.
+At the time of Task 8A, editing a returned request was not implemented: `ReturnedForCorrection` said a
+correction was needed, and the correction could only arrive as a new version from an Excel import. **Task 9A
+builds the correction itself** as a new version — see
+[Correcting a returned order](#correcting-a-returned-order-task-9a); its screens are Task 9B. A returned
+request can still be submitted again unchanged, as long as nobody has corrected it yet.
 
 ### The screen
 
@@ -901,20 +902,21 @@ The browser needs no extra round trip: it reads the cookie each time it writes.
 
 ### Three roles
 
-| Role | Azerbaijani | Excel import | Submit | Approve / return | Users |
-| --- | --- | --- | --- | --- | --- |
-| Coordinator | Koordinator | ✓ | ✓ | — | — |
-| Manager | Rəhbər | — | — | ✓ | — |
-| Admin | Administrator | ✓ | ✓ | ✓ | ✓ |
+| Role | Azerbaijani | Excel import | Submit | Correct a returned order (9A) | Approve / return | Users |
+| --- | --- | --- | --- | --- | --- | --- |
+| Coordinator | Koordinator | ✓ | ✓ | ✓ | — | — |
+| Manager | Rəhbər | — | — | — | ✓ | — |
+| Admin | Administrator | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Everybody signed in reads the dashboard, the objects, the orders and the analytics. One person holds exactly
 one role. The roles are created at startup, idempotently, so no migration carries a hard-coded identifier.
 
-Four policies carry this: `CanManageImports`, `CanSubmitOrders`, `CanDecideOrders`, `CanManageUsers`. Every
-one of the **24 write endpoints** names one of them — 18 across the import path, 3 workflow transitions and
-3 for user administration — and the application's fallback policy requires an authenticated user, so a new
-endpoint is closed until somebody opens it. The three `auth` writes are the exceptions and say so:
-`login` is anonymous by necessity, `logout` and `change-password` only require a session.
+Five policies carry this: `CanManageImports`, `CanSubmitOrders`, `CanDecideOrders`, `CanManageUsers` and —
+since Task 9A — `CanReviseOrders`. Every one of the **28 write endpoints** names one of them — 18 across the
+import path, 3 workflow transitions, 3 for user administration and 4 for correcting a returned order — and
+the application's fallback policy requires an authenticated user, so a new endpoint is closed until somebody
+opens it. The three `auth` writes are the exceptions and say so: `login` is anonymous by necessity, `logout`
+and `change-password` only require a session.
 
 ### Nobody approves their own submission
 
@@ -1014,11 +1016,163 @@ figure. Approved-only analytics remains a future business decision.
 All 167 are still **Draft**, with no workflow events and no `SubmittedByUserId`. Every end-to-end scenario
 creates its own users, object, product and request, and deletes them afterwards.
 
+## Correcting a returned order (Task 9A)
+
+Until now a manager could hand a request back, and nobody could put it right. Task 9A closes that loop —
+in the backend; the screens are Task 9B.
+
+```
+V1 ReturnedForCorrection ──correct──▶ V2 Draft ──edit──▶ V2 Draft ──submit──▶ V2 PendingApproval ──▶ …
+                                                                                    │
+                                                                            return  ▼
+                                               V3 Draft ◀──correct── V2 ReturnedForCorrection
+```
+
+### A reviewed version is never edited
+
+Once a request has been submitted it is a business snapshot, and it stays one — `PendingApproval`,
+`Approved` and `ReturnedForCorrection` alike. **Correcting a returned request makes the next version**: same
+object, same month, version + 1, as a `Draft` holding an exact copy of every line. The returned version is
+not written to at all — the tests compare it down to its row version.
+
+- **Only a returned request is corrected.** Not a draft (it has not been reviewed), not one that is waiting,
+  and not an approved one — correcting an approved month is a separate business decision that has not been
+  taken.
+- **Only the newest version of a month is corrected.** If something newer exists — a second import, say —
+  the old one is no longer the one that counts, and correcting it would fork the history (409).
+- **A returned version is corrected once.** A second click, or two people at once, get the *same*
+  correction back (`alreadyExisted: true`, 200 instead of 201). The returned request's row is locked while it
+  is corrected, and a unique index on the source is the last line of defence.
+- **A correction of a correction goes one step at a time.** V2 returned makes V3 from V2; V2 is never
+  reopened, and V1 is never the source of a second correction.
+- **A corrected version takes no further workflow action.** Once V2 exists, V1 cannot be sent back
+  unchanged: two versions of one month would be in front of the approver. Before anyone corrects it, a
+  returned request can still be resubmitted unchanged, as Task 8A allowed. Both actions take the same row
+  lock, so they cannot cross.
+
+The correction keeps the location, the period, the request date (**a missing one stays missing** — the day
+the correction was made is audit metadata, not the day the request was written) and the responsible person.
+It inherits no workflow state and claims no import batch.
+
+### What a correction is, durably
+
+`OrderRequestRevision` links the returned version to its correction, with who made it and when (the name
+as a snapshot, like every actor name). It is what makes a request a correction: nothing is inferred from a
+version number, because a version 2 may equally have come from a second import. Both ends are unique.
+
+### Every line knows where it came from
+
+`OrderRequestItem.SourceOrderRequestItemId` points at the line of the **previous** version a line was copied
+from — V3 → V2 → V1, never straight to V1. Copied lines get new ids, and **no second
+`ImportRowMaterialization` is ever made**: one workbook row became one permanent line, once. A copied line's
+provenance is found by following the chain back to the imported line:
+
+```
+GET /api/v1/orders/items/{V3 line}/source   →  lineage [V3 line, V2 line, V1 line] → workbook row
+```
+
+A line added by hand has no source and no workbook row, and none is made up for it (404 from `/source`).
+Lines keep the order of the version they were copied from; lines added by hand follow.
+
+A copy is exact: the same variant, quantity, price and supplier **even if a catalog record has been
+deactivated since** — the copy says what the reviewed version said, and the person correcting it decides
+what to change. New and changed references must be active. An inactive location or responsible person does
+block a correction, as it blocks any new version.
+
+### What can be changed, and only in a correction draft
+
+Only a draft that **was created as a correction** is edited. The 167 imported drafts are not, and neither is
+anything submitted, approved or returned — including a correction once it has been submitted. The domain
+refuses; the screen is never the lock.
+
+| Change | Rule |
+| --- | --- |
+| Quantity | `> 0`, at most 3 decimals. Never normalised silently. |
+| Price | A price ≥ 0, or `null` for *not known*. `null` is never read or written as zero. |
+| Supplier | An active catalog supplier, or none. Text is never turned into a supplier here. |
+| Product | **Not editable.** A different product is a different line: remove this one, add the other. |
+| Add a line | A catalog variant and a quantity; price and supplier optional. |
+| Remove a line | Deleted from this draft only. The version it was copied from keeps its own line. |
+
+Asking for the value a line already has changes nothing and records nothing.
+
+### Every change is recorded
+
+`OrderRequestEditEvent` is append-only and separate from the workflow history: the workflow history says who
+sent and who decided; this one says what happened to the lines — `RevisionCreated`, `ItemQuantityChanged`,
+`ItemPriceChanged`, `ItemSupplierChanged`, `ItemAdded`, `ItemRemoved`. Each entry has the actor's id and their
+name as it read at the time, and **structured** old and new values: JSON written culture-invariantly (`12.5`,
+never `12,5`), an object for a supplier (`{"id":7,"name":"…"}`, the name a snapshot) or for a whole line, and
+`NULL` for *no value*. A removed line's entry keeps the whole line, so what was removed stays on record after
+the line itself is gone — which is also why the history has no foreign key to the line.
+
+### Who may do it
+
+A new policy, `CanReviseOrders`: **Coordinator and Admin** — the people who put orders together. A manager
+reads everything and changes nothing (403); nobody signed in gets 401. It is a policy of its own rather than a
+reuse of `CanDecideOrders`, and the service checks the role again where the work is done.
+
+**Self-approval still applies, unchanged.** Whoever submits the correction cannot approve or return it,
+administrators included. Making or editing a correction is not submitting it: the rule follows the
+submitter of the current cycle, exactly as in Task 8B.
+
+### Two people at once
+
+Every edit sends back the `rowVersion` it read (from `GET …/revision`, hexadecimal). Any change to the
+correction moves it; an edit made from a stale copy is refused with **409** and overwrites nothing. There is
+no last-write-wins.
+
+### The existing workflow, unchanged
+
+A correction draft is submitted, approved and returned through the same Task 8A/8B workflow — there is no
+second state machine. Its version does not move on a status change. Unpriced lines still need the approver's
+acknowledgement; filling a price in during the correction simply lowers the count.
+
+### Analytics reads the correction at once — unchanged policy
+
+**Tasks 6 and 7 still select the highest permanent version of a month, whatever its status.** So the moment
+V2 exists — as a draft — analytics and the dashboard read V2, with its edited quantities and money, and V1
+drops out of the comparison. That is the existing policy applied to a new version, not a change to it, and
+it is what the tests assert. Whether analytics should read *the latest approved version* instead is a
+separate business decision.
+
+### API
+
+```
+GET    /api/v1/orders/{id}/revision                  where it stands as a correction, what may be done, the history
+POST   /api/v1/orders/{id}/revision                  correct a returned request (no body) → 201, or 200 if it already was
+PATCH  /api/v1/orders/{id}/items/{itemId}            { rowVersion, quantity?, unitPrice?, supplierId? }
+POST   /api/v1/orders/{id}/items                     { rowVersion, productVariantId, quantity, unitPrice?, supplierId? }
+DELETE /api/v1/orders/{id}/items/{itemId}?rowVersion=…
+```
+
+A field of the `PATCH` that is absent is **left alone**; `{"value": …}` sets it; `{"value": null}` clears a
+price or a supplier. A bare `null` is refused (400), because it could mean either, and so is any unknown
+property — a `productVariantId` included. `GET /api/v1/orders/{id}` now also says `isRevision`,
+`sourceOrderRequestId`/`sourceVersion`, `hasRevision`, `revisionOrderRequestId`/`revisionVersion`,
+`canCreateRevision` and `canEditRevision` — decided by the server — and each line its
+`sourceOrderRequestItemId`.
+
+### Schema
+
+Migration `AddOrderRequestRevisions`: the `OrderRequestRevisions` and `OrderRequestEditEvents` tables and the
+nullable `OrderRequestItems.SourceOrderRequestItemId`. Check constraints keep the history honest in the
+database too: a "changed" entry names its field and nothing else does, and every line entry names its line.
+Existing rows are not rewritten — the new column is `NULL` on all 3,618 imported lines.
+
+### What is not built
+
+The screens (Task 9B): "Düzəliş versiyası yarat", the correction editor, the line dialogs and the edit
+history. Correcting an approved month. Per-object approvers. None of the company's 167 requests has been
+corrected, edited or moved — they are all drafts, and a draft is not corrected.
+
 ## Data protection rules
 
 - Locations, categories, units, products, variants, suppliers and responsible persons are **deactivated,
   not deleted**. All foreign keys to them are `RESTRICT`, and the save interceptor refuses hard deletes.
-- Only true parts cascade: request → items, import batch → rows → issues.
+- Only true parts cascade: request → items, request → its workflow and edit history, import batch → rows →
+  issues. A correction's link to the version it corrects, and a copied line's link to the line it was copied
+  from, are `RESTRICT`: a reviewed version cannot be deleted while a correction descends from it.
 - Alias rows may be deleted to correct a wrong mapping; they carry no history.
 - Technical timestamps (`CreatedAtUtc`, `UpdatedAtUtc`, …) are UTC and set by the interceptor.
   `RequestDate` is a business `date` (`DateOnly`), not a timestamp.
@@ -1122,6 +1276,8 @@ dotnet run --project src/BaxOrders.Api --launch-profile http
   `GET /api/v1/orders/{id}`, `GET /api/v1/orders/items/{id}/source`
 - Approval workflow: `GET /api/v1/orders/{id}/workflow`,
   `POST /api/v1/orders/{id}/workflow/{submit|approve|return}`
+- Correcting a returned order: `GET|POST /api/v1/orders/{id}/revision`, `POST /api/v1/orders/{id}/items`,
+  `PATCH|DELETE /api/v1/orders/{id}/items/{itemId}`
 - Dashboard: `GET /api/v1/dashboard/periods`,
   `GET /api/v1/dashboard?period=&basis=&search=&historyCoverage=&priceCoverage=&hasCurrentRequest=&sort=&descending=&page=&pageSize=`
 - Analytics: `GET /api/v1/analytics/locations/{id}/periods`,
@@ -1351,6 +1507,23 @@ Task 8B (authentication, roles and permissions, migration `AddAuthenticationAndR
 - Approval is global: no per-location approvers and no scope tables, deliberately, for the MVP
 - The temporary actor input is gone from every workflow dialog
 - Analytics policy untouched; all 167 company requests still Draft, with no workflow events
+
+Task 9A (correcting a returned order, backend only, migration `AddOrderRequestRevisions`):
+
+- A reviewed version is never edited: correcting a returned request makes the next version as a draft with an
+  exact copy of its lines, and leaves the returned one untouched down to its row version
+- Only the newest returned version is corrected, and only once — a repeat returns the same correction; the
+  row lock and a unique index keep two people from making two
+- `OrderRequestRevision` is the durable link; `SourceOrderRequestItemId` chains every copied line to the line
+  it was copied from, one version at a time, and provenance is followed along it — no materialization is
+  ever duplicated
+- Only a correction draft is edited: quantity, price (including back to *unknown*) and supplier; lines added
+  and removed; the product of a line never changes
+- `OrderRequestEditEvent` records every change, append-only, with structured invariant values and the
+  actor's name as a snapshot
+- `CanReviseOrders` (Coordinator, Admin); managers read only; row-version tokens turn stale edits into 409s
+- The existing workflow carries the correction; a corrected version takes no further workflow action
+- Analytics policy unchanged — a correction is the newest version, so it is read at once; screens are 9B
 
 Task 7B (dashboard screen, no migration):
 

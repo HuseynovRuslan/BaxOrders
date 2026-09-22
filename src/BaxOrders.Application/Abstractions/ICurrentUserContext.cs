@@ -59,6 +59,12 @@ public static class BaxOrdersPolicies
     /// <summary>Approving an order or handing it back. Manager or Admin.</summary>
     public const string CanDecideOrders = nameof(CanDecideOrders);
 
+    /// <summary>
+    /// Making the correction version of a returned order, and editing it while it is a draft. Coordinator or
+    /// Admin — the people who put orders together, not the ones who decide on them.
+    /// </summary>
+    public const string CanReviseOrders = nameof(CanReviseOrders);
+
     /// <summary>Creating users, changing their role and disabling them. Admin only.</summary>
     public const string CanManageUsers = nameof(CanManageUsers);
 }

@@ -30,13 +30,17 @@ public sealed record AllowedWorkflowActionsDto(
     };
 
     /// <summary>The state narrowed by the role, and then by whether this is the person's own submission.</summary>
+    /// <param name="superseded">
+    /// True when a correction version has been made from this request. It then takes no further workflow
+    /// action: the correction is the version that is live.
+    /// </param>
     public static AllowedWorkflowActionsDto For(
-        OrderRequestStatus status, Guid? submittedByUserId, ICurrentUserContext currentUser)
+        OrderRequestStatus status, Guid? submittedByUserId, ICurrentUserContext currentUser, bool superseded = false)
     {
         ArgumentNullException.ThrowIfNull(currentUser);
 
         var state = ForState(status);
-        if (!currentUser.IsAuthenticated)
+        if (!currentUser.IsAuthenticated || superseded)
         {
             return new AllowedWorkflowActionsDto(false, false, false);
         }

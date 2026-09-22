@@ -469,7 +469,7 @@ public sealed class AuthenticationTests(SqlServerDatabaseFixture database) : IAs
         await using var db = database.CreateContext();
         var world = await SeedRequestAsync(db);
         var actor = new TestCurrentUser(account.Id, "Köhnə ad", BaxOrdersRoles.Coordinator);
-        await new Application.Orders.Workflow.OrderWorkflowService(db, actor)
+        await new Application.Orders.Workflow.OrderWorkflowService(db, actor, new SqlServerOrderRequestLock(db))
             .SubmitAsync(world, new Application.Orders.Workflow.SubmitForApprovalCommand(), CancellationToken.None);
 
         await WithScopeAsync(async services =>

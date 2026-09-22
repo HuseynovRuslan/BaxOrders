@@ -1,5 +1,6 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
+using BaxOrders.Domain;
 using BaxOrders.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,8 +17,13 @@ namespace BaxOrders.Application.Orders.Workflow;
 /// price, and what the request's money actually is. A client that claims to be somebody else, or that a
 /// request is fully priced, does not make either true.
 /// </para>
+/// <para>
+/// A version that has been corrected takes no further workflow action: its correction version is the live one
+/// now. Every transition locks the request's row for its transaction, the same lock a correction takes, so a
+/// returned request cannot be sent back unchanged at the very moment somebody corrects it.
+/// </para>
 /// </remarks>
-public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserContext currentUser)
+public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserContext currentUser, IOrderRequestLock requestLock)
 {
     /// <returns>Null when the request does not exist.</returns>
     public async Task<OrderWorkflowDto?> GetAsync(long orderRequestId, CancellationToken cancellationToken)
@@ -33,8 +39,9 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
 
         var totals = await TotalsAsync(orderRequestId, cancellationToken);
         var history = await HistoryAsync(orderRequestId, cancellationToken);
+        var correction = await CorrectionOfAsync(orderRequestId, cancellationToken);
 
-        return Describe(request, totals, history);
+        return Describe(request, totals, history, superseded: correction is not null);
     }
 
     public Task<OrderWorkflowDto> SubmitAsync(
@@ -71,18 +78,15 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             cancellationToken);
     }
 
-    /// <summary>
-    /// The person acting, from the session and from nowhere else. Endpoints require authentication, so an
-    /// anonymous caller never reaches this; if one somehow did, refusing is the only safe answer.
-    /// </summary>
-    private WorkflowActor Actor() =>
-        currentUser is { IsAuthenticated: true, UserId: { } userId }
-            ? WorkflowActor.User(userId, currentUser.DisplayName ?? currentUser.UserName ?? userId.ToString())
-            : throw new ForbiddenException("You must be signed in to act on an order.");
+    /// <summary>The person acting, from the session and from nowhere else.</summary>
+    private WorkflowActor Actor() => CurrentActor.Of(currentUser, "You must be signed in to act on an order.");
 
     private async Task<OrderWorkflowDto> TransitionAsync(
         long orderRequestId, Action<OrderRequest> transition, CancellationToken cancellationToken)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await requestLock.AcquireAsync(orderRequestId, cancellationToken);
+
         // Tracked and with its items, because the domain needs them: a request with no line cannot be
         // submitted, and the unpriced lines are what an approver has to acknowledge.
         var request = await db.OrderRequests
@@ -91,11 +95,20 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             .FirstOrDefaultAsync(order => order.Id == orderRequestId, cancellationToken)
             ?? throw new NotFoundException($"Order request #{orderRequestId} was not found.");
 
+        // Corrected means superseded. Sending the returned version back unchanged now would put two versions
+        // of one month in front of the approver; the correction is the one to act on.
+        if (await CorrectionOfAsync(orderRequestId, cancellationToken) is { } correction)
+        {
+            throw new DomainException(
+                $"Version {request.Version} has been corrected as version {correction.Version}; act on that version instead.");
+        }
+
         transition(request);
 
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -108,8 +121,15 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         var totals = await TotalsAsync(orderRequestId, cancellationToken);
         var history = await HistoryAsync(orderRequestId, cancellationToken);
 
-        return Describe(request, totals, history);
+        return Describe(request, totals, history, superseded: false);
     }
+
+    /// <summary>The correction version made from this request, if one has been.</summary>
+    private Task<CorrectionRef?> CorrectionOfAsync(long orderRequestId, CancellationToken cancellationToken) =>
+        db.OrderRequestRevisions.AsNoTracking()
+            .Where(revision => revision.SourceOrderRequestId == orderRequestId)
+            .Select(revision => new CorrectionRef(revision.RevisionOrderRequestId, revision.RevisionOrderRequest.Version))
+            .FirstOrDefaultAsync(cancellationToken);
 
     private async Task<(int ItemCount, int MissingPriceItemCount, decimal PricedAmount, int KnownPriceItemCount)> TotalsAsync(
         long orderRequestId, CancellationToken cancellationToken)
@@ -152,14 +172,15 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
     private OrderWorkflowDto Describe(
         OrderRequest request,
         (int ItemCount, int MissingPriceItemCount, decimal PricedAmount, int KnownPriceItemCount) totals,
-        IReadOnlyList<WorkflowEventDto> history) =>
+        IReadOnlyList<WorkflowEventDto> history,
+        bool superseded) =>
         new(request.Id,
             request.LocationId,
             request.Location.Name,
             request.RequestPeriod,
             request.Version,
             request.Status,
-            AllowedWorkflowActionsDto.For(request.Status, request.SubmittedByUserId, currentUser),
+            AllowedWorkflowActionsDto.For(request.Status, request.SubmittedByUserId, currentUser, superseded),
             request.SubmittedByUserId,
             request.SubmittedAtUtc,
             request.ApprovedAtUtc,
@@ -171,4 +192,6 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             totals.MissingPriceItemCount == 0,
             totals.MissingPriceItemCount > 0,
             history);
+
+    private sealed record CorrectionRef(long OrderRequestId, int Version);
 }

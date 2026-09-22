@@ -35,6 +35,34 @@ internal sealed class WorkflowEventActorConfiguration : IEntityTypeConfiguration
     }
 }
 
+/// <summary>Who made a correction version. Required: a correction is always somebody's decision.</summary>
+internal sealed class OrderRequestRevisionCreatorConfiguration : IEntityTypeConfiguration<OrderRequestRevision>
+{
+    public void Configure(EntityTypeBuilder<OrderRequestRevision> builder)
+    {
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(revision => revision.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(revision => revision.CreatedByUserId);
+    }
+}
+
+/// <summary>Who changed a line of a correction. Required, and never cascading, as with the workflow history.</summary>
+internal sealed class EditEventActorConfiguration : IEntityTypeConfiguration<OrderRequestEditEvent>
+{
+    public void Configure(EntityTypeBuilder<OrderRequestEditEvent> builder)
+    {
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(editEvent => editEvent.ActorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(editEvent => editEvent.ActorUserId);
+    }
+}
+
 /// <summary>Who put a request into its current approval cycle, and therefore may not decide on it.</summary>
 internal sealed class OrderRequestSubmitterConfiguration : IEntityTypeConfiguration<OrderRequest>
 {

@@ -29,6 +29,7 @@ public sealed class OrderRequest
 
     private readonly List<OrderRequestItem> _items = [];
     private readonly List<OrderRequestWorkflowEvent> _workflowEvents = [];
+    private readonly List<OrderRequestEditEvent> _editEvents = [];
 
     private OrderRequest()
     {
@@ -118,6 +119,25 @@ public sealed class OrderRequest
     /// <summary>Every workflow action taken on this request, oldest first. Append-only.</summary>
     public IReadOnlyCollection<OrderRequestWorkflowEvent> WorkflowEvents => _workflowEvents;
 
+    /// <summary>Every change made to the lines of this correction version, oldest first. Append-only.</summary>
+    public IReadOnlyCollection<OrderRequestEditEvent> EditEvents => _editEvents;
+
+    /// <summary>
+    /// The record saying which reviewed version this request corrects, or null when it was not created as a
+    /// correction — every imported request, for instance.
+    /// </summary>
+    /// <remarks>
+    /// Must be loaded to edit. An unloaded one reads as "not a revision", so forgetting to load it refuses the
+    /// edit rather than letting an imported request be changed.
+    /// </remarks>
+    public OrderRequestRevision? RevisedFrom { get; private set; }
+
+    /// <summary>
+    /// True when this request was made as the correction of a returned version. Only such a request is ever
+    /// edited, and only while it is a draft.
+    /// </summary>
+    public bool IsRevision => RevisedFrom is not null;
+
     /// <summary>
     /// Guards the workflow against two people acting on the same request at once: a transition written from a
     /// copy that is no longer current fails instead of overwriting the one that got there first.
@@ -176,6 +196,56 @@ public sealed class OrderRequest
         return new OrderRequest(Location, RequestPeriod, requestDate, responsiblePerson, sourceImportBatch, Version + 1);
     }
 
+    /// <summary>
+    /// Makes the correction of this returned request: the next version, as a draft, holding an exact copy of
+    /// every line. This version is not touched — it stays returned, with its lines and its history as reviewed.
+    /// </summary>
+    /// <remarks>
+    /// The new version keeps the location, the period, the request date (a missing one stays missing: the day
+    /// the correction was made is audit metadata, not the day the request was written) and the responsible
+    /// person. It inherits no workflow state — nobody has submitted it — and no import batch, because no
+    /// import made it; each copied line leads back to its original through
+    /// <see cref="OrderRequestItem.SourceOrderRequestItemId"/>.
+    /// <para>
+    /// Uses the same versioning rule as every new version: this one's number plus one, with the database
+    /// refusing a duplicate. Call it on the latest version; the caller checks that, and the unique index on
+    /// (location, period, version) is the last line of defence if something else got there first.
+    /// </para>
+    /// </remarks>
+    public OrderRequest CreateRevision(WorkflowActor actor, DateTime utcNow)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        EnsureStatus("create a correction version of", OrderRequestStatus.ReturnedForCorrection);
+
+        if (actor.UserId is null)
+        {
+            throw new DomainException("A correction version is created by a signed-in person.");
+        }
+
+        // A returned request was submitted, and nothing is submitted without lines; none loaded means the
+        // caller forgot to load them, and copying nothing would quietly produce an empty correction.
+        if (_items.Count == 0)
+        {
+            throw new InvalidOperationException("The items must be loaded to create a correction version.");
+        }
+
+        if (ResponsiblePersonId is not null && ResponsiblePerson is null)
+        {
+            throw new InvalidOperationException("The responsible person must be loaded to create a correction version.");
+        }
+
+        var revision = CreateNextVersion(RequestDate, ResponsiblePerson, sourceImportBatch: null);
+        foreach (var item in _items)
+        {
+            revision._items.Add(item.CopyInto(revision));
+        }
+
+        revision.RevisedFrom = new OrderRequestRevision(this, revision, actor, utcNow);
+        revision._editEvents.Add(OrderRequestEditEvent.RevisionCreated(revision, this, actor, utcNow));
+        return revision;
+    }
+
+    /// <summary>Adds a line while a request is being built. A correction version is changed through its audited edits instead.</summary>
     public OrderRequestItem AddItem(
         ProductVariant productVariant,
         decimal quantity,
@@ -185,20 +255,179 @@ public sealed class OrderRequest
         string? notes = null)
     {
         EnsureStatus("add items to", OrderRequestStatus.Draft);
+        EnsureNotRevision();
 
         var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName, notes);
         _items.Add(item);
         return item;
     }
 
+    /// <summary>Removes a line while a request is being built. A correction version is changed through its audited edits instead.</summary>
     public void RemoveItem(OrderRequestItem item)
     {
         EnsureStatus("remove items from", OrderRequestStatus.Draft);
+        EnsureNotRevision();
 
         if (!_items.Remove(item))
         {
             throw new DomainException("The item does not belong to this request.");
         }
+    }
+
+    // ---- editing a correction version ----------------------------------------------------------------
+    //
+    // Only a draft that was made as a correction is edited, and every change leaves an entry in the edit
+    // history. A change to the same value is not a change: it records nothing.
+
+    /// <returns>The history entry, or null when the quantity was already that.</returns>
+    public OrderRequestEditEvent? ChangeItemQuantity(
+        OrderRequestItem item, decimal quantity, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+        var from = line.Quantity;
+
+        line.ChangeQuantity(quantity);
+        return line.Quantity == from
+            ? null
+            : RecordEdit(OrderRequestEditEvent.QuantityChanged(this, line, from, line.Quantity, actor, utcNow));
+    }
+
+    /// <param name="unitPrice">Null records that the price is not known. It is never read as zero.</param>
+    /// <returns>The history entry, or null when the price was already that.</returns>
+    public OrderRequestEditEvent? ChangeItemUnitPrice(
+        OrderRequestItem item, decimal? unitPrice, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+        var from = line.UnitPrice;
+
+        line.ChangeUnitPrice(unitPrice);
+        return line.UnitPrice == from
+            ? null
+            : RecordEdit(OrderRequestEditEvent.PriceChanged(this, line, from, line.UnitPrice, actor, utcNow));
+    }
+
+    /// <param name="supplier">An active catalog supplier, or null for none. Never created here from text.</param>
+    /// <returns>The history entry, or null when the supplier was already that.</returns>
+    public OrderRequestEditEvent? ChangeItemSupplier(
+        OrderRequestItem item, Supplier? supplier, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+
+        // The old supplier goes into the history by name, so it has to be there to be named.
+        if (line.SupplierId is not null && line.Supplier is null)
+        {
+            throw new InvalidOperationException("The line's supplier must be loaded to change it.");
+        }
+
+        var from = line.Supplier;
+        if (SameSupplier(from, supplier))
+        {
+            return null;
+        }
+
+        line.ChangeSupplier(supplier);
+        return RecordEdit(OrderRequestEditEvent.SupplierChanged(this, line, from, supplier, actor, utcNow));
+    }
+
+    /// <summary>
+    /// Adds a line to a correction version. The line is new: it copies nothing and claims no workbook row.
+    /// </summary>
+    /// <remarks>
+    /// Its history entry is written by <see cref="RecordItemAdded"/> once the line has been saved, because the
+    /// entry names the line by its id and the database hands the id out. Both happen in one transaction.
+    /// </remarks>
+    public OrderRequestItem AddRevisionItem(
+        ProductVariant productVariant, decimal quantity, decimal? unitPrice, Supplier? supplier, WorkflowActor actor)
+    {
+        EnsureEditableRevision(actor);
+
+        var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName: null, notes: null);
+        _items.Add(item);
+        return item;
+    }
+
+    /// <summary>Writes the history entry of a line added by <see cref="AddRevisionItem"/>, once it has an id.</summary>
+    public OrderRequestEditEvent RecordItemAdded(OrderRequestItem item, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+
+        if (line.Id <= 0)
+        {
+            throw new InvalidOperationException("Save the added line first; its history entry names it by its id.");
+        }
+
+        if (line.SourceOrderRequestItemId is not null)
+        {
+            throw new InvalidOperationException("A line copied from the previous version was not added by hand.");
+        }
+
+        return RecordEdit(OrderRequestEditEvent.ItemAdded(this, line, actor, utcNow));
+    }
+
+    /// <summary>
+    /// Takes a line out of this correction version. The line is deleted from this draft only; the version it
+    /// was copied from keeps its own line, and the history keeps exactly what was removed.
+    /// </summary>
+    public OrderRequestEditEvent RemoveRevisionItem(OrderRequestItem item, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+
+        // Written before the line goes, while its values can still be read.
+        var removed = RecordEdit(OrderRequestEditEvent.ItemRemoved(this, line, actor, utcNow));
+        _items.Remove(line);
+        return removed;
+    }
+
+    private OrderRequestItem EditableLine(OrderRequestItem item, WorkflowActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        EnsureEditableRevision(actor);
+
+        return _items.Contains(item)
+            ? item
+            : throw new DomainException("The item does not belong to this request.");
+    }
+
+    private void EnsureEditableRevision(WorkflowActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        if (!IsRevision)
+        {
+            throw new DomainException(
+                "Only a correction version made from a returned request can be edited; this request was not made that way.");
+        }
+
+        EnsureStatus("edit", OrderRequestStatus.Draft);
+
+        if (actor.UserId is null)
+        {
+            throw new DomainException("A correction is edited by a signed-in person.");
+        }
+    }
+
+    private void EnsureNotRevision()
+    {
+        if (IsRevision)
+        {
+            throw new DomainException("A correction version is changed through its audited edits, so every change is recorded.");
+        }
+    }
+
+    private OrderRequestEditEvent RecordEdit(OrderRequestEditEvent editEvent)
+    {
+        _editEvents.Add(editEvent);
+        return editEvent;
+    }
+
+    private static bool SameSupplier(Supplier? left, Supplier? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
+        return ReferenceEquals(left, right) || (left.Id > 0 && left.Id == right.Id);
     }
 
     /// <summary>

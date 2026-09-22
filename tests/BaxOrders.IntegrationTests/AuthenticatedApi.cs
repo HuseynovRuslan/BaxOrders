@@ -85,6 +85,17 @@ public static class AuthenticatedApi
         return await client.SendAsync(request);
     }
 
+    public static async Task<HttpResponseMessage> DeleteAsync(HttpClient client, string url)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        if (await AntiforgeryTokenAsync(client) is { } token)
+        {
+            request.Headers.Add(AntiforgerySetup.HeaderName, token);
+        }
+
+        return await client.SendAsync(request);
+    }
+
     /// <summary>A write that uses the token the caller is already holding, the way a page does.</summary>
     public static async Task<HttpResponseMessage> PostWithTokenAsync(
         HttpClient client, string url, object body, string? token)

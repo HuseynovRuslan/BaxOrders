@@ -13,9 +13,16 @@ namespace BaxOrders.Application.Orders;
 /// <remarks>
 /// The item list keeps the order of the source sheet wherever the line came from an import, because that is
 /// the order the person who wrote the request used. Sorting imported lines alphabetically would destroy it.
+/// A line copied into a correction keeps the place of the line it was copied from.
 /// </remarks>
-public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
+public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserContext currentUser)
 {
+    /// <summary>
+    /// How far back a line's copies are followed to find its workbook row. A correction of a correction of a
+    /// correction is already unusual; the bound only guards against data that should not exist.
+    /// </summary>
+    private const int MaxLineageDepth = 100;
+
     /// <returns>Null when the request does not exist.</returns>
     public async Task<OrderRequestDetailDto?> GetAsync(long orderRequestId, OrderItemQuery query, CancellationToken cancellationToken)
     {
@@ -37,6 +44,18 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
                 KnownPrice = request.Items.Count(item => item.UnitPrice != null),
                 MissingPrice = request.Items.Count(item => item.UnitPrice == null),
                 KnownAmount = request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
+                RevisedFrom = db.OrderRequestRevisions
+                    .Where(revision => revision.RevisionOrderRequestId == request.Id)
+                    .Select(revision => new { Id = revision.SourceOrderRequestId, revision.SourceOrderRequest.Version })
+                    .FirstOrDefault(),
+                RevisedInto = db.OrderRequestRevisions
+                    .Where(revision => revision.SourceOrderRequestId == request.Id)
+                    .Select(revision => new { Id = revision.RevisionOrderRequestId, revision.RevisionOrderRequest.Version })
+                    .FirstOrDefault(),
+                HasNewerVersion = db.OrderRequests.Any(other =>
+                    other.LocationId == request.LocationId
+                    && other.RequestPeriod == request.RequestPeriod
+                    && other.Version > request.Version),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -68,17 +87,20 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
 
         var totalCount = await items.CountAsync(cancellationToken);
 
-        // The provenance row number is the sheet's own order; an item without provenance falls back to its id.
+        // The provenance row number is the sheet's own order. A line copied into a correction takes the row of
+        // the line it was copied from; one added by hand has none and follows, in the order it was added.
         var page1 = await items
             .Select(item => new
             {
                 Item = item,
                 SourceRowNumber = db.ImportRowMaterializations
-                    .Where(link => link.OrderRequestItemId == item.Id)
+                    .Where(link => link.OrderRequestItemId == item.Id
+                                   || link.OrderRequestItemId == item.SourceOrderRequestItemId)
                     .Select(link => (int?)link.ImportRow.RowNumber)
                     .FirstOrDefault(),
             })
             .OrderBy(row => row.SourceRowNumber ?? int.MaxValue)
+            .ThenBy(row => row.Item.SourceOrderRequestItemId ?? row.Item.Id)
             .ThenBy(row => row.Item.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -101,6 +123,7 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
                 row.Item.UnitPrice,
                 row.Item.SupplierId,
                 SupplierName = row.Item.Supplier != null ? row.Item.Supplier.Name : null,
+                row.Item.SourceOrderRequestItemId,
                 Source = db.ImportRowMaterializations
                     .Where(link => link.OrderRequestItemId == row.Item.Id)
                     .Select(link => new
@@ -147,8 +170,12 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
             paths.GetValueOrDefault(row.ProductCategoryId ?? row.Source?.MatchedCategoryId ?? 0) ?? [],
             row.Source is null
                 ? null
-                : new OrderItemSourceRefDto(row.Source.ImportBatchId, row.Source.ImportRowId, row.Source.SheetName, row.Source.RowNumber)))
+                : new OrderItemSourceRefDto(row.Source.ImportBatchId, row.Source.ImportRowId, row.Source.SheetName, row.Source.RowNumber),
+            row.SourceOrderRequestItemId))
             .ToList();
+
+        var isRevision = header.RevisedFrom is not null;
+        var hasRevision = header.RevisedInto is not null;
 
         return new OrderRequestDetailDto(
             header.Id,
@@ -165,6 +192,14 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
             header.KnownPrice,
             header.MissingPrice,
             header.KnownPrice == 0 ? null : header.KnownAmount,
+            isRevision,
+            header.RevisedFrom?.Id,
+            header.RevisedFrom?.Version,
+            hasRevision,
+            header.RevisedInto?.Id,
+            header.RevisedInto?.Version,
+            Revisions.RevisionPermissions.CanCreate(header.Status, hasRevision, !header.HasNewerVersion, currentUser),
+            Revisions.RevisionPermissions.CanEdit(header.Status, isRevision, currentUser),
             new PagedResult<OrderRequestItemDto>(dtos, page, pageSize, totalCount));
     }
 
@@ -172,11 +207,36 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
     /// The audit trail of one permanent item: what the sheet said, what an operator corrected, and which
     /// canonical record each value was resolved to. Read-only — nothing here edits staging data.
     /// </summary>
-    /// <returns>Null when the item does not exist or was not created by an import.</returns>
+    /// <remarks>
+    /// A line copied into a correction version was not materialized from a workbook row itself, and no second
+    /// materialization is ever made for it: its trail is found by following the copies back, one version at a
+    /// time, to the imported line that has one. A line added by hand anywhere along the way has no workbook
+    /// row, and none is made up for it.
+    /// </remarks>
+    /// <returns>Null when the item does not exist, or neither it nor anything it was copied from was imported.</returns>
     public async Task<OrderItemSourceDto?> GetItemSourceAsync(long orderRequestItemId, CancellationToken cancellationToken)
     {
+        var lineage = new List<long> { orderRequestItemId };
+        var imported = orderRequestItemId;
+
+        while (!await db.ImportRowMaterializations.AnyAsync(item => item.OrderRequestItemId == imported, cancellationToken))
+        {
+            var copiedFrom = await db.OrderRequestItems.AsNoTracking()
+                .Where(item => item.Id == imported)
+                .Select(item => item.SourceOrderRequestItemId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (copiedFrom is null || lineage.Count > MaxLineageDepth)
+            {
+                return null;
+            }
+
+            imported = copiedFrom.Value;
+            lineage.Add(imported);
+        }
+
         var link = await db.ImportRowMaterializations.AsNoTracking()
-            .Where(item => item.OrderRequestItemId == orderRequestItemId)
+            .Where(item => item.OrderRequestItemId == imported)
             .Select(item => new
             {
                 item.OrderRequestItemId,
@@ -220,6 +280,8 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db)
             .ToList();
 
         return new OrderItemSourceDto(
+            orderRequestItemId,
+            lineage,
             link.OrderRequestItemId,
             link.OrderRequestId,
             link.CreatedAtUtc,

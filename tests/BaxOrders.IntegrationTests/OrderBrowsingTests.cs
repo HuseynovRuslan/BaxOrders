@@ -226,7 +226,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         var world = await WorldAsync(db);
         var item = (await Detail(db, world.MayRequestId)).Items.Items[0];
 
-        var source = await new OrderRequestQueries(db).GetItemSourceAsync(item.OrderRequestItemId, CancellationToken.None);
+        var source = await new OrderRequestQueries(db, TestCurrentUser.Anonymous()).GetItemSourceAsync(item.OrderRequestItemId, CancellationToken.None);
 
         Assert.NotNull(source);
         Assert.Equal(item.OrderRequestItemId, source!.OrderRequestItemId);
@@ -244,7 +244,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
 
-        var source = await new OrderRequestQueries(db).GetItemSourceAsync(world.CorrectedItemId, CancellationToken.None);
+        var source = await new OrderRequestQueries(db, TestCurrentUser.Anonymous()).GetItemSourceAsync(world.CorrectedItemId, CancellationToken.None);
         var unit = Assert.Single(source!.Fields, field => field.Column == "Ö/v");
 
         // The sheet said nothing; an operator said "ədəd". Both are shown, and the workbook value is not rewritten.
@@ -261,7 +261,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
     {
         await using var db = database.CreateContext();
         var queries = Queries(db);
-        var orders = new OrderRequestQueries(db);
+        var orders = new OrderRequestQueries(db, TestCurrentUser.Anonymous());
 
         Assert.Null(await queries.GetHistoryAsync(-1, new LocationHistoryQuery(), CancellationToken.None));
         Assert.Null(await orders.GetAsync(-1, new OrderItemQuery(), CancellationToken.None));
@@ -301,7 +301,7 @@ public sealed class OrderBrowsingTests(SqlServerDatabaseFixture database)
     private static LocationOrderQueries Queries(BaxOrdersDbContext db) => new(db);
 
     private static async Task<OrderRequestDetailDto> Detail(BaxOrdersDbContext db, long id, OrderItemQuery? query = null) =>
-        await new OrderRequestQueries(db).GetAsync(id, query ?? new OrderItemQuery(), CancellationToken.None)
+        await new OrderRequestQueries(db, TestCurrentUser.Anonymous()).GetAsync(id, query ?? new OrderItemQuery(), CancellationToken.None)
         ?? throw new InvalidOperationException($"Order request #{id} was not found.");
 
     private static async Task<Location> EmptyLocationAsync(BaxOrdersDbContext db)

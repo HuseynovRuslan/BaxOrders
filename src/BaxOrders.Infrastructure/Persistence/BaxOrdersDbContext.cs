@@ -54,6 +54,10 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
 
     public DbSet<OrderRequestWorkflowEvent> OrderRequestWorkflowEvents => Set<OrderRequestWorkflowEvent>();
 
+    public DbSet<OrderRequestRevision> OrderRequestRevisions => Set<OrderRequestRevision>();
+
+    public DbSet<OrderRequestEditEvent> OrderRequestEditEvents => Set<OrderRequestEditEvent>();
+
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     public DbSet<ImportRow> ImportRows => Set<ImportRow>();
@@ -89,6 +93,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
         StoreAsString<UnitType>(configurationBuilder);
         StoreAsString<OrderRequestStatus>(configurationBuilder);
         StoreAsString<OrderWorkflowAction>(configurationBuilder);
+        StoreAsString<OrderEditAction>(configurationBuilder);
+        StoreAsString<OrderEditField>(configurationBuilder);
         StoreAsString<ImportStatus>(configurationBuilder);
         StoreAsString<ImportRowValidationStatus>(configurationBuilder);
         StoreAsString<ImportIssueType>(configurationBuilder);

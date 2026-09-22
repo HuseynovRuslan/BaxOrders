@@ -92,6 +92,10 @@ internal static class SecuritySetup
                 policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
             .AddPolicy(BaxOrdersPolicies.CanDecideOrders, policy =>
                 policy.RequireRole(BaxOrdersRoles.Manager, BaxOrdersRoles.Admin))
+            // Correcting a returned order is putting an order together again, so it belongs with submitting —
+            // not with deciding, which is why this is its own policy rather than a reuse of CanDecideOrders.
+            .AddPolicy(BaxOrdersPolicies.CanReviseOrders, policy =>
+                policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
             .AddPolicy(BaxOrdersPolicies.CanManageUsers, policy =>
                 policy.RequireRole(BaxOrdersRoles.Admin))
             // Everything is closed unless it says otherwise. A new endpoint is private by forgetting to think

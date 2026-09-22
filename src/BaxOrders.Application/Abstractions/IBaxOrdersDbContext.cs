@@ -47,6 +47,12 @@ public interface IBaxOrdersDbContext
 
     DbSet<OrderRequestWorkflowEvent> OrderRequestWorkflowEvents { get; }
 
+    /// <summary>Which returned version each correction version was made from. One per source, one per correction.</summary>
+    DbSet<OrderRequestRevision> OrderRequestRevisions { get; }
+
+    /// <summary>Every change made to the lines of a correction version. Append-only.</summary>
+    DbSet<OrderRequestEditEvent> OrderRequestEditEvents { get; }
+
     DbSet<ImportBatch> ImportBatches { get; }
 
     DbSet<ImportRow> ImportRows { get; }

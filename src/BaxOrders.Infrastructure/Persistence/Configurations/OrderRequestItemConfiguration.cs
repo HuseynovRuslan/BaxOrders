@@ -34,8 +34,16 @@ internal sealed class OrderRequestItemConfiguration : IEntityTypeConfiguration<O
             .HasForeignKey(item => item.SupplierId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // A copied line points at the line of the previous version it was copied from. Not cascading: a
+        // reviewed version is never deleted while a correction descends from it, and the database says so.
+        builder.HasOne(item => item.SourceOrderRequestItem)
+            .WithMany()
+            .HasForeignKey(item => item.SourceOrderRequestItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(item => item.OrderRequestId);
         builder.HasIndex(item => item.ProductVariantId);
         builder.HasIndex(item => item.SupplierId);
+        builder.HasIndex(item => item.SourceOrderRequestItemId);
     }
 }

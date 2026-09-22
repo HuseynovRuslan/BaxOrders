@@ -1352,6 +1352,69 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestEditEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Field")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("NewValue")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OldValue")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<long>("OrderRequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("OrderRequestItemId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ProductVariantId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("OrderRequestItemId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.HasIndex("OrderRequestId", "OccurredAtUtc");
+
+                    b.ToTable("OrderRequestEditEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OrderRequestEditEvents_FieldMatchesAction", "([Action] IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged') AND [Field] IS NOT NULL) OR ([Action] NOT IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged') AND [Field] IS NULL)");
+
+                            t.HasCheckConstraint("CK_OrderRequestEditEvents_ItemEventNamesItem", "[Action] = 'RevisionCreated' OR ([OrderRequestItemId] IS NOT NULL AND [ProductVariantId] IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestItem", b =>
                 {
                     b.Property<long>("Id")
@@ -1381,6 +1444,9 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<long?>("SourceOrderRequestItemId")
+                        .HasColumnType("bigint");
+
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
 
@@ -1394,6 +1460,8 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProductVariantId");
 
+                    b.HasIndex("SourceOrderRequestItemId");
+
                     b.HasIndex("SupplierId");
 
                     b.ToTable("OrderRequestItems", null, t =>
@@ -1401,6 +1469,47 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_OrderRequestItems_Quantity", "[Quantity] > 0");
 
                             t.HasCheckConstraint("CK_OrderRequestItems_UnitPrice", "[UnitPrice] IS NULL OR [UnitPrice] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestRevision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("RevisionOrderRequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SourceOrderRequestId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("RevisionOrderRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("SourceOrderRequestId")
+                        .IsUnique();
+
+                    b.ToTable("OrderRequestRevisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OrderRequestRevisions_NotItself", "[SourceOrderRequestId] <> [RevisionOrderRequestId]");
                         });
                 });
 
@@ -2098,6 +2207,28 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Navigation("SourceImportBatch");
                 });
 
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestEditEvent", b =>
+                {
+                    b.HasOne("BaxOrders.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Orders.OrderRequest", "OrderRequest")
+                        .WithMany("EditEvents")
+                        .HasForeignKey("OrderRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Catalog.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("OrderRequest");
+                });
+
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestItem", b =>
                 {
                     b.HasOne("BaxOrders.Domain.Orders.OrderRequest", "OrderRequest")
@@ -2112,6 +2243,11 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BaxOrders.Domain.Orders.OrderRequestItem", "SourceOrderRequestItem")
+                        .WithMany()
+                        .HasForeignKey("SourceOrderRequestItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BaxOrders.Domain.Suppliers.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
@@ -2121,7 +2257,34 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
                     b.Navigation("ProductVariant");
 
+                    b.Navigation("SourceOrderRequestItem");
+
                     b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestRevision", b =>
+                {
+                    b.HasOne("BaxOrders.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Orders.OrderRequest", "RevisionOrderRequest")
+                        .WithOne("RevisedFrom")
+                        .HasForeignKey("BaxOrders.Domain.Orders.OrderRequestRevision", "RevisionOrderRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Orders.OrderRequest", "SourceOrderRequest")
+                        .WithOne()
+                        .HasForeignKey("BaxOrders.Domain.Orders.OrderRequestRevision", "SourceOrderRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RevisionOrderRequest");
+
+                    b.Navigation("SourceOrderRequest");
                 });
 
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequestWorkflowEvent", b =>
@@ -2246,7 +2409,11 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequest", b =>
                 {
+                    b.Navigation("EditEvents");
+
                     b.Navigation("Items");
+
+                    b.Navigation("RevisedFrom");
 
                     b.Navigation("WorkflowEvents");
                 });

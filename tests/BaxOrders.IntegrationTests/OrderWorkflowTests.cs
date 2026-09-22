@@ -165,7 +165,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
 
         // An administrator, who may do both — and still not both to the same request.
         var admin = await TestCurrentUser.AdminAsync(db, "Admin");
-        var service = new OrderWorkflowService(db, admin);
+        var service = Service(db, admin);
 
         await service.SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
@@ -186,7 +186,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         var world = await WorldAsync(db);
 
         var admin = await TestCurrentUser.AdminAsync(db, "Admin");
-        await new OrderWorkflowService(db, admin).SubmitAsync(
+        await Service(db, admin).SubmitAsync(
             world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
         var state = await Service(db, world.Approver).ApproveAsync(world.RequestId, new ApproveOrderCommand(), CancellationToken.None);
@@ -203,19 +203,19 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         var first = await TestCurrentUser.CoordinatorAsync(db, "Birinci");
         var second = await TestCurrentUser.AdminAsync(db, "İkinci");
 
-        await new OrderWorkflowService(db, first).SubmitAsync(
+        await Service(db, first).SubmitAsync(
             world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
         await Service(db, world.Approver).ReturnAsync(
             world.RequestId, new ReturnForCorrectionCommand("Yenidən bax"), CancellationToken.None);
-        await new OrderWorkflowService(db, second).SubmitAsync(
+        await Service(db, second).SubmitAsync(
             world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
         // The first submitter is no longer the current one, so they may now decide; the second may not.
         await Assert.ThrowsAsync<SelfApprovalNotAllowedException>(() =>
-            new OrderWorkflowService(db, second).ApproveAsync(
+            Service(db, second).ApproveAsync(
                 world.RequestId, new ApproveOrderCommand(), CancellationToken.None));
 
-        var state = await new OrderWorkflowService(db, first.As(BaxOrdersRoles.Manager))
+        var state = await Service(db, first.As(BaxOrdersRoles.Manager))
             .ApproveAsync(world.RequestId, new ApproveOrderCommand(), CancellationToken.None);
 
         Assert.Equal(OrderRequestStatus.Approved, state.Status);
@@ -249,7 +249,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
         var world = await WorldAsync(db);
 
         var admin = await TestCurrentUser.AdminAsync(db, "Admin");
-        var service = new OrderWorkflowService(db, admin);
+        var service = Service(db, admin);
         await service.SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
         var state = await service.GetAsync(world.RequestId, CancellationToken.None);
@@ -266,7 +266,7 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
     {
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
-        var anonymous = new OrderWorkflowService(db, TestCurrentUser.Anonymous());
+        var anonymous = Service(db, TestCurrentUser.Anonymous());
 
         await Assert.ThrowsAsync<ForbiddenException>(() => anonymous.SubmitAsync(
             world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None));
@@ -527,7 +527,8 @@ public sealed class OrderWorkflowTests(SqlServerDatabaseFixture database)
 
     // ---- fixture -------------------------------------------------------------------------------------
 
-    private static OrderWorkflowService Service(BaxOrdersDbContext db, ICurrentUserContext user) => new(db, user);
+    private static OrderWorkflowService Service(BaxOrdersDbContext db, ICurrentUserContext user) =>
+        new(db, user, new SqlServerOrderRequestLock(db));
 
     private static WorkflowActor Actor(TestCurrentUser user) =>
         WorkflowActor.User(user.UserId!.Value, user.DisplayName!);
