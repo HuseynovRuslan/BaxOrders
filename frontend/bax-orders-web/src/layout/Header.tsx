@@ -1,0 +1,44 @@
+import { Menu } from 'lucide-react'
+import { fetchHealth } from '../api/health'
+import { useApiResource } from '../hooks/useApiResource'
+
+interface HeaderProps {
+  onMenuClick: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
+  return (
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
+      <button
+        type="button"
+        className="rounded p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden"
+        onClick={onMenuClick}
+        aria-label="Menyunu aç"
+      >
+        <Menu className="size-5" />
+      </button>
+      <p className="text-sm font-medium text-slate-700">Material sifarişlərinin idarə edilməsi</p>
+      <div className="ml-auto">
+        <ApiStatus />
+      </div>
+    </header>
+  )
+}
+
+function ApiStatus() {
+  const health = useApiResource(fetchHealth)
+
+  const { dot, text } =
+    health.status === 'loading'
+      ? { dot: 'bg-slate-400', text: 'Yoxlanılır…' }
+      : health.status === 'success'
+        ? { dot: 'bg-emerald-500', text: 'Server işləyir' }
+        : { dot: 'bg-red-500', text: 'Server əlçatan deyil' }
+
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">
+      <span className={`size-2 rounded-full ${dot}`} aria-hidden="true" />
+      {text}
+    </span>
+  )
+}

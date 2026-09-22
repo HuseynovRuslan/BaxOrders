@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BaxOrders.Api/BaxOrders.Api.csproj" />
+    <Project Path="src/BaxOrders.Application/BaxOrders.Application.csproj" />
+    <Project Path="src/BaxOrders.Domain/BaxOrders.Domain.csproj" />
+    <Project Path="src/BaxOrders.Infrastructure/BaxOrders.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BaxOrders.IntegrationTests/BaxOrders.IntegrationTests.csproj" />
+    <Project Path="tests/BaxOrders.UnitTests/BaxOrders.UnitTests.csproj" />
+  </Folder>
+</Solution>
