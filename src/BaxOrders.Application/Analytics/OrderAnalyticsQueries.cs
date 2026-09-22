@@ -385,6 +385,11 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             filtered = filtered.Where(row => row.State == state);
         }
 
+        if (query.Kind is { } kind)
+        {
+            filtered = filtered.Where(row => row.AnalyticsKind == kind);
+        }
+
         return [.. filtered];
     }
 

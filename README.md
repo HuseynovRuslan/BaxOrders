@@ -481,6 +481,79 @@ back to per line. Aggregating a variant's lines is exactly where that breaks dow
 one category path but **4 resolve to several**, so a category filter would have to silently pick one. That is
 a data-model decision for the business, not something analytics should invent.
 
+### The comparison screen (Task 6B)
+
+The engine above gets a screen at `/locations/:locationId/analytics`, reached from a location's order history
+with **Müqayisə et** — or, from one month in that history, with **Müqayisə**, which opens the comparison on
+that month. The order history is untouched: an object now answers two separate questions, *what was ordered*
+and *what changed*.
+
+The page renders the API response and nothing else. No percentage, average, total or state is worked out in
+the browser; JavaScript formats numbers and never calculates them.
+
+**What is in the URL.** `period`, `basis`, `kind`, `state`, `search` and `page` all live in the query string,
+so a view can be refreshed, shared as a link, and walked back through with the browser's Back button:
+
+```
+/locations/21/analytics?period=2026-07&basis=Previous3MonthAverage&state=Increased&page=2
+```
+
+A `period` that the location has no request for is ignored in favour of its latest month — the selector only
+ever offers months the available-periods endpoint returned, and a month is parsed from its `yyyy-MM` text
+rather than through a local-time `Date`, which could shift it across a month boundary.
+
+**What the page says about its own numbers.** Three things are stated on screen rather than left to be
+inferred:
+
+- Money is headed **Məlum qiymətlər üzrə** and carries the missing-price count whenever `AmountIsComplete` is
+  false. It is never called a total.
+- The baseline strip always shows `2 / 3 ay mövcuddur` and names the missing months, and an average column is
+  headed with `2/3 ay əsasında` so the table itself says what the average rests on. A three-month average is
+  never labelled "keçən ay".
+- When no baseline month exists at all the page leads with *"Müqayisə üçün İyun 2026 məlumatı yoxdur"* and the
+  rows read **Tarixçə kifayət deyil**, not **Yeni**. EXPO's July 2026 is the real case: June is missing, and
+  all 15 of its variants say so.
+
+An expandable **Müqayisəyə daxil olan dövrlər** lists each baseline month with its version and a link to that
+request, which is what makes a three- or six-month average explicable.
+
+**Materials and services are separate.** When a comparison contains service lines the rows split into
+**Məhsullar** and **Xidmətlər** tabs, each paged by the server through the `kind` filter, so the row count and
+the pages follow the split. The service table has no quantity column at all — its columns are known amount,
+comparison amount, difference, change and price coverage — because a month of cleaning is not a quantity of
+anything. The tab appears only when `AmountOrientedServiceCount` is above zero.
+
+**How values are written.** A null percentage is an em dash, never `0%`, `∞` or `NaN`; a new product shows a
+baseline of 0 and a dash for its percentage, and one that stopped being ordered stays in the table at −100%.
+The price column is labelled **Çəkili orta qiymət** — not "son alış qiyməti" — with an info button explaining
+that it is weighted by quantity, and partial or unavailable coverage is written next to it so a price built on
+half the quantity never looks authoritative.
+
+State badges carry a symbol as well as a colour, and the colours mean direction, not judgement: ordering more
+is not "good" and ordering less is not "bad", so nothing here is green-for-good or red-for-bad.
+
+**Trend.** Every row has a **Trend** button that loads that variant's history only when it is pressed; no
+trend is fetched for a row nobody asked about. The chart is a separate bundle, downloaded on first use.
+Quantity, known amount and weighted price are separate toggles, and a service opens on money because it has no
+quantity to plot. Underneath, **Rəqəmlərlə** repeats the same months as a table so the trend is not available
+only to people who can see the chart.
+
+The gap rule is the important one: a month the location has **no request for** is drawn as a break in the
+line, is never interpolated across, and its tooltip says *"Bu ay üzrə sifariş yoxdur"*. A month the location
+**did** order in without this product is a genuine zero and is plotted as zero. EXPO again shows both — six
+points across a nine-month span, with February, June and August absent.
+
+**Layout.** The full table is shown from `lg` up; below that each row becomes a card carrying product,
+current, baseline, difference and state, with price and amount underneath. Nothing requires reading a
+nine-column table on a phone.
+
+**Scope.** The screen reads and only reads: no order is created, edited, approved or deleted, and no status
+changes. There is no cross-location ranking, no "top 10" and no dashboard — those belong to Task 7. There is
+no category filter either, for the reason given above: the data does not yet support one.
+
+Added dependency: **recharts 3.10** — one chart library, loaded lazily, used only by the trend chart.
+
+
 ## Data protection rules
 
 - Locations, categories, units, products, variants, suppliers and responsible persons are **deactivated,
@@ -614,8 +687,8 @@ npm run build    # type-check and production build into dist/
 ```
 
 Pages (Azerbaijani UI): İdarə paneli `/`, Sifarişlər `/orders`, Sifariş `/orders/:orderRequestId`,
-Excel importları `/imports`, Obyektlər `/locations`, Obyekt `/locations/:locationId`, Məhsullar `/products`,
-Təchizatçılar `/suppliers`. The import screens, the whole order-browsing path
+Excel importları `/imports`, Obyektlər `/locations`, Obyekt `/locations/:locationId`,
+Müqayisə `/locations/:locationId/analytics`, Məhsullar `/products`, Təchizatçılar `/suppliers`. The import screens, the whole order-browsing path
 (`/locations` → `/locations/:id` → `/orders/:id` → source) and the header's server status read real API
 data; Məhsullar and Təchizatçılar are still honest placeholders. `/orders` itself is a signpost: a request is
 opened from its object, because it always belongs to one object and one month.
@@ -757,13 +830,28 @@ Task 6A (analytics engine, no migration):
 - `AnalyticsController` with the comparison, available-periods and trend endpoints; typed DTOs only
 - Nothing writes: no endpoint, no service and no query in this layer changes a row
 
+Task 6B (comparison screen, no migration):
+
+- `/locations/:locationId/analytics`, reached from a location's history and from one month of it; period,
+  basis, kind, state, search and page all live in the URL, so a view survives a refresh and the Back button
+- Renders the API response as it is: nothing is calculated in the browser, only formatted
+- Incomplete money is headed **Məlum qiymətlər üzrə** with its missing-price count; baseline coverage and the
+  months an average is missing are on the screen, not in a tooltip
+- A window with no baseline month reads **Tarixçə kifayət deyil**, never **Yeni**
+- Materials and services are separate server-paged tabs; the service table has no quantity column at all
+- Weighted price is named as weighted and carries its coverage; a null percentage is an em dash
+- Trend loads per row on demand, in its own bundle, and draws a month with no request as a gap rather than a
+  zero — with the same months repeated as a table underneath
+- One dependency added: recharts 3.10, lazily loaded
+- The screen reads and only reads
+
 ## Intentionally deferred
 
 - Undo or history of review decisions
 - Reading the legacy request-form `.xls` layout (location, person and period in a header block)
 - Fuzzy or AI-assisted matching
-- Analytics **screens**: the comparison UI, charts and the management dashboard (Task 6B onwards). The
-  calculation engine behind them exists; see *Comparing months (Task 6A)*
+- The management dashboard and anything company-wide: cross-location ranking, "top 10", "the object that
+  grew most". Task 6B stays inside one location
 - Anomaly detection, forecasting, recommendations and any generated explanation of why a number moved
 - Category as an analytics dimension, until products carry a canonical category
 - Approval workflow UI and rules beyond basic status transitions

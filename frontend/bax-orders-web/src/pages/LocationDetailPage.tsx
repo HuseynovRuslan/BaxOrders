@@ -1,3 +1,4 @@
+import { TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { fetchLocationHistory, type LocationOrderHistory } from '../api/orders'
@@ -61,9 +62,20 @@ export function LocationDetailPage() {
         title={data?.name ?? 'Obyekt'}
         description={data ? `${data.code}${data.isActive ? '' : ' · deaktiv'}` : undefined}
         actions={
-          <Link to="/locations" className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-            Obyektlərə qayıt
-          </Link>
+          <>
+            {data && data.orderRequestCount > 0 && (
+              <Link
+                to={`/locations/${id}/analytics`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                <TrendingUp className="size-4" aria-hidden="true" />
+                Müqayisə et
+              </Link>
+            )}
+            <Link to="/locations" className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+              Obyektlərə qayıt
+            </Link>
+          </>
         }
       />
 
@@ -183,12 +195,21 @@ export function LocationDetailPage() {
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <Link
-                    to={`/orders/${request.orderRequestId}`}
-                    className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Sifarişə bax
-                  </Link>
+                  <div className="flex justify-end gap-1.5">
+                    <Link
+                      to={`/orders/${request.orderRequestId}`}
+                      className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Sifarişə bax
+                    </Link>
+                    <Link
+                      to={`/locations/${id}/analytics?period=${request.requestPeriod.slice(0, 7)}`}
+                      aria-label={`${formatPeriod(request.requestPeriod)} dövrünü müqayisə et`}
+                      className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Müqayisə
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

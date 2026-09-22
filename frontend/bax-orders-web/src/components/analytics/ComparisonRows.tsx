@@ -1,0 +1,286 @@
+import { LineChart } from 'lucide-react'
+import type { ComparisonSummary, PriceCoverage, VariantComparison } from '../../api/analytics'
+import { formatNumber } from '../imports/labels'
+import { InfoHint } from './InfoHint'
+import {
+  basisLabels,
+  coverageBadgeClass,
+  coverageLabels,
+  formatAnalyticsAmount,
+  formatAnalyticsPeriod,
+  formatAnalyticsQuantity,
+  formatBaselineBasisNote,
+  formatDelta,
+  formatPercent,
+  formatPrice,
+  formatVariantLine,
+  knownAmountLabel,
+  stateBadgeClass,
+  stateLabels,
+  stateSign,
+  unknownValue,
+  weightedPriceHint,
+  weightedPriceLabel,
+} from './labels'
+
+interface RowsProps {
+  rows: VariantComparison[]
+  summary: ComparisonSummary
+  onTrend: (row: VariantComparison) => void
+}
+
+/** The heading of the baseline column: which window it is, and how many of its months actually exist. */
+function BaselineHeading({ summary }: { summary: ComparisonSummary }) {
+  const partial = summary.availableBaselinePeriodCount < summary.expectedBaselinePeriodCount
+
+  return (
+    <>
+      {basisLabels[summary.basis]}
+      {summary.basis !== 'PreviousMonth' && (
+        <span className={`block font-normal ${partial ? 'text-amber-800' : 'text-slate-400'}`}>
+          {formatBaselineBasisNote(summary.availableBaselinePeriodCount, summary.expectedBaselinePeriodCount)}
+        </span>
+      )}
+    </>
+  )
+}
+
+/** Materials: quantities may be compared, so the quantity columns carry the comparison. */
+export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
+  return (
+    <>
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <caption className="sr-only">
+            {formatAnalyticsPeriod(summary.currentPeriod)} dövrünün {basisLabels[summary.basis].toLowerCase()} ilə
+            müqayisəsi
+          </caption>
+          <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
+            <tr>
+              <th scope="col" className="px-4 py-3">Məhsul</th>
+              <th scope="col" className="px-3 py-3 text-right">
+                Cari
+                <span className="block font-normal text-slate-400">{formatAnalyticsPeriod(summary.currentPeriod)}</span>
+              </th>
+              <th scope="col" className="px-3 py-3 text-right"><BaselineHeading summary={summary} /></th>
+              <th scope="col" className="px-3 py-3 text-right">Fərq</th>
+              <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
+              <th scope="col" className="px-3 py-3 text-right">
+                <span className="inline-flex items-center gap-1">
+                  {weightedPriceLabel}
+                  <InfoHint label="Çəkili orta qiymət nədir?">{weightedPriceHint}</InfoHint>
+                </span>
+              </th>
+              <th scope="col" className="px-3 py-3 text-right">
+                Məbləğ
+                <span className="block font-normal text-slate-400">{knownAmountLabel}</span>
+              </th>
+              <th scope="col" className="px-3 py-3">Status</th>
+              <th scope="col" className="px-3 py-3"><span className="sr-only">Trend</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.variant.productVariantId} className="hover:bg-slate-50">
+                <td className="px-4 py-2.5"><Product row={row} /></td>
+                <td className="px-3 py-2.5 text-right font-medium text-slate-900">
+                  {formatAnalyticsQuantity(row.current.quantity)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {formatAnalyticsQuantity(row.baseline.quantity)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-900">{formatDelta(row.delta.quantityDelta)}</td>
+                <td className="px-3 py-2.5 text-right text-slate-900">{formatPercent(row.delta.quantityPercentChange)}</td>
+                <td className="px-3 py-2.5 text-right">
+                  <Price row={row} />
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-900">
+                  {formatAnalyticsAmount(row.current.knownAmount)}
+                </td>
+                <td className="px-3 py-2.5"><StateBadge row={row} /></td>
+                <td className="px-3 py-2.5 text-right"><TrendButton row={row} onTrend={onTrend} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="space-y-2 lg:hidden">
+        {rows.map((row) => (
+          <li key={row.variant.productVariantId} className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <Product row={row} />
+              <StateBadge row={row} />
+            </div>
+
+            <dl className="mt-2 grid grid-cols-4 gap-2 text-sm">
+              <Figure label={formatAnalyticsPeriod(summary.currentPeriod)} value={formatAnalyticsQuantity(row.current.quantity)} strong />
+              <Figure label={basisLabels[summary.basis]} value={formatAnalyticsQuantity(row.baseline.quantity)} />
+              <Figure label="Fərq" value={formatDelta(row.delta.quantityDelta)} />
+              <Figure label="Dəyişmə" value={formatPercent(row.delta.quantityPercentChange)} />
+            </dl>
+
+            <div className="mt-2 flex flex-wrap items-end justify-between gap-2 border-t border-slate-100 pt-2">
+              <div className="text-xs text-slate-600">
+                <p>
+                  {weightedPriceLabel}: <span className="text-slate-900">{formatPrice(row.current.weightedUnitPrice)}</span>
+                  {row.delta.pricePercentChange !== null && (
+                    <span className="text-slate-500"> ({formatPercent(row.delta.pricePercentChange)})</span>
+                  )}
+                </p>
+                <p>
+                  {knownAmountLabel}: <span className="text-slate-900">{formatAnalyticsAmount(row.current.knownAmount)}</span>
+                </p>
+                <Coverage coverage={row.current.priceCoverage} />
+              </div>
+              <TrendButton row={row} onTrend={onTrend} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+/**
+ * Services: a month of cleaning is not a quantity of anything, so there is no quantity column at all here —
+ * money is the comparison.
+ */
+export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
+  return (
+    <>
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <caption className="sr-only">
+            Xidmətlər: miqdar üzrə deyil, məbləğ üzrə müqayisə
+          </caption>
+          <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
+            <tr>
+              <th scope="col" className="px-4 py-3">Xidmət</th>
+              <th scope="col" className="px-3 py-3 text-right">
+                Cari məlum məbləğ
+                <span className="block font-normal text-slate-400">{formatAnalyticsPeriod(summary.currentPeriod)}</span>
+              </th>
+              <th scope="col" className="px-3 py-3 text-right"><BaselineHeading summary={summary} /></th>
+              <th scope="col" className="px-3 py-3 text-right">Məbləğ fərqi</th>
+              <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
+              <th scope="col" className="px-3 py-3">Qiymət məlumatı</th>
+              <th scope="col" className="px-3 py-3"><span className="sr-only">Trend</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.variant.productVariantId} className="hover:bg-slate-50">
+                <td className="px-4 py-2.5"><Product row={row} /></td>
+                <td className="px-3 py-2.5 text-right font-medium text-slate-900">
+                  {formatAnalyticsAmount(row.current.knownAmount)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {formatAnalyticsAmount(row.baseline.knownAmount)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-900">
+                  {formatDelta(row.delta.amountDelta, (value) => formatAnalyticsAmount(value))}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-900">{formatPercent(row.delta.amountPercentChange)}</td>
+                <td className="px-3 py-2.5"><Coverage coverage={row.current.priceCoverage} /></td>
+                <td className="px-3 py-2.5 text-right"><TrendButton row={row} onTrend={onTrend} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="space-y-2 lg:hidden">
+        {rows.map((row) => (
+          <li key={row.variant.productVariantId} className="rounded-lg border border-slate-200 bg-white p-3">
+            <Product row={row} />
+            <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <Figure label={formatAnalyticsPeriod(summary.currentPeriod)} value={formatAnalyticsAmount(row.current.knownAmount)} strong />
+              <Figure label={basisLabels[summary.basis]} value={formatAnalyticsAmount(row.baseline.knownAmount)} />
+              <Figure label="Fərq" value={formatDelta(row.delta.amountDelta, (value) => formatAnalyticsAmount(value))} />
+              <Figure label="Dəyişmə" value={formatPercent(row.delta.amountPercentChange)} />
+            </dl>
+            <div className="mt-2 flex items-end justify-between gap-2 border-t border-slate-100 pt-2">
+              <Coverage coverage={row.current.priceCoverage} />
+              <TrendButton row={row} onTrend={onTrend} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+function Product({ row }: { row: VariantComparison }) {
+  return (
+    <div className="min-w-0">
+      <p className="font-medium text-slate-900">{row.variant.productName}</p>
+      <p className="text-xs text-slate-500">{formatVariantLine(row.variant)}</p>
+    </div>
+  )
+}
+
+function Price({ row }: { row: VariantComparison }) {
+  return (
+    <div>
+      <p className="text-slate-900">{formatPrice(row.current.weightedUnitPrice)}</p>
+      {row.baseline.weightedUnitPrice !== null && (
+        <p className="text-xs text-slate-500">
+          əvvəl {formatPrice(row.baseline.weightedUnitPrice)}
+          {row.delta.pricePercentChange !== null && <> · {formatPercent(row.delta.pricePercentChange)}</>}
+        </p>
+      )}
+      <Coverage coverage={row.current.priceCoverage} compact />
+    </div>
+  )
+}
+
+/** Partial coverage is stated, so a weighted price built on half the quantity never looks authoritative. */
+function Coverage({ coverage, compact = false }: { coverage: PriceCoverage; compact?: boolean }) {
+  if (coverage.state === 'Complete') {
+    return compact ? null : <span className="text-xs text-slate-500">{coverageLabels.Complete}</span>
+  }
+
+  return (
+    <span className={`text-xs ${coverageBadgeClass[coverage.state]}`}>
+      {coverageLabels[coverage.state]}
+      {coverage.missingPriceItemCount > 0 && <> · {formatNumber(coverage.missingPriceItemCount)} sətir</>}
+    </span>
+  )
+}
+
+function StateBadge({ row }: { row: VariantComparison }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${stateBadgeClass[row.state]}`}
+    >
+      <span aria-hidden="true">{stateSign[row.state]}</span>
+      {stateLabels[row.state]}
+    </span>
+  )
+}
+
+function TrendButton({ row, onTrend }: { row: VariantComparison; onTrend: (row: VariantComparison) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onTrend(row)}
+      aria-label={`${row.variant.productName} üzrə trendə bax`}
+      className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+    >
+      <LineChart className="size-3.5" aria-hidden="true" />
+      Trend
+    </button>
+  )
+}
+
+function Figure({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className={strong ? 'font-medium text-slate-900' : 'text-slate-700'}>{value}</dd>
+    </div>
+  )
+}
+
+export { unknownValue }

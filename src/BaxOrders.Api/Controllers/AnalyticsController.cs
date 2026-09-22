@@ -45,6 +45,11 @@ public sealed class AnalyticsController(OrderAnalyticsQueries queries) : Control
             Require(state, nameof(ComparisonQuery.State));
         }
 
+        if (query.Kind is { } kind)
+        {
+            Require(kind, nameof(ComparisonQuery.Kind));
+        }
+
         return await queries.CompareAsync(locationId, currentPeriod, query, cancellationToken) is { } comparison
             ? comparison
             : throw new NotFoundException(

@@ -453,6 +453,29 @@ public sealed class OrderAnalyticsTests(SqlServerDatabaseFixture database)
     }
 
     [SqlServerFact]
+    public async Task Rows_can_be_split_into_materials_and_services()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var materials = await CompareAsync(db, world, AnalyticsComparisonBasis.PreviousMonth,
+            new ComparisonQuery(Kind: AnalyticsKind.QuantityComparable, PageSize: 200));
+        var services = await CompareAsync(db, world, AnalyticsComparisonBasis.PreviousMonth,
+            new ComparisonQuery(Kind: AnalyticsKind.AmountOrientedService, PageSize: 200));
+
+        // A service has no quantity to put in a quantity table, so the two are read apart; the summary still
+        // describes the whole comparison, and the two halves add up to it.
+        Assert.All(materials.Rows.Items, row => Assert.Equal(AnalyticsKind.QuantityComparable, row.AnalyticsKind));
+        Assert.All(services.Rows.Items, row => Assert.Equal(AnalyticsKind.AmountOrientedService, row.AnalyticsKind));
+        Assert.Equal(materials.Summary.QuantityComparableVariantCount, materials.Rows.TotalCount);
+        Assert.Equal(services.Summary.AmountOrientedServiceCount, services.Rows.TotalCount);
+        Assert.Equal(
+            materials.Summary.TotalVariantCount,
+            materials.Rows.TotalCount + services.Rows.TotalCount);
+        Assert.Equal(3, services.Rows.TotalCount);
+    }
+
+    [SqlServerFact]
     public async Task Rows_are_paged_and_the_page_size_is_capped()
     {
         await using var db = database.CreateContext();

@@ -117,10 +117,16 @@ public sealed record LocationComparisonDto(
     ComparisonSummaryDto Summary,
     PagedResult<VariantComparisonDto> Rows);
 
+/// <param name="Kind">
+/// Narrows the rows to materials or to services. Both are one comparison, but they are read separately: a
+/// service has no quantity to put in a quantity table, so a caller showing the two apart needs the paging and
+/// the row count to follow that split rather than doing it after the fact.
+/// </param>
 public sealed record ComparisonQuery(
     AnalyticsComparisonBasis Basis = AnalyticsComparisonBasis.PreviousMonth,
     string? Search = null,
     ComparisonState? State = null,
+    AnalyticsKind? Kind = null,
     int Page = 1,
     int PageSize = 50);
 
