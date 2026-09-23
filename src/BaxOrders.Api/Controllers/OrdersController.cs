@@ -1,5 +1,6 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
+using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Orders;
 using BaxOrders.Application.Orders.Revisions;
 using BaxOrders.Application.Orders.Workflow;
@@ -20,7 +21,10 @@ namespace BaxOrders.Api.Controllers;
 [Route(ApiRoutes.V1 + "/orders")]
 [Produces("application/json")]
 public sealed class OrdersController(
-    OrderRequestQueries queries, OrderWorkflowService workflow, OrderRevisionService revisions) : ControllerBase
+    OrderRequestQueries queries,
+    OrderWorkflowService workflow,
+    OrderRevisionService revisions,
+    OrderDecisionContextQueries decisions) : ControllerBase
 {
     /// <summary>One request with its header, its totals and a page of its lines.</summary>
     /// <response code="404">No such order request.</response>
@@ -31,6 +35,23 @@ public sealed class OrdersController(
         long orderRequestId, [FromQuery] OrderItemQuery query, CancellationToken cancellationToken) =>
         await queries.GetAsync(orderRequestId, query, cancellationToken) is { } detail
             ? detail
+            : throw new NotFoundException($"Order request #{orderRequestId} was not found.");
+
+    /// <summary>
+    /// What this order costs, how it differs from the month before it, and why.
+    /// </summary>
+    /// <remarks>
+    /// Answers about the version asked for, not about the newest one: the figures shown beside a decision have
+    /// to be the figures being decided. Reads only — nothing here changes an order, its status or its history.
+    /// </remarks>
+    /// <response code="404">No such order request.</response>
+    [HttpGet("{orderRequestId:long}/decision-context")]
+    [ProducesResponseType<OrderDecisionContextDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OrderDecisionContextDto>> GetDecisionContext(
+        long orderRequestId, CancellationToken cancellationToken) =>
+        await decisions.GetAsync(orderRequestId, cancellationToken) is { } context
+            ? context
             : throw new NotFoundException($"Order request #{orderRequestId} was not found.");
 
     /// <summary>Where one request stands in approval, what its state allows, and everything done to it.</summary>

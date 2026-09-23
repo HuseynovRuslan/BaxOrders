@@ -1,5 +1,6 @@
 import {
   CheckCheck,
+  CalendarRange,
   Users,
   FileSpreadsheet,
   LayoutDashboard,
@@ -22,7 +23,8 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { to: '/dashboard', label: 'İdarəetmə paneli', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'İdarəetmə paneli', icon: LayoutDashboard, end: true },
+  { to: '/dashboard/monthly', label: 'Aylıq hesabat', icon: CalendarRange },
   { to: '/approvals', label: 'Təsdiq gözləyənlər', icon: CheckCheck, requires: 'canDecideOrders' },
   // Orders are browsed from the object they belong to; "Obyektlər" below is that entry point, so there is
   // no separate "Sifarişlər" item competing with it for the same page.

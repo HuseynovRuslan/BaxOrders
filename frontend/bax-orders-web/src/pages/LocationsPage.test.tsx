@@ -33,6 +33,14 @@ function location(overrides: Partial<LocationOrderSummary> = {}): LocationOrderS
     totalItemCount: 40,
     knownAmountTotal: 13534.12,
     missingPriceItemCount: 0,
+    latestKnownAmount: 1520.4,
+    latestItemCount: 6,
+    latestMissingPriceItemCount: 0,
+    latestAmountIsComplete: true,
+    previousPeriod: '2026-08-01',
+    previousKnownAmount: 1200,
+    knownAmountDelta: 320.4,
+    knownAmountPercentChange: 26.7,
     ...overrides,
   }
 }
@@ -87,14 +95,104 @@ describe('the top summary', () => {
   })
 })
 
+function withRows(overrides: Partial<LocationOrderSummary> = {}) {
+  return list({
+    locations: { items: [location(overrides)], page: 1, pageSize: 25, totalCount: 1 },
+  })
+}
+
 describe('the money column', () => {
-  it('never breaks a value between the amount and its manat sign', async () => {
-    ordersApi.fetchLocationOrders.mockResolvedValue(list({
-      locations: { items: [location({ knownAmountTotal: 13534.12 })], page: 1, pageSize: 25, totalCount: 1 },
+  it('is the latest order, not everything the object has ever spent', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      latestKnownAmount: 1520.4,
+      knownAmountTotal: 13534.12,
     }))
     await renderPage()
 
-    const money = await screen.findByText('13.534,12 ₼')
-    expect(money).toHaveClass('whitespace-nowrap')
+    expect(await screen.findByText('1.520,40 ₼')).toBeInTheDocument()
+    expect(screen.queryByText('13.534,12 ₼')).toBeNull()
+  })
+
+  it('never breaks a value between the amount and its manat sign', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({ latestKnownAmount: 1520.4 }))
+    await renderPage()
+
+    expect(await screen.findByText('1.520,40 ₼')).toHaveClass('whitespace-nowrap')
+  })
+
+  it('names the unpriced products beside the amount they affect', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      latestMissingPriceItemCount: 2,
+      latestAmountIsComplete: false,
+    }))
+    await renderPage()
+
+    expect(await screen.findByText(/2 məhsulun qiyməti yoxdur/)).toBeInTheDocument()
+  })
+
+  it('says nothing of the sort when every line is priced', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows())
+    await renderPage()
+
+    await screen.findByText('1.520,40 ₼')
+    expect(screen.queryByText(/qiyməti yoxdur/)).toBeNull()
+  })
+})
+
+describe('the change column', () => {
+  it('shows the difference against the month before, with its percentage', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      knownAmountDelta: 320.4,
+      knownAmountPercentChange: 26.7,
+    }))
+    await renderPage()
+
+    expect(await screen.findByText('+320,40 ₼')).toBeInTheDocument()
+    expect(screen.getByText('+26,7%')).toBeInTheDocument()
+  })
+
+  it('claims no change at all when there is no previous month to compare with', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      previousPeriod: null,
+      previousKnownAmount: null,
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+    }))
+    await renderPage()
+
+    await screen.findByText('1.520,40 ₼')
+    // Neither a zero nor a percentage: the object simply has nothing before it to be compared with.
+    expect(screen.queryByText('0,00 ₼')).toBeNull()
+    expect(screen.queryByText(/%/)).toBeNull()
+  })
+})
+
+describe('the columns the list no longer carries', () => {
+  it('has dropped the counts that nobody decided anything with', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows())
+    await renderPage()
+
+    await screen.findByText('1.520,40 ₼')
+    const table = document.querySelector('table')!
+    // The sort indicator rides on the header it belongs to; the column names are what this pins down.
+    const headers = within(table)
+      .getAllByRole('columnheader')
+      .map((cell) => (cell.textContent ?? '').replace(/[↑↓]/g, ''))
+
+    expect(headers).toEqual(['Obyekt', 'Son sifariş', 'Məbləğ', 'Dəyişmə', 'Status', 'Bax'])
+    expect(within(table).queryByText('Məlum qiymətlər üzrə')).toBeNull()
+    expect(within(table).queryByText('Son dövr')).toBeNull()
+  })
+
+  it('shows the latest order as a month, and its status beside it', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      latestPeriod: '2026-09-01',
+      latestRequestStatus: 'Draft',
+    }))
+    await renderPage()
+
+    expect(await screen.findByText('Sentyabr 2026')).toBeInTheDocument()
+    // The word "Qaralama" is gone from the product; an undecided order says exactly that.
+    expect(screen.getByText('Təsdiqlənməyib')).toBeInTheDocument()
   })
 })

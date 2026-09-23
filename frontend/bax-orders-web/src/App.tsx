@@ -9,6 +9,7 @@ import { LocationDetailPage } from './pages/LocationDetailPage'
 import { LocationsPage } from './pages/LocationsPage'
 import { LoginPage } from './pages/LoginPage'
 import { ManagementDashboardPage } from './pages/ManagementDashboardPage'
+import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { ProductCategoriesPage } from './pages/ProductCategoriesPage'
@@ -26,6 +27,9 @@ export function App() {
           {/* The old root was a placeholder; the management dashboard is the landing screen now. */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<ManagementDashboardPage />} />
+
+          {/* The year in one place: the panel answers "this month", this answers "the year so far". */}
+          <Route path="dashboard/monthly" element={<MonthlyReportPage />} />
 
           {/* A coordinator's own submissions are not theirs to decide, so this queue is not offered to them. */}
           <Route element={<RequirePermission permission="canDecideOrders" />}>

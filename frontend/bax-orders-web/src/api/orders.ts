@@ -25,9 +25,19 @@ export interface LocationOrderSummary {
   latestRequestVersion: number | null
   latestRequestStatus: OrderRequestStatus | null
   totalItemCount: number
-  /** Only the lines whose price is known. Null when no line of the location has one. */
+  /** Everything the location has ever ordered. Only the lines whose price is known; null when it has none. */
   knownAmountTotal: number | null
   missingPriceItemCount: number
+  /** The latest order alone — what this place ordered last, which is what a list of objects is read for. */
+  latestKnownAmount: number | null
+  latestItemCount: number
+  latestMissingPriceItemCount: number
+  latestAmountIsComplete: boolean
+  previousPeriod: string | null
+  /** The month before the latest order. Null when it has no request, so no difference is offered. */
+  previousKnownAmount: number | null
+  knownAmountDelta: number | null
+  knownAmountPercentChange: number | null
 }
 
 export interface LocationOrderList {

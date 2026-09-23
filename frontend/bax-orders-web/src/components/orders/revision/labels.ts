@@ -7,7 +7,7 @@ export const openRevisionLabel = 'Düzəliş versiyasına bax'
 
 /** Said before anything is created, because "correct" could be read as "change what was reviewed". */
 export const createRevisionExplanation =
-  'Köhnə versiya dəyişdirilməyəcək. Yeni qaralama versiyası yaradılacaq.'
+  'Köhnə versiya dəyişdirilməyəcək. Yeni, təsdiqlənməmiş versiya yaradılacaq.'
 
 export const editLineLabel = 'Redaktə et'
 export const addLineLabel = 'Sətir əlavə et'
@@ -15,7 +15,7 @@ export const removeLineLabel = 'Sil'
 
 /** Said before a line is taken out, because "delete" reads as heavier than it is. */
 export const removeLineExplanation =
-  'Bu sətir yalnız cari qaralama versiyasından silinəcək. Əvvəlki versiya dəyişməyəcək.'
+  'Bu sətir yalnız cari, təsdiqlənməmiş versiyadan silinəcək. Əvvəlki versiya dəyişməyəcək.'
 
 /** What a screen says when somebody else got there first. The answer is to reload, never to overwrite. */
 export const staleDataMessage = 'Məlumat bu vaxt ərzində dəyişib. Səhifə yeniləndi.'

@@ -2,6 +2,7 @@ import { TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { fetchLocationHistory, type LocationOrderHistory } from '../api/orders'
+import { LocationTrend } from '../components/locations/LocationTrend'
 import { PageHeader } from '../components/PageHeader'
 import { StatusBadge } from '../components/StatusBadge'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
@@ -80,17 +81,21 @@ export function LocationDetailPage() {
         }
       />
 
+      {/*
+        What this object ordered last, then the year behind it. The lifetime counts follow as one quiet line:
+        they describe the record rather than the object, and nobody decides anything with them.
+      */}
+      {data && !year && !month && <LocationTrend entries={data.requests.items} />}
+
       {data && (
-        <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-5">
+        <dl className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
           <Fact label="Dövrlər" value={formatNumber(data.distinctPeriodCount)} />
           <Fact label="Sifarişlər" value={formatNumber(data.orderRequestCount)} />
           <Fact label="Sətirlər" value={formatNumber(data.totalItemCount)} />
-          <Fact label={`${knownAmountLabel} məbləğ`} value={formatAmount(data.knownAmountTotal)} />
-          <Fact
-            label="Qiymətsiz sətirlər"
-            value={formatNumber(data.missingPriceItemCount)}
-            warn={data.missingPriceItemCount > 0}
-          />
+          <Fact label={`${knownAmountLabel} cəm`} value={formatAmount(data.knownAmountTotal)} />
+          {data.missingPriceItemCount > 0 && (
+            <Fact label="Qiymətsiz sətirlər" value={formatNumber(data.missingPriceItemCount)} warn />
+          )}
         </dl>
       )}
 
@@ -151,8 +156,8 @@ export function LocationDetailPage() {
               <th className="px-4 py-3">Dövr</th>
               <th className="px-4 py-3">Versiya</th>
               <th className="px-4 py-3 text-right">Sətir sayı</th>
-              <th className="px-4 py-3 text-right">{knownAmountLabel}</th>
-              <th className="px-4 py-3 text-right">Qiymətsiz</th>
+              {/* The unpriced products are said beside the money they affect, not counted in a column of their own. */}
+              <th className="px-4 py-3 text-right">Məbləğ</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3" />
             </tr>
@@ -160,14 +165,14 @@ export function LocationDetailPage() {
           <tbody className="divide-y divide-slate-100">
             {state.status === 'loading' && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   Yüklənir…
                 </td>
               </tr>
             )}
             {data?.requests.items.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   {year || month ? 'Seçilmiş dövrdə sifariş yoxdur.' : 'Bu obyektin hələ sifarişi yoxdur.'}
                 </td>
               </tr>
@@ -182,12 +187,12 @@ export function LocationDetailPage() {
                 </td>
                 <td className="px-4 py-2.5 text-slate-700">Versiya {request.version}</td>
                 <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(request.itemCount)}</td>
-                <td className="px-4 py-2.5 text-right text-slate-900">{formatAmount(request.knownAmountTotal)}</td>
                 <td className="px-4 py-2.5 text-right">
-                  {request.missingPriceItemCount > 0 ? (
-                    <span className="text-amber-800">{formatNumber(request.missingPriceItemCount)}</span>
-                  ) : (
-                    <span className="text-slate-400">—</span>
+                  <p className="whitespace-nowrap text-slate-900">{formatAmount(request.knownAmountTotal)}</p>
+                  {request.missingPriceItemCount > 0 && (
+                    <p className="whitespace-nowrap text-xs text-amber-800">
+                      {formatNumber(request.missingPriceItemCount)} məhsulun qiyməti yoxdur
+                    </p>
                   )}
                 </td>
                 <td className="px-4 py-2.5">
@@ -250,11 +255,12 @@ export function LocationDetailPage() {
   )
 }
 
+/** One of the record's own counts, said once and quietly — these describe the file, not the object. */
 function Fact({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
   return (
-    <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className={`text-sm font-medium ${warn ? 'text-amber-800' : 'text-slate-900'}`}>{value}</dd>
+    <div className="flex items-baseline gap-1.5">
+      <dt>{label}</dt>
+      <dd className={warn ? 'font-medium text-amber-800' : 'font-medium text-slate-700'}>{value}</dd>
     </div>
   )
 }

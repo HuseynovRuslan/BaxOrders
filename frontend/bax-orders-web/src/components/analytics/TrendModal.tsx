@@ -13,10 +13,12 @@ interface TrendModalProps {
   variant: VariantIdentity
   isService: boolean
   to: string
+  /** Earliest month to show. Omitted means the whole history the location has. */
+  from?: string
   onClose: () => void
 }
 
-export function TrendModal({ locationId, variant, isService, to, onClose }: TrendModalProps) {
+export function TrendModal({ locationId, variant, isService, to, from, onClose }: TrendModalProps) {
   const [trend, setTrend] = useState<VariantTrend | null>(null)
   const [error, setError] = useState<string | null>(null)
   // A service has no quantity to plot, so its trend opens on money.
@@ -24,7 +26,7 @@ export function TrendModal({ locationId, variant, isService, to, onClose }: Tren
 
   useEffect(() => {
     const controller = new AbortController()
-    fetchVariantTrend(locationId, variant.productVariantId, { to }, controller.signal)
+    fetchVariantTrend(locationId, variant.productVariantId, { from, to }, controller.signal)
       .then(setTrend)
       .catch((problem: unknown) => {
         if (!controller.signal.aborted) {
@@ -32,7 +34,7 @@ export function TrendModal({ locationId, variant, isService, to, onClose }: Tren
         }
       })
     return () => controller.abort()
-  }, [locationId, variant.productVariantId, to])
+  }, [locationId, variant.productVariantId, from, to])
 
   const slots = useMemo<TrendSlot[]>(() => {
     if (trend === null || trend.points.length === 0) {

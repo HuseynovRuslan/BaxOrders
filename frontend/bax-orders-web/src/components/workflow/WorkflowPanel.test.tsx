@@ -72,14 +72,14 @@ afterEach(() => vi.clearAllMocks())
 async function renderPanel(state: OrderWorkflow) {
   workflowApi.fetchWorkflow.mockResolvedValue(state)
   render(<WorkflowPanel orderRequestId={105} />)
-  await screen.findByText(/Qaralama|Təsdiq gözləyir|Təsdiqlənib|Düzəlişə qaytarılıb/)
+  await screen.findByText(/Təsdiqlənməyib|Təsdiq gözləyir|Təsdiqlənib|Düzəliş tələb olunur/)
 }
 
 describe('what each state shows', () => {
   it('offers only submission on a draft', async () => {
     await renderPanel(workflow({ status: 'Draft' }))
 
-    expect(screen.getByText('Qaralama')).toBeInTheDocument()
+    expect(screen.getByText('Təsdiqlənməyib')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Təsdiqə göndər' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Düzəlişə qaytar' })).toBeNull()
@@ -106,9 +106,9 @@ describe('what each state shows', () => {
   it('asks a returned request to be sent again, and says a correction is a new version', async () => {
     await renderPanel(workflow({ status: 'ReturnedForCorrection' }))
 
-    expect(screen.getByText('Düzəlişə qaytarılıb')).toBeInTheDocument()
+    expect(screen.getByText('Düzəliş tələb olunur')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Yenidən təsdiqə göndər' })).toBeInTheDocument()
-    expect(screen.getByText(/yeni qaralama versiyası yaradılır/)).toBeInTheDocument()
+    expect(screen.getByText(/yeni versiya yaradılır/)).toBeInTheDocument()
   })
 })
 

@@ -12,7 +12,23 @@ namespace BaxOrders.Application.Orders;
 /// <param name="KnownAmountTotal">Null when no item of the set has a price at all.</param>
 public sealed record KnownAmount(decimal? KnownAmountTotal, int KnownPriceItemCount, int MissingPriceItemCount);
 
-/// <summary>One location as the order browser lists it.</summary>
+/// <summary>
+/// One location as the order browser lists it.
+/// </summary>
+/// <remarks>
+/// Two kinds of money live here and must not be confused. <see cref="KnownAmountTotal"/> is everything the
+/// location has ever ordered, across every version of every month — a lifetime figure. The
+/// <c>Latest…</c> fields describe its most recent order alone, which is what a list of objects is read for:
+/// what did this place order last, and how does that compare with the month before it.
+/// </remarks>
+/// <param name="LatestKnownAmount">The latest order's priced money; null when nothing in it carries a price.</param>
+/// <param name="PreviousPeriod">
+/// The calendar month before the latest order. Null when the location has never ordered.
+/// </param>
+/// <param name="PreviousKnownAmount">
+/// That month's money, or null when the location has no request for it — no difference is then offered, because
+/// a month that does not exist is not a month of zero.
+/// </param>
 public sealed record LocationOrderSummaryDto(
     int LocationId,
     string Code,
@@ -27,7 +43,15 @@ public sealed record LocationOrderSummaryDto(
     OrderRequestStatus? LatestRequestStatus,
     int TotalItemCount,
     decimal? KnownAmountTotal,
-    int MissingPriceItemCount);
+    int MissingPriceItemCount,
+    decimal? LatestKnownAmount = null,
+    int LatestItemCount = 0,
+    int LatestMissingPriceItemCount = 0,
+    bool LatestAmountIsComplete = true,
+    DateOnly? PreviousPeriod = null,
+    decimal? PreviousKnownAmount = null,
+    decimal? KnownAmountDelta = null,
+    decimal? KnownAmountPercentChange = null);
 
 /// <param name="LocationsWithOrders">How many of the listed locations have at least one request.</param>
 public sealed record LocationOrderListDto(

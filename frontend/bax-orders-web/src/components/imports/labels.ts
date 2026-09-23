@@ -171,10 +171,10 @@ export function formatVariantSummary(variant: {
 // ---- permanent orders -------------------------------------------------------------------------------
 
 export const orderStatusLabels: Record<string, string> = {
-  Draft: 'Qaralama',
+  Draft: 'Təsdiqlənməyib',
   PendingApproval: 'Təsdiq gözləyir',
   Approved: 'Təsdiqlənib',
-  ReturnedForCorrection: 'Düzəlişə qaytarılıb',
+  ReturnedForCorrection: 'Düzəliş tələb olunur',
 }
 
 /** What a line with no price says. One convention everywhere, never a zero. */

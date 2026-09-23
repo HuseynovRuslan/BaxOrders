@@ -2,10 +2,10 @@ import type { OrderRequestStatus } from '../../api/orders'
 import type { OrderWorkflowAction } from '../../api/workflow'
 
 export const workflowStatusLabels: Record<OrderRequestStatus, string> = {
-  Draft: 'Qaralama',
+  Draft: 'Təsdiqlənməyib',
   PendingApproval: 'Təsdiq gözləyir',
   Approved: 'Təsdiqlənib',
-  ReturnedForCorrection: 'Düzəlişə qaytarılıb',
+  ReturnedForCorrection: 'Düzəliş tələb olunur',
 }
 
 /**

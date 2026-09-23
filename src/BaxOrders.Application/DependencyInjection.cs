@@ -2,6 +2,7 @@ using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Approvals;
 using BaxOrders.Application.Catalog;
+using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
@@ -10,6 +11,7 @@ using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
 using BaxOrders.Application.Orders.Revisions;
 using BaxOrders.Application.Orders.Workflow;
+using BaxOrders.Application.Reports;
 using BaxOrders.Application.UnitsOfMeasure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,6 +31,8 @@ public static class DependencyInjection
         services.AddScoped<OrderAnalyticsQueries>();
         services.AddScoped<ManagementDashboardQueries>();
         services.AddScoped<ApprovalInboxQueries>();
+        services.AddScoped<OrderDecisionContextQueries>();
+        services.AddScoped<MonthlyReportQueries>();
         services.AddScoped<ProductCategoryQueries>();
         services.AddScoped<ProductCategoryService>();
 

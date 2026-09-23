@@ -1,4 +1,5 @@
 using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
@@ -93,6 +94,8 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
             ? row with { KnownAmountTotal = null }
             : row)];
 
+        items = await WithLatestOrderAsync(items, cancellationToken);
+
         // The header counts describe the whole catalogue, not the page in front of the operator.
         var catalogue = db.Locations.AsNoTracking().Where(location => query.IncludeInactive || location.IsActive);
 
@@ -103,6 +106,99 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
             await db.OrderRequests.CountAsync(cancellationToken),
             await db.OrderRequests.MinAsync(request => (DateOnly?)request.RequestPeriod, cancellationToken),
             await db.OrderRequests.MaxAsync(request => (DateOnly?)request.RequestPeriod, cancellationToken));
+    }
+
+    /// <summary>
+    /// Fills in what each listed location ordered last, and how that compares with the month before it.
+    /// </summary>
+    /// <remarks>
+    /// Two queries for the whole page, not two per row: the previous months of every listed location at once,
+    /// then the lines of both sides at once. The work is bounded by the page size, so a catalogue of thousands
+    /// costs the same as one of thirty.
+    /// </remarks>
+    private async Task<List<LocationOrderSummaryDto>> WithLatestOrderAsync(
+        List<LocationOrderSummaryDto> items, CancellationToken cancellationToken)
+    {
+        var ordered = items.Where(row => row is { LatestRequestId: not null, LatestPeriod: not null }).ToList();
+        if (ordered.Count == 0)
+        {
+            return items;
+        }
+
+        var locationIds = ordered.Select(row => row.LocationId).ToArray();
+        var previousPeriods = ordered
+            .Select(row => row.LatestPeriod!.Value.AddMonths(-1))
+            .Distinct()
+            .ToArray();
+
+        // The month before each location's latest, at its own highest version — the policy every analytics
+        // screen follows, so the difference shown here is the difference shown there.
+        var previous = await db.OrderRequests.AsNoTracking()
+            .Where(request => locationIds.Contains(request.LocationId)
+                && previousPeriods.Contains(request.RequestPeriod)
+                && !db.OrderRequests.Any(other =>
+                    other.LocationId == request.LocationId
+                    && other.RequestPeriod == request.RequestPeriod
+                    && other.Version > request.Version))
+            .Select(request => new { request.LocationId, request.RequestPeriod, request.Id })
+            .ToListAsync(cancellationToken);
+
+        var previousByLocation = previous.ToDictionary(row => (row.LocationId, row.RequestPeriod), row => row.Id);
+
+        long[] requestIds =
+        [
+            .. ordered.Select(row => row.LatestRequestId!.Value),
+            .. previous.Select(row => row.Id),
+        ];
+
+        var totals = await db.OrderRequestItems.AsNoTracking()
+            .Where(item => requestIds.Contains(item.OrderRequestId))
+            .GroupBy(item => item.OrderRequestId)
+            .Select(group => new
+            {
+                OrderRequestId = group.Key,
+                ItemCount = group.Count(),
+                KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
+                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
+            })
+            .ToDictionaryAsync(row => row.OrderRequestId, cancellationToken);
+
+        decimal? KnownAmount(long requestId) =>
+            totals.TryGetValue(requestId, out var found) && found.KnownPriceItemCount > 0
+                ? found.PricedAmount
+                : null;
+
+        return
+        [
+            .. items.Select(row =>
+            {
+                if (row is not { LatestRequestId: { } latestId, LatestPeriod: { } latestPeriod })
+                {
+                    return row;
+                }
+
+                var previousPeriod = latestPeriod.AddMonths(-1);
+                var latest = totals.GetValueOrDefault(latestId);
+                var latestAmount = KnownAmount(latestId);
+                var previousAmount = previousByLocation.TryGetValue((row.LocationId, previousPeriod), out var previousId)
+                    ? KnownAmount(previousId)
+                    : null;
+                var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(latestAmount, previousAmount);
+
+                return row with
+                {
+                    LatestKnownAmount = latestAmount,
+                    LatestItemCount = latest?.ItemCount ?? 0,
+                    LatestMissingPriceItemCount = latest?.MissingPriceItemCount ?? 0,
+                    LatestAmountIsComplete = (latest?.MissingPriceItemCount ?? 0) == 0,
+                    PreviousPeriod = previousPeriod,
+                    PreviousKnownAmount = previousAmount,
+                    KnownAmountDelta = delta,
+                    KnownAmountPercentChange = percent,
+                };
+            }),
+        ];
     }
 
     /// <returns>Null when the location does not exist.</returns>

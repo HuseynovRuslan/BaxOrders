@@ -6,11 +6,13 @@ import { StatusBadge } from '../components/StatusBadge'
 import { SummaryMetric } from '../components/SummaryMetric'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
-  formatAmount,
-  formatNumber,
-  formatPeriod,
-  knownAmountLabel,
-} from '../components/imports/labels'
+  formatCount,
+  formatMoney,
+  formatMoneyDelta,
+  formatMonth,
+  formatPercent,
+  unknownValue,
+} from '../components/analytics/format'
 
 const pageSize = 25
 
@@ -64,14 +66,14 @@ export function LocationsPage() {
 
       {data && (
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="Obyektlərin xülasəsi">
-          <SummaryMetric label="Obyekt" value={formatNumber(data.locationCount)} />
-          <SummaryMetric label="Sifarişi olan" value={formatNumber(data.locationsWithOrders)} />
-          <SummaryMetric label="Sifariş" value={formatNumber(data.orderRequestCount)} />
+          <SummaryMetric label="Obyekt" value={formatCount(data.locationCount)} />
+          <SummaryMetric label="Sifarişi olan" value={formatCount(data.locationsWithOrders)} />
+          <SummaryMetric label="Sifariş" value={formatCount(data.orderRequestCount)} />
           <SummaryMetric
             label="Əhatə olunan dövr"
             value={
               data.earliestPeriod && data.latestPeriod
-                ? `${formatPeriod(data.earliestPeriod)} – ${formatPeriod(data.latestPeriod)}`
+                ? `${formatMonth(data.earliestPeriod)} – ${formatMonth(data.latestPeriod)}`
                 : '—'
             }
           />
@@ -102,47 +104,38 @@ export function LocationsPage() {
               <th className="px-4 py-3">
                 <SortButton label="Obyekt" active={sort === 'Name'} descending={descending} onClick={() => reorder('Name')} />
               </th>
-              <th className="px-4 py-3 text-right">
-                <SortButton
-                  label="Sifariş"
-                  active={sort === 'OrderRequestCount'}
-                  descending={descending}
-                  onClick={() => reorder('OrderRequestCount')}
-                />
-              </th>
-              <th className="px-4 py-3 text-right">Dövr</th>
-              <th className="px-4 py-3 text-right">Sətir</th>
-              <th className="px-4 py-3 text-right">{knownAmountLabel}</th>
-              <th className="px-4 py-3 text-right">Qiymətsiz</th>
               <th className="px-4 py-3">
                 <SortButton
-                  label="Son dövr"
+                  label="Son sifariş"
                   active={sort === 'LatestPeriod'}
                   descending={descending}
                   onClick={() => reorder('LatestPeriod')}
                 />
               </th>
-              <th className="px-4 py-3" />
+              <th className="px-4 py-3 text-right">Məbləğ</th>
+              <th className="px-4 py-3 text-right">Dəyişmə</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3"><span className="sr-only">Bax</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {state.status === 'loading' && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   Yüklənir…
                 </td>
               </tr>
             )}
             {state.status === 'error' && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-red-600">
+                <td colSpan={6} className="px-4 py-6 text-center text-red-600">
                   Obyektlər yüklənmədi: {state.message}
                 </td>
               </tr>
             )}
             {data?.locations.items.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   {search ? 'Axtarışa uyğun obyekt tapılmadı.' : 'Obyekt yoxdur.'}
                 </td>
               </tr>
@@ -150,47 +143,60 @@ export function LocationsPage() {
 
             {data?.locations.items.map((location) => (
               <tr key={location.locationId} className="hover:bg-slate-50">
-                <td className="px-4 py-2.5">
+                <th scope="row" className="px-4 py-2.5 text-left font-normal">
                   <Link to={`/locations/${location.locationId}`} className="font-medium text-slate-900 hover:underline">
                     {location.name}
                   </Link>
-                  <p className="text-xs text-slate-500">{location.code}</p>
+                  {/* The code identifies the object; it is not what anybody reads the row for. */}
+                  <p className="text-xs text-slate-400">{location.code}</p>
+                </th>
+
+                <td className="whitespace-nowrap px-4 py-2.5 text-slate-700">
+                  {location.latestPeriod ? formatMonth(location.latestPeriod) : <span className="text-slate-400">{unknownValue}</span>}
                 </td>
-                <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(location.orderRequestCount)}</td>
-                <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(location.distinctPeriodCount)}</td>
-                <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(location.totalItemCount)}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right text-slate-900">{formatAmount(location.knownAmountTotal)}</td>
+
                 <td className="px-4 py-2.5 text-right">
-                  {location.missingPriceItemCount > 0 ? (
-                    <span className="text-amber-800">{formatNumber(location.missingPriceItemCount)}</span>
-                  ) : (
-                    <span className="text-slate-400">—</span>
+                  <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(location.latestKnownAmount)}</p>
+                  {location.latestMissingPriceItemCount > 0 && (
+                    <p className="text-xs text-amber-800">
+                      {formatCount(location.latestMissingPriceItemCount)} məhsulun qiyməti yoxdur
+                    </p>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-slate-700">
-                  {location.latestPeriod ? (
-                    <div className="flex items-center gap-2">
-                      {formatPeriod(location.latestPeriod)}
-                      {location.latestRequestStatus && (
-                        <StatusBadge
-                          label={workflowStatusLabels[location.latestRequestStatus] ?? location.latestRequestStatus}
-                          sign={workflowStatusSign[location.latestRequestStatus]}
-                          toneClass={workflowStatusClass[location.latestRequestStatus]}
-                          size="sm"
-                        />
-                      )}
-                    </div>
+
+                <td className="px-4 py-2.5 text-right">
+                  {location.knownAmountDelta === null ? (
+                    // No previous month to compare with. Saying "0" or "+100%" would both be inventions.
+                    <span className="text-xs text-slate-400">{unknownValue}</span>
                   ) : (
-                    <span className="text-slate-400">sifariş yoxdur</span>
+                    <>
+                      <p className="whitespace-nowrap text-slate-900">{formatMoneyDelta(location.knownAmountDelta)}</p>
+                      <p className="whitespace-nowrap text-xs text-slate-500">{formatPercent(location.knownAmountPercentChange)}</p>
+                    </>
                   )}
                 </td>
+
+                <td className="px-4 py-2.5">
+                  {location.latestRequestStatus ? (
+                    <StatusBadge
+                      label={workflowStatusLabels[location.latestRequestStatus] ?? location.latestRequestStatus}
+                      sign={workflowStatusSign[location.latestRequestStatus]}
+                      toneClass={workflowStatusClass[location.latestRequestStatus]}
+                      size="sm"
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-400">sifariş yoxdur</span>
+                  )}
+                </td>
+
                 <td className="px-4 py-2.5 text-right">
                   {location.orderRequestCount > 0 && (
                     <Link
                       to={`/locations/${location.locationId}`}
+                      aria-label={`${location.name} obyektinə bax`}
                       className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
-                      Sifarişlərə bax
+                      Bax
                     </Link>
                   )}
                 </td>
@@ -203,7 +209,7 @@ export function LocationsPage() {
       {data && data.locations.totalCount > pageSize && (
         <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
           <span>
-            Səhifə {data.locations.page} / {totalPages} · {formatNumber(data.locations.totalCount)} obyekt
+            Səhifə {data.locations.page} / {totalPages} · {formatCount(data.locations.totalCount)} obyekt
           </span>
           <div className="flex gap-2">
             <button
@@ -226,9 +232,9 @@ export function LocationsPage() {
         </div>
       )}
 
-      {data && data.locations.items.some((location) => location.missingPriceItemCount > 0) && (
+      {data && data.locations.items.some((location) => location.latestMissingPriceItemCount > 0) && (
         <p className="mt-3 text-xs text-slate-500">
-          Məbləğ yalnız qiyməti məlum olan sətirlər üzrədir; qiymətsiz sətirlər ayrıca göstərilir.
+          Məbləğ son sifariş üzrədir və yalnız qiyməti məlum olan sətirləri əhatə edir.
         </p>
       )}
     </>

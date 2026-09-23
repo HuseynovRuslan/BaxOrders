@@ -247,7 +247,7 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
                               />
                             )}
                             {group.conflictState === 'ExistingDraft' && (
-                              <p className="text-slate-500">Mövcud sifariş qaralamadır; yeni versiya yaradıla bilməz.</p>
+                              <p className="text-slate-500">Mövcud sifariş hələ təsdiqlənməyib; yeni versiya yaradıla bilməz.</p>
                             )}
                           </div>
                         )}

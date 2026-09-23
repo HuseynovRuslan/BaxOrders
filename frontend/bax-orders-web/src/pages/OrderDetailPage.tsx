@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
 import { PageHeader } from '../components/PageHeader'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
+import { TrendModal } from '../components/analytics/TrendModal'
+import { CauseSummary } from '../components/decisions/CauseSummary'
+import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
+import { DriverList } from '../components/decisions/DriverList'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
 import { AddLineDialog } from '../components/orders/revision/AddLineDialog'
 import { EditLineDialog } from '../components/orders/revision/EditLineDialog'
@@ -51,6 +56,9 @@ export function OrderDetailPage() {
   const [source, setSource] = useState<{ id: number; name: string } | null>(null)
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [decision, setDecision] = useState<OrderDecisionContext | null>(null)
+  const [decisionPending, setDecisionPending] = useState(true)
+  const [history, setHistory] = useState<DecisionDriver | null>(null)
 
   // Bumped after every change, so the lines, the correction state and both histories are re-read together
   // rather than each drifting on its own copy.
@@ -75,6 +83,22 @@ export function OrderDetailPage() {
     fetchRevision(id, controller.signal)
       .then(setRevision)
       .catch(() => undefined)
+    return () => controller.abort()
+  }, [id, reloadToken])
+
+  // The comparison and its explanation. They qualify the amount rather than producing it, so a failure
+  // here leaves the order perfectly readable — it just loses the part that says how it differs.
+  useEffect(() => {
+    const controller = new AbortController()
+    setDecisionPending(true)
+    fetchDecisionContext(id, controller.signal)
+      .then(setDecision)
+      .catch(() => undefined)
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setDecisionPending(false)
+        }
+      })
     return () => controller.abort()
   }, [id, reloadToken])
 
@@ -137,29 +161,39 @@ export function OrderDetailPage() {
         </p>
       )}
 
-      {/* A. Sifariş xülasəsi: one number, and what qualifies it. */}
-      {data && (
-        <section
-          className="mt-4 mb-4 rounded-lg border border-slate-200 bg-white p-4"
-          aria-label="Sifariş xülasəsi"
-        >
-          <h2 className="text-xs text-slate-500">
-            {data.missingPriceItemCount === 0 ? 'Məbləğ' : `${knownAmountLabel} məbləği`}
-          </h2>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">{formatAmount(data.knownAmountTotal)}</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {formatNumber(data.itemCount)} sətir
-            {data.missingPriceItemCount > 0 && (
-              <span className="text-amber-800"> · {formatNumber(data.missingPriceItemCount)} qiymətsiz</span>
-            )}
-          </p>
-        </section>
-      )}
+      {/*
+        A. The decision itself. The first screenful answers, in this order: what does this cost, how does it
+        compare with last month, why did it change, and may I decide it. Everything below the fold — the lines,
+        the corrections, the histories — is the evidence behind those four answers, not a rival for attention.
+      */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="order-1 lg:col-span-2 lg:col-start-1 lg:row-start-1">
+          {decision ? (
+            <DecisionHeadline context={decision} />
+          ) : (
+            data && (
+              <section className="rounded-lg border border-slate-200 bg-white p-4" aria-label="Sifariş xülasəsi">
+                <h2 className="text-xs text-slate-500">
+                  {data.missingPriceItemCount === 0 ? 'Məbləğ' : `${knownAmountLabel} məbləği`}
+                </h2>
+                <p className="mt-1 whitespace-nowrap text-3xl font-semibold text-slate-900">
+                  {formatAmount(data.knownAmountTotal)}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {formatNumber(data.itemCount)} sətir
+                  {data.missingPriceItemCount > 0 && (
+                    <span className="text-amber-800"> · {formatNumber(data.missingPriceItemCount)} qiymətsiz</span>
+                  )}
+                </p>
+                {/* The comparison is still on its way, or did not come; the amount never waits for it. */}
+                {decisionPending && <p className="mt-2 h-4 w-48 animate-pulse rounded bg-slate-100" aria-hidden="true" />}
+              </section>
+            )
+          )}
+        </div>
 
-      {/* B. Əməliyyatlar: deciding the request and correcting it, kept apart from the summary and the lines. */}
-      {(data || revision) && (
-        <div className="mb-4 space-y-3">
-          <SectionHeader title="Əməliyyatlar" />
+        {/* The decision travels with the reader on a wide screen, and simply follows the amount on a narrow one. */}
+        <div className="order-2 space-y-3 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-4">
           {data && (
             <WorkflowPanel
               key={reloadToken}
@@ -169,8 +203,25 @@ export function OrderDetailPage() {
             />
           )}
           {revision && <RevisionPanel revision={revision} onChanged={reload} />}
+          {decision && !decision.isLatestVersion && decision.latestOrderRequestId !== null && (
+            <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" role="status">
+              Bu, bu ayın ən son versiyası deyil. Rəqəmlər açdığınız versiyaya aiddir.{' '}
+              <Link to={`/orders/${decision.latestOrderRequestId}`} className="font-medium underline">
+                Versiya {decision.latestVersion}-ə bax
+              </Link>
+            </p>
+          )}
         </div>
-      )}
+
+        {decision?.decomposition && (
+          <div className="order-3 space-y-4 lg:col-span-2 lg:col-start-1 lg:row-start-2">
+            <CauseSummary decomposition={decision.decomposition} />
+            {decision.decomposition.drivers.length > 0 && (
+              <DriverList drivers={decision.decomposition.drivers} onHistory={setHistory} />
+            )}
+          </div>
+        )}
+      </div>
 
       {/* C. Sətirlər */}
       <SectionHeader title="Sətirlər" />
@@ -352,6 +403,17 @@ export function OrderDetailPage() {
 
       {revision && <HistoryTabs orderRequestId={id} editHistory={revision.editHistory} reloadToken={reloadToken} />}
 
+      {history && data && (
+        <TrendModal
+          locationId={data.locationId}
+          variant={history.variant}
+          isService={history.analyticsKind === 'AmountOrientedService'}
+          from={monthKey(data.requestPeriod, -11)}
+          to={monthKey(data.requestPeriod, 0)}
+          onClose={() => setHistory(null)}
+        />
+      )}
+
       {source && (
         <ItemSourceDrawer
           orderRequestItemId={source.id}
@@ -394,4 +456,14 @@ export function OrderDetailPage() {
       )}
     </>
   )
+}
+
+/**
+ * A month offset from another, as the analytics API spells months. Computed on the parts rather than
+ * through a Date, which would be read in the browser's own time zone and could land a month out.
+ */
+function monthKey(period: string, offset: number): string {
+  const [year, month] = period.split('-').map(Number)
+  const zeroBased = year * 12 + (month - 1) + offset
+  return `${String(Math.floor(zeroBased / 12)).padStart(4, '0')}-${String((zeroBased % 12) + 1).padStart(2, '0')}`
 }

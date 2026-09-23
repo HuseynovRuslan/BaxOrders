@@ -231,7 +231,7 @@ describe('a returned order', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText(/Köhnə versiya dəyişdirilməyəcək/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/Yeni qaralama versiyası yaradılacaq/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Yeni, təsdiqlənməmiş versiya yaradılacaq/)).toBeInTheDocument()
   })
 
   it('opens the new version once it has been created', async () => {
@@ -356,8 +356,8 @@ describe('the header and the summary', () => {
 
     expect(screen.getByRole('heading', { name: 'Fəvvarələr meydanı' })).toBeInTheDocument()
     expect(screen.getByText('İyul 2026 · Versiya 2')).toBeInTheDocument()
-    // "Qaralama" is the status; it also labels the workflow panel's own badge, so there are two.
-    expect(screen.getAllByText('Qaralama').length).toBeGreaterThan(0)
+    // "Təsdiqlənməyib" is the status; it also labels the workflow panel's own badge, so there are two.
+    expect(screen.getAllByText('Təsdiqlənməyib').length).toBeGreaterThan(0)
   })
 
   it('gives the amount the primary number, and the line count and any missing prices as its quiet second line', async () => {
@@ -580,7 +580,7 @@ describe('removing a line', () => {
     await user.click(screen.getByRole('button', { name: 'Sil' }))
     const dialog = screen.getByRole('dialog')
 
-    expect(within(dialog).getByText(/yalnız cari qaralama versiyasından silinəcək/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/yalnız cari, təsdiqlənməmiş versiyadan silinəcək/)).toBeInTheDocument()
     expect(within(dialog).getByText(/Əvvəlki versiya dəyişməyəcək/)).toBeInTheDocument()
     expect(revisionsApi.removeOrderItem).not.toHaveBeenCalled()
   })
