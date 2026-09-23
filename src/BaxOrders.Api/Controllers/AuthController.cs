@@ -152,7 +152,7 @@ public sealed class AuthController(
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not { } userId)
         {
-            return new CurrentUserDto(false, null, null, null, null, false, false, false, false);
+            return new CurrentUserDto(false, null, null, null, null, false, false, false, false, false);
         }
 
         var stored = await directory.FindAsync(userId, HttpContext.RequestAborted);
@@ -167,7 +167,8 @@ public sealed class AuthController(
             CanManageImports: role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin,
             CanSubmitOrders: role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin,
             CanDecideOrders: role is BaxOrdersRoles.Manager or BaxOrdersRoles.Admin,
-            CanManageUsers: role is BaxOrdersRoles.Admin);
+            CanManageUsers: role is BaxOrdersRoles.Admin,
+            CanManageCatalog: role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin);
     }
 
     /// <summary>One answer for every bad sign-in, so it never says whether the name exists.</summary>

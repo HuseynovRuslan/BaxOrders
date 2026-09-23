@@ -13,6 +13,7 @@ export interface CurrentUser {
   canSubmitOrders: boolean
   canDecideOrders: boolean
   canManageUsers: boolean
+  canManageCatalog: boolean
 }
 
 export interface AppUser {
@@ -48,6 +49,7 @@ export const anonymousUser: CurrentUser = {
   canSubmitOrders: false,
   canDecideOrders: false,
   canManageUsers: false,
+  canManageCatalog: false,
 }
 
 /**

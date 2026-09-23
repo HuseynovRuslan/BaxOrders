@@ -98,6 +98,10 @@ internal static class SecuritySetup
                 policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
             .AddPolicy(BaxOrdersPolicies.CanManageUsers, policy =>
                 policy.RequireRole(BaxOrdersRoles.Admin))
+            // Curating the catalog is putting the source material together, so it belongs with importing and
+            // revising rather than with deciding on orders. A manager reads the catalog; they do not shape it.
+            .AddPolicy(BaxOrdersPolicies.CanManageCatalog, policy =>
+                policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
             // Everything is closed unless it says otherwise. A new endpoint is private by forgetting to think
             // about it, which is the right way round.
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());

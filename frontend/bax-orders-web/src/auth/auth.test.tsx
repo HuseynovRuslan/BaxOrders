@@ -39,6 +39,7 @@ function person(role: BaxOrdersRole, overrides: Partial<CurrentUser> = {}): Curr
     canSubmitOrders: role !== 'Manager',
     canDecideOrders: role !== 'Coordinator',
     canManageUsers: role === 'Admin',
+    canManageCatalog: role !== 'Manager',
     ...overrides,
   }
 }
@@ -53,6 +54,7 @@ const anonymous: CurrentUser = {
   canSubmitOrders: false,
   canDecideOrders: false,
   canManageUsers: false,
+  canManageCatalog: false,
 }
 
 beforeEach(() => {

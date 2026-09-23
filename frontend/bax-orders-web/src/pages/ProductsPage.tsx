@@ -1,10 +1,22 @@
+import { Link } from 'react-router'
 import { PageHeader } from '../components/PageHeader'
 import { PlannedFeature } from '../components/PlannedFeature'
 
 export function ProductsPage() {
   return (
     <>
-      <PageHeader title="Məhsullar" description="Məhsullar, variantlar və kateqoriyalar" />
+      <PageHeader
+        title="Məhsullar"
+        description="Məhsullar, variantlar və kateqoriyalar"
+        actions={
+          <Link
+            to="/products/categories"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Məhsul kateqoriyaları
+          </Link>
+        }
+      />
       <PlannedFeature
         title="Məhsul kataloqu"
         points={[

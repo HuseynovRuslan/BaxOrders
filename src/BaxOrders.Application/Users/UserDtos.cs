@@ -21,7 +21,8 @@ public sealed record CurrentUserDto(
     bool CanManageImports,
     bool CanSubmitOrders,
     bool CanDecideOrders,
-    bool CanManageUsers);
+    bool CanManageUsers,
+    bool CanManageCatalog);
 
 public sealed record CreateUserCommand(string UserName, string DisplayName, string Role, string Password);
 

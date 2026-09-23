@@ -12,6 +12,7 @@ import { ManagementDashboardPage } from './pages/ManagementDashboardPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { OrdersPage } from './pages/OrdersPage'
+import { ProductCategoriesPage } from './pages/ProductCategoriesPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SuppliersPage } from './pages/SuppliersPage'
 
@@ -38,6 +39,8 @@ export function App() {
           <Route path="locations/:locationId" element={<LocationDetailPage />} />
           <Route path="locations/:locationId/analytics" element={<LocationAnalyticsPage />} />
           <Route path="products" element={<ProductsPage />} />
+          {/* Everybody signed in may look; only the catalogue policy may change what it says. */}
+          <Route path="products/categories" element={<ProductCategoriesPage />} />
           <Route path="suppliers" element={<SuppliersPage />} />
 
           {/* The import screens change data, so a manager does not get them. */}

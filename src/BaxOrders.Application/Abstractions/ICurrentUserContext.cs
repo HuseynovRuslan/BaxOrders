@@ -67,4 +67,11 @@ public static class BaxOrdersPolicies
 
     /// <summary>Creating users, changing their role and disabling them. Admin only.</summary>
     public const string CanManageUsers = nameof(CanManageUsers);
+
+    /// <summary>
+    /// Deciding what the catalog itself says — which category a product belongs to. Coordinator or Admin: the
+    /// people who put the catalog together, not the ones who decide on the orders made from it. Reading the
+    /// catalog needs no policy; only changing what it claims does.
+    /// </summary>
+    public const string CanManageCatalog = nameof(CanManageCatalog);
 }

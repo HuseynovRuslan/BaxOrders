@@ -40,6 +40,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
 
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
 
+    public DbSet<ProductCategoryDecision> ProductCategoryDecisions => Set<ProductCategoryDecision>();
+
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     public DbSet<SupplierAlias> SupplierAliases => Set<SupplierAlias>();

@@ -153,6 +153,59 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.ToTable("ProductAliases", (string)null);
                 });
 
+            modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductCategoryDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DecisionType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("NewCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("PreviousCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ProductId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NewCategoryId");
+
+                    b.HasIndex("PreviousCategoryId");
+
+                    b.HasIndex("ProductId", "OccurredAtUtc");
+
+                    b.ToTable("ProductCategoryDecisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductCategoryDecisions_AutoFillsBlankOnly", "\"DecisionType\" <> 'AutoUniqueEvidence' OR \"PreviousCategoryId\" IS NULL");
+
+                            t.HasCheckConstraint("CK_ProductCategoryDecisions_CategoryChanged", "\"PreviousCategoryId\" IS NULL OR \"PreviousCategoryId\" <> \"NewCategoryId\"");
+                        });
+                });
+
             modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductVariant", b =>
                 {
                     b.Property<long>("Id")
@@ -1948,6 +2001,30 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductCategoryDecision", b =>
+                {
+                    b.HasOne("BaxOrders.Domain.Catalog.Category", "NewCategory")
+                        .WithMany()
+                        .HasForeignKey("NewCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Catalog.Category", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BaxOrders.Domain.Catalog.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("NewCategory");
 
                     b.Navigation("Product");
                 });

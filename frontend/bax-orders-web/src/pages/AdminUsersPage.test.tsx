@@ -36,6 +36,7 @@ const admin: CurrentUser = {
   canSubmitOrders: true,
   canDecideOrders: true,
   canManageUsers: true,
+  canManageCatalog: true,
 }
 
 function appUser(overrides: Partial<AppUser> = {}): AppUser {
