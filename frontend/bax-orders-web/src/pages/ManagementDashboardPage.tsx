@@ -9,6 +9,7 @@ import {
   type HistoryCoverageState,
   type ManagementDashboard,
 } from '../api/dashboard'
+import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { DashboardSummary } from '../components/dashboard/DashboardSummary'
 import { LocationRows } from '../components/dashboard/LocationRows'
@@ -175,11 +176,11 @@ export function ManagementDashboardPage() {
         </div>
       </div>
 
-      {periods.status === 'error' && <Failure message={periods.message} />}
-      {dashboard.status === 'error' && <Failure message={dashboard.message} />}
+      {periods.status === 'error' && <ErrorState message={periods.message} />}
+      {dashboard.status === 'error' && <ErrorState message={dashboard.message} />}
 
       {periods.status === 'success' && available.length === 0 && (
-        <Empty>Hələ heç bir dövr üzrə daimi sifariş məlumatı yoxdur.</Empty>
+        <EmptyState>Hələ heç bir dövr üzrə daimi sifariş məlumatı yoxdur.</EmptyState>
       )}
 
       {data && <DashboardSummary summary={data.summary} />}
@@ -276,17 +277,10 @@ export function ManagementDashboardPage() {
         </div>
       )}
 
-      {dashboard.status === 'loading' && period !== null && (
-        <div className="space-y-2" aria-busy="true" aria-live="polite">
-          <span className="sr-only">Panel yüklənir</span>
-          {[0, 1, 2, 3, 4].map((row) => (
-            <div key={row} className="h-14 animate-pulse rounded-lg bg-slate-100" />
-          ))}
-        </div>
-      )}
+      {dashboard.status === 'loading' && period !== null && <LoadingRows label="Panel yüklənir" />}
 
       {data && data.rows.items.length === 0 && (
-        <Empty>{filtered ? 'Bu filtrə uyğun obyekt tapılmadı.' : 'Bu dövr üzrə sifariş məlumatı yoxdur.'}</Empty>
+        <EmptyState>{filtered ? 'Bu filtrə uyğun obyekt tapılmadı.' : 'Bu dövr üzrə sifariş məlumatı yoxdur.'}</EmptyState>
       )}
 
       {data && data.rows.items.length > 0 && <LocationRows rows={data.rows.items} summary={data.summary} />}
@@ -321,18 +315,6 @@ function Chip({ label, count, active, onClick }: { label: string; count?: number
       {label}
       {count !== undefined && <span className={`ml-1.5 ${active ? 'text-slate-300' : 'text-slate-400'}`}>{formatCount(count)}</span>}
     </button>
-  )
-}
-
-function Empty({ children }: { children: string }) {
-  return <p className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">{children}</p>
-}
-
-function Failure({ message }: { message: string }) {
-  return (
-    <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
-      {message}
-    </p>
   )
 }
 

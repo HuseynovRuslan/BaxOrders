@@ -7,7 +7,9 @@ import {
   type ProductCategoryRow,
 } from '../api/productCategories'
 import { useAuth } from '../auth/AuthProvider'
+import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
+import { SummaryMetric } from '../components/SummaryMetric'
 import { formatCount } from '../components/analytics/format'
 import { ApplySafeDialog } from '../components/catalog/ApplySafeDialog'
 import { AssignCategoryDialog } from '../components/catalog/AssignCategoryDialog'
@@ -130,15 +132,15 @@ export function ProductCategoriesPage() {
         </p>
       )}
 
-      {list.status === 'error' && <Failure message={list.message} />}
+      {list.status === 'error' && <ErrorState message={list.message} />}
 
       {summary && (
-        <dl className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Fact label="Kanonik kateqoriyası olan" value={summary.assignedCount} />
-          <Fact label="Təhlükəsiz uyğunlaşdırma" value={summary.uniqueEvidenceCount} />
-          <Fact label="Ziddiyyətli" value={summary.ambiguousCount} warn={summary.ambiguousCount > 0} />
-          <Fact label="Məlumatsız" value={summary.noEvidenceCount} />
-        </dl>
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4" role="group" aria-label="Kataloqun xülasəsi">
+          <SummaryMetric label="Kanonik kateqoriyası olan" value={formatCount(summary.assignedCount)} />
+          <SummaryMetric label="Təhlükəsiz uyğunlaşdırma" value={formatCount(summary.uniqueEvidenceCount)} />
+          <SummaryMetric label="Ziddiyyətli" value={formatCount(summary.ambiguousCount)} warn={summary.ambiguousCount > 0} />
+          <SummaryMetric label="Məlumatsız" value={formatCount(summary.noEvidenceCount)} />
+        </div>
       )}
 
       <div className="mb-3 space-y-2">
@@ -190,17 +192,10 @@ export function ProductCategoriesPage() {
         <p className="text-xs text-slate-500">{evidenceIsHistoryNote}</p>
       </div>
 
-      {list.status === 'loading' && (
-        <div className="space-y-2" aria-busy="true" aria-live="polite">
-          <span className="sr-only">Siyahı yüklənir</span>
-          {[0, 1, 2, 3, 4].map((row) => (
-            <div key={row} className="h-14 animate-pulse rounded-lg bg-slate-100" />
-          ))}
-        </div>
-      )}
+      {list.status === 'loading' && <LoadingRows label="Siyahı yüklənir" />}
 
       {data && data.rows.items.length === 0 && (
-        <Empty>{search || filter !== 'All' ? 'Bu filtrə uyğun məhsul tapılmadı.' : 'Kataloqda məhsul yoxdur.'}</Empty>
+        <EmptyState>{search || filter !== 'All' ? 'Bu filtrə uyğun məhsul tapılmadı.' : 'Kataloqda məhsul yoxdur.'}</EmptyState>
       )}
 
       {data && data.rows.items.length > 0 && (
@@ -269,15 +264,6 @@ function countOf(
   }
 }
 
-function Fact({ label, value, warn = false }: { label: string; value: number; warn?: boolean }) {
-  return (
-    <div className={`rounded-lg border bg-white p-3 ${warn ? 'border-amber-200' : 'border-slate-200'}`}>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className={`mt-0.5 text-2xl font-semibold ${warn ? 'text-amber-900' : 'text-slate-900'}`}>{formatCount(value)}</dd>
-    </div>
-  )
-}
-
 function Chip({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -291,18 +277,6 @@ function Chip({ label, count, active, onClick }: { label: string; count?: number
       {label}
       {count !== undefined && <span className={`ml-1.5 ${active ? 'text-slate-300' : 'text-slate-400'}`}>{formatCount(count)}</span>}
     </button>
-  )
-}
-
-function Empty({ children }: { children: string }) {
-  return <p className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">{children}</p>
-}
-
-function Failure({ message }: { message: string }) {
-  return (
-    <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
-      {message}
-    </p>
   )
 }
 

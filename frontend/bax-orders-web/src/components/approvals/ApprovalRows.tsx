@@ -97,14 +97,9 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
           <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
             <tr>
               <th scope="col" className="px-4 py-3">Obyekt</th>
-              <th scope="col" className="px-3 py-3">Dövr</th>
-              <th scope="col" className="px-3 py-3">Versiya</th>
+              <th scope="col" className="px-3 py-3">Dövr / Versiya</th>
               <th scope="col" className="px-3 py-3">Göndərən</th>
-              <th scope="col" className="px-3 py-3">Göndərilmə vaxtı</th>
-              <th scope="col" className="px-3 py-3 text-right">Sətir</th>
-              <th scope="col" className="px-3 py-3 text-right">Məlum məbləğ</th>
-              <th scope="col" className="px-3 py-3 text-right">Qiymətsiz</th>
-              <th scope="col" className="px-3 py-3">Növ</th>
+              <th scope="col" className="px-3 py-3 text-right">Məbləğ</th>
               <th scope="col" className="px-3 py-3">Status / İcazə</th>
               <th scope="col" className="px-3 py-3"><span className="sr-only">Əməliyyat</span></th>
             </tr>
@@ -116,14 +111,15 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
                   <p className="font-medium text-slate-900">{row.locationName}</p>
                   <p className="text-xs text-slate-500">{row.locationCode}</p>
                 </th>
-                <td className="px-3 py-2.5 text-slate-700">{formatMonth(row.requestPeriod)}</td>
-                <td className="px-3 py-2.5 text-slate-700">Versiya {row.version}</td>
-                <td className="px-3 py-2.5 text-slate-700">{row.submittedByDisplayName}</td>
-                <td className="px-3 py-2.5 text-slate-600">{formatWorkflowMoment(row.submittedAtUtc)}</td>
-                <td className="px-3 py-2.5 text-right text-slate-700">{formatCount(row.itemCount)}</td>
+                <td className="px-3 py-2.5 text-slate-700">
+                  <p>{formatMonth(row.requestPeriod)} · Versiya {row.version}</p>
+                  <RevisionBadge row={row} />
+                </td>
+                <td className="px-3 py-2.5 text-slate-700">
+                  <p>{row.submittedByDisplayName}</p>
+                  <p className="text-xs text-slate-500">{formatWorkflowMoment(row.submittedAtUtc)}</p>
+                </td>
                 <td className="px-3 py-2.5 text-right"><Amount row={row} /></td>
-                <td className="px-3 py-2.5 text-right"><MissingPrices row={row} /></td>
-                <td className="px-3 py-2.5"><RevisionBadge row={row} /></td>
                 <td className="px-3 py-2.5"><Status row={row} /></td>
                 <td className="px-3 py-2.5">
                   <Actions row={row} action={action} onStart={start} />
@@ -151,22 +147,14 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
               <div>
                 <dt className="text-xs text-slate-500">Göndərən</dt>
                 <dd className="text-slate-900">{row.submittedByDisplayName}</dd>
+                <dd className="text-xs text-slate-500">{formatWorkflowMoment(row.submittedAtUtc)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">Göndərilmə vaxtı</dt>
-                <dd className="text-slate-900">{formatWorkflowMoment(row.submittedAtUtc)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Sətir</dt>
-                <dd className="text-slate-900">{formatCount(row.itemCount)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Məlum məbləğ</dt>
+                <dt className="text-xs text-slate-500">Məbləğ</dt>
                 <dd><Amount row={row} /></dd>
               </div>
             </dl>
 
-            <div className="mt-2"><MissingPrices row={row} /></div>
             <div className="mt-2"><Status row={row} /></div>
 
             <div className="mt-3 border-t border-slate-100 pt-2">
@@ -192,17 +180,13 @@ function Amount({ row }: { row: ApprovalInboxRow }) {
   return (
     <>
       <p className="font-medium text-slate-900">{formatMoney(row.knownAmount)}</p>
+      <p className="text-xs text-slate-500">{formatCount(row.itemCount)} sətir</p>
       {!row.amountIsComplete && <p className="text-xs text-amber-800">{knownAmountRowLabel}</p>}
+      {row.missingPriceItemCount > 0 && (
+        <p className="text-xs font-medium text-amber-800">{missingPriceRowNote(row.missingPriceItemCount)}</p>
+      )}
     </>
   )
-}
-
-function MissingPrices({ row }: { row: ApprovalInboxRow }) {
-  if (row.missingPriceItemCount === 0) {
-    return <span className="text-xs text-slate-400">—</span>
-  }
-
-  return <span className="text-xs font-medium text-amber-800">{missingPriceRowNote(row.missingPriceItemCount)}</span>
 }
 
 function RevisionBadge({ row }: { row: ApprovalInboxRow }) {

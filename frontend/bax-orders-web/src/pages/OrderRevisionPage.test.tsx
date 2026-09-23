@@ -325,6 +325,59 @@ describe('where this version sits', () => {
     expect(screen.getByRole('link', { name: /Əvvəlki versiyaya bax/ })).toHaveAttribute('href', '/orders/104')
     expect(screen.getByRole('link', { name: /Düzəliş versiyasına bax/ })).toHaveAttribute('href', '/orders/900')
   })
+
+  it('shows an unmistakable banner while looking at a correction, naming both versions at once', async () => {
+    await renderPage()
+
+    expect(screen.getByText('Düzəliş versiyası')).toBeInTheDocument()
+    expect(screen.getByText('Versiya 2 · Versiya 1 əsasında')).toBeInTheDocument()
+  })
+
+  it('shows no such banner for a request that never was a correction', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({ version: 1, isRevision: false, canEditRevision: false }))
+    revisionsApi.fetchRevision.mockResolvedValue(revision({
+      version: 1,
+      isRevision: false,
+      revisedFrom: null,
+      canCreateRevision: true,
+      canEditRevision: false,
+    }))
+    await renderPage()
+
+    expect(screen.queryByText('Düzəliş versiyası')).toBeNull()
+  })
+})
+
+// ---- header and summary -----------------------------------------------------------------------------
+
+describe('the header and the summary', () => {
+  it('leads with the object, then the period and version, with the status told apart as its own badge', async () => {
+    await renderPage()
+
+    expect(screen.getByRole('heading', { name: 'Fəvvarələr meydanı' })).toBeInTheDocument()
+    expect(screen.getByText('İyul 2026 · Versiya 2')).toBeInTheDocument()
+    // "Qaralama" is the status; it also labels the workflow panel's own badge, so there are two.
+    expect(screen.getAllByText('Qaralama').length).toBeGreaterThan(0)
+  })
+
+  it('gives the amount the primary number, and the line count and any missing prices as its quiet second line', async () => {
+    await renderPage()
+    const summary = screen.getByRole('region', { name: 'Sifariş xülasəsi' })
+
+    expect(within(summary).getByText('20,00 ₼')).toBeInTheDocument()
+    expect(within(summary).getByText('1 sətir')).toBeInTheDocument()
+  })
+
+  it('names the missing-price count next to the amount, instead of a second banner repeating it', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: { items: [item({ orderRequestItemId: 999, unitPrice: null, lineTotal: null })] } as never,
+      knownAmountTotal: null,
+    }))
+    await renderPage()
+    const summary = screen.getByRole('region', { name: 'Sifariş xülasəsi' })
+
+    expect(within(summary).getByText(/1 sətir/)).toHaveTextContent('1 sətir · 1 qiymətsiz')
+  })
 })
 
 // ---- who may edit ----------------------------------------------------------------------------------

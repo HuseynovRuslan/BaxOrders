@@ -1,7 +1,6 @@
 import { LineChart } from 'lucide-react'
 import type { ComparisonSummary, PriceCoverage, VariantComparison } from '../../api/analytics'
 import { formatNumber } from '../imports/labels'
-import { InfoHint } from './InfoHint'
 import {
   basisLabels,
   coverageBadgeClass,
@@ -14,12 +13,10 @@ import {
   formatPercent,
   formatPrice,
   formatVariantLine,
-  knownAmountLabel,
   stateBadgeClass,
   stateLabels,
   stateSign,
   unknownValue,
-  weightedPriceHint,
   weightedPriceLabel,
 } from './labels'
 
@@ -45,7 +42,11 @@ function BaselineHeading({ summary }: { summary: ComparisonSummary }) {
   )
 }
 
-/** Materials: quantities may be compared, so the quantity columns carry the comparison. */
+/**
+ * Materials: quantities may be compared, so the quantity columns carry the comparison. Price and amount are
+ * real facts, not just decoration, so they stay on the row — as the quiet second line under the number they
+ * qualify, rather than two more columns competing with the comparison itself.
+ */
 export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
   return (
     <>
@@ -65,16 +66,6 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
               <th scope="col" className="px-3 py-3 text-right"><BaselineHeading summary={summary} /></th>
               <th scope="col" className="px-3 py-3 text-right">Fərq</th>
               <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
-              <th scope="col" className="px-3 py-3 text-right">
-                <span className="inline-flex items-center gap-1">
-                  {weightedPriceLabel}
-                  <InfoHint label="Çəkili orta qiymət nədir?">{weightedPriceHint}</InfoHint>
-                </span>
-              </th>
-              <th scope="col" className="px-3 py-3 text-right">
-                Məbləğ
-                <span className="block font-normal text-slate-400">{knownAmountLabel}</span>
-              </th>
               <th scope="col" className="px-3 py-3">Status</th>
               <th scope="col" className="px-3 py-3"><span className="sr-only">Trend</span></th>
             </tr>
@@ -83,21 +74,19 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
             {rows.map((row) => (
               <tr key={row.variant.productVariantId} className="hover:bg-slate-50">
                 <td className="px-4 py-2.5"><Product row={row} /></td>
-                <td className="px-3 py-2.5 text-right font-medium text-slate-900">
-                  {formatAnalyticsQuantity(row.current.quantity)}
+                <td className="px-3 py-2.5 text-right">
+                  <p className="font-medium text-slate-900">{formatAnalyticsQuantity(row.current.quantity)}</p>
+                  <p className="text-xs text-slate-500">{formatAnalyticsAmount(row.current.knownAmount)}</p>
                 </td>
                 <td className="px-3 py-2.5 text-right text-slate-600">
                   {formatAnalyticsQuantity(row.baseline.quantity)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-slate-900">{formatDelta(row.delta.quantityDelta)}</td>
                 <td className="px-3 py-2.5 text-right text-slate-900">{formatPercent(row.delta.quantityPercentChange)}</td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="px-3 py-2.5">
+                  <StateBadge row={row} />
                   <Price row={row} />
                 </td>
-                <td className="px-3 py-2.5 text-right text-slate-900">
-                  {formatAnalyticsAmount(row.current.knownAmount)}
-                </td>
-                <td className="px-3 py-2.5"><StateBadge row={row} /></td>
                 <td className="px-3 py-2.5 text-right"><TrendButton row={row} onTrend={onTrend} /></td>
               </tr>
             ))}
@@ -122,16 +111,8 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
 
             <div className="mt-2 flex flex-wrap items-end justify-between gap-2 border-t border-slate-100 pt-2">
               <div className="text-xs text-slate-600">
-                <p>
-                  {weightedPriceLabel}: <span className="text-slate-900">{formatPrice(row.current.weightedUnitPrice)}</span>
-                  {row.delta.pricePercentChange !== null && (
-                    <span className="text-slate-500"> ({formatPercent(row.delta.pricePercentChange)})</span>
-                  )}
-                </p>
-                <p>
-                  {knownAmountLabel}: <span className="text-slate-900">{formatAnalyticsAmount(row.current.knownAmount)}</span>
-                </p>
-                <Coverage coverage={row.current.priceCoverage} />
+                <p>{formatAnalyticsAmount(row.current.knownAmount)}</p>
+                <Price row={row} compact />
               </div>
               <TrendButton row={row} onTrend={onTrend} />
             </div>
@@ -220,18 +201,16 @@ function Product({ row }: { row: VariantComparison }) {
   )
 }
 
-function Price({ row }: { row: VariantComparison }) {
+/** The price behind the amount, said quietly next to the state it belongs with — never its own column. */
+function Price({ row, compact = false }: { row: VariantComparison; compact?: boolean }) {
+  const partial = row.current.priceCoverage.state !== 'Complete'
+
   return (
-    <div>
-      <p className="text-slate-900">{formatPrice(row.current.weightedUnitPrice)}</p>
-      {row.baseline.weightedUnitPrice !== null && (
-        <p className="text-xs text-slate-500">
-          əvvəl {formatPrice(row.baseline.weightedUnitPrice)}
-          {row.delta.pricePercentChange !== null && <> · {formatPercent(row.delta.pricePercentChange)}</>}
-        </p>
-      )}
-      <Coverage coverage={row.current.priceCoverage} compact />
-    </div>
+    <p className={`text-xs ${compact ? '' : 'mt-1'} ${partial ? coverageBadgeClass[row.current.priceCoverage.state] : 'text-slate-500'}`}>
+      {weightedPriceLabel}: {formatPrice(row.current.weightedUnitPrice)}
+      {row.delta.pricePercentChange !== null && ` (${formatPercent(row.delta.pricePercentChange)})`}
+      {partial && <> · {coverageLabels[row.current.priceCoverage.state]}</>}
+    </p>
   )
 }
 

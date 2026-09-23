@@ -197,13 +197,12 @@ describe('an object with partial history', () => {
 })
 
 describe('an object whose prices are partly missing', () => {
-  it('says the amount is only the money that is known, with the line count', () => {
+  it('names the missing line count next to the amount it affects', () => {
     renderRows([row({
       current: amount({ knownAmount: 500, itemCount: 10, knownPriceItemCount: 7, missingPriceItemCount: 3, isComplete: false }),
       currentPriceCoverage: 'Partial',
     })])
 
-    expect(screen.getAllByText(/Məlum qiymətlər üzrə/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/3 qiymətsiz sətir/).length).toBeGreaterThan(0)
   })
 

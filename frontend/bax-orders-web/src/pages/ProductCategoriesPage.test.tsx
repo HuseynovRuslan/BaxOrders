@@ -89,7 +89,7 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks())
 
 async function renderPage(initialPath = '/products/categories') {
-  const { container } = render(
+  render(
     <MemoryRouter initialEntries={[initialPath]}>
       <AuthProvider>
         <ProductCategoriesPage />
@@ -98,21 +98,25 @@ async function renderPage(initialPath = '/products/categories') {
   )
 
   await screen.findByText('Kanonik kateqoriyası olan')
-  return { summary: within(container.querySelector('dl')!) }
 }
 
-function factValue(summary: ReturnType<typeof within>, label: string): string | null {
-  return summary.getByText(label).closest('div')?.querySelector('dd')?.textContent ?? null
+/**
+ * A summary metric's label and its big number are siblings, whatever wraps them. Scoped to the summary group,
+ * since a filter chip below repeats some of the same labels.
+ */
+function metricValue(label: string): string | null {
+  const summary = screen.getByRole('group', { name: 'Kataloqun xülasəsi' })
+  return within(summary).getByText(label).nextElementSibling?.textContent ?? null
 }
 
 describe('the summary', () => {
   it('counts the whole catalogue in the four states the server keeps apart', async () => {
-    const { summary } = await renderPage()
+    await renderPage()
 
-    expect(factValue(summary, 'Kanonik kateqoriyası olan')).toBe('0')
-    expect(factValue(summary, 'Təhlükəsiz uyğunlaşdırma')).toBe('1.105')
-    expect(factValue(summary, 'Ziddiyyətli')).toBe('7')
-    expect(factValue(summary, 'Məlumatsız')).toBe('0')
+    expect(metricValue('Kanonik kateqoriyası olan')).toBe('0')
+    expect(metricValue('Təhlükəsiz uyğunlaşdırma')).toBe('1.105')
+    expect(metricValue('Ziddiyyətli')).toBe('7')
+    expect(metricValue('Məlumatsız')).toBe('0')
   })
 })
 

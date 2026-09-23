@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { fetchLocationOrders, type LocationOrderList, type LocationOrderSort } from '../api/orders'
 import { PageHeader } from '../components/PageHeader'
+import { StatusBadge } from '../components/StatusBadge'
+import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
   formatAmount,
   formatNumber,
   formatPeriod,
   knownAmountLabel,
-  orderStatusLabels,
 } from '../components/imports/labels'
 
 const pageSize = 25
@@ -167,14 +168,17 @@ export function LocationsPage() {
                 </td>
                 <td className="px-4 py-2.5 text-slate-700">
                   {location.latestPeriod ? (
-                    <>
+                    <div className="flex items-center gap-2">
                       {formatPeriod(location.latestPeriod)}
                       {location.latestRequestStatus && (
-                        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                          {orderStatusLabels[location.latestRequestStatus] ?? location.latestRequestStatus}
-                        </span>
+                        <StatusBadge
+                          label={workflowStatusLabels[location.latestRequestStatus] ?? location.latestRequestStatus}
+                          sign={workflowStatusSign[location.latestRequestStatus]}
+                          toneClass={workflowStatusClass[location.latestRequestStatus]}
+                          size="sm"
+                        />
                       )}
-                    </>
+                    </div>
                   ) : (
                     <span className="text-slate-400">sifariş yoxdur</span>
                   )}

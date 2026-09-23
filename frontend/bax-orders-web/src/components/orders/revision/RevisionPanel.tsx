@@ -38,6 +38,17 @@ export function RevisionPanel({ revision, onChanged }: RevisionPanelProps) {
 
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+      {/* Unmistakable: this is not the reviewed version, it is the draft being corrected. */}
+      {revision.isRevision && previous && (
+        <div className="mb-3 flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2">
+          <GitBranch className="size-4 shrink-0 text-sky-700" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold text-sky-900">Düzəliş versiyası</p>
+            <p className="text-xs text-sky-800">Versiya {revision.version} · Versiya {previous.version} əsasında</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-900">
           <GitBranch className="size-4 text-slate-400" aria-hidden="true" />

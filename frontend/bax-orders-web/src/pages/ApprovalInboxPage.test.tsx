@@ -37,36 +37,34 @@ function inbox(overrides: Partial<ApprovalInbox> = {}): ApprovalInbox {
 beforeEach(() => approvalsApi.fetchApprovalInbox.mockReset())
 afterEach(() => vi.clearAllMocks())
 
-/**
- * The same wording appears twice on this page — once as a summary figure, once as a filter chip's label — so
- * every summary assertion is scoped to the summary's own `<dl>`, the one place each label appears exactly once.
- */
 async function renderPage(initialPath = '/approvals') {
-  const { container } = render(
+  render(
     <MemoryRouter initialEntries={[initialPath]}>
       <ApprovalInboxPage />
     </MemoryRouter>,
   )
   await screen.findByText('Gözləyən sifarişlər')
-  return { summary: within(container.querySelector('dl')!) }
 }
 
-function factValue(summary: ReturnType<typeof within>, label: string): string | null {
-  const dt = summary.getByText(label)
-  return dt.closest('div')?.querySelector('dd')?.textContent ?? null
+/**
+ * A summary metric's label and its big number are siblings, whatever wraps them. Scoped to the summary
+ * group, since a filter chip below repeats one of the same labels ("Mənim üçün bloklanıb").
+ */
+function metricValue(label: string): string | null {
+  const summary = screen.getByRole('group', { name: 'Növbənin xülasəsi' })
+  return within(summary).getByText(label).nextElementSibling?.textContent ?? null
 }
 
 describe('the summary', () => {
   it('shows the whole queue’s counts, not just the rows on the current page or filter', async () => {
     approvalsApi.fetchApprovalInbox.mockResolvedValue(inbox())
-    const { summary } = await renderPage()
+    await renderPage()
 
-    expect(factValue(summary, 'Gözləyən sifarişlər')).toBe('6')
-    expect(factValue(summary, 'Qərar verə bilərəm')).toBe('4')
-    expect(factValue(summary, 'Mənim üçün bloklanıb')).toBe('2')
-    expect(factValue(summary, 'Qiymətsiz sifarişlər')).toBe('1')
-    expect(factValue(summary, 'Qiymətsiz sətirlər')).toBe('3')
-    expect(factValue(summary, 'Düzəliş versiyaları')).toBe('1')
+    expect(metricValue('Gözləyən sifarişlər')).toBe('6')
+    expect(screen.getByText('4 qərar verə bilərəm')).toBeInTheDocument()
+    expect(metricValue('Mənim üçün bloklanıb')).toBe('2')
+    expect(metricValue('Qiymətsiz sifarişlər')).toBe('1')
+    expect(screen.getByText('3 qiymətsiz sətir')).toBeInTheDocument()
   })
 })
 

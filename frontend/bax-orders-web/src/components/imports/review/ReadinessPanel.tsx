@@ -63,7 +63,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
         <h2 className="text-sm font-medium text-slate-900">İmporta hazırlıq</h2>
         <span
           className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            readiness.canImport ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'
+            readiness.canImport ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'
           }`}
         >
           {readiness.canImport ? 'İmporta hazırdır' : 'İmporta hazır deyil'}
@@ -85,6 +85,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
             ['Kateqoriyalar', readiness.unresolvedReferences.categoryPaths],
           ]}
           empty={references === 0}
+          blocking
         />
         <Section
           title="Məhsullar və variantlar"
@@ -94,6 +95,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
             ['Asılılıq gözləyən sətirlər', readiness.products.dependencyBlockedRows],
           ]}
           empty={readiness.products.unresolvedProducts + readiness.products.unresolvedVariants === 0}
+          blocking
         />
         <Section
           title="Sətir xətaları"
@@ -105,6 +107,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
             ['Digər xətalar', readiness.rowIssues.otherErrors],
           ]}
           empty={rowErrors === 0}
+          blocking
         />
         <Section
           title="Bloklamayanlar"
@@ -135,6 +138,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
 
       {readiness.blockers.length > 0 && (
         <div className="border-t border-slate-200 px-4 py-3">
+          {/* These are the reason canImport is false, so they read as blocking — not as another warning. */}
           <p className="text-xs font-medium text-slate-700">Qalan maneələr</p>
           <ul className="mt-1 flex flex-wrap gap-2">
             {readiness.blockers.map((blocker) => (
@@ -142,7 +146,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
                 <button
                   type="button"
                   onClick={() => onNavigate(blocker.area, blocker.issueType)}
-                  className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 hover:bg-amber-100"
+                  className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-100"
                 >
                   {issueTypeLabels[blocker.issueType]} · {blocker.rowCount} sətir →
                 </button>
@@ -155,7 +159,24 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
   )
 }
 
-function Section({ title, rows, empty, note }: { title: string; rows: [string, number][]; empty: boolean; note?: string }) {
+/**
+ * A blocking count is red and bold, because it is the reason the import cannot proceed; a non-blocking one
+ * stays amber at most — the same distinction the rest of the review screen already makes for a single issue,
+ * carried through to these totals.
+ */
+function Section({
+  title,
+  rows,
+  empty,
+  note,
+  blocking = false,
+}: {
+  title: string
+  rows: [string, number][]
+  empty: boolean
+  note?: string
+  blocking?: boolean
+}) {
   return (
     <div>
       <p className="flex items-baseline gap-1.5 text-xs font-medium text-slate-700">
@@ -166,7 +187,9 @@ function Section({ title, rows, empty, note }: { title: string; rows: [string, n
         {rows.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-2">
             <dt className="text-slate-500">{label}</dt>
-            <dd className={value > 0 ? 'font-medium text-slate-900' : 'text-slate-400'}>{value}</dd>
+            <dd className={value === 0 ? 'text-slate-400' : blocking ? 'font-semibold text-red-700' : 'font-medium text-amber-800'}>
+              {value}
+            </dd>
           </div>
         ))}
       </dl>

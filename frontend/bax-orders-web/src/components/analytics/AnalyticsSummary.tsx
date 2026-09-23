@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { ComparisonSummary } from '../../api/analytics'
+import { WarningNote } from '../WarningNote'
 import { formatNumber } from '../imports/labels'
 import { orderStatusLabels } from '../imports/labels'
 import {
@@ -21,68 +22,83 @@ interface AnalyticsSummaryProps {
 }
 
 /**
- * What the comparison says at location level, with every figure carrying the qualification the backend
- * attached to it: money that is only the money we know, and an average that says how many months it is of.
+ * What the comparison says at location level, in the order a reader actually needs it: how much history the
+ * comparison rests on, one number for the money, and — only as plain counts, never as a row of equally loud
+ * cards — how many products moved which way. The material table beneath says which ones.
  */
 export function AnalyticsSummary({ summary }: AnalyticsSummaryProps) {
   return (
     <div className="mb-4 space-y-3">
       <BaselineCoverage summary={summary} />
       {!summary.baselineAvailable && <NoBaselineNotice summary={summary} />}
-      <SummaryCards summary={summary} />
+      <AmountSummary summary={summary} />
+      <StateOverview summary={summary} />
     </div>
   )
 }
 
-function SummaryCards({ summary }: { summary: ComparisonSummary }) {
-  return (
-    <>
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <Card
-          label="Cari dövr üzrə sətirlər"
-          value={formatNumber(summary.currentItemCount)}
-          note={
-            summary.baselineAverageItemCount === null
-              ? undefined
-              : `müqayisə: ${formatNumber(summary.baselineAverageItemCount)}`
-          }
-        />
-        <Card
-          // Never "ümumi məbləğ": the backend says whether this is the whole story, and usually it is not.
-          label={summary.amountIsComplete ? 'Cari dövrün məbləği' : `${knownAmountLabel} məbləğ`}
-          value={formatAnalyticsAmount(summary.currentKnownAmountTotal)}
-          note={
-            summary.knownAmountDelta === null
-              ? undefined
-              : `${formatDelta(summary.knownAmountDelta, (value) => formatAnalyticsAmount(value))} (${formatPercent(summary.knownAmountPercentChange)})`
-          }
-          warn={!summary.amountIsComplete}
-        />
-        <Card
-          label="Qiymətsiz sətirlər"
-          value={formatNumber(summary.currentMissingPriceItemCount)}
-          note={
-            summary.currentMissingPriceItemCount > 0
-              ? 'məbləğ natamamdır'
-              : summary.baselineMissingPriceItemCount > 0
-                ? `müqayisə dövründə ${formatNumber(summary.baselineMissingPriceItemCount)}`
-                : undefined
-          }
-          warn={summary.currentMissingPriceItemCount > 0}
-        />
-        <Card label="Müqayisə olunan mövqe" value={formatNumber(summary.totalVariantCount)} />
-      </dl>
+/** The one number this location's month is judged by, with its change directly beneath it. */
+function AmountSummary({ summary }: { summary: ComparisonSummary }) {
+  const missing = summary.currentMissingPriceItemCount
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-        <Count label={stateLabels.New} value={summary.newVariantCount} />
-        <Count label={stateLabels.Increased} value={summary.increasedVariantCount} />
-        <Count label={stateLabels.Decreased} value={summary.decreasedVariantCount} />
-        <Count label={stateLabels.NoLongerOrdered} value={summary.noLongerOrderedVariantCount} />
-        {summary.amountOrientedServiceCount > 0 && (
-          <Count label="Xidmətlər" value={summary.amountOrientedServiceCount} />
-        )}
-      </dl>
-    </>
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <h2 className="text-xs text-slate-500">
+        {/* Never "ümumi məbləğ": the backend says whether this is the whole story, and usually it is not. */}
+        {summary.amountIsComplete ? 'Cari dövrün məbləği' : `${knownAmountLabel} məbləği`}
+      </h2>
+      <p className="mt-1 text-3xl font-semibold text-slate-900">{formatAnalyticsAmount(summary.currentKnownAmountTotal)}</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        {formatNumber(summary.currentItemCount)} sətir
+        {missing > 0 && <span className="text-amber-800"> · {formatNumber(missing)} qiymətsiz</span>}
+      </p>
+
+      {summary.knownAmountDelta !== null && (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <span className="text-xs text-slate-500">Fərq ({basisLabels[summary.basis]})</span>
+          <p className="mt-0.5 text-base font-semibold text-slate-900">
+            {formatDelta(summary.knownAmountDelta, (value) => formatAnalyticsAmount(value))}
+          </p>
+          <p className="text-sm text-slate-500">{formatPercent(summary.knownAmountPercentChange)}</p>
+        </div>
+      )}
+
+      {missing > 0 && summary.baselineMissingPriceItemCount > 0 && (
+        <div className="mt-3">
+          <WarningNote>
+            Müqayisə dövründə də {formatNumber(summary.baselineMissingPriceItemCount)} qiymətsiz sətir var —
+            fərq iki natamam məbləğ arasındadır.
+          </WarningNote>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/**
+ * How many products moved which way, as plain counts — not a row of boxes. A count is a fact about the
+ * comparison, not a state to badge; the material table beneath is where each one is actually named.
+ */
+function StateOverview({ summary }: { summary: ComparisonSummary }) {
+  const counts: Array<{ label: string; value: number }> = [
+    { label: stateLabels.New, value: summary.newVariantCount },
+    { label: stateLabels.Increased, value: summary.increasedVariantCount },
+    { label: stateLabels.Decreased, value: summary.decreasedVariantCount },
+    { label: stateLabels.NoLongerOrdered, value: summary.noLongerOrderedVariantCount },
+  ]
+
+  if (summary.amountOrientedServiceCount > 0) {
+    counts.push({ label: 'Xidmətlər', value: summary.amountOrientedServiceCount })
+  }
+
+  return (
+    <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+      {counts.map((count) => (
+        <span key={count.label}>
+          {count.label}: <span className="font-medium text-slate-900">{formatNumber(count.value)}</span>
+        </span>
+      ))}
+    </p>
   )
 }
 
@@ -107,12 +123,9 @@ function BaselineCoverage({ summary }: { summary: ComparisonSummary }) {
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-        <span className="text-slate-600">
-          Cari: <span className="font-medium text-slate-900">{formatAnalyticsPeriod(summary.currentPeriod)}</span>
-          {' · '}Versiya {summary.currentVersion}
-          {' · '}
-          {orderStatusLabels[summary.currentStatus] ?? summary.currentStatus}
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <span>
+          Versiya {summary.currentVersion} · {orderStatusLabels[summary.currentStatus] ?? summary.currentStatus}
         </span>
         <Link to={`/orders/${summary.currentRequestId}`} className="text-slate-600 underline hover:text-slate-900">
           Sifarişə bax
@@ -123,7 +136,7 @@ function BaselineCoverage({ summary }: { summary: ComparisonSummary }) {
             type="button"
             onClick={() => setOpen((current) => !current)}
             aria-expanded={open}
-            className="ml-auto inline-flex items-center gap-1 rounded px-1 py-0.5 text-slate-600 hover:bg-white hover:text-slate-900"
+            className="ml-auto inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-white hover:text-slate-900"
           >
             {open ? <ChevronDown className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}
             Müqayisəyə daxil olan dövrlər
@@ -172,35 +185,6 @@ function NoBaselineNotice({ summary }: { summary: ComparisonSummary }) {
         </p>
       </div>
     </section>
-  )
-}
-
-function Card({
-  label,
-  value,
-  note,
-  warn = false,
-}: {
-  label: string
-  value: string
-  note?: string
-  warn?: boolean
-}) {
-  return (
-    <div className={`rounded-lg border bg-white p-3 ${warn ? 'border-amber-200' : 'border-slate-200'}`}>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-lg font-semibold text-slate-900">{value}</dd>
-      {note && <p className={`mt-0.5 text-xs ${warn ? 'text-amber-800' : 'text-slate-500'}`}>{note}</p>}
-    </div>
-  )
-}
-
-function Count({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="text-base font-medium text-slate-900">{formatNumber(value)}</dd>
-    </div>
   )
 }
 

@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
 import { PageHeader } from '../components/PageHeader'
+import { SectionHeader } from '../components/SectionHeader'
+import { StatusBadge } from '../components/StatusBadge'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
 import { AddLineDialog } from '../components/orders/revision/AddLineDialog'
 import { EditLineDialog } from '../components/orders/revision/EditLineDialog'
@@ -11,7 +13,7 @@ import { RemoveLineDialog } from '../components/orders/revision/RemoveLineDialog
 import { RevisionPanel } from '../components/orders/revision/RevisionPanel'
 import { addLineLabel, editLineLabel, removeLineLabel, staleDataMessage } from '../components/orders/revision/labels'
 import { WorkflowPanel } from '../components/workflow/WorkflowPanel'
-import { workflowStatusLabels } from '../components/workflow/labels'
+import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
   formatAmount,
   formatItemSpecification,
@@ -109,19 +111,22 @@ export function OrderDetailPage() {
     <>
       <PageHeader
         title={data?.locationName ?? 'Sifariş'}
-        description={
-          data
-            ? `${formatPeriod(data.requestPeriod)} · Versiya ${data.version} · ${workflowStatusLabels[data.status] ?? data.status}`
-            : undefined
-        }
+        description={data ? `${formatPeriod(data.requestPeriod)} · Versiya ${data.version}` : undefined}
         actions={
           data && (
-            <Link
-              to={`/locations/${data.locationId}`}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Obyektin sifarişləri
-            </Link>
+            <>
+              <StatusBadge
+                label={workflowStatusLabels[data.status] ?? data.status}
+                sign={workflowStatusSign[data.status]}
+                toneClass={workflowStatusClass[data.status]}
+              />
+              <Link
+                to={`/locations/${data.locationId}`}
+                className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Obyektin sifarişləri
+              </Link>
+            </>
           )
         }
       />
@@ -132,33 +137,43 @@ export function OrderDetailPage() {
         </p>
       )}
 
+      {/* A. Sifariş xülasəsi: one number, and what qualifies it. */}
       {data && (
-        <WorkflowPanel
-          key={reloadToken}
-          orderRequestId={data.orderRequestId}
-          onStatusChanged={reload}
-          showHistory={false}
-        />
+        <section
+          className="mt-4 mb-4 rounded-lg border border-slate-200 bg-white p-4"
+          aria-label="Sifariş xülasəsi"
+        >
+          <h2 className="text-xs text-slate-500">
+            {data.missingPriceItemCount === 0 ? 'Məbləğ' : `${knownAmountLabel} məbləği`}
+          </h2>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">{formatAmount(data.knownAmountTotal)}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {formatNumber(data.itemCount)} sətir
+            {data.missingPriceItemCount > 0 && (
+              <span className="text-amber-800"> · {formatNumber(data.missingPriceItemCount)} qiymətsiz</span>
+            )}
+          </p>
+        </section>
       )}
 
-      {revision && <RevisionPanel revision={revision} onChanged={reload} />}
-
-      {data && (
-        <dl className="mt-4 mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4">
-          <Fact label="Sətir sayı" value={formatNumber(data.itemCount)} />
-          <Fact label="Qiyməti məlum sətirlər" value={formatNumber(data.knownPriceItemCount)} />
-          <Fact label="Qiymətsiz" value={formatNumber(data.missingPriceItemCount)} warn={data.missingPriceItemCount > 0} />
-          <Fact label={`${knownAmountLabel} məbləğ`} value={formatAmount(data.knownAmountTotal)} />
-        </dl>
+      {/* B. Əməliyyatlar: deciding the request and correcting it, kept apart from the summary and the lines. */}
+      {(data || revision) && (
+        <div className="mb-4 space-y-3">
+          <SectionHeader title="Əməliyyatlar" />
+          {data && (
+            <WorkflowPanel
+              key={reloadToken}
+              orderRequestId={data.orderRequestId}
+              onStatusChanged={reload}
+              showHistory={false}
+            />
+          )}
+          {revision && <RevisionPanel revision={revision} onChanged={reload} />}
+        </div>
       )}
 
-      {data && data.missingPriceItemCount > 0 && (
-        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-          Məbləğ natamamdır: {formatNumber(data.missingPriceItemCount)} sətrin qiyməti mənbədə göstərilməyib və sıfır
-          kimi sayılmır.
-        </p>
-      )}
-
+      {/* C. Sətirlər */}
+      <SectionHeader title="Sətirlər" />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form
           onSubmit={(event) => {
@@ -274,10 +289,11 @@ export function OrderDetailPage() {
                   {item.categoryPath.length > 0 ? item.categoryPath.join(' › ') : <span className="text-slate-400">—</span>}
                 </td>
                 <td className="px-3 py-2">
+                  {/* Secondary next to Redaktə et / Sil: provenance is looked up, not acted on. */}
                   <button
                     type="button"
                     onClick={() => setSource({ id: item.orderRequestItemId, name: item.productName })}
-                    className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    className="text-xs text-slate-500 underline hover:text-slate-800"
                   >
                     Mənbəyə bax
                   </button>
@@ -377,14 +393,5 @@ export function OrderDetailPage() {
         />
       )}
     </>
-  )
-}
-
-function Fact({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
-  return (
-    <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className={`text-sm font-medium ${warn ? 'text-amber-800' : 'text-slate-900'}`}>{value}</dd>
-    </div>
   )
 }

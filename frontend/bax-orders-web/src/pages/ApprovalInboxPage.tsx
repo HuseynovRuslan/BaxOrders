@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import type { ApprovalInbox, ApprovalInboxSort, ApprovalActionability, ApprovalPriceCoverage, ApprovalRevisionFilter } from '../api/approvals'
 import { fetchApprovalInbox } from '../api/approvals'
+import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { ApprovalRows } from '../components/approvals/ApprovalRows'
 import { ApprovalSummary } from '../components/approvals/ApprovalSummary'
@@ -124,7 +125,7 @@ export function ApprovalInboxPage() {
 
       {data && <ApprovalSummary summary={data.summary} />}
 
-      {inbox.status === 'error' && <Failure message={inbox.message} />}
+      {inbox.status === 'error' && <ErrorState message={inbox.message} />}
 
       <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Qərar vermə imkanına görə süz">
@@ -238,17 +239,10 @@ export function ApprovalInboxPage() {
         </div>
       </div>
 
-      {inbox.status === 'loading' && (
-        <div className="space-y-2" aria-busy="true" aria-live="polite">
-          <span className="sr-only">Siyahı yüklənir</span>
-          {[0, 1, 2, 3, 4].map((row) => (
-            <div key={row} className="h-14 animate-pulse rounded-lg bg-slate-100" />
-          ))}
-        </div>
-      )}
+      {inbox.status === 'loading' && <LoadingRows label="Siyahı yüklənir" />}
 
       {data && data.rows.items.length === 0 && (
-        <Empty>{filtered ? 'Bu filtrə uyğun gözləyən sifariş tapılmadı.' : 'Təsdiq gözləyən sifariş yoxdur.'}</Empty>
+        <EmptyState>{filtered ? 'Bu filtrə uyğun gözləyən sifariş tapılmadı.' : 'Təsdiq gözləyən sifariş yoxdur.'}</EmptyState>
       )}
 
       {data && data.rows.items.length > 0 && <ApprovalRows rows={data.rows.items} onChanged={refresh} />}
@@ -283,18 +277,6 @@ function Chip({ label, count, active, onClick }: { label: string; count?: number
       {label}
       {count !== undefined && <span className={`ml-1.5 ${active ? 'text-slate-300' : 'text-slate-400'}`}>{formatCount(count)}</span>}
     </button>
-  )
-}
-
-function Empty({ children }: { children: string }) {
-  return <p className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">{children}</p>
-}
-
-function Failure({ message }: { message: string }) {
-  return (
-    <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
-      {message}
-    </p>
   )
 }
 

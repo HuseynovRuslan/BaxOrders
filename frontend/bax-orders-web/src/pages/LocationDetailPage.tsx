@@ -3,12 +3,13 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { fetchLocationHistory, type LocationOrderHistory } from '../api/orders'
 import { PageHeader } from '../components/PageHeader'
+import { StatusBadge } from '../components/StatusBadge'
+import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
   formatAmount,
   formatNumber,
   formatPeriod,
   knownAmountLabel,
-  orderStatusLabels,
 } from '../components/imports/labels'
 
 const pageSize = 24
@@ -190,9 +191,12 @@ export function LocationDetailPage() {
                   )}
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                    {orderStatusLabels[request.status] ?? request.status}
-                  </span>
+                  <StatusBadge
+                    label={workflowStatusLabels[request.status] ?? request.status}
+                    sign={workflowStatusSign[request.status]}
+                    toneClass={workflowStatusClass[request.status]}
+                    size="sm"
+                  />
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <div className="flex justify-end gap-1.5">

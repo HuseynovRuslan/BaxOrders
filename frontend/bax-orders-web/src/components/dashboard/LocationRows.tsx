@@ -1,6 +1,7 @@
 import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 import type { LocationDashboardRow, ManagementDashboardSummary } from '../../api/dashboard'
+import { StatusBadge } from '../StatusBadge'
 import { InfoHint } from '../analytics/InfoHint'
 import {
   basisLabels,
@@ -11,7 +12,6 @@ import {
   formatPercent,
   formatPeriodCoverage,
   knownAmountHint,
-  knownAmountLabel,
   toMonthKey,
   unknownValue,
 } from '../analytics/format'
@@ -22,6 +22,8 @@ interface LocationRowsProps {
   rows: LocationDashboardRow[]
   summary: ManagementDashboardSummary
 }
+
+const noRequestTone = 'bg-amber-100 text-amber-900 ring-amber-200'
 
 /** Where a row's own comparison lives, on the month and basis the backend named for it. */
 function analyticsHref(row: LocationDashboardRow): string {
@@ -77,13 +79,7 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
                 ) : (
                   <td colSpan={4} className="px-3 py-2.5">
                     {/* Not a zero-spend object: it did not order, so there is nothing to put in these cells. */}
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 ring-1 ring-amber-200 ring-inset">
-                      <span aria-hidden="true">○</span>
-                      {availabilityLabels.NoCurrentRequest}
-                    </span>
-                    <span className="ml-2 text-xs text-slate-500">
-                      Məbləğ: {unknownValue}
-                    </span>
+                    <StatusBadge label={availabilityLabels.NoCurrentRequest} sign="○" toneClass={noRequestTone} size="sm" />
                   </td>
                 )}
 
@@ -138,7 +134,9 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
                 </div>
               </dl>
             ) : (
-              <p className="mt-2 text-sm font-medium text-amber-900">{availabilityLabels.NoCurrentRequest}</p>
+              <div className="mt-2">
+                <StatusBadge label={availabilityLabels.NoCurrentRequest} sign="○" toneClass={noRequestTone} size="sm" />
+              </div>
             )}
 
             <MissingPrices row={row} />
@@ -228,7 +226,7 @@ function MissingPrices({ row }: { row: LocationDashboardRow }) {
 
   return (
     <p className="text-xs text-amber-800">
-      {knownAmountLabel} · {formatCount(row.current.missingPriceItemCount)} qiymətsiz sətir
+      {formatCount(row.current.missingPriceItemCount)} qiymətsiz sətir
     </p>
   )
 }

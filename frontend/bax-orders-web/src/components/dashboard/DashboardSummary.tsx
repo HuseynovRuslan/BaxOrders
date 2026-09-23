@@ -1,5 +1,7 @@
-import { CircleSlash, TriangleAlert } from 'lucide-react'
+import { CircleSlash } from 'lucide-react'
 import type { ManagementDashboardSummary } from '../../api/dashboard'
+import { SummaryMetric } from '../SummaryMetric'
+import { WarningNote } from '../WarningNote'
 import { InfoHint } from '../analytics/InfoHint'
 import {
   basisHints,
@@ -19,74 +21,73 @@ interface DashboardSummaryProps {
 }
 
 /**
- * The company's month in a few seconds. The money is the headline, but only ever under the heading the
- * backend's coverage flags allow: a figure with unpriced lines behind it is money that is known, not money
- * that was spent, and the difference is said on the card rather than left to be assumed.
+ * The company's month in a few seconds: one number, what it is measured against, and the one thing that
+ * needs a look if there is one. Everything else — line counts, per-state location counts — is either folded
+ * into that number's own secondary line or left to the table beneath, so this reads as a single answer rather
+ * than a row of equally loud cards.
  */
 export function DashboardSummary({ summary }: DashboardSummaryProps) {
   // Either side being short of prices makes the comparison a comparison of known money, not of money.
   const amountsArePartial = !summary.current.isComplete || !summary.baseline.isComplete
+  const missing = summary.current.missingPriceItemCount
 
   return (
     <div className="mb-5 space-y-3">
       <div className="grid gap-3 lg:grid-cols-3">
         <section className="rounded-lg border border-slate-200 bg-white p-4 lg:col-span-2">
           <h2 className="flex items-center gap-1 text-xs text-slate-500">
-            {summary.current.isComplete ? 'Cari dövrün məbləği' : `${knownAmountLabel} məbləğ`}
+            Cari dövrün məbləği
             <InfoHint label="Məbləğ necə hesablanır?">{knownAmountHint}</InfoHint>
           </h2>
 
           <p className="mt-1 text-3xl font-semibold text-slate-900">{formatMoney(summary.current.knownAmount)}</p>
+          {!summary.current.isComplete && (
+            <p className="mt-0.5 text-xs text-slate-500">
+              {knownAmountLabel}
+              {missing > 0 && <span className="text-amber-800"> · {formatCount(missing)} qiymətsiz sətir</span>}
+            </p>
+          )}
 
-          <dl className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-            <div className="flex items-baseline gap-1.5">
-              <dt className="text-slate-500">{basisLabels[summary.basis]}</dt>
-              <dd className="font-medium text-slate-900">{formatMoney(summary.baseline.knownAmount)}</dd>
-              <InfoHint label="Müqayisə bazası nədir?">{basisHints[summary.basis]}</InfoHint>
+          <div className="mt-4 flex flex-wrap items-start gap-x-8 gap-y-2 border-t border-slate-100 pt-3">
+            <div>
+              <span className="flex items-center gap-1 text-xs text-slate-500">
+                {basisLabels[summary.basis]}
+                <InfoHint label="Müqayisə bazası nədir?">{basisHints[summary.basis]}</InfoHint>
+              </span>
+              <span className="mt-0.5 block text-sm font-medium text-slate-700">{formatMoney(summary.baseline.knownAmount)}</span>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <dt className="text-slate-500">Fərq</dt>
-              <dd className="font-medium text-slate-900">{formatMoneyDelta(summary.knownAmountDelta)}</dd>
+            <div>
+              <span className="text-xs text-slate-500">Fərq</span>
+              <p className="mt-0.5 text-base font-semibold text-slate-900">{formatMoneyDelta(summary.knownAmountDelta)}</p>
+              <p className="text-sm text-slate-500">{formatPercent(summary.knownAmountPercentChange)}</p>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <dt className="text-slate-500">Dəyişmə</dt>
-              <dd className="font-medium text-slate-900">{formatPercent(summary.knownAmountPercentChange)}</dd>
-            </div>
-          </dl>
+          </div>
 
           {amountsArePartial && (
-            <p className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-              <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-              <span>
+            <div className="mt-3">
+              <WarningNote>
                 {partialAmountNote}
-                {summary.current.missingPriceItemCount > 0 && (
-                  <> Cari dövrdə {formatCount(summary.current.missingPriceItemCount)} qiymətsiz sətir var.</>
-                )}
-                {summary.baseline.missingPriceItemCount > 0 && (
-                  <> Müqayisə dövründə {formatCount(summary.baseline.missingPriceItemCount)} qiymətsiz sətir var.</>
-                )}
                 {summary.locationsWithMissingPrices > 0 && (
                   <> {formatCount(summary.locationsWithMissingPrices)} obyekt üzrə qiymət məlumatı natamamdır.</>
                 )}
-              </span>
-            </p>
+              </WarningNote>
+            </div>
           )}
         </section>
 
-        <dl className="grid grid-cols-2 gap-3">
-          <Fact label="Sifariş olan obyektlər" value={formatCount(summary.locationsWithCurrentRequest)} note={`${formatCount(summary.locationCount)} obyektdən`} />
-          <Fact
-            label="Sifariş olmayan obyektlər"
-            value={formatCount(summary.locationsWithoutCurrentRequest)}
+        <div>
+          <SummaryMetric
+            label="Sifariş olan obyektlər"
+            value={`${formatCount(summary.locationsWithCurrentRequest)} / ${formatCount(summary.locationCount)}`}
+            note={
+              summary.locationsWithoutCurrentRequest > 0
+                ? `${formatCount(summary.locationsWithoutCurrentRequest)} obyekt hələ göndərməyib`
+                : undefined
+            }
             warn={summary.locationsWithoutCurrentRequest > 0}
+            size="lg"
           />
-          <Fact label="Cari dövr sətirləri" value={formatCount(summary.current.itemCount)} />
-          <Fact
-            label="Qiymətsiz sətirlər"
-            value={formatCount(summary.current.missingPriceItemCount)}
-            warn={summary.current.missingPriceItemCount > 0}
-          />
-        </dl>
+        </div>
       </div>
 
       <DataCoverage summary={summary} />
@@ -114,16 +115,6 @@ function DataCoverage({ summary }: { summary: ManagementDashboardSummary }) {
         <Coverage label="Sifariş olmayan obyektlər" value={summary.locationsWithoutCurrentRequest} warn={summary.locationsWithoutCurrentRequest > 0} icon />
       </dl>
     </section>
-  )
-}
-
-function Fact({ label, value, note, warn = false }: { label: string; value: string; note?: string; warn?: boolean }) {
-  return (
-    <div className={`rounded-lg border bg-white p-3 ${warn ? 'border-amber-200' : 'border-slate-200'}`}>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className={`mt-0.5 text-2xl font-semibold ${warn ? 'text-amber-900' : 'text-slate-900'}`}>{value}</dd>
-      {note && <p className="text-xs text-slate-500">{note}</p>}
-    </div>
   )
 }
 
