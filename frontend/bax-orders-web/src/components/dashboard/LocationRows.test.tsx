@@ -240,4 +240,52 @@ describe('a compared object', () => {
 
     expect(within(table).getByText('Xidmət: 2')).toBeInTheDocument()
   })
+
+  it('is money — never wraps between the amount and its manat sign', () => {
+    const { container } = renderRows([row()])
+    const table = container.querySelector('table')!
+
+    for (const value of within(table).getAllByText(/₼/)) {
+      expect(value).toHaveClass('whitespace-nowrap')
+    }
+  })
+})
+
+describe('the changes column', () => {
+  it('shows the three main states compactly, on one line', () => {
+    const { container } = renderRows([row()])
+    const table = container.querySelector('table')!
+    const line = within(table).getByText('Yeni').closest('p')!
+
+    expect(line).toHaveTextContent('Yeni 3 · Artıb 2 · Azalıb 1')
+  })
+
+  it('keeps NoLongerOrdered and services out of that line, as quieter secondary text', () => {
+    const { container } = renderRows([row({ amountOrientedServiceCount: 1 })])
+    const table = container.querySelector('table')!
+    const primary = within(table).getByText('Yeni').closest('p')!
+
+    expect(primary).not.toHaveTextContent('sifariş olunmur')
+    expect(primary).not.toHaveTextContent('Xidmət')
+
+    const noLongerOrdered = within(table).getByText('Artıq sifariş olunmur').closest('span')!
+    expect(noLongerOrdered).toHaveClass('text-slate-400')
+  })
+
+  it('says nothing at all about NoLongerOrdered or services when there are none', () => {
+    const { container } = renderRows([row({ noLongerOrderedVariantCount: 0, amountOrientedServiceCount: 0 })])
+    const table = container.querySelector('table')!
+
+    expect(within(table).queryByText('Artıq sifariş olunmur')).toBeNull()
+    expect(within(table).queryByText(/Xidmət/)).toBeNull()
+  })
+
+  it('never removes the underlying counts — they are still there, just quieter', () => {
+    const { container } = renderRows([row({ noLongerOrderedVariantCount: 5, amountOrientedServiceCount: 2 })])
+    const table = container.querySelector('table')!
+
+    expect(within(table).getByText('Artıq sifariş olunmur')).toBeInTheDocument()
+    expect(within(table).getByText('5')).toBeInTheDocument()
+    expect(within(table).getByText('Xidmət: 2')).toBeInTheDocument()
+  })
 })

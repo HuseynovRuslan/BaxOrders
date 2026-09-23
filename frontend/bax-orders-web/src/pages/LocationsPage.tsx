@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { fetchLocationOrders, type LocationOrderList, type LocationOrderSort } from '../api/orders'
 import { PageHeader } from '../components/PageHeader'
 import { StatusBadge } from '../components/StatusBadge'
+import { SummaryMetric } from '../components/SummaryMetric'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
   formatAmount,
@@ -62,11 +63,11 @@ export function LocationsPage() {
       <PageHeader title="Obyektlər" description="Material sorğusu göndərən obyektlər və onların sifariş tarixçəsi" />
 
       {data && (
-        <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4">
-          <Fact label="Obyekt sayı" value={formatNumber(data.locationCount)} />
-          <Fact label="Sifarişi olan obyekt" value={formatNumber(data.locationsWithOrders)} />
-          <Fact label="Sifariş sayı" value={formatNumber(data.orderRequestCount)} />
-          <Fact
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="Obyektlərin xülasəsi">
+          <SummaryMetric label="Obyekt" value={formatNumber(data.locationCount)} />
+          <SummaryMetric label="Sifarişi olan" value={formatNumber(data.locationsWithOrders)} />
+          <SummaryMetric label="Sifariş" value={formatNumber(data.orderRequestCount)} />
+          <SummaryMetric
             label="Əhatə olunan dövr"
             value={
               data.earliestPeriod && data.latestPeriod
@@ -74,7 +75,7 @@ export function LocationsPage() {
                 : '—'
             }
           />
-        </dl>
+        </div>
       )}
 
       <form
@@ -158,7 +159,7 @@ export function LocationsPage() {
                 <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(location.orderRequestCount)}</td>
                 <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(location.distinctPeriodCount)}</td>
                 <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(location.totalItemCount)}</td>
-                <td className="px-4 py-2.5 text-right text-slate-900">{formatAmount(location.knownAmountTotal)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right text-slate-900">{formatAmount(location.knownAmountTotal)}</td>
                 <td className="px-4 py-2.5 text-right">
                   {location.missingPriceItemCount > 0 ? (
                     <span className="text-amber-800">{formatNumber(location.missingPriceItemCount)}</span>
@@ -250,14 +251,5 @@ function SortButton({
       {label}
       {active && <span className="ml-1">{descending ? '↓' : '↑'}</span>}
     </button>
-  )
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="text-sm font-medium text-slate-900">{value}</dd>
-    </div>
   )
 }

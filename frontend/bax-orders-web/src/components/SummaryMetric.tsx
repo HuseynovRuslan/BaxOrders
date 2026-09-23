@@ -7,6 +7,12 @@ interface SummaryMetricProps {
   note?: ReactNode
   /** Amber instead of slate: something here needs a look, not a judgement about the object. */
   warn?: boolean
+  /**
+   * Colours only the note line, independent of `warn`. For a metric that is itself perfectly neutral (a
+   * plain count of objects, say) but whose one qualifying line is worth a glance — the number is never the
+   * problem, so it never turns amber just because its footnote does.
+   */
+  noteAttention?: boolean
   size?: 'lg' | 'md'
 }
 
@@ -19,7 +25,9 @@ interface SummaryMetricProps {
  * price is a fact to notice, not a verdict on the object.
  * </para>
  */
-export function SummaryMetric({ label, value, note, warn = false, size = 'md' }: SummaryMetricProps) {
+export function SummaryMetric({ label, value, note, warn = false, noteAttention, size = 'md' }: SummaryMetricProps) {
+  const noteWarn = noteAttention ?? warn
+
   return (
     <div className={`rounded-lg border bg-white p-3 ${warn ? 'border-amber-200' : 'border-slate-200'}`}>
       <p className="text-xs text-slate-500">{label}</p>
@@ -28,7 +36,7 @@ export function SummaryMetric({ label, value, note, warn = false, size = 'md' }:
       >
         {value}
       </p>
-      {note && <p className={`mt-0.5 text-xs ${warn ? 'text-amber-800' : 'text-slate-500'}`}>{note}</p>}
+      {note && <p className={`mt-0.5 text-xs ${noteWarn ? 'text-amber-800' : 'text-slate-500'}`}>{note}</p>}
     </div>
   )
 }

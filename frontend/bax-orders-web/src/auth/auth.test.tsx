@@ -266,7 +266,7 @@ describe('the navigation', () => {
       </MemoryRouter>,
     )
 
-    await screen.findByRole('link', { name: /Sifarişlər/ })
+    await screen.findByRole('link', { name: /Obyektlər/ })
   }
 
   it('offers user management only to an administrator', async () => {
@@ -294,7 +294,12 @@ describe('the navigation', () => {
 
     expect(screen.getByRole('link', { name: /İdarəetmə paneli/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Obyektlər/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Sifarişlər/ })).toBeInTheDocument()
+  })
+
+  it('no longer offers a separate orders link — Obyektlər is where orders are browsed from', async () => {
+    await renderSidebar(person('Manager'))
+
+    expect(screen.queryByRole('link', { name: /Sifarişlər/ })).toBeNull()
   })
 
   it('offers the approval inbox to a manager', async () => {

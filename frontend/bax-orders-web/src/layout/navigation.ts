@@ -1,6 +1,5 @@
 import {
   CheckCheck,
-  ClipboardList,
   Users,
   FileSpreadsheet,
   LayoutDashboard,
@@ -25,7 +24,8 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { to: '/dashboard', label: 'İdarəetmə paneli', icon: LayoutDashboard },
   { to: '/approvals', label: 'Təsdiq gözləyənlər', icon: CheckCheck, requires: 'canDecideOrders' },
-  { to: '/orders', label: 'Sifarişlər', icon: ClipboardList },
+  // Orders are browsed from the object they belong to; "Obyektlər" below is that entry point, so there is
+  // no separate "Sifarişlər" item competing with it for the same page.
   { to: '/imports', label: 'Excel importları', icon: FileSpreadsheet, requires: 'canManageImports' },
   { to: '/locations', label: 'Obyektlər', icon: MapPin },
   { to: '/products', label: 'Məhsullar', icon: Package },

@@ -40,7 +40,7 @@ export function DashboardSummary({ summary }: DashboardSummaryProps) {
             <InfoHint label="Məbləğ necə hesablanır?">{knownAmountHint}</InfoHint>
           </h2>
 
-          <p className="mt-1 text-3xl font-semibold text-slate-900">{formatMoney(summary.current.knownAmount)}</p>
+          <p className="mt-1 whitespace-nowrap text-3xl font-semibold text-slate-900">{formatMoney(summary.current.knownAmount)}</p>
           {!summary.current.isComplete && (
             <p className="mt-0.5 text-xs text-slate-500">
               {knownAmountLabel}
@@ -54,12 +54,12 @@ export function DashboardSummary({ summary }: DashboardSummaryProps) {
                 {basisLabels[summary.basis]}
                 <InfoHint label="Müqayisə bazası nədir?">{basisHints[summary.basis]}</InfoHint>
               </span>
-              <span className="mt-0.5 block text-sm font-medium text-slate-700">{formatMoney(summary.baseline.knownAmount)}</span>
+              <span className="mt-0.5 block whitespace-nowrap text-sm font-medium text-slate-700">{formatMoney(summary.baseline.knownAmount)}</span>
             </div>
             <div>
               <span className="text-xs text-slate-500">Fərq</span>
-              <p className="mt-0.5 text-base font-semibold text-slate-900">{formatMoneyDelta(summary.knownAmountDelta)}</p>
-              <p className="text-sm text-slate-500">{formatPercent(summary.knownAmountPercentChange)}</p>
+              <p className="mt-0.5 whitespace-nowrap text-base font-semibold text-slate-900">{formatMoneyDelta(summary.knownAmountDelta)}</p>
+              <p className="whitespace-nowrap text-sm text-slate-500">{formatPercent(summary.knownAmountPercentChange)}</p>
             </div>
           </div>
 
@@ -84,7 +84,7 @@ export function DashboardSummary({ summary }: DashboardSummaryProps) {
                 ? `${formatCount(summary.locationsWithoutCurrentRequest)} obyekt hələ göndərməyib`
                 : undefined
             }
-            warn={summary.locationsWithoutCurrentRequest > 0}
+            noteAttention={summary.locationsWithoutCurrentRequest > 0}
             size="lg"
           />
         </div>
@@ -107,23 +107,43 @@ function DataCoverage({ summary }: { summary: ManagementDashboardSummary }) {
         <InfoHint label="Tarixçə nə deməkdir?">{historyHint}</InfoHint>
       </h2>
 
-      <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <dl className="mt-2 flex flex-wrap gap-x-3 gap-y-2 text-sm">
+        {/* Quiet: the baseline case, said plainly rather than boxed. */}
         <Coverage label={historyCoverageLabels.Complete} value={summary.locationsWithCompleteHistory} />
-        <Coverage label={historyCoverageLabels.Partial} value={summary.locationsWithPartialHistory} warn={summary.locationsWithPartialHistory > 0} />
-        <Coverage label={historyCoverageLabels.Unavailable} value={summary.locationsWithNoBaselineHistory} warn={summary.locationsWithNoBaselineHistory > 0} />
-        <Coverage label="Qiymət məlumatı natamam obyektlər" value={summary.locationsWithMissingPrices} warn={summary.locationsWithMissingPrices > 0} />
-        <Coverage label="Sifariş olmayan obyektlər" value={summary.locationsWithoutCurrentRequest} warn={summary.locationsWithoutCurrentRequest > 0} icon />
+        {/* The four exceptions: worth a glance, so they stand apart as their own small chip when nonzero. */}
+        <Coverage label={historyCoverageLabels.Partial} value={summary.locationsWithPartialHistory} exception />
+        <Coverage label={historyCoverageLabels.Unavailable} value={summary.locationsWithNoBaselineHistory} exception />
+        <Coverage label="Qiymət məlumatı natamam obyektlər" value={summary.locationsWithMissingPrices} exception />
+        <Coverage label="Sifariş olmayan obyektlər" value={summary.locationsWithoutCurrentRequest} exception icon />
       </dl>
     </section>
   )
 }
 
-function Coverage({ label, value, warn = false, icon = false }: { label: string; value: number; warn?: boolean; icon?: boolean }) {
+/**
+ * `exception` says this row is one of the four worth scanning for; it only actually draws attention once its
+ * count is nonzero, so a clean month shows five plain facts and nothing more.
+ */
+function Coverage({
+  label,
+  value,
+  exception = false,
+  icon = false,
+}: {
+  label: string
+  value: number
+  exception?: boolean
+  icon?: boolean
+}) {
+  const flagged = exception && value > 0
+
   return (
-    <div className="flex items-baseline gap-1.5">
+    <div
+      className={`flex items-baseline gap-1.5 ${flagged ? 'rounded-md bg-amber-50 px-2 py-1 ring-1 ring-inset ring-amber-200' : ''}`}
+    >
       {icon && <CircleSlash className="size-3.5 self-center text-slate-400" aria-hidden="true" />}
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`font-medium ${warn && value > 0 ? 'text-amber-900' : 'text-slate-900'}`}>{formatCount(value)}</dd>
+      <dt className={flagged ? 'font-medium text-amber-900' : 'text-slate-500'}>{label}</dt>
+      <dd className={`font-medium ${flagged ? 'text-amber-900' : 'text-slate-900'}`}>{formatCount(value)}</dd>
     </div>
   )
 }

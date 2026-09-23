@@ -179,7 +179,7 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
 function Amount({ row }: { row: ApprovalInboxRow }) {
   return (
     <>
-      <p className="font-medium text-slate-900">{formatMoney(row.knownAmount)}</p>
+      <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(row.knownAmount)}</p>
       <p className="text-xs text-slate-500">{formatCount(row.itemCount)} sətir</p>
       {!row.amountIsComplete && <p className="text-xs text-amber-800">{knownAmountRowLabel}</p>}
       {row.missingPriceItemCount > 0 && (

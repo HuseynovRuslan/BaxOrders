@@ -43,7 +43,9 @@ async function renderPage(initialPath = '/approvals') {
       <ApprovalInboxPage />
     </MemoryRouter>,
   )
-  await screen.findByText('Gözləyən sifarişlər')
+  await screen.findByRole('heading', { name: 'Təsdiq gözləyənlər' })
+  // The title renders before the fetch resolves, whichever of the two very different views follows it.
+  await waitFor(() => expect(screen.queryByText('Siyahı yüklənir')).toBeNull())
 }
 
 /**
@@ -69,7 +71,7 @@ describe('the summary', () => {
 })
 
 describe('an empty queue', () => {
-  it('says there is nothing to decide, rather than showing an empty table', async () => {
+  it('says there is nothing to decide, and why nothing appeared, in one strong empty state', async () => {
     approvalsApi.fetchApprovalInbox.mockResolvedValue(inbox({
       summary: { pendingCount: 0, actionableByCurrentUserCount: 0, blockedForCurrentUserCount: 0, missingPriceRequestCount: 0, missingPriceItemCount: 0, revisionCount: 0 },
       filteredCount: 0,
@@ -77,7 +79,33 @@ describe('an empty queue', () => {
     }))
     await renderPage()
 
-    expect(await screen.findByText('Təsdiq gözləyən sifariş yoxdur.')).toBeInTheDocument()
+    expect(screen.getByText('Təsdiq gözləyən sifariş yoxdur.')).toBeInTheDocument()
+    expect(screen.getByText('Yeni sifariş təsdiqə göndərildikdə burada görünəcək.')).toBeInTheDocument()
+  })
+
+  it('offers no summary cards and no filters when there is nothing for them to say', async () => {
+    approvalsApi.fetchApprovalInbox.mockResolvedValue(inbox({
+      summary: { pendingCount: 0, actionableByCurrentUserCount: 0, blockedForCurrentUserCount: 0, missingPriceRequestCount: 0, missingPriceItemCount: 0, revisionCount: 0 },
+      filteredCount: 0,
+      rows: { items: [], page: 1, pageSize: 25, totalCount: 0 },
+    }))
+    await renderPage()
+
+    expect(screen.queryByRole('group', { name: 'Növbənin xülasəsi' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Qərar vermə imkanına görə süz' })).toBeNull()
+    expect(screen.queryByLabelText('Obyekt adı və ya kodu üzrə axtar')).toBeNull()
+  })
+})
+
+describe('a queue that has requests in it', () => {
+  it('keeps the summary and every filter available, exactly as before', async () => {
+    approvalsApi.fetchApprovalInbox.mockResolvedValue(inbox())
+    await renderPage()
+
+    expect(screen.getByRole('group', { name: 'Növbənin xülasəsi' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Qərar vermə imkanına görə süz' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Obyekt adı və ya kodu üzrə axtar')).toBeInTheDocument()
+    expect(screen.queryByText('Təsdiq gözləyən sifariş yoxdur.')).toBeNull()
   })
 })
 

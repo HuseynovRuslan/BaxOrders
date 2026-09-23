@@ -56,6 +56,14 @@ describe('the headline amount', () => {
     expect(screen.getByText('−31,8%')).toBeInTheDocument()
   })
 
+  it('never breaks a money value between the amount and its manat sign', () => {
+    render(<DashboardSummary summary={summary()} />)
+
+    expect(screen.getByText('48.430,78 ₼')).toHaveClass('whitespace-nowrap')
+    expect(screen.getByText('71.210,29 ₼')).toHaveClass('whitespace-nowrap')
+    expect(screen.getByText('−22.561,84 ₼')).toHaveClass('whitespace-nowrap')
+  })
+
   it('says nothing about missing prices when the month is fully priced', () => {
     render(<DashboardSummary summary={summary()} />)
 
@@ -104,6 +112,18 @@ describe('objects with and without a current request', () => {
     expect(screen.getByText('26 / 26')).toBeInTheDocument()
     expect(screen.queryByText(/hələ göndərməyib/)).toBeNull()
   })
+
+  it('never reads as an error itself — only its footnote may ask for a look', () => {
+    render(<DashboardSummary summary={summary({ locationsWithCurrentRequest: 24, locationCount: 26, locationsWithoutCurrentRequest: 2 })} />)
+
+    const value = screen.getByText('24 / 26')
+    const card = value.closest('div')!
+    expect(card).not.toHaveClass('border-amber-200')
+    expect(value).not.toHaveClass('text-amber-900')
+
+    const note = screen.getByText('2 obyekt hələ göndərməyib')
+    expect(note).toHaveClass('text-amber-800')
+  })
 })
 
 describe('data coverage', () => {
@@ -119,5 +139,44 @@ describe('data coverage', () => {
     expect(screen.getByText('Natamam tarixçə')).toBeInTheDocument()
     expect(screen.getByText('Tarixçə yoxdur')).toBeInTheDocument()
     expect(screen.getByText('Sifariş olmayan obyektlər')).toBeInTheDocument()
+  })
+
+  it('gives the four exceptions a look-here treatment once they are nonzero', () => {
+    render(<DashboardSummary summary={summary({
+      locationsWithCompleteHistory: 20,
+      locationsWithPartialHistory: 3,
+      locationsWithNoBaselineHistory: 0,
+      locationsWithMissingPrices: 5,
+      locationsWithoutCurrentRequest: 0,
+    })} />)
+
+    const partial = screen.getByText('Natamam tarixçə').closest('div')!
+    expect(partial).toHaveClass('bg-amber-50')
+
+    const missingPrices = screen.getByText('Qiymət məlumatı natamam obyektlər').closest('div')!
+    expect(missingPrices).toHaveClass('bg-amber-50')
+  })
+
+  it('leaves the quiet baseline — Tam tarixçə — alone even when exceptions exist', () => {
+    render(<DashboardSummary summary={summary({
+      locationsWithCompleteHistory: 20,
+      locationsWithPartialHistory: 3,
+    })} />)
+
+    const complete = screen.getByText('Tam tarixçə').closest('div')!
+    expect(complete).not.toHaveClass('bg-amber-50')
+  })
+
+  it('draws no attention to any of the four exceptions when every one of them is zero', () => {
+    render(<DashboardSummary summary={summary({
+      locationsWithCompleteHistory: 26,
+      locationsWithPartialHistory: 0,
+      locationsWithNoBaselineHistory: 0,
+      locationsWithMissingPrices: 0,
+      locationsWithoutCurrentRequest: 0,
+    })} />)
+
+    expect(screen.getByText('Natamam tarixçə').closest('div')).not.toHaveClass('bg-amber-50')
+    expect(screen.getByText('Tarixçə yoxdur').closest('div')).not.toHaveClass('bg-amber-50')
   })
 })

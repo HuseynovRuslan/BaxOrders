@@ -42,14 +42,14 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
             <tr>
               <th scope="col" className="px-4 py-3">Obyekt</th>
               <th scope="col" className="px-3 py-3 text-right">Sətir</th>
-              <th scope="col" className="px-3 py-3 text-right">
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">
                 <span className="inline-flex items-center gap-1">
                   Məlum məbləğ
                   <InfoHint label="Məbləğ necə hesablanır?">{knownAmountHint}</InfoHint>
                 </span>
               </th>
-              <th scope="col" className="px-3 py-3 text-right">{basisLabels[summary.basis]}</th>
-              <th scope="col" className="px-3 py-3 text-right">Fərq</th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">{basisLabels[summary.basis]}</th>
+              <th scope="col" className="whitespace-nowrap px-3 py-3 text-right">Fərq</th>
               <th scope="col" className="px-3 py-3">Tarixçə</th>
               <th scope="col" className="px-3 py-3">Dəyişikliklər</th>
               <th scope="col" className="px-3 py-3"><span className="sr-only">Ətraflı</span></th>
@@ -67,13 +67,13 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
                   <>
                     <td className="px-3 py-2.5 text-right text-slate-700">{formatCount(row.current.itemCount)}</td>
                     <td className="px-3 py-2.5 text-right">
-                      <p className="font-medium text-slate-900">{formatMoney(row.current.knownAmount)}</p>
+                      <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(row.current.knownAmount)}</p>
                       <MissingPrices row={row} />
                     </td>
-                    <td className="px-3 py-2.5 text-right text-slate-600">{formatMoney(row.baseline.knownAmount)}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">{formatMoney(row.baseline.knownAmount)}</td>
                     <td className="px-3 py-2.5 text-right">
-                      <p className="text-slate-900">{formatMoneyDelta(row.knownAmountDelta)}</p>
-                      <p className="text-xs text-slate-500">{formatPercent(row.knownAmountPercentChange)}</p>
+                      <p className="whitespace-nowrap text-slate-900">{formatMoneyDelta(row.knownAmountDelta)}</p>
+                      <p className="whitespace-nowrap text-xs text-slate-500">{formatPercent(row.knownAmountPercentChange)}</p>
                     </td>
                   </>
                 ) : (
@@ -116,23 +116,21 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
             </div>
 
             {row.hasCurrentRequest ? (
-              <dl className="mt-2 grid grid-cols-3 gap-2 text-sm">
-                <div>
-                  <dt className="text-xs text-slate-500">Məlum məbləğ</dt>
-                  <dd className="font-medium text-slate-900">{formatMoney(row.current.knownAmount)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">{basisLabels[summary.basis]}</dt>
-                  <dd className="text-slate-700">{formatMoney(row.baseline.knownAmount)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Fərq</dt>
-                  <dd className="text-slate-900">
-                    {formatMoneyDelta(row.knownAmountDelta)}
-                    <span className="block text-xs text-slate-500">{formatPercent(row.knownAmountPercentChange)}</span>
-                  </dd>
-                </div>
-              </dl>
+              <div className="mt-2">
+                <p className="whitespace-nowrap text-base font-semibold text-slate-900">{formatMoney(row.current.knownAmount)}</p>
+                <dl className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs text-slate-500">
+                  <div className="flex items-baseline gap-1">
+                    <dt>{basisLabels[summary.basis]}</dt>
+                    <dd className="whitespace-nowrap text-slate-700">{formatMoney(row.baseline.knownAmount)}</dd>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <dt>Fərq</dt>
+                    <dd className="whitespace-nowrap text-slate-700">
+                      {formatMoneyDelta(row.knownAmountDelta)} <span>{formatPercent(row.knownAmountPercentChange)}</span>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             ) : (
               <div className="mt-2">
                 <StatusBadge label={availabilityLabels.NoCurrentRequest} sign="○" toneClass={noRequestTone} size="sm" />
@@ -197,23 +195,33 @@ function Changes({ row }: { row: LocationDashboardRow }) {
     )
   }
 
+  const hasSecondary = row.noLongerOrderedVariantCount > 0 || row.amountOrientedServiceCount > 0
+
   return (
-    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
-      <Count label={stateLabels.New} value={row.newVariantCount} />
-      <Count label={stateLabels.Increased} value={row.increasedVariantCount} />
-      <Count label={stateLabels.Decreased} value={row.decreasedVariantCount} />
-      <Count label={stateLabels.NoLongerOrdered} value={row.noLongerOrderedVariantCount} />
-      {row.amountOrientedServiceCount > 0 && (
-        <span className="text-slate-500">Xidmət: {formatCount(row.amountOrientedServiceCount)}</span>
+    <div className="text-xs">
+      <p className="flex flex-wrap items-baseline gap-y-0.5">
+        <Count label={stateLabels.New} value={row.newVariantCount} />
+        <span className="text-slate-300"> · </span>
+        <Count label={stateLabels.Increased} value={row.increasedVariantCount} />
+        <span className="text-slate-300"> · </span>
+        <Count label={stateLabels.Decreased} value={row.decreasedVariantCount} />
+      </p>
+      {hasSecondary && (
+        <p className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+          {row.noLongerOrderedVariantCount > 0 && <Count label={stateLabels.NoLongerOrdered} value={row.noLongerOrderedVariantCount} quiet />}
+          {row.amountOrientedServiceCount > 0 && (
+            <span className="text-slate-400">Xidmət: {formatCount(row.amountOrientedServiceCount)}</span>
+          )}
+        </p>
       )}
-    </span>
+    </div>
   )
 }
 
-function Count({ label, value }: { label: string; value: number }) {
+function Count({ label, value, quiet = false }: { label: string; value: number; quiet?: boolean }) {
   return (
-    <span className={value > 0 ? 'text-slate-700' : 'text-slate-400'}>
-      {label} <span className="font-medium">{formatCount(value)}</span>
+    <span className={quiet ? 'text-slate-400' : value > 0 ? 'text-slate-700' : 'text-slate-400'}>
+      {label} <span className={quiet ? 'font-normal' : 'font-medium'}>{formatCount(value)}</span>
     </span>
   )
 }

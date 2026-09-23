@@ -11,7 +11,6 @@ import { LoginPage } from './pages/LoginPage'
 import { ManagementDashboardPage } from './pages/ManagementDashboardPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
-import { OrdersPage } from './pages/OrdersPage'
 import { ProductCategoriesPage } from './pages/ProductCategoriesPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SuppliersPage } from './pages/SuppliersPage'
@@ -33,7 +32,8 @@ export function App() {
             <Route path="approvals" element={<ApprovalInboxPage />} />
           </Route>
 
-          <Route path="orders" element={<OrdersPage />} />
+          {/* Orders are browsed from the object they belong to; the old standalone page never had one to open. */}
+          <Route path="orders" element={<Navigate to="/locations" replace />} />
           <Route path="orders/:orderRequestId" element={<OrderDetailPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="locations/:locationId" element={<LocationDetailPage />} />

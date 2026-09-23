@@ -119,13 +119,28 @@ export function ApprovalInboxPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.rows.totalCount / pageSize)) : 1
   const filtered = Boolean(search || period || actionability !== 'All' || priceCoverage || revision !== 'All')
 
+  // Nothing pending at all: every summary card and every filter would say the same thing — nothing — so
+  // none of them earn their place on the screen. A row appearing again, once one exists, is the queue's own
+  // filters kicking back in; this is not a second, separate empty-state codepath for them to fall out of sync with.
+  const nothingPending = data !== null && data.summary.pendingCount === 0
+
   return (
     <>
       <PageHeader title="Təsdiq gözləyənlər" description="Qərar gözləyən bütün sifarişlər, təsdiq üçün göndərilmə sırasına görə" />
 
-      {data && <ApprovalSummary summary={data.summary} />}
-
       {inbox.status === 'error' && <ErrorState message={inbox.message} />}
+      {inbox.status === 'loading' && <LoadingRows label="Siyahı yüklənir" />}
+
+      {nothingPending && (
+        <div className="rounded-lg border border-slate-200 bg-white p-10 text-center">
+          <p className="text-base font-medium text-slate-800">Təsdiq gözləyən sifariş yoxdur.</p>
+          <p className="mt-1 text-sm text-slate-500">Yeni sifariş təsdiqə göndərildikdə burada görünəcək.</p>
+        </div>
+      )}
+
+      {data && !nothingPending && (
+        <>
+      <ApprovalSummary summary={data.summary} />
 
       <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Qərar vermə imkanına görə süz">
@@ -239,15 +254,13 @@ export function ApprovalInboxPage() {
         </div>
       </div>
 
-      {inbox.status === 'loading' && <LoadingRows label="Siyahı yüklənir" />}
-
-      {data && data.rows.items.length === 0 && (
-        <EmptyState>{filtered ? 'Bu filtrə uyğun gözləyən sifariş tapılmadı.' : 'Təsdiq gözləyən sifariş yoxdur.'}</EmptyState>
+      {data.rows.items.length === 0 && (
+        <EmptyState>Bu filtrə uyğun gözləyən sifariş tapılmadı.</EmptyState>
       )}
 
-      {data && data.rows.items.length > 0 && <ApprovalRows rows={data.rows.items} onChanged={refresh} />}
+      {data.rows.items.length > 0 && <ApprovalRows rows={data.rows.items} onChanged={refresh} />}
 
-      {data && data.rows.totalCount > pageSize && (
+      {data.rows.totalCount > pageSize && (
         <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
           <span>Səhifə {data.rows.page} / {totalPages} · {formatCount(data.rows.totalCount)} sifariş</span>
           <div className="flex gap-2">
@@ -259,6 +272,8 @@ export function ApprovalInboxPage() {
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </>
   )
