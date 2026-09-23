@@ -169,7 +169,7 @@ describe('the grid', () => {
     expect(within(table()).queryByText('0,00 ₼')).toBeNull()
   })
 
-  it('names the unpriced products in the cell they belong to', async () => {
+  it('marks unpriced lines compactly, and still says what the mark means', async () => {
     serving(report({
       rows: [row({
         months: [
@@ -180,7 +180,11 @@ describe('the grid', () => {
     }))
     await renderPage()
 
-    expect(within(table()).getByText('2 məhsulun qiyməti yoxdur')).toBeInTheDocument()
+    // A sentence twelve times to a row would drown the money, so the cell shows a count and explains itself.
+    expect(within(table()).getByText('⚠ 2')).toBeInTheDocument()
+    const link = within(table()).getByRole('link', { name: /Yanvar 2026/ })
+    expect(link).toHaveAccessibleName(expect.stringContaining('2 qiymətsiz sətir') as unknown as string)
+    expect(link).toHaveAttribute('title', expect.stringContaining('2 qiymətsiz sətir') as unknown as string)
   })
 
   it('keeps the location column pinned while the months scroll', async () => {
@@ -237,7 +241,7 @@ describe('the phone', () => {
     expect(month).toHaveValue('3')
 
     // The narrow layout lists the locations of the one chosen month, each linking to its own order.
-    const list = document.querySelector('.lg\\:hidden ul')!
+    const list = document.querySelector('.xl\\:hidden ul')!
     expect(within(list as HTMLElement).getByRole('link', { name: /Fəvvarələr meydanı/ })).toHaveAttribute(
       'href',
       '/orders/103',
@@ -262,5 +266,100 @@ describe('the loading it actually does', () => {
     expect(reportsApi.fetchMonthlyReport).toHaveBeenCalled()
     expect(screen.queryByText('Hesabat yüklənir')).toBeNull()
     expect(within(table()).getByText('Fəvvarələr meydanı')).toBeInTheDocument()
+  })
+})
+
+describe('the panorama', () => {
+  it('lays the year out at a fixed width, so a long value can never push a month off the screen', async () => {
+    await renderPage()
+
+    // Fixed layout plus full width is what makes horizontal scrolling structurally impossible: the table is
+    // exactly as wide as its container, whatever is inside it.
+    expect(table().className).toContain('table-fixed')
+    expect(table().className).toContain('w-full')
+    expect(table().closest('div')!.className).not.toContain('overflow-x-auto')
+  })
+
+  it('spends its width on twelve equal months, with the object and the year fixed', async () => {
+    await renderPage()
+
+    const cols = [...table().querySelectorAll('col')]
+    expect(cols).toHaveLength(14)
+    expect(cols[0].className).toContain('w-[180px]')
+    expect(cols[13].className).toContain('w-[96px]')
+    // The twelve in between carry no width of their own, so a fixed layout divides the remainder equally.
+    for (const month of cols.slice(1, 13)) {
+      expect(month.className).toBe('')
+    }
+  })
+
+  it('reclaims the page gutters that the rest of the application keeps', async () => {
+    await renderPage()
+
+    const wrapper = table().closest('div')!
+    expect(wrapper.className).toContain('-mx-4')
+    expect(wrapper.className).toContain('xl:-mx-8')
+  })
+
+  it('shows every month of the year at once', async () => {
+    await renderPage()
+
+    const headers = within(table()).getAllByRole('columnheader').map((cell) => cell.textContent)
+    expect(headers).toEqual(['Obyekt', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn', 'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek', 'İl'])
+  })
+
+  it('keeps money on one line', async () => {
+    await renderPage()
+
+    for (const value of within(table()).getAllByText(/₼/)) {
+      expect(value.className).toContain('whitespace-nowrap')
+    }
+  })
+
+  it('still opens the decision page from the cell', async () => {
+    await renderPage()
+
+    expect(within(table()).getByRole('link', { name: /Yanvar 2026/ })).toHaveAttribute('href', '/orders/101')
+  })
+
+  it('shows the change as a percentage, which is far shorter than the money', async () => {
+    serving(report({
+      rows: [row({
+        months: [cell(1, { deltaAmount: 1287.91, deltaPercent: 65.8 }), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))],
+      })],
+    }))
+    await renderPage()
+
+    expect(within(table()).getByText('+65,8%')).toBeInTheDocument()
+    // The manat difference is not lost — it moves into the cell's own description.
+    expect(within(table()).getByRole('link', { name: /Yanvar 2026/ }))
+      .toHaveAttribute('title', expect.stringContaining('+1.287,91 ₼') as unknown as string)
+  })
+
+  it('leaves the undecided state unmarked and marks anything else', async () => {
+    serving(report({
+      rows: [row({
+        months: [cell(1, { status: 'Approved' }), cell(2, { status: 'Draft' }), ...Array.from({ length: 10 }, (_, index) => cell(index + 3))],
+      })],
+    }))
+    await renderPage()
+
+    // Every row is undecided today; a dot on all twelve would be noise rather than information.
+    const approved = within(table()).getByRole('link', { name: /Yanvar 2026/ })
+    expect(approved.querySelector('.rounded-full')).not.toBeNull()
+    expect(approved).toHaveAttribute('title', expect.stringContaining('Təsdiqlənib') as unknown as string)
+
+    const draft = within(table()).getByRole('link', { name: /Fevral 2026/ })
+    expect(draft.querySelector('.rounded-full')).toBeNull()
+  })
+
+  it('says a month has no order without drawing a zero', async () => {
+    serving(report({
+      rows: [row({ months: [noRequest(1), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))] })],
+    }))
+    await renderPage()
+
+    expect(within(table()).getByTitle('Yanvar 2026: sifariş yoxdur')).toBeInTheDocument()
+    expect(within(table()).queryByText('0,00 ₼')).toBeNull()
   })
 })

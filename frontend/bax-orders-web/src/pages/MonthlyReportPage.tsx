@@ -108,8 +108,8 @@ export function MonthlyReportPage() {
           />
         </form>
 
-        {/* The phone reads one month at a time; the choice belongs beside the other controls, not inside the list. */}
-        <label className="flex items-center gap-2 text-sm text-slate-600 lg:hidden">
+        {/* Below the panorama width one month is read at a time; the choice belongs beside the other controls. */}
+        <label className="flex items-center gap-2 text-sm text-slate-600 xl:hidden">
           <span>Ay</span>
           <select
             value={String(month)}

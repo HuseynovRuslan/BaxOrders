@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import type { MonthlyReportCell, MonthlyReportRow } from '../../api/reports'
-import { formatCount, formatMoney, formatMoneyDelta, unknownValue } from '../analytics/format'
+import { formatCount, formatMoney, formatMoneyDelta, formatMonth, formatPercent, unknownValue } from '../analytics/format'
 import { workflowStatusClass, workflowStatusLabels } from '../workflow/labels'
 
 /** January first, in the short form a twelve-column header has room for. */
@@ -14,20 +14,38 @@ interface MonthlyReportTableProps {
 }
 
 /**
- * A year of ordering as a report, not as a spreadsheet: the location stays put while the months scroll, the
- * money is the only thing set in a heavy weight, and a month nobody ordered in is a quiet dash rather than a
- * zero. The cell is the link — clicking a month opens the order it stands for.
+ * A year of ordering as a panorama: January to December at once, with no sideways scrolling.
+ *
+ * That constraint decides the whole design. The table is <b>fixed-layout and exactly as wide as its
+ * container</b>, so a long value can never push a column out and there is nothing to scroll to. The width it
+ * has is then spent where it buys the most: twelve equal month columns of roughly ninety pixels, enough for a
+ * five-figure sum and its direction, and nothing else.
+ *
+ * Everything a cell cannot afford to say in that space it says in its own accessible name instead — the
+ * difference in manat, the unpriced lines, the approval state. Nothing is dropped; it is moved to where a
+ * reader who wants it can reach it, so the ones scanning the grid are not reading sentences twelve times a row.
  */
 export function MonthlyReportTable({ rows }: MonthlyReportTableProps) {
   return (
-    <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
-      <table className="min-w-full border-separate border-spacing-0 text-sm">
+    // The report reclaims the page gutters that every other screen keeps. A panorama is the one thing here
+    // that genuinely needs the width, and sixty-four pixels is most of a month column.
+    <div className="-mx-4 hidden rounded-lg border border-slate-200 bg-white sm:-mx-6 xl:-mx-8 xl:block">
+      <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
         <caption className="sr-only">Obyektlər üzrə aylıq sifariş məbləğləri</caption>
+        <colgroup>
+          {/* Wide enough for an object name on one line, narrow enough to leave the year its twelve columns. */}
+          <col className="w-[180px]" />
+          {shortMonths.map((month) => (
+            <col key={month} />
+          ))}
+          <col className="w-[96px]" />
+        </colgroup>
+
         <thead>
           <tr>
             <th
               scope="col"
-              className="sticky left-0 z-20 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-xs font-medium text-slate-500"
+              className="sticky left-0 z-20 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium text-slate-500"
             >
               Obyekt
             </th>
@@ -35,44 +53,49 @@ export function MonthlyReportTable({ rows }: MonthlyReportTableProps) {
               <th
                 key={month}
                 scope="col"
-                className="border-b border-slate-200 bg-slate-50 px-2 py-2.5 text-right text-xs font-medium text-slate-500"
+                className="border-b border-slate-200 bg-slate-50 px-1 py-2 text-right font-medium text-slate-500"
               >
                 {month}
               </th>
             ))}
             <th
               scope="col"
-              className="border-b border-l border-slate-200 bg-slate-50 px-3 py-2.5 text-right text-xs font-medium text-slate-500"
+              className="border-b border-l border-slate-200 bg-slate-50 px-2 py-2 text-right font-medium text-slate-500"
             >
               İl
             </th>
           </tr>
         </thead>
+
         <tbody>
           {rows.map((row) => (
             <tr key={row.locationId} className="group">
               <th
                 scope="row"
-                className="sticky left-0 z-10 border-b border-slate-100 bg-white px-4 py-2 text-left font-normal group-hover:bg-slate-50"
+                className="sticky left-0 z-10 border-b border-slate-100 bg-white px-3 py-1.5 text-left font-normal group-hover:bg-slate-50"
               >
-                <Link to={`/locations/${row.locationId}`} className="font-medium text-slate-900 hover:underline">
+                <Link
+                  to={`/locations/${row.locationId}`}
+                  className="block truncate font-medium text-slate-900 hover:underline"
+                  title={`${row.locationName} · ${row.locationCode}`}
+                >
                   {row.locationName}
                 </Link>
-                <p className="text-xs text-slate-400">{row.locationCode}</p>
               </th>
 
               {row.months.map((cell) => (
                 <td
                   key={cell.month}
-                  className="border-b border-slate-100 px-1 py-1 text-right align-middle group-hover:bg-slate-50"
+                  className="border-b border-slate-100 px-0.5 py-0.5 text-right align-middle group-hover:bg-slate-50"
                 >
                   <Cell cell={cell} locationName={row.locationName} />
                 </td>
               ))}
 
-              <td className="border-b border-l border-slate-100 px-3 py-2 text-right group-hover:bg-slate-50">
-                <p className="whitespace-nowrap font-semibold text-slate-900">{formatMoney(row.knownAmount)}</p>
-                <p className="text-xs text-slate-400">{formatCount(row.requestCount)} sifariş</p>
+              <td className="border-b border-l border-slate-100 px-2 py-1.5 text-right group-hover:bg-slate-50">
+                <span className="block whitespace-nowrap font-semibold text-slate-900">
+                  {formatMoney(row.knownAmount)}
+                </span>
               </td>
             </tr>
           ))}
@@ -83,14 +106,22 @@ export function MonthlyReportTable({ rows }: MonthlyReportTableProps) {
 }
 
 /**
- * One month. A month with no request says so once, quietly — it is not a spend of zero and must not read as
- * one — and a month with an order carries its money, its direction and, only where it applies, how many of its
- * products nobody has priced.
+ * One month, in about ninety pixels.
+ *
+ * The amount is the only thing given full weight; under it goes at most one short secondary mark — the
+ * percentage it moved, or an attention count when a price is missing. The whole of the cell's meaning, in
+ * words, is in its accessible name, so nothing has been traded away for the width.
  */
 function Cell({ cell, locationName }: { cell: MonthlyReportCell; locationName: string }) {
+  const month = formatMonth(cell.period)
+
   if (cell.orderRequestId === null) {
     return (
-      <span className="block px-2 py-1 text-slate-300" title={`${shortMonths[cell.month - 1]}: sifariş yoxdur`}>
+      <span
+        className="block px-1 py-1 text-slate-300"
+        title={`${month}: sifariş yoxdur`}
+        aria-label={`${locationName} · ${month} · sifariş yoxdur`}
+      >
         {unknownValue}
       </span>
     )
@@ -99,40 +130,79 @@ function Cell({ cell, locationName }: { cell: MonthlyReportCell; locationName: s
   return (
     <Link
       to={`/orders/${cell.orderRequestId}`}
-      aria-label={`${locationName} · ${shortMonths[cell.month - 1]} · ${formatMoney(cell.knownAmount)}`}
-      className="block rounded px-2 py-1 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-900"
+      title={describe(cell, month)}
+      aria-label={`${locationName} · ${describe(cell, month)}`}
+      className="block rounded px-1 py-1 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-900"
     >
       <span className="block whitespace-nowrap font-medium text-slate-900">{formatMoney(cell.knownAmount)}</span>
-      <CellNote cell={cell} />
+      <Secondary cell={cell} />
     </Link>
   )
 }
 
 /**
- * What qualifies the figure above it — at most one line, so a busy month does not turn into three stacked
- * warnings. An unpriced product is the thing worth saying; the difference is second.
+ * The one mark under the amount. An unpriced line outranks a percentage: a figure that is not the whole story
+ * has to say so, and the percentage is still a keystroke away in the cell's own description.
  */
-function CellNote({ cell }: { cell: MonthlyReportCell }) {
-  if (!cell.amountIsComplete) {
-    return (
-      <span className="block whitespace-nowrap text-[11px] text-amber-800">
-        {formatCount(cell.missingPriceItemCount)} məhsulun qiyməti yoxdur
-      </span>
-    )
-  }
+function Secondary({ cell }: { cell: MonthlyReportCell }) {
+  const status = cell.status && cell.status !== 'Draft' ? cell.status : null
 
-  if (cell.deltaAmount === null) {
+  if (cell.amountIsComplete && cell.deltaPercent === null && cell.deltaAmount === null && status === null) {
     return null
   }
 
   return (
-    <span className="block whitespace-nowrap text-[11px] text-slate-400">{formatMoneyDelta(cell.deltaAmount)}</span>
+    <span className="mt-px flex items-center justify-end gap-1 whitespace-nowrap text-[11px] leading-none">
+      {/* A dot, not a badge: twelve badges to a row would drown the money they sit under. The undecided state
+          is every row's normal and is left unmarked; anything else is worth a glance. */}
+      {status && (
+        <span
+          className={`inline-block size-1.5 shrink-0 rounded-full ring-1 ring-inset ${workflowStatusClass[status]}`}
+          aria-hidden="true"
+        />
+      )}
+
+      {cell.amountIsComplete ? (
+        <span className="text-slate-400">{compactDelta(cell)}</span>
+      ) : (
+        <span className="font-medium text-amber-700">⚠ {formatCount(cell.missingPriceItemCount)}</span>
+      )}
+    </span>
   )
 }
 
+/** A percentage where one exists — it is far shorter than the money — and the money itself where one does not. */
+function compactDelta(cell: MonthlyReportCell): string {
+  if (cell.deltaPercent !== null) {
+    return formatPercent(cell.deltaPercent)
+  }
+
+  return cell.deltaAmount === null ? '' : formatMoneyDelta(cell.deltaAmount)
+}
+
+/** Everything the cell knows, as a sentence, for the tooltip and the accessible name. */
+function describe(cell: MonthlyReportCell, month: string): string {
+  const parts = [month, formatMoney(cell.knownAmount)]
+
+  if (cell.deltaAmount !== null) {
+    parts.push(`keçən aya görə ${formatMoneyDelta(cell.deltaAmount)} ${formatPercent(cell.deltaPercent)}`.trim())
+  }
+
+  if (!cell.amountIsComplete) {
+    parts.push(`${formatCount(cell.missingPriceItemCount)} qiymətsiz sətir`)
+  }
+
+  if (cell.status) {
+    parts.push(workflowStatusLabels[cell.status] ?? cell.status)
+  }
+
+  return parts.join(' · ')
+}
+
 /**
- * The same year on a phone. Twelve columns do not survive a narrow screen, so the month is chosen once and the
- * locations are read down it — a different shape for the same question, rather than the table squeezed.
+ * The same year on a narrow screen. Twelve columns do not survive below about a laptop's width, so the month
+ * is chosen once and the locations are read down it — a different shape for the same question, rather than the
+ * panorama squeezed until its numbers collide.
  */
 export function MonthlyReportMonthList({
   rows,
@@ -145,7 +215,7 @@ export function MonthlyReportMonthList({
   const quiet = rows.filter((row) => row.months[month - 1].orderRequestId === null)
 
   return (
-    <div className="lg:hidden">
+    <div className="xl:hidden">
       <ul className="space-y-2">
         {ordered.map((row) => {
           const cell = row.months[month - 1]
@@ -168,7 +238,16 @@ export function MonthlyReportMonthList({
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="whitespace-nowrap font-semibold text-slate-900">{formatMoney(cell.knownAmount)}</p>
-                  <CellNote cell={cell} />
+                  {/* There is room here, so the narrow layout says it in words. */}
+                  {cell.amountIsComplete ? (
+                    cell.deltaAmount !== null && (
+                      <p className="whitespace-nowrap text-xs text-slate-400">{formatMoneyDelta(cell.deltaAmount)}</p>
+                    )
+                  ) : (
+                    <p className="whitespace-nowrap text-xs text-amber-800">
+                      {formatCount(cell.missingPriceItemCount)} qiymətsiz sətir
+                    </p>
+                  )}
                 </div>
               </Link>
             </li>
