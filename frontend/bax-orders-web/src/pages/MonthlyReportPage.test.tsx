@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
@@ -88,14 +89,48 @@ function report(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
   }
 }
 
-beforeEach(() => reportsApi.fetchMonthlyReport.mockReset().mockResolvedValue(report()))
+/**
+ * A mock that behaves like `fetch` does: an aborted request <b>rejects</b>, it does not quietly deliver its
+ * answer anyway. Without that, a page that abandons its only request still looks healthy under test and hangs
+ * in the browser — which is exactly how this page shipped broken once.
+ */
+function respondWith(data: MonthlyReport) {
+  return (_query: unknown, signal?: AbortSignal) =>
+    new Promise<MonthlyReport>((resolve, reject) => {
+      const abort = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+      if (signal?.aborted) {
+        abort()
+        return
+      }
+
+      signal?.addEventListener('abort', abort)
+      queueMicrotask(() => resolve(data))
+    })
+}
+
+/** Convenience for the cases that only care about what comes back. */
+function serving(data: MonthlyReport) {
+  reportsApi.fetchMonthlyReport.mockImplementation(respondWith(data))
+}
+
+beforeEach(() => {
+  reportsApi.fetchMonthlyReport.mockReset()
+  serving(report())
+})
+
 afterEach(() => vi.clearAllMocks())
 
+/**
+ * Rendered the way the application renders it — inside StrictMode, whose double-invoked effects are the real
+ * conditions this page runs under. A fetch guarded by a ref survives a plain render and deadlocks here.
+ */
 async function renderPage(url = '/dashboard/monthly') {
   render(
-    <MemoryRouter initialEntries={[url]}>
-      <MonthlyReportPage />
-    </MemoryRouter>,
+    <StrictMode>
+      <MemoryRouter initialEntries={[url]}>
+        <MonthlyReportPage />
+      </MemoryRouter>
+    </StrictMode>,
   )
   await screen.findByRole('group', { name: 'İlin xülasəsi' })
 }
@@ -122,7 +157,7 @@ describe('the grid', () => {
   })
 
   it('never lets a month with no request read as a month that cost nothing', async () => {
-    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+    serving(report({
       rows: [row({
         months: [noRequest(1), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))],
       })],
@@ -135,7 +170,7 @@ describe('the grid', () => {
   })
 
   it('names the unpriced products in the cell they belong to', async () => {
-    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+    serving(report({
       rows: [row({
         months: [
           cell(1, { missingPriceItemCount: 2, amountIsComplete: false }),
@@ -185,7 +220,7 @@ describe('the controls', () => {
   })
 
   it('says how much of the catalogue a search left, without shrinking the totals', async () => {
-    reportsApi.fetchMonthlyReport.mockResolvedValue(report({ filteredLocationCount: 1, locationCount: 26 }))
+    serving(report({ filteredLocationCount: 1, locationCount: 26 }))
     await renderPage('/dashboard/monthly?search=meydan')
 
     expect(screen.getByText('1 / 26 obyekt')).toBeInTheDocument()
@@ -210,11 +245,22 @@ describe('the phone', () => {
   })
 
   it('gathers the locations with no order for that month into one quiet line', async () => {
-    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+    serving(report({
       rows: [row({ months: [noRequest(1), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))] })],
     }))
     await renderPage('/dashboard/monthly?month=1')
 
     expect(screen.getByText('1 obyektin bu ay üçün sifarişi yoxdur')).toBeInTheDocument()
+  })
+})
+
+describe('the loading it actually does', () => {
+  it('asks the server and shows the year, under StrictMode s double-invoked effects', async () => {
+    await renderPage()
+
+    // The failure this guards against is silent: the page keeps its skeleton forever and nothing is logged.
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenCalled()
+    expect(screen.queryByText('Hesabat yüklənir')).toBeNull()
+    expect(within(table()).getByText('Fəvvarələr meydanı')).toBeInTheDocument()
   })
 })

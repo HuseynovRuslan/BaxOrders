@@ -28,34 +28,33 @@ export function MonthlyReportPage() {
   const search = params.get('search') ?? ''
   const month = Math.min(12, Math.max(1, Number(params.get('month')) || new Date().getMonth() + 1))
 
-  const lastKey = useRef<string | null>(null)
-  const key = `${year ?? ''}|${search}`
+  // The key discards a stale answer; it never skips the request. Guarding the fetch itself would deadlock
+  // under StrictMode, whose second pass would see the key already set and never ask for anything.
+  const lastKey = useRef('')
 
   useEffect(() => {
-    if (lastKey.current === key) {
-      return
-    }
-
+    const key = `${year ?? ''}|${search}`
     lastKey.current = key
     const controller = new AbortController()
     setState({ status: 'loading' })
 
     fetchMonthlyReport({ year, search: search || undefined }, controller.signal)
-      .then((data) => setState({ status: 'success', data }))
-      .catch((problem: unknown) => {
-        if (controller.signal.aborted) {
-          return
+      .then((data) => {
+        if (lastKey.current === key) {
+          setState({ status: 'success', data })
         }
-
-        lastKey.current = null
-        setState({
-          status: 'error',
-          message: problem instanceof ApiError ? problem.message : 'Naməlum xəta',
-        })
+      })
+      .catch((problem: unknown) => {
+        if (!controller.signal.aborted) {
+          setState({
+            status: 'error',
+            message: problem instanceof ApiError ? problem.message : 'Naməlum xəta',
+          })
+        }
       })
 
     return () => controller.abort()
-  }, [key, year, search])
+  }, [year, search])
 
   function update(changes: Record<string, string | undefined>) {
     const next = new URLSearchParams(params)
