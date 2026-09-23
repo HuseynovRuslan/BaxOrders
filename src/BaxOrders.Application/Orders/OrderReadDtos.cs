@@ -1,6 +1,7 @@
 using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 
 namespace BaxOrders.Application.Orders;
 
@@ -22,6 +23,11 @@ public sealed record KnownAmount(decimal? KnownAmountTotal, int KnownPriceItemCo
 /// what did this place order last, and how does that compare with the month before it.
 /// </remarks>
 /// <param name="LatestKnownAmount">The latest order's priced money; null when nothing in it carries a price.</param>
+/// <param name="LatestMissingPriceItemCount">
+/// Lines of the latest order somebody still owes a price for. Material issued from the company's own store is
+/// not here: it carries no purchase price because none is owed, and counting it would raise a false alarm.
+/// </param>
+/// <param name="LatestPriceNotRequiredItemCount">Those internally supplied lines, as neutral context.</param>
 /// <param name="PreviousPeriod">
 /// The calendar month before the latest order. Null when the location has never ordered.
 /// </param>
@@ -47,6 +53,7 @@ public sealed record LocationOrderSummaryDto(
     decimal? LatestKnownAmount = null,
     int LatestItemCount = 0,
     int LatestMissingPriceItemCount = 0,
+    int LatestPriceNotRequiredItemCount = 0,
     bool LatestAmountIsComplete = true,
     DateOnly? PreviousPeriod = null,
     decimal? PreviousKnownAmount = null,
@@ -121,6 +128,12 @@ public sealed record OrderItemSourceRefDto(long ImportBatchId, long ImportRowId,
 /// The workbook row this very line was created from. Null for a line copied into a correction version — its
 /// row is reached through <paramref name="SourceOrderRequestItemId"/> — and for a line added by hand.
 /// </param>
+/// <param name="SupplierPriceRequirement">
+/// Whether this line's supplier owes a purchase price at all. A null <see cref="UnitPrice"/> means two very
+/// different things depending on it: a price nobody has filled in, or material issued from the company's own
+/// store that never had one. The screen must say which. A line with no supplier is reported as
+/// <c>Required</c>, because nothing has said otherwise.
+/// </param>
 /// <param name="SourceOrderRequestItemId">The line of the previous version this one was copied from, if any.</param>
 public sealed record OrderRequestItemDto(
     long OrderRequestItemId,
@@ -140,6 +153,7 @@ public sealed record OrderRequestItemDto(
     decimal? LineTotal,
     int? SupplierId,
     string? SupplierName,
+    SupplierPriceRequirement SupplierPriceRequirement,
     IReadOnlyList<string> CategoryPath,
     OrderItemSourceRefDto? Source,
     long? SourceOrderRequestItemId);

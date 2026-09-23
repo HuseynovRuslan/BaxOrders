@@ -44,6 +44,28 @@ public enum ComparisonAvailability
 /// a restocking, seasonal work or waste; the dashboard reports the number and leaves the reading of it to the
 /// people who know the object. The default is the location name, which asserts nothing.
 /// </remarks>
+/// <summary>
+/// Why an object was put in front of the reader. Every one of these is a fact the data states, not a verdict:
+/// there is no score, no threshold anybody tuned, and nothing here calls an object good or bad.
+/// </summary>
+public enum DashboardAttentionReason
+{
+    /// <summary>It moved more money upward than anything else this month.</summary>
+    LargestIncrease = 1,
+
+    /// <summary>It moved more money downward than anything else this month.</summary>
+    LargestDecrease = 2,
+
+    /// <summary>It moved by a large share of a baseline that is real enough to divide by.</summary>
+    StrongPercentageChange = 3,
+
+    /// <summary>Somebody owes a price on it, so its money is not the whole story.</summary>
+    MissingRequiredPrice = 4,
+
+    /// <summary>It ordered this month with nothing behind it to compare against.</summary>
+    NoComparisonHistory = 5,
+}
+
 public enum DashboardSort
 {
     LocationName = 1,

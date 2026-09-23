@@ -60,7 +60,8 @@ public static class OrderAnalyticsCalculator
         var pricedQuantity = snapshot?.PricedQuantity ?? 0m;
         var pricedAmount = snapshot?.PricedAmount ?? 0m;
         var knownPriceItems = snapshot?.KnownPriceItemCount ?? 0;
-        var missingPriceItems = snapshot?.MissingPriceItemCount ?? 0;
+        var missingRequired = snapshot?.MissingRequiredPriceItemCount ?? 0;
+        var priceNotRequired = snapshot?.PriceNotRequiredItemCount ?? 0;
 
         return new ComparisonSide(
             // A service's quantity is not a comparable figure, so it is not offered as one.
@@ -68,7 +69,7 @@ public static class OrderAnalyticsCalculator
             snapshot?.ItemCount ?? 0,
             knownPriceItems == 0 ? null : pricedAmount,
             WeightedPrice(pricedAmount, pricedQuantity),
-            CoverageOf(quantity, pricedQuantity, knownPriceItems, missingPriceItems));
+            CoverageOf(quantity, pricedQuantity, knownPriceItems, missingRequired, priceNotRequired));
     }
 
     private static ComparisonSide BaselineSide(VariantComparisonInput input)
@@ -76,7 +77,7 @@ public static class OrderAnalyticsCalculator
         var available = input.AvailableBaselinePeriodCount;
 
         decimal quantity = 0m, pricedQuantity = 0m, pricedAmount = 0m;
-        int itemCount = 0, knownPriceItems = 0, missingPriceItems = 0;
+        int itemCount = 0, knownPriceItems = 0, missingRequired = 0, priceNotRequired = 0;
         foreach (var snapshot in input.BaselineSnapshots)
         {
             quantity += snapshot.Quantity;
@@ -84,7 +85,8 @@ public static class OrderAnalyticsCalculator
             pricedAmount += snapshot.PricedAmount;
             itemCount += snapshot.ItemCount;
             knownPriceItems += snapshot.KnownPriceItemCount;
-            missingPriceItems += snapshot.MissingPriceItemCount;
+            missingRequired += snapshot.MissingRequiredPriceItemCount;
+            priceNotRequired += snapshot.PriceNotRequiredItemCount;
         }
 
         decimal? averageQuantity = null;
@@ -106,7 +108,7 @@ public static class OrderAnalyticsCalculator
             // Pooled over every available month: a month of one unit must not weigh as much as a month of a
             // thousand, which is what averaging monthly averages would do.
             available == 0 ? null : WeightedPrice(pricedAmount, pricedQuantity),
-            CoverageOf(quantity, pricedQuantity, knownPriceItems, missingPriceItems));
+            CoverageOf(quantity, pricedQuantity, knownPriceItems, missingRequired, priceNotRequired));
     }
 
     private static decimal? WeightedPrice(decimal pricedAmount, decimal pricedQuantity) =>
@@ -114,19 +116,36 @@ public static class OrderAnalyticsCalculator
             ? Math.Round(pricedAmount / pricedQuantity, MoneyScale, MidpointRounding.AwayFromZero)
             : null;
 
+    /// <summary>
+    /// How much of a side is priced, judged against how much of it was ever <b>supposed</b> to be.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PriceCoverageState.Complete"/> does not mean every line carries a unit price. It means every
+    /// line that needed one carries it. A side made up entirely of material issued from the company's own store
+    /// is complete with no prices at all, and its money is null rather than zero — there is nothing to know.
+    /// </remarks>
     private static PriceCoverage CoverageOf(
-        decimal totalQuantity, decimal pricedQuantity, int knownPriceItems, int missingPriceItems)
+        decimal totalQuantity,
+        decimal pricedQuantity,
+        int knownPriceItems,
+        int missingRequiredItems,
+        int priceNotRequiredItems)
     {
         var missingQuantity = totalQuantity - pricedQuantity;
-        var state = (totalQuantity, pricedQuantity, missingQuantity) switch
+        var state = (totalQuantity, missingRequiredItems, pricedQuantity) switch
         {
+            // Nothing on this side at all: there is no coverage to describe.
             (0, _, _) => PriceCoverageState.Unavailable,
-            (_, 0, _) => PriceCoverageState.Unavailable,
-            (_, _, 0) => PriceCoverageState.Complete,
+            // Nothing that had to be priced is unpriced — whatever else is here belongs to internal supply.
+            (_, 0, _) => PriceCoverageState.Complete,
+            // Prices are owed and not one of them is known.
+            (_, _, 0) => PriceCoverageState.Unavailable,
             _ => PriceCoverageState.Partial,
         };
 
-        return new PriceCoverage(state, totalQuantity, pricedQuantity, missingQuantity, knownPriceItems, missingPriceItems);
+        return new PriceCoverage(
+            state, totalQuantity, pricedQuantity, missingQuantity,
+            knownPriceItems, missingRequiredItems, priceNotRequiredItems);
     }
 
     private static ComparisonState StateOf(VariantComparisonInput input, decimal? current, decimal? baseline)
@@ -189,17 +208,18 @@ public static class OrderAnalyticsCalculator
     {
         ArgumentNullException.ThrowIfNull(snapshots);
 
-        int items = 0, known = 0, missing = 0;
+        int items = 0, known = 0, missingRequired = 0, notRequired = 0;
         decimal amount = 0m;
         foreach (var snapshot in snapshots)
         {
             items += snapshot.ItemCount;
             known += snapshot.KnownPriceItemCount;
-            missing += snapshot.MissingPriceItemCount;
+            missingRequired += snapshot.MissingRequiredPriceItemCount;
+            notRequired += snapshot.PriceNotRequiredItemCount;
             amount += snapshot.PricedAmount;
         }
 
-        return new AmountTotals(items, known, missing, amount);
+        return new AmountTotals(items, known, missingRequired, notRequired, amount);
     }
 
     /// <summary>The money of one period. Null when nothing in it has a price — unknown is never zero.</summary>
@@ -223,8 +243,22 @@ public static class OrderAnalyticsCalculator
 }
 
 /// <summary>Lines and money of a set of snapshots, before anything is compared.</summary>
+/// <param name="MissingRequiredPriceItemCount">Bought lines nobody has priced. The only kind that is a gap.</param>
+/// <param name="PriceNotRequiredItemCount">Internally supplied lines, complete without a purchase price.</param>
 public sealed record AmountTotals(
     int ItemCount,
     int KnownPriceItemCount,
-    int MissingPriceItemCount,
-    decimal PricedAmount);
+    int MissingRequiredPriceItemCount,
+    int PriceNotRequiredItemCount,
+    decimal PricedAmount)
+{
+    /// <summary>
+    /// True when every line that needed a price has one.
+    /// </summary>
+    /// <remarks>
+    /// Read this carefully before relying on it: "complete" is about <b>required</b> prices. An order of
+    /// nothing but internal supply is complete and its money is still null. If you want "every line has a unit
+    /// price", that is not this, and it is almost certainly not the question you want to ask.
+    /// </remarks>
+    public bool IsComplete => MissingRequiredPriceItemCount == 0;
+}

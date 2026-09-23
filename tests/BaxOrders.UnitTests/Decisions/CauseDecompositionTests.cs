@@ -173,6 +173,112 @@ public sealed class CauseDecompositionTests
         Assert.Equal(0, result.UnattributedVariantCount);
     }
 
+    // ---- internal supply -----------------------------------------------------------------------------
+
+    [Fact]
+    public void Material_from_the_companys_own_store_is_its_own_cause_and_not_a_missing_price()
+    {
+        // Bought last month at 5.00; this month the warehouse issued it instead.
+        var result = Decompose(Material(1, Priced(10m, 5m), Internal(10m)));
+
+        var variant = Assert.Single(result.Variants);
+        Assert.Equal(CauseCategory.InternalSupply, variant.Category);
+        Assert.NotEqual(CauseCategory.UnattributedDueToMissingPrice, variant.Category);
+        Assert.Equal(-50m, variant.AmountImpact);
+        Assert.Null(variant.QuantityImpact);
+        Assert.Null(variant.PriceImpact);
+    }
+
+    [Fact]
+    public void It_leaves_the_explanation_complete_because_nothing_is_missing()
+    {
+        var result = Decompose(Material(1, Priced(10m, 5m), Internal(10m)));
+
+        Assert.True(result.ExplanationIsComplete);
+        Assert.Equal(0, result.UnattributedVariantCount);
+        Assert.Equal(1, result.InternalSupplyVariantCount);
+    }
+
+    [Fact]
+    public void Its_quantity_is_real_and_is_still_reported()
+    {
+        var result = Decompose(Material(1, Internal(20m), Internal(60m)));
+
+        var variant = Assert.Single(result.Variants);
+        // No money moved — none was ever spent — but the objects really did take three times as much.
+        Assert.Equal(20m, variant.BaselineQuantity);
+        Assert.Equal(60m, variant.CurrentQuantity);
+        Assert.Equal(200m, variant.QuantityPercentChange);
+        Assert.Equal(0m, variant.AmountImpact);
+    }
+
+    [Fact]
+    public void No_unit_price_is_invented_for_it()
+    {
+        var result = Decompose(Material(1, Internal(20m), Internal(60m)));
+
+        var variant = Assert.Single(result.Variants);
+        Assert.Null(variant.CurrentUnitPrice);
+        Assert.Null(variant.BaselineUnitPrice);
+        // Not a zero: a price that was never owed is not a price of nothing.
+        Assert.Null(variant.CurrentKnownAmount);
+        Assert.Null(variant.BaselineKnownAmount);
+    }
+
+    [Fact]
+    public void An_internal_line_that_does_carry_a_price_is_priced_like_any_other()
+    {
+        // NotRequired withdraws the expectation, not the possibility.
+        var result = Decompose(Material(1, InternalPriced(10m, 2m), InternalPriced(10m, 3m)));
+
+        var variant = Assert.Single(result.Variants);
+        Assert.Equal(CauseCategory.PriceChange, variant.Category);
+        Assert.Equal(2m, variant.BaselineUnitPrice);
+        Assert.Equal(3m, variant.CurrentUnitPrice);
+        Assert.Equal(10m, variant.PriceImpact);
+    }
+
+    [Fact]
+    public void A_genuine_gap_still_outranks_internal_supply()
+    {
+        // One side owes a price and has not given it. That is a gap whatever else the variant is.
+        var result = Decompose(Material(1, Partly(10m, 1m, unpriced: 1), Internal(10m)));
+
+        var variant = Assert.Single(result.Variants);
+        Assert.Equal(CauseCategory.UnattributedDueToMissingPrice, variant.Category);
+        Assert.False(result.ExplanationIsComplete);
+    }
+
+    [Fact]
+    public void A_mixed_month_counts_only_the_prices_somebody_owes()
+    {
+        var result = Decompose(
+            Material(1, Priced(10m, 5m), Priced(10m, 6m)),               // external, priced
+            Material(2, Priced(10m, 1m), Partly(9m, 1m, unpriced: 1)),   // external, one price missing
+            Material(3, Internal(10m), Internal(12m)));                  // internal, no price owed
+
+        Assert.Equal(1, result.UnattributedVariantCount);
+        Assert.Equal(1, result.InternalSupplyVariantCount);
+        Assert.False(result.ExplanationIsComplete);
+        AssertCategoriesReconcile(result);
+    }
+
+    [Fact]
+    public void Internal_supply_still_reconciles_with_every_other_cause()
+    {
+        var result = Decompose(
+            Material(1, Priced(20m, 3m), Priced(60m, 4.10m)),
+            Material(2, null, Priced(5m, 10m)),
+            Material(3, Priced(8m, 2.5m), null),
+            Service(4, Priced(1m, 400m), Priced(2m, 400m)),
+            Material(5, Priced(10m, 5m), Internal(10m)),
+            Material(6, Partly(10m, 1m, unpriced: 2), Priced(12m, 1m)));
+
+        AssertCategoriesReconcile(result);
+        Assert.Equal(result.Variants.Sum(variant => variant.AmountImpact), result.TotalAmountImpact);
+        Assert.NotEqual(0m, Amount(result, CauseCategory.InternalSupply));
+    }
+
     // ---- identity ------------------------------------------------------------------------------------
 
     [Fact]
@@ -194,7 +300,7 @@ public sealed class CauseDecompositionTests
         // 10 at 2.00 and 30 at 4.00 is forty units costing 140 — an average of 3.50, not of 3.00.
         var result = Decompose(Material(
             1,
-            baseline: new VariantPeriodSnapshot(1, 40m, 2, 2, 0, 40m, 140m),
+            baseline: new VariantPeriodSnapshot(1, 40m, 2, 2, 0, 0, 40m, 140m),
             current: Priced(40m, 3.50m)));
 
         var variant = Assert.Single(result.Variants);
@@ -259,10 +365,19 @@ public sealed class CauseDecompositionTests
         new(variantId, AnalyticsKind.AmountOrientedService, current, baseline);
 
     private static VariantPeriodSnapshot Priced(decimal quantity, decimal unitPrice) =>
-        new(1, quantity, 1, 1, 0, quantity, quantity * unitPrice);
+        new(1, quantity, 1, 1, 0, 0, quantity, quantity * unitPrice);
 
+    /// <summary>Some lines priced, the rest waiting for a price somebody owes.</summary>
     private static VariantPeriodSnapshot Partly(decimal pricedQuantity, decimal unitPrice, int unpriced) =>
-        new(1, pricedQuantity + unpriced, 1 + unpriced, 1, unpriced, pricedQuantity, pricedQuantity * unitPrice);
+        new(1, pricedQuantity + unpriced, 1 + unpriced, 1, unpriced, 0, pricedQuantity, pricedQuantity * unitPrice);
+
+    /// <summary>Issued from the company's own store: quantity, no price, and nothing owed.</summary>
+    private static VariantPeriodSnapshot Internal(decimal quantity) =>
+        new(1, quantity, 1, 0, 0, 1, 0m, 0m);
+
+    /// <summary>Internal supply that happens to carry a real recorded price.</summary>
+    private static VariantPeriodSnapshot InternalPriced(decimal quantity, decimal unitPrice) =>
+        new(1, quantity, 1, 1, 0, 0, quantity, quantity * unitPrice);
 
     private static decimal Amount(CauseDecompositionResult result, CauseCategory category) =>
         result.Categories.Single(total => total.Category == category).Amount;

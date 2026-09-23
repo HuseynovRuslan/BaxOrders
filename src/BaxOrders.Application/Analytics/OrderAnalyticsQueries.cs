@@ -3,6 +3,7 @@ using BaxOrders.Application.Imports;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Analytics;
@@ -229,7 +230,13 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
+                // recorded property of the supplier and never a guess from its name. No supplier at all is
+                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -255,7 +262,8 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                     : null,
                 found?.ItemCount ?? 0,
                 knownPriceItems,
-                found?.MissingPriceItemCount ?? 0));
+                found?.MissingRequiredPriceItemCount ?? 0,
+                found?.PriceNotRequiredItemCount ?? 0));
         }
 
         return new VariantTrendDto(
@@ -298,7 +306,13 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
+                // recorded property of the supplier and never a guess from its name. No supplier at all is
+                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -317,7 +331,8 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 row.Quantity,
                 row.ItemCount,
                 row.KnownPriceItemCount,
-                row.MissingPriceItemCount,
+                row.MissingRequiredPriceItemCount,
+                row.PriceNotRequiredItemCount,
                 row.PricedQuantity,
                 row.PricedAmount);
         }
@@ -401,7 +416,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
 
     private static PriceCoverageDto Coverage(PriceCoverage coverage) =>
         new(coverage.State, coverage.TotalQuantity, coverage.KnownPriceQuantity, coverage.MissingPriceQuantity,
-            coverage.KnownPriceItemCount, coverage.MissingPriceItemCount);
+            coverage.KnownPriceItemCount, coverage.MissingRequiredPriceItemCount, coverage.PriceNotRequiredItemCount);
 
     private static ComparisonSummaryDto Summarize(
         LocationRef location,
@@ -444,9 +459,11 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             baselineAmount,
             amountDelta,
             amountPercent,
-            currentTotals.MissingPriceItemCount,
-            baselineTotals.MissingPriceItemCount,
-            currentTotals.MissingPriceItemCount == 0 && baselineTotals.MissingPriceItemCount == 0,
+            currentTotals.MissingRequiredPriceItemCount,
+            baselineTotals.MissingRequiredPriceItemCount,
+            currentTotals.PriceNotRequiredItemCount,
+            baselineTotals.PriceNotRequiredItemCount,
+            currentTotals.IsComplete && baselineTotals.IsComplete,
             rows.Count(row => row.State == ComparisonState.New),
             rows.Count(row => row.State == ComparisonState.NoLongerOrdered),
             rows.Count(row => row.State == ComparisonState.Increased),

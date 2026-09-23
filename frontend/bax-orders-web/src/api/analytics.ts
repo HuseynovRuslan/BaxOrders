@@ -40,7 +40,10 @@ export interface PriceCoverage {
   knownPriceQuantity: number
   missingPriceQuantity: number
   knownPriceItemCount: number
-  missingPriceItemCount: number
+  /** Lines somebody still owes a price for — the only kind that is a gap. */
+  missingRequiredPriceItemCount: number
+  /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
+  priceNotRequiredItemCount: number
 }
 
 export interface ComparisonSide {
@@ -105,7 +108,10 @@ export interface ComparisonSummary {
   currentMissingPriceItemCount: number
   baselineMissingPriceItemCount: number
   /** False as soon as either side holds a line without a price: the money shown is partial. */
+  /** True when every line that needed a price has one — not when every line has one. */
   amountIsComplete: boolean
+  currentPriceNotRequiredItemCount: number
+  baselinePriceNotRequiredItemCount: number
   newVariantCount: number
   noLongerOrderedVariantCount: number
   increasedVariantCount: number
@@ -149,7 +155,9 @@ export interface VariantTrendPoint {
   weightedUnitPrice: number | null
   itemCount: number
   knownPriceItemCount: number
-  missingPriceItemCount: number
+  missingRequiredPriceItemCount: number
+  /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
+  priceNotRequiredItemCount: number
 }
 
 export interface VariantTrend {

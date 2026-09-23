@@ -46,6 +46,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     currentItemCount: 1,
     baselineItemCount: 1,
     missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
     priceIsComplete: true,
     ...overrides,
   }

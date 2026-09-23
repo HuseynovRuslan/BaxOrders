@@ -1,3 +1,4 @@
+import type { CauseCategory } from './decisions'
 import type { AnalyticsComparisonBasis, PeriodRequest, PriceCoverageState } from './analytics'
 import { getJson } from './client'
 import type { OrderRequestStatus, PagedResult } from './orders'
@@ -39,7 +40,10 @@ export interface DashboardAmount {
   knownAmount: number | null
   itemCount: number
   knownPriceItemCount: number
+  /** Lines somebody still owes a price for. Internal supply is counted separately and is not a shortfall. */
   missingPriceItemCount: number
+  /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
+  priceNotRequiredItemCount: number
   /** False as soon as one line has no price. Says nothing where there is no amount at all. */
   isComplete: boolean
 }
@@ -77,6 +81,36 @@ export interface LocationDashboardRow {
   /** The month and basis this row's own comparison should open on. */
   deepLinkPeriod: string
   deepLinkBasis: AnalyticsComparisonBasis
+  /** Every share of this location's difference that moved money, from the shared cause decomposition. */
+  causes: DashboardCause[]
+  /** The one that moved the most, in either direction. Null when there is nothing to compare against. */
+  primaryCause: CauseCategory | null
+  primaryCauseAmount: number | null
+  /** False only when somebody owes a price. Internal supply never makes it false. */
+  explanationIsComplete: boolean
+  unattributedAmount: number
+}
+
+export interface DashboardCause {
+  category: CauseCategory
+  amount: number
+  variantCount: number
+}
+
+/**
+ * Why an object was put in front of the reader. Each is a fact the data states: no score, no threshold anybody
+ * tuned, and nothing that calls an object good or bad.
+ */
+export type DashboardAttentionReason =
+  | 'LargestIncrease'
+  | 'LargestDecrease'
+  | 'StrongPercentageChange'
+  | 'MissingRequiredPrice'
+  | 'NoComparisonHistory'
+
+export interface DashboardAttention {
+  reason: DashboardAttentionReason
+  location: LocationDashboardRow
 }
 
 export interface ManagementDashboardSummary {
@@ -109,6 +143,8 @@ export interface ManagementDashboard {
   summary: ManagementDashboardSummary
   /** How many locations the search and filters left. */
   filteredLocationCount: number
+  /** A short reading order over every object — never a filter; nothing is hidden from the table below. */
+  attention: DashboardAttention[]
   rows: PagedResult<LocationDashboardRow>
 }
 

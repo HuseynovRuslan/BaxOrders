@@ -135,3 +135,14 @@ export function formatBaselineBasisNote(available: number, expected: number): st
 }
 
 export { unknownValue as emDash }
+
+/**
+ * Material issued from the company's own store. It carries no purchase price because none is owed, so it is
+ * described in plain business words and never dressed up as a gap in the records.
+ */
+export const internalSupplyLabel = 'Daxili təminat'
+
+export const internalSupplyFromWarehouseLabel = 'Daxili anbardan'
+
+export const internalSupplyHint =
+  'Daxili anbardan verilən material üçün alış qiyməti tələb olunmur.'

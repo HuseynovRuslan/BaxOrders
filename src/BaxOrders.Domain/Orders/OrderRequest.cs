@@ -150,8 +150,41 @@ public sealed class OrderRequest
     /// </remarks>
     public Guid ConcurrencyStamp { get; private set; } = Guid.NewGuid();
 
-    /// <summary>How many of this request's lines have no price. Requires the items to be loaded.</summary>
-    public int MissingPriceItemCount => _items.Count(item => item.UnitPrice is null);
+    /// <summary>
+    /// How many of this request's lines are still waiting for a price somebody owes.
+    /// </summary>
+    /// <remarks>
+    /// Only material bought from outside counts. Material issued from the company's own store carries no
+    /// purchase price because none is owed, and counting it here would hold up an approval over nothing.
+    /// <para>
+    /// This needs the items <b>and their suppliers</b> loaded. Read without them, every internal line would
+    /// quietly be called a missing price and every such order would demand an acknowledgement nobody owes, so
+    /// it refuses rather than guess. A line with no supplier at all is read as bought: nothing has said
+    /// otherwise, and assuming internal supply would hide a real gap.
+    /// </para>
+    /// </remarks>
+    public int MissingRequiredPriceItemCount
+    {
+        get
+        {
+            var unpriced = _items.Where(item => item.UnitPrice is null).ToList();
+            if (unpriced.Any(item => item.SupplierId is not null && item.Supplier is null))
+            {
+                throw new InvalidOperationException(
+                    "This request's line suppliers are not loaded, so a price somebody owes cannot be told apart "
+                    + "from material issued internally. Include Items.Supplier before reading this.");
+            }
+
+            return unpriced.Count(item =>
+                item.Supplier is null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required);
+        }
+    }
+
+    /// <summary>Lines issued from the company's own store, which need no purchase price. Never a shortfall.</summary>
+    public int PriceNotRequiredItemCount =>
+        _items.Count(item => item.UnitPrice is null
+            && item.Supplier is not null
+            && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired);
 
     /// <summary>
     /// Who put the request into its <b>current</b> approval cycle, so that person cannot also decide on it.
@@ -477,9 +510,12 @@ public sealed class OrderRequest
         EnsureNotOwnSubmission(actor, "approve");
         EnsureNotOwnContribution(actor, "approve");
 
-        if (MissingPriceItemCount > 0 && !missingPricesAcknowledged)
+        // Only the prices somebody owes. An order supplied entirely from the company's own store is complete
+        // and is approved like any other, with nothing to acknowledge.
+        var missingRequired = MissingRequiredPriceItemCount;
+        if (missingRequired > 0 && !missingPricesAcknowledged)
         {
-            throw new MissingPriceAcknowledgementRequiredException(MissingPriceItemCount);
+            throw new MissingPriceAcknowledgementRequiredException(missingRequired);
         }
 
         var from = Status;
@@ -552,9 +588,10 @@ public sealed class OrderRequest
         DateTime utcNow)
     {
         // The event is written by the transition itself, so no status can change without leaving a trace.
+        // What it records is the count that mattered to the decision: prices somebody owed and had not given.
         var workflowEvent = new OrderRequestWorkflowEvent(
             this, action, from, Status, actor, comment,
-            MissingPriceItemCount, missingPricesAcknowledged, utcNow);
+            MissingRequiredPriceItemCount, missingPricesAcknowledged, utcNow);
 
         _workflowEvents.Add(workflowEvent);
         return workflowEvent;

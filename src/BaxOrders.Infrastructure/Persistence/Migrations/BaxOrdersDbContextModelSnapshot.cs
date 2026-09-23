@@ -1720,6 +1720,13 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("PriceRequirement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Required");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1766,6 +1773,52 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.HasIndex("SupplierId");
 
                     b.ToTable("SupplierAliases", (string)null);
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Suppliers.SupplierPricingDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewRequirement")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PreviousRequirement")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId", "OccurredAtUtc");
+
+                    b.ToTable("SupplierPricingDecisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SupplierPricingDecisions_RequirementChanged", "\"PreviousRequirement\" <> \"NewRequirement\"");
+                        });
                 });
 
             modelBuilder.Entity("BaxOrders.Infrastructure.Identity.ApplicationUser", b =>
@@ -2387,6 +2440,17 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("BaxOrders.Domain.Suppliers.SupplierAlias", b =>
+                {
+                    b.HasOne("BaxOrders.Domain.Suppliers.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Suppliers.SupplierPricingDecision", b =>
                 {
                     b.HasOne("BaxOrders.Domain.Suppliers.Supplier", "Supplier")
                         .WithMany()

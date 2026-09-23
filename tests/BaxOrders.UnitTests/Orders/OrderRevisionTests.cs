@@ -231,7 +231,7 @@ public sealed class OrderRevisionTests
         var cleared = revision.ChangeItemUnitPrice(line, null, Coordinator, Now)!;
         Assert.Equal(("4", null), (cleared.OldValue, cleared.NewValue));
         Assert.Null(line.UnitPrice);
-        Assert.Equal(1, revision.MissingPriceItemCount);
+        Assert.Equal(1, revision.MissingRequiredPriceItemCount);
     }
 
     [Fact]

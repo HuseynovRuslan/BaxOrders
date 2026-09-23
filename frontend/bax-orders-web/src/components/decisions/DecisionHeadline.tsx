@@ -1,5 +1,6 @@
 import type { DecisionWindow, OrderDecisionContext } from '../../api/decisions'
 import { basisLabels, formatCount, formatMoney, formatMoneyDelta, formatMonth, formatPercent, unknownValue } from '../analytics/format'
+import { internalSupplyLabel } from '../analytics/labels'
 import { noPreviousMonthNote } from './labels'
 
 /**
@@ -24,10 +25,18 @@ export function DecisionHeadline({ context }: { context: OrderDecisionContext })
 
       <p className="mt-1 text-xs text-slate-500">
         {formatCount(current.itemCount)} sətir
+        {/* Only prices somebody owes are a shortfall. */}
         {current.missingPriceItemCount > 0 && (
           <span className="text-amber-800">
             {' · '}
             {formatCount(current.missingPriceItemCount)} məhsulun qiyməti yoxdur
+          </span>
+        )}
+        {/* Material from our own store has no purchase price and never had one: context, not a problem. */}
+        {current.priceNotRequiredItemCount > 0 && (
+          <span>
+            {' · '}
+            {internalSupplyLabel}: {formatCount(current.priceNotRequiredItemCount)} sətir
           </span>
         )}
       </p>

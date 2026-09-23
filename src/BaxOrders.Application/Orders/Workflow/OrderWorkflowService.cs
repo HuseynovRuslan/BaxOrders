@@ -2,6 +2,7 @@ using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Orders.Workflow;
@@ -95,6 +96,9 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         var request = await db.OrderRequests
             .Include(order => order.Location)
             .Include(order => order.Items)
+                // Without the suppliers the domain cannot tell a price somebody owes from material issued
+                // internally, and it refuses to guess rather than demand an acknowledgement nobody owes.
+                .ThenInclude(item => item.Supplier)
             .Include(order => order.RevisedFrom)
             .Include(order => order.EditEvents)
             .FirstOrDefaultAsync(order => order.Id == orderRequestId, cancellationToken)
@@ -144,8 +148,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             .Select(revision => new CorrectionRef(revision.RevisionOrderRequestId, revision.RevisionOrderRequest.Version))
             .FirstOrDefaultAsync(cancellationToken);
 
-    private async Task<(int ItemCount, int MissingPriceItemCount, decimal PricedAmount, int KnownPriceItemCount)> TotalsAsync(
-        long orderRequestId, CancellationToken cancellationToken)
+    private async Task<WorkflowTotals> TotalsAsync(long orderRequestId, CancellationToken cancellationToken)
     {
         var totals = await db.OrderRequestItems.AsNoTracking()
             .Where(item => item.OrderRequestId == orderRequestId)
@@ -153,15 +156,25 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             .Select(group => new
             {
                 ItemCount = group.Count(),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when somebody owed it. See SupplierPriceRequirement; a line with no
+                // supplier is read as bought, because nothing has said otherwise.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         return totals is null
-            ? (0, 0, 0m, 0)
-            : (totals.ItemCount, totals.MissingPriceItemCount, totals.PricedAmount, totals.KnownPriceItemCount);
+            ? new WorkflowTotals(0, 0, 0, 0, 0m)
+            : new WorkflowTotals(
+                totals.ItemCount,
+                totals.MissingRequiredPriceItemCount,
+                totals.PriceNotRequiredItemCount,
+                totals.KnownPriceItemCount,
+                totals.PricedAmount);
     }
 
     private async Task<List<WorkflowEventDto>> HistoryAsync(long orderRequestId, CancellationToken cancellationToken) =>
@@ -184,7 +197,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
 
     private OrderWorkflowDto Describe(
         OrderRequest request,
-        (int ItemCount, int MissingPriceItemCount, decimal PricedAmount, int KnownPriceItemCount) totals,
+        WorkflowTotals totals,
         IReadOnlyList<WorkflowEventDto> history,
         bool superseded,
         bool contributedEdits) =>
@@ -200,12 +213,23 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             request.ApprovedAtUtc,
             request.ReturnedAtUtc,
             totals.ItemCount,
-            totals.MissingPriceItemCount,
+            totals.MissingRequiredPriceItemCount,
+            totals.PriceNotRequiredItemCount,
             // Unknown money is not zero money, so a request with nothing priced has no amount at all.
             totals.KnownPriceItemCount == 0 ? null : totals.PricedAmount,
-            totals.MissingPriceItemCount == 0,
-            totals.MissingPriceItemCount > 0,
+            // Complete means nothing is owed, not that every line carries a price.
+            totals.MissingRequiredPriceItemCount == 0,
+            totals.MissingRequiredPriceItemCount > 0,
             history);
+
+    /// <param name="MissingRequiredPriceItemCount">Lines somebody owes a price for — the approval question.</param>
+    /// <param name="PriceNotRequiredItemCount">Lines issued from the company's own store, complete as they are.</param>
+    private sealed record WorkflowTotals(
+        int ItemCount,
+        int MissingRequiredPriceItemCount,
+        int PriceNotRequiredItemCount,
+        int KnownPriceItemCount,
+        decimal PricedAmount);
 
     private sealed record CorrectionRef(long OrderRequestId, int Version);
 }

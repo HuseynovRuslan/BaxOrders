@@ -6,6 +6,13 @@ namespace BaxOrders.Application.Analytics;
 /// cardinality. Items flagged as possible duplicates are ordinary items and are included like every other.
 /// </summary>
 /// <param name="Quantity">Sum of every item's quantity, priced or not.</param>
+/// <param name="MissingRequiredPriceItemCount">
+/// Items bought from outside that nobody has priced yet. This — and only this — is a gap in the data.
+/// </param>
+/// <param name="PriceNotRequiredItemCount">
+/// Items issued from the company's own store, which are not bought and so have no purchase price to record.
+/// They are finished lines, not missing ones, and must never be counted as a shortfall.
+/// </param>
 /// <param name="PricedQuantity">Sum of the quantity of the items whose price is known.</param>
 /// <param name="PricedAmount">Sum of <c>Quantity × UnitPrice</c> over the items whose price is known.</param>
 public sealed record VariantPeriodSnapshot(
@@ -13,12 +20,19 @@ public sealed record VariantPeriodSnapshot(
     decimal Quantity,
     int ItemCount,
     int KnownPriceItemCount,
-    int MissingPriceItemCount,
+    int MissingRequiredPriceItemCount,
+    int PriceNotRequiredItemCount,
     decimal PricedQuantity,
     decimal PricedAmount)
 {
     /// <summary>Money that is known. Null when not one item of this variant has a price in this period.</summary>
     public decimal? KnownAmountTotal => KnownPriceItemCount == 0 ? null : PricedAmount;
+
+    /// <summary>
+    /// Every item carrying no price, for whatever reason. Useful for reconciling against the raw table; never
+    /// for warning anybody, because most of these may be perfectly complete internal supply.
+    /// </summary>
+    public int UnpricedItemCount => MissingRequiredPriceItemCount + PriceNotRequiredItemCount;
 }
 
 /// <summary>Which request version a period contributed to the comparison.</summary>
@@ -37,14 +51,20 @@ public sealed record VariantComparisonInput(
     int AvailableBaselinePeriodCount,
     int ExpectedBaselinePeriodCount);
 
-/// <summary>How much of a side's quantity carries a known price.</summary>
+/// <summary>
+/// How much of a side's quantity carries a price, and how much of the rest was ever supposed to.
+/// </summary>
+/// <param name="MissingPriceQuantity">Quantity with no price of any kind — internal supply included.</param>
+/// <param name="MissingRequiredPriceItemCount">The items somebody still has to price.</param>
+/// <param name="PriceNotRequiredItemCount">Internal items that are complete without one.</param>
 public sealed record PriceCoverage(
     PriceCoverageState State,
     decimal TotalQuantity,
     decimal KnownPriceQuantity,
     decimal MissingPriceQuantity,
     int KnownPriceItemCount,
-    int MissingPriceItemCount);
+    int MissingRequiredPriceItemCount,
+    int PriceNotRequiredItemCount);
 
 /// <summary>
 /// One side of a comparison.

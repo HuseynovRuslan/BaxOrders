@@ -12,6 +12,7 @@ using BaxOrders.Application.Orders;
 using BaxOrders.Application.Orders.Revisions;
 using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Application.Reports;
+using BaxOrders.Application.Suppliers;
 using BaxOrders.Application.UnitsOfMeasure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<MonthlyReportQueries>();
         services.AddScoped<ProductCategoryQueries>();
         services.AddScoped<ProductCategoryService>();
+        services.AddScoped<SupplierPricingService>();
 
         services.AddScoped<ImportCatalogLoader>();
         services.AddScoped<ImportPreviewQueries>();

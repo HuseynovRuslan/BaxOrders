@@ -6,6 +6,7 @@ using BaxOrders.Application.Orders;
 using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Approvals;
@@ -58,7 +59,10 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
                 request.SubmittedAtUtc,
                 request.SubmittedByUserId,
                 ItemCount = request.Items.Count,
-                MissingPriceItemCount = request.Items.Count(item => item.UnitPrice == null),
+                // Only the prices somebody owes. Material issued from the company's own store carries no
+                // purchase price because none is owed, and an approver has nothing to acknowledge for it.
+                MissingPriceItemCount = request.Items.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
                 KnownPriceItemCount = request.Items.Count(item => item.UnitPrice != null),
                 KnownAmount = request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
                 // The display name is the snapshot on the current cycle's own submit event, not a live lookup:

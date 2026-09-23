@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { DecisionDriver } from '../../api/decisions'
 import { formatCount, formatMoney, formatMoneyDelta, formatPercent, formatPrice, formatQuantity, unknownValue } from '../analytics/format'
-import { formatVariantLine } from '../analytics/labels'
+import { formatVariantLine, internalSupplyLabel } from '../analytics/labels'
 import { causeLabels, causeToneClass, driverFilterLabels, driverFilterOrder, type DriverFilter } from './labels'
 
 /** How many reasons fit on a screen before the list stops being a summary and becomes a table. */
@@ -118,6 +118,11 @@ function Change({ driver }: { driver: DecisionDriver }) {
 
   if (!driver.priceIsComplete) {
     parts.push(`${formatCount(driver.missingPriceItemCount)} sətrin qiyməti yoxdur`)
+  }
+
+  // Not a shortfall: this material comes out of the company's own store and owes no purchase price.
+  if (driver.priceNotRequiredItemCount > 0) {
+    parts.push(internalSupplyLabel)
   }
 
   if (driver.baselineUnitPrice !== driver.currentUnitPrice) {

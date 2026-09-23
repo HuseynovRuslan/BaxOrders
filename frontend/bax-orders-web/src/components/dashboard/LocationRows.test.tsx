@@ -10,9 +10,13 @@ import type {
 import { LocationRows } from './LocationRows'
 
 /**
- * The three situations the backend keeps apart have to stay apart on the screen. An object that did not order
- * must never read as one that ordered nothing, and an object with no history must never read as one full of
- * new products.
+ * The objects table as a manager reads it: what this month cost, what last month cost, the difference, and the
+ * one reason for it.
+ * <para>
+ * Two habits are pinned here. The table never reports how many lines an order had, because nobody decides
+ * anything with that. And it says nothing at all about history on a healthy row — a badge that appears on
+ * every row is one a reader stops seeing, and then stops seeing the real ones with it.
+ * </para>
  */
 function amount(overrides: Partial<DashboardAmount> = {}): DashboardAmount {
   return {
@@ -20,6 +24,7 @@ function amount(overrides: Partial<DashboardAmount> = {}): DashboardAmount {
     itemCount: 10,
     knownPriceItemCount: 10,
     missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
     isComplete: true,
     ...overrides,
   }
@@ -58,6 +63,14 @@ function row(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRo
     comparedVariantCount: 15,
     deepLinkPeriod: '2026-07-01',
     deepLinkBasis: 'PreviousMonth',
+    causes: [
+      { category: 'NewOrders', amount: 150, variantCount: 3 },
+      { category: 'PriceChange', amount: 50, variantCount: 2 },
+    ],
+    primaryCause: 'NewOrders',
+    primaryCauseAmount: 150,
+    explanationIsComplete: true,
+    unattributedAmount: 0,
     ...overrides,
   }
 }
@@ -97,195 +110,184 @@ function renderRows(rows: LocationDashboardRow[], basis: AnalyticsComparisonBasi
   )
 }
 
-describe('an object that did not order this month', () => {
-  const dormant = row({
-    locationId: 32,
-    locationName: 'Puşkin parkı',
-    hasCurrentRequest: false,
-    currentRequestId: null,
-    currentVersion: null,
-    currentStatus: null,
-    current: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
-    currentPriceCoverage: null,
-    baseline: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
-    knownAmountDelta: null,
-    knownAmountPercentChange: null,
-    historyCoverage: 'Unavailable',
-    comparisonAvailability: 'NoCurrentRequest',
-    comparisonAvailable: false,
-    newVariantCount: 0,
-    increasedVariantCount: 0,
-    decreasedVariantCount: 0,
-    noLongerOrderedVariantCount: 0,
-    comparedVariantCount: 0,
+function table() {
+  return within(document.querySelector('table')!)
+}
+
+describe('the columns a manager reads', () => {
+  it('names them in money terms, not analytics terms', () => {
+    renderRows([row()])
+
+    const headers = table().getAllByRole('columnheader').map((cell) => cell.textContent)
+    expect(headers).toEqual(['Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti', 'Detallar'])
   })
 
-  it('says so instead of showing a figure', () => {
-    renderRows([dormant])
-    expect(screen.getAllByText('Bu ay sifariş yoxdur').length).toBeGreaterThan(0)
+  it('has dropped the line count nobody decided anything with', () => {
+    renderRows([row()])
+
+    expect(table().queryByRole('columnheader', { name: 'Sətir' })).toBeNull()
+    expect(table().queryByText('Məlum məbləğ')).toBeNull()
   })
 
-  it('never shows its money as zero', () => {
-    renderRows([dormant])
-    expect(screen.queryByText('0,00 ₼')).toBeNull()
-    expect(screen.getAllByText(/—/).length).toBeGreaterThan(0)
+  it('shows this month, last month and the difference between them', () => {
+    renderRows([row()])
+
+    expect(table().getByText('1.000,00 ₼')).toBeInTheDocument()
+    expect(table().getByText('800,00 ₼')).toBeInTheDocument()
+    expect(table().getByText('+200,00 ₼')).toBeInTheDocument()
+    expect(table().getByText('+25%')).toBeInTheDocument()
   })
 
-  it('shows no product change counts', () => {
-    renderRows([dormant])
-    expect(screen.queryByText('Yeni')).toBeNull()
-    expect(screen.queryByText('Artıb')).toBeNull()
+  it('never dumps the raw product counts into the row', () => {
+    renderRows([row()])
+
+    // Answers to a question nobody asks of a list of twenty-six objects.
+    expect(table().queryByText('Yeni')).toBeNull()
+    expect(table().queryByText('Artıb')).toBeNull()
+    expect(table().queryByText('Artıq sifariş olunmur')).toBeNull()
   })
 })
 
-describe('an object with a month but no history to compare it with', () => {
-  const expo = row({
-    locationId: 46,
-    locationName: 'EXPO',
-    current: amount({ knownAmount: 123.68, itemCount: 15, knownPriceItemCount: 15 }),
-    baseline: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
-    knownAmountDelta: null,
-    knownAmountPercentChange: null,
-    missingBaselinePeriods: ['2026-06-01'],
-    availableBaselinePeriodCount: 0,
-    historyCoverage: 'Unavailable',
-    comparisonAvailability: 'NoBaselineHistory',
-    comparisonAvailable: false,
-    newVariantCount: 0,
-    increasedVariantCount: 0,
-    decreasedVariantCount: 0,
-    noLongerOrderedVariantCount: 0,
-    insufficientHistoryVariantCount: 15,
-    comparedVariantCount: 15,
+describe('the main reason', () => {
+  it('is the cause that moved the most money, with its direction in the words', () => {
+    renderRows([row()])
+
+    expect(table().getByText(/Yeni sifarişlər/)).toBeInTheDocument()
+    expect(table().getByText('+150,00 ₼')).toBeInTheDocument()
   })
 
-  it('says the previous period is missing', () => {
-    renderRows([expo])
-    expect(screen.getAllByText(/Müqayisə üçün əvvəlki dövr məlumatı yoxdur/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Tarixçə yoxdur/).length).toBeGreaterThan(0)
+  it('says a price rose when that is what happened', () => {
+    renderRows([row({ primaryCause: 'PriceChange', primaryCauseAmount: 740 })])
+
+    expect(table().getByText(/Qiymət artımı/)).toBeInTheDocument()
+    expect(table().getByText('+740,00 ₼')).toBeInTheDocument()
   })
 
-  it('does not present its products as new', () => {
-    renderRows([expo])
-    // The backend calls these fifteen variants history-not-sufficient, and so must the screen.
-    expect(screen.getAllByText(/Tarixçə kifayət deyil/).length).toBeGreaterThan(0)
-    expect(screen.queryByText(/15 yeni/i)).toBeNull()
+  it('says a quantity fell when that is what happened', () => {
+    renderRows([row({ primaryCause: 'QuantityChange', primaryCauseAmount: -1610 })])
+
+    expect(table().getByText(/Miqdar azalması/)).toBeInTheDocument()
+    expect(table().getByText('−1.610,00 ₼')).toBeInTheDocument()
+  })
+
+  it('refuses to name one when there is nothing to compare against', () => {
+    renderRows([row({
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+      comparisonAvailability: 'NoBaselineHistory',
+      comparisonAvailable: false,
+      primaryCause: null,
+      primaryCauseAmount: null,
+      causes: [],
+    })])
+
+    expect(table().getAllByText('Müqayisə üçün əvvəlki ay yoxdur').length).toBeGreaterThan(0)
   })
 })
 
-describe('an object with partial history', () => {
-  it('shows what the average actually rests on', () => {
+describe('the data-state column', () => {
+  it('says nothing at all when there is nothing wrong', () => {
+    renderRows([row()])
+
+    // Silence is the point: a badge on every healthy row is one nobody reads.
+    expect(table().queryByText('Tam tarixçə')).toBeNull()
+    expect(table().queryByText(/1\/1 ay/)).toBeNull()
+    expect(table().queryByText('Tarixçə natamamdır')).toBeNull()
+  })
+
+  it('says the previous month is missing when it is', () => {
+    renderRows([row({
+      comparisonAvailability: 'NoBaselineHistory',
+      comparisonAvailable: false,
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+      primaryCause: null,
+      primaryCauseAmount: null,
+    })])
+
+    expect(table().getByText('Əvvəlki ay üçün məlumat yoxdur')).toBeInTheDocument()
+  })
+
+  it('says the history is short when it is', () => {
     renderRows(
-      [row({
-        historyCoverage: 'Partial',
-        availableBaselinePeriodCount: 2,
-        expectedBaselinePeriodCount: 3,
-        missingBaselinePeriods: ['2026-05-01'],
-      })],
+      [row({ historyCoverage: 'Partial', availableBaselinePeriodCount: 2, expectedBaselinePeriodCount: 3 })],
       'Previous3MonthAverage',
     )
 
-    expect(screen.getAllByText('Natamam tarixçə').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('2/3 ay').length).toBeGreaterThan(0)
+    expect(table().getByText('Tarixçə natamamdır')).toBeInTheDocument()
   })
 
-  it('shows the denominator for complete history too', () => {
-    renderRows([row()])
-    expect(screen.getAllByText('Tam tarixçə').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('1/1 ay').length).toBeGreaterThan(0)
+  it('says an object did not order rather than showing it as a zero', () => {
+    renderRows([row({
+      hasCurrentRequest: false,
+      currentRequestId: null,
+      current: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+      primaryCause: null,
+      primaryCauseAmount: null,
+    })])
+
+    expect(table().getByText('Bu ay sifariş yoxdur')).toBeInTheDocument()
+    expect(table().queryByText('0,00 ₼')).toBeNull()
+  })
+
+  it('says when part of the money cannot be explained', () => {
+    renderRows([row({ explanationIsComplete: false, unattributedAmount: 120 })])
+
+    expect(table().getByText(/Məbləğin bir hissəsi izah edilə bilmir/)).toBeInTheDocument()
   })
 })
 
-describe('an object whose prices are partly missing', () => {
-  it('names the missing line count next to the amount it affects', () => {
-    renderRows([row({
-      current: amount({ knownAmount: 500, itemCount: 10, knownPriceItemCount: 7, missingPriceItemCount: 3, isComplete: false }),
-      currentPriceCoverage: 'Partial',
-    })])
+describe('the unpriced lines', () => {
+  it('names them beside the money they affect', () => {
+    renderRows([row({ current: amount({ missingPriceItemCount: 3, isComplete: false }) })])
 
-    expect(screen.getAllByText(/3 qiymətsiz sətir/).length).toBeGreaterThan(0)
+    expect(table().getByText(/3 qiymətsiz sətir/)).toBeInTheDocument()
   })
 
-  it('says nothing of the sort when every line is priced', () => {
-    renderRows([row()])
-    expect(screen.queryByText(/qiymətsiz sətir/)).toBeNull()
+  it('says nothing of the sort when every line that needed a price has one', () => {
+    renderRows([row({ current: amount({ priceNotRequiredItemCount: 4 }) })])
+
+    // Internal supply is not a shortfall, so it raises nothing here.
+    expect(table().queryByText(/qiymətsiz sətir/)).toBeNull()
   })
 })
 
 describe('the drill-down', () => {
-  it('opens the object on the same month and basis the backend named', () => {
-    renderRows([row({ deepLinkPeriod: '2026-07-01', deepLinkBasis: 'Previous3MonthAverage' })], 'Previous3MonthAverage')
+  it('goes straight to the order the figures came from', () => {
+    renderRows([row({ currentRequestId: 105 })])
 
-    const links = screen.getAllByRole('link', { name: /Fəvvarələr meydanı üzrə analitikaya bax/ })
-    for (const link of links) {
-      expect(link).toHaveAttribute('href', '/locations/21/analytics?period=2026-07&basis=Previous3MonthAverage')
-    }
+    expect(table().getByRole('link', { name: /Fəvvarələr meydanı · Detallara bax/ }))
+      .toHaveAttribute('href', '/orders/105')
+  })
+
+  it('offers the object itself when there is no order this month to open', () => {
+    renderRows([row({
+      hasCurrentRequest: false,
+      currentRequestId: null,
+      primaryCause: null,
+      primaryCauseAmount: null,
+    })])
+
+    expect(table().getByRole('link', { name: /Detallara bax/ })).toHaveAttribute('href', '/locations/21')
+  })
+
+  it('no longer sends the reader through a separate analytics screen', () => {
+    renderRows([row()])
+
+    expect(screen.queryByText('Analitikaya bax')).toBeNull()
   })
 })
 
-describe('a compared object', () => {
-  it('shows the counts the backend gave, and its money difference', () => {
+describe('a phone', () => {
+  it('gets the same four answers stacked, not the table squeezed sideways', () => {
     const { container } = renderRows([row()])
-    const table = container.querySelector('table')!
+    const cards = container.querySelector('ul.lg\\:hidden') as HTMLElement
 
-    expect(within(table).getByText('+200,00 ₼')).toBeInTheDocument()
-    expect(within(table).getByText('+25%')).toBeInTheDocument()
-    expect(within(table).getByText('Yeni')).toBeInTheDocument()
-    expect(within(table).getByText('Artıq sifariş olunmur')).toBeInTheDocument()
-  })
-
-  it('counts services separately from quantity changes', () => {
-    const { container } = renderRows([row({ amountOrientedServiceCount: 2 })])
-    const table = container.querySelector('table')!
-
-    expect(within(table).getByText('Xidmət: 2')).toBeInTheDocument()
-  })
-
-  it('is money — never wraps between the amount and its manat sign', () => {
-    const { container } = renderRows([row()])
-    const table = container.querySelector('table')!
-
-    for (const value of within(table).getAllByText(/₼/)) {
-      expect(value).toHaveClass('whitespace-nowrap')
-    }
-  })
-})
-
-describe('the changes column', () => {
-  it('shows the three main states compactly, on one line', () => {
-    const { container } = renderRows([row()])
-    const table = container.querySelector('table')!
-    const line = within(table).getByText('Yeni').closest('p')!
-
-    expect(line).toHaveTextContent('Yeni 3 · Artıb 2 · Azalıb 1')
-  })
-
-  it('keeps NoLongerOrdered and services out of that line, as quieter secondary text', () => {
-    const { container } = renderRows([row({ amountOrientedServiceCount: 1 })])
-    const table = container.querySelector('table')!
-    const primary = within(table).getByText('Yeni').closest('p')!
-
-    expect(primary).not.toHaveTextContent('sifariş olunmur')
-    expect(primary).not.toHaveTextContent('Xidmət')
-
-    const noLongerOrdered = within(table).getByText('Artıq sifariş olunmur').closest('span')!
-    expect(noLongerOrdered).toHaveClass('text-slate-400')
-  })
-
-  it('says nothing at all about NoLongerOrdered or services when there are none', () => {
-    const { container } = renderRows([row({ noLongerOrderedVariantCount: 0, amountOrientedServiceCount: 0 })])
-    const table = container.querySelector('table')!
-
-    expect(within(table).queryByText('Artıq sifariş olunmur')).toBeNull()
-    expect(within(table).queryByText(/Xidmət/)).toBeNull()
-  })
-
-  it('never removes the underlying counts — they are still there, just quieter', () => {
-    const { container } = renderRows([row({ noLongerOrderedVariantCount: 5, amountOrientedServiceCount: 2 })])
-    const table = container.querySelector('table')!
-
-    expect(within(table).getByText('Artıq sifariş olunmur')).toBeInTheDocument()
-    expect(within(table).getByText('5')).toBeInTheDocument()
-    expect(within(table).getByText('Xidmət: 2')).toBeInTheDocument()
+    expect(within(cards).getByText('Fəvvarələr meydanı')).toBeInTheDocument()
+    expect(within(cards).getByText('1.000,00 ₼')).toBeInTheDocument()
+    expect(within(cards).getByText(/Yeni sifarişlər/)).toBeInTheDocument()
+    expect(within(cards).getByRole('link', { name: /Detallara bax/ })).toBeInTheDocument()
   })
 })

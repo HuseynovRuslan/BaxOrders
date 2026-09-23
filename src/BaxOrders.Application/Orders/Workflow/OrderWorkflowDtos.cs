@@ -126,6 +126,7 @@ public sealed record OrderWorkflowDto(
     DateTime? ReturnedAtUtc,
     int ItemCount,
     int MissingPriceItemCount,
+    int PriceNotRequiredItemCount,
     decimal? KnownAmountTotal,
     bool AmountIsComplete,
     bool RequiresMissingPriceAcknowledgement,

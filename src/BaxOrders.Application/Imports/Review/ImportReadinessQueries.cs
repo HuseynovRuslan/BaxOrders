@@ -2,6 +2,7 @@ using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports.Evaluation;
 using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Domain.Imports;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Imports.Review;
@@ -30,7 +31,20 @@ public sealed record RowBlockers(
     int OtherErrors);
 
 /// <summary>Problems that are worth seeing but never keep an import back.</summary>
-public sealed record ReadinessWarnings(int MissingPrice, int InvalidPrice, int LineTotalMismatch, int CellsStoredAsDates);
+/// <param name="MissingPrice">
+/// Rows whose price is blank and whose supplier is expected to charge one. A row resolved to the company's own
+/// store is not here: no purchase price was ever owed for it, so the importer is not asked to invent one.
+/// </param>
+/// <param name="PriceNotRequired">
+/// Rows with a blank price that are supplied internally. Stated so the reviewer can see they were considered
+/// and set aside, never as something to fix.
+/// </param>
+public sealed record ReadinessWarnings(
+    int MissingPrice,
+    int PriceNotRequired,
+    int InvalidPrice,
+    int LineTotalMismatch,
+    int CellsStoredAsDates);
 
 /// <param name="LatestVersion">Highest version already stored for this location and period.</param>
 public sealed record ExistingRequestGroup(int LocationId, string LocationName, DateOnly Period, int RowCount, int LatestVersion);
@@ -88,6 +102,20 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
         int RowsWith(ImportIssueType type, IssueSeverity? severity = null) =>
             issueRows.Where(item => item.IssueType == type && (severity is null || item.Severity == severity)).Sum(item => item.Rows);
 
+        // A blank price is only a warning when somebody was going to be charged. The parse stage cannot know
+        // that — it runs long before a supplier is resolved — so the row's resolved supplier is consulted here,
+        // once, in its own query.
+        var priceNotRequiredRows = await db.ImportRowIssues.AsNoTracking()
+            .Where(issue => issue.ImportRow.ImportBatchId == importBatchId
+                && !issue.ImportRow.IsExcluded
+                && issue.IssueType == ImportIssueType.MissingPrice
+                && issue.ImportRow.MatchedSupplierId != null
+                && db.Suppliers.Any(supplier => supplier.Id == issue.ImportRow.MatchedSupplierId
+                    && supplier.PriceRequirement == SupplierPriceRequirement.NotRequired))
+            .Select(issue => issue.ImportRowId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
         var blockers = issueRows
             .Where(item => ImportIssueRules.IsBlocking(item.IssueType, item.Severity))
             .GroupBy(item => (Area: AreaOf(item.IssueType, item.FieldName), item.IssueType))
@@ -128,7 +156,8 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
                 RowsWith(ImportIssueType.AmbiguousMatch, IssueSeverity.Error),
                 RowsWith(ImportIssueType.Other, IssueSeverity.Error)),
             new ReadinessWarnings(
-                RowsWith(ImportIssueType.MissingPrice),
+                Math.Max(0, RowsWith(ImportIssueType.MissingPrice) - priceNotRequiredRows),
+                priceNotRequiredRows,
                 RowsWith(ImportIssueType.InvalidPrice),
                 RowsWith(ImportIssueType.LineTotalMismatch),
                 RowsWith(ImportIssueType.Other, IssueSeverity.Warning)),

@@ -141,7 +141,7 @@ public sealed class OrderAnalyticsCalculatorTests
     public void A_weighted_price_follows_the_quantity_not_the_number_of_lines()
     {
         // One unit at 10 and nine at 20 average to 19, never to the 15 a plain mean would give.
-        var snapshot = new VariantPeriodSnapshot(Variant, 10m, 2, 2, 0, 10m, (1m * 10m) + (9m * 20m));
+        var snapshot = new VariantPeriodSnapshot(Variant, 10m, 2, 2, 0, 0, 10m, (1m * 10m) + (9m * 20m));
 
         var result = ComparePreviousMonth(current: snapshot, baseline: Snapshot(1m));
 
@@ -152,7 +152,7 @@ public sealed class OrderAnalyticsCalculatorTests
     public void Lines_without_a_price_are_left_out_of_the_weighted_price_entirely()
     {
         // 10 units priced at 5, 90 units with no price: the known price is 5, not 0.5.
-        var snapshot = new VariantPeriodSnapshot(Variant, 100m, 2, 1, 1, 10m, 50m);
+        var snapshot = new VariantPeriodSnapshot(Variant, 100m, 2, 1, 1, 0, 10m, 50m);
 
         var result = ComparePreviousMonth(current: snapshot, baseline: Snapshot(1m));
 
@@ -165,7 +165,7 @@ public sealed class OrderAnalyticsCalculatorTests
     [Fact]
     public void A_product_with_no_price_at_all_has_no_weighted_price_and_no_amount()
     {
-        var snapshot = new VariantPeriodSnapshot(Variant, 100m, 3, 0, 3, 0m, 0m);
+        var snapshot = new VariantPeriodSnapshot(Variant, 100m, 3, 0, 3, 0, 0m, 0m);
 
         var result = ComparePreviousMonth(current: snapshot, baseline: Snapshot(1m));
 
@@ -183,7 +183,7 @@ public sealed class OrderAnalyticsCalculatorTests
     {
         var total = pricedQuantity + unpricedQuantity;
         var snapshot = new VariantPeriodSnapshot(
-            Variant, total, 2, pricedQuantity > 0 ? 1 : 0, unpricedQuantity > 0 ? 1 : 0, pricedQuantity, pricedQuantity * 3m);
+            Variant, total, 2, pricedQuantity > 0 ? 1 : 0, unpricedQuantity > 0 ? 1 : 0, 0, pricedQuantity, pricedQuantity * 3m);
 
         var result = ComparePreviousMonth(current: snapshot, baseline: Snapshot(1m));
 
@@ -193,8 +193,8 @@ public sealed class OrderAnalyticsCalculatorTests
     [Fact]
     public void A_price_delta_is_the_difference_between_the_two_weighted_prices()
     {
-        var current = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 10m, 120m);   // 12.00
-        var baseline = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 10m, 100m);  // 10.00
+        var current = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 0, 10m, 120m);   // 12.00
+        var baseline = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 0, 10m, 100m);  // 10.00
 
         var result = ComparePreviousMonth(current, baseline);
 
@@ -205,8 +205,8 @@ public sealed class OrderAnalyticsCalculatorTests
     [Fact]
     public void A_baseline_price_of_zero_gives_a_delta_but_no_percentage()
     {
-        var current = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 10m, 50m); // 5.00
-        var baseline = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 10m, 0m); // 0.00, a genuinely free line
+        var current = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 0, 10m, 50m); // 5.00
+        var baseline = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 0, 10m, 0m); // 0.00, a genuinely free line
 
         var result = ComparePreviousMonth(current, baseline);
 
@@ -220,8 +220,8 @@ public sealed class OrderAnalyticsCalculatorTests
         // 1 unit at 100 one month and 1,000 units at 10 the next: the pooled price is near 10, not 55.
         var months = new[]
         {
-            new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 1m, 100m),
-            new VariantPeriodSnapshot(Variant, 1000m, 1, 1, 0, 1000m, 10_000m),
+            new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 0, 1m, 100m),
+            new VariantPeriodSnapshot(Variant, 1000m, 1, 1, 0, 0, 1000m, 10_000m),
         };
 
         var result = Compare(AnalyticsKind.QuantityComparable, Snapshot(1m), months, available: 2, expected: 2);
@@ -252,8 +252,8 @@ public sealed class OrderAnalyticsCalculatorTests
     [Fact]
     public void A_service_is_compared_by_the_money_that_is_known()
     {
-        var current = new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 1m, 300m);
-        var baseline = new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 1m, 200m);
+        var current = new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 0, 1m, 300m);
+        var baseline = new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 0, 1m, 200m);
 
         var result = ComparePreviousMonth(current, baseline, AnalyticsKind.AmountOrientedService);
 
@@ -266,8 +266,8 @@ public sealed class OrderAnalyticsCalculatorTests
     [Fact]
     public void A_service_with_no_known_price_has_no_amount_comparison_rather_than_a_zero_one()
     {
-        var current = new VariantPeriodSnapshot(Variant, 1m, 1, 0, 1, 0m, 0m);
-        var baseline = new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 1m, 200m);
+        var current = new VariantPeriodSnapshot(Variant, 1m, 1, 0, 1, 0, 0m, 0m);
+        var baseline = new VariantPeriodSnapshot(Variant, 1m, 1, 1, 0, 0, 1m, 200m);
 
         var result = ComparePreviousMonth(current, baseline, AnalyticsKind.AmountOrientedService);
 
@@ -292,7 +292,7 @@ public sealed class OrderAnalyticsCalculatorTests
     public void Several_lines_of_one_variant_in_one_request_are_one_comparison_row()
     {
         // Three separate permanent lines of 5, 10 and 15 are one variant ordering 30 that month.
-        var snapshot = new VariantPeriodSnapshot(Variant, 30m, 3, 3, 0, 30m, 300m);
+        var snapshot = new VariantPeriodSnapshot(Variant, 30m, 3, 3, 0, 0, 30m, 300m);
 
         var result = ComparePreviousMonth(current: snapshot, baseline: Snapshot(30m));
 
@@ -305,8 +305,8 @@ public sealed class OrderAnalyticsCalculatorTests
     public void Lines_that_look_like_duplicates_are_ordinary_lines_and_are_counted()
     {
         // Task 4 materialized identical rows as two items on purpose; hiding one here would change the numbers.
-        var withoutDuplicate = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 10m, 100m);
-        var withDuplicate = new VariantPeriodSnapshot(Variant, 20m, 2, 2, 0, 20m, 200m);
+        var withoutDuplicate = new VariantPeriodSnapshot(Variant, 10m, 1, 1, 0, 0, 10m, 100m);
+        var withDuplicate = new VariantPeriodSnapshot(Variant, 20m, 2, 2, 0, 0, 20m, 200m);
 
         var result = ComparePreviousMonth(current: withDuplicate, baseline: withoutDuplicate);
 
@@ -370,9 +370,9 @@ public sealed class OrderAnalyticsCalculatorTests
     public void Two_variants_are_compared_independently_of_each_other()
     {
         var pieces = OrderAnalyticsCalculator.Compare(new VariantComparisonInput(
-            1, AnalyticsKind.QuantityComparable, new VariantPeriodSnapshot(1, 30m, 1, 1, 0, 30m, 30m), [], 1, 1));
+            1, AnalyticsKind.QuantityComparable, new VariantPeriodSnapshot(1, 30m, 1, 1, 0, 0, 30m, 30m), [], 1, 1));
         var packs = OrderAnalyticsCalculator.Compare(new VariantComparisonInput(
-            2, AnalyticsKind.QuantityComparable, null, [new VariantPeriodSnapshot(2, 30m, 1, 1, 0, 30m, 30m)], 1, 1));
+            2, AnalyticsKind.QuantityComparable, null, [new VariantPeriodSnapshot(2, 30m, 1, 1, 0, 0, 30m, 30m)], 1, 1));
 
         Assert.Equal(ComparisonState.New, pieces.State);
         Assert.Equal(ComparisonState.NoLongerOrdered, packs.State);
@@ -383,7 +383,11 @@ public sealed class OrderAnalyticsCalculatorTests
     // ---- helpers ------------------------------------------------------------------------------------
 
     private static VariantPeriodSnapshot Snapshot(decimal quantity, decimal unitPrice = 1m) =>
-        new(Variant, quantity, 1, 1, 0, quantity, quantity * unitPrice);
+        new(Variant, quantity, 1, 1, 0, 0, quantity, quantity * unitPrice);
+
+    /// <summary>Issued from the company's own store: real quantity, no price, and nothing owed.</summary>
+    private static VariantPeriodSnapshot InternallySupplied(decimal quantity) =>
+        new(Variant, quantity, 1, 0, 0, 1, 0m, 0m);
 
     private static VariantComparisonResult ComparePreviousMonth(
         VariantPeriodSnapshot? current,

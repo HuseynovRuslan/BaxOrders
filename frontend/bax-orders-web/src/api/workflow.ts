@@ -48,8 +48,13 @@ export interface OrderWorkflow {
   approvedAtUtc: string | null
   returnedAtUtc: string | null
   itemCount: number
-  /** Counted by the server from the stored lines; never supplied by the caller. */
+  /**
+    * Counted by the server from the stored lines; never supplied by the caller. Only prices somebody owes: an
+    * order supplied entirely from the company's own store has none of these and needs no acknowledgement.
+    */
   missingPriceItemCount: number
+  /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
+  priceNotRequiredItemCount: number
   knownAmountTotal: number | null
   amountIsComplete: boolean
   /** True when approving would cover lines nobody has priced. It does not block approval; it must be said. */

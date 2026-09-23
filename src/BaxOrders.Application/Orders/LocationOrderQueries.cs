@@ -3,6 +3,7 @@ using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Orders;
@@ -159,7 +160,13 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 OrderRequestId = group.Key,
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
+                // recorded property of the supplier and never a guess from its name. No supplier at all is
+                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
             .ToDictionaryAsync(row => row.OrderRequestId, cancellationToken);
@@ -190,8 +197,11 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 {
                     LatestKnownAmount = latestAmount,
                     LatestItemCount = latest?.ItemCount ?? 0,
-                    LatestMissingPriceItemCount = latest?.MissingPriceItemCount ?? 0,
-                    LatestAmountIsComplete = (latest?.MissingPriceItemCount ?? 0) == 0,
+                    // Only the prices somebody owes. Material issued from the company's own store carries
+                    // no purchase price and is not a shortfall, so it never lands in this count.
+                    LatestMissingPriceItemCount = latest?.MissingRequiredPriceItemCount ?? 0,
+                    LatestPriceNotRequiredItemCount = latest?.PriceNotRequiredItemCount ?? 0,
+                    LatestAmountIsComplete = (latest?.MissingRequiredPriceItemCount ?? 0) == 0,
                     PreviousPeriod = previousPeriod,
                     PreviousKnownAmount = previousAmount,
                     KnownAmountDelta = delta,

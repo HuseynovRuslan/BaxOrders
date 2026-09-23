@@ -36,6 +36,7 @@ function location(overrides: Partial<LocationOrderSummary> = {}): LocationOrderS
     latestKnownAmount: 1520.4,
     latestItemCount: 6,
     latestMissingPriceItemCount: 0,
+    latestPriceNotRequiredItemCount: 0,
     latestAmountIsComplete: true,
     previousPeriod: '2026-08-01',
     previousKnownAmount: 1200,

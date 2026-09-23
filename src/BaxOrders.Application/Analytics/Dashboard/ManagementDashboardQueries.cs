@@ -1,7 +1,9 @@
 using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Normalization;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Analytics.Dashboard;
@@ -23,6 +25,18 @@ namespace BaxOrders.Application.Analytics.Dashboard;
 public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 {
     public const int DefaultPageSize = 25;
+
+    /// <summary>How many objects the attention section may name at once before it stops being a shortlist.</summary>
+    private const int MaxAttention = 8;
+
+    /// <summary>How many each signal may contribute, so no single signal fills the whole section.</summary>
+    private const int PerReason = 2;
+
+    /// <summary>A movement worth reading as a proportion rather than as a sum.</summary>
+    private const decimal StrongPercentage = 50m;
+
+    /// <summary>A baseline small enough that its percentage says more about the divisor than the change.</summary>
+    private const decimal MeaningfulBaseline = 100m;
     public const int MaxPageSize = 100;
 
     /// <summary>The months the company has permanent orders for, newest first.</summary>
@@ -105,6 +119,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         return new ManagementDashboardDto(
             summary,
             filtered.Count,
+            // Chosen from every object, not from the page in front of the reader.
+            Attention(rows),
             new PagedResult<LocationDashboardRowDto>(pageRows, page, pageSize, filtered.Count));
     }
 
@@ -168,6 +184,30 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 ? ComparisonAvailability.NoBaselineHistory
                 : ComparisonAvailability.Available;
 
+        // The same decomposition the decision screen uses, run here on snapshots this method already has.
+        // It costs no query: the lines of every request in the window were fetched once, for every location.
+        var decomposition = current is null
+            ? null
+            : CauseDecomposition.Decompose(
+                currentSnapshots.Keys.Union(baselineByVariant.Keys).Select(variantId => new VariantCauseInput(
+                    variantId,
+                    kinds.GetValueOrDefault(variantId, AnalyticsKind.QuantityComparable),
+                    currentSnapshots.GetValueOrDefault(variantId),
+                    AverageBaseline(variantId, baselineByVariant.GetValueOrDefault(variantId), available))));
+
+        var causes = decomposition is null || available == 0
+            ? []
+            : decomposition.Categories
+                .Where(category => category.Amount != 0m)
+                .Select(category => new DashboardCauseDto(category.Category, category.Amount, category.VariantCount))
+                .ToList();
+
+        // The one cause that moved the most money, in either direction. A factual ordering, not a judgement:
+        // nothing here decides whether the movement was a good idea.
+        var primary = causes.Count == 0
+            ? null
+            : causes.OrderByDescending(cause => Math.Abs(cause.Amount)).ThenBy(cause => cause.Category).First();
+
         var counts = new StateCounts();
         if (current is not null)
         {
@@ -202,8 +242,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 currentAmount,
                 currentTotals.ItemCount,
                 currentTotals.KnownPriceItemCount,
-                currentTotals.MissingPriceItemCount,
-                currentTotals.MissingPriceItemCount == 0),
+                currentTotals.MissingRequiredPriceItemCount,
+                currentTotals.PriceNotRequiredItemCount,
+                currentTotals.IsComplete),
             current is null ? null : CoverageOf(currentTotals),
             expected,
             available,
@@ -213,8 +254,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 baselineAmount,
                 baselineTotals.ItemCount,
                 baselineTotals.KnownPriceItemCount,
-                baselineTotals.MissingPriceItemCount,
-                baselineTotals.MissingPriceItemCount == 0),
+                baselineTotals.MissingRequiredPriceItemCount,
+                baselineTotals.PriceNotRequiredItemCount,
+                baselineTotals.IsComplete),
             amountDelta,
             amountPercent,
             coverage,
@@ -231,15 +273,122 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             counts.Services,
             counts.Total,
             currentPeriod,
-            basis);
+            basis,
+            causes,
+            primary?.Category,
+            primary?.Amount,
+            // Only a price somebody owes makes an explanation incomplete; internal supply never does.
+            decomposition?.ExplanationIsComplete ?? true,
+            causes
+                .Where(cause => cause.Category == CauseCategory.UnattributedDueToMissingPrice)
+                .Sum(cause => cause.Amount));
     }
 
-    /// <summary>Price coverage of a period, counted in lines rather than in quantity across unlike units.</summary>
+    /// <summary>
+    /// A variant's baseline months folded into one average month, so the comparison is month against month.
+    /// </summary>
+    /// <remarks>
+    /// Divided by the months that exist, never by the months the basis asked for — the same rule the rest of
+    /// analytics follows. Nothing is rounded here: the figures go straight into the decomposition, which is
+    /// where the money is added up, and rounding each variant first would leave the total a few qəpik adrift.
+    /// <para>
+    /// The item counts are not averaged. They exist only to say whether a price was owed and not given, and
+    /// half a missing price is not a thing.
+    /// </para>
+    /// </remarks>
+    private static VariantPeriodSnapshot? AverageBaseline(
+        long variantId, List<VariantPeriodSnapshot>? months, int available)
+    {
+        if (available == 0 || months is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        decimal quantity = 0m, pricedQuantity = 0m, pricedAmount = 0m;
+        int items = 0, known = 0, missingRequired = 0, notRequired = 0;
+        foreach (var month in months)
+        {
+            quantity += month.Quantity;
+            pricedQuantity += month.PricedQuantity;
+            pricedAmount += month.PricedAmount;
+            items += month.ItemCount;
+            known += month.KnownPriceItemCount;
+            missingRequired += month.MissingRequiredPriceItemCount;
+            notRequired += month.PriceNotRequiredItemCount;
+        }
+
+        return new VariantPeriodSnapshot(
+            variantId,
+            quantity / available,
+            items,
+            known,
+            missingRequired,
+            notRequired,
+            pricedQuantity / available,
+            pricedAmount / available);
+    }
+
+    /// <summary>
+    /// The short list of objects worth reading first.
+    /// </summary>
+    /// <remarks>
+    /// Five signals, each one a fact the data states outright, taken two at a time and capped. There is no
+    /// score, no weighting and no threshold anybody will be tempted to tune: an object is here because it moved
+    /// the most money, or because its records are incomplete, and the card says which.
+    /// <para>
+    /// This hides nothing. Every object remains in the full table below, whatever its change; this is a reading
+    /// order, not a filter.
+    /// </para>
+    /// </remarks>
+    private static List<DashboardAttentionDto> Attention(IReadOnlyList<LocationDashboardRowDto> rows)
+    {
+        var moved = rows.Where(row => row.KnownAmountDelta is not null).ToList();
+
+        // A percentage is only worth reading when there is a baseline big enough to divide by; a month that
+        // went from two manat to twenty is up 900% and is not news.
+        var meaningful = moved.Where(row =>
+            row.KnownAmountPercentChange is not null
+            && Math.Abs(row.KnownAmountPercentChange.Value) >= StrongPercentage
+            && row.Baseline.KnownAmount >= MeaningfulBaseline);
+
+        var candidates = new List<DashboardAttentionDto>();
+        void Take(DashboardAttentionReason reason, IEnumerable<LocationDashboardRowDto> found) =>
+            candidates.AddRange(found.Take(PerReason).Select(row => new DashboardAttentionDto(reason, row)));
+
+        Take(DashboardAttentionReason.LargestIncrease,
+            moved.Where(row => row.KnownAmountDelta > 0).OrderByDescending(row => row.KnownAmountDelta));
+        Take(DashboardAttentionReason.LargestDecrease,
+            moved.Where(row => row.KnownAmountDelta < 0).OrderBy(row => row.KnownAmountDelta));
+        Take(DashboardAttentionReason.StrongPercentageChange,
+            meaningful.OrderByDescending(row => Math.Abs(row.KnownAmountPercentChange!.Value)));
+        Take(DashboardAttentionReason.MissingRequiredPrice,
+            rows.Where(row => row.Current.MissingPriceItemCount > 0)
+                .OrderByDescending(row => row.Current.MissingPriceItemCount));
+        Take(DashboardAttentionReason.NoComparisonHistory,
+            rows.Where(row => row.ComparisonAvailability == ComparisonAvailability.NoBaselineHistory)
+                .OrderByDescending(row => row.Current.KnownAmount ?? 0m));
+
+        // One card per object: the first reason it qualified under is the one it is filed against.
+        return [.. candidates
+            .GroupBy(item => item.Location.LocationId)
+            .Select(group => group.First())
+            .OrderBy(item => item.Reason)
+            .ThenByDescending(item => Math.Abs(item.Location.KnownAmountDelta ?? 0m))
+            .Take(MaxAttention)];
+    }
+
+    /// <summary>
+    /// Price coverage of a period, counted in lines rather than in quantity across unlike units.
+    /// </summary>
+    /// <remarks>
+    /// Complete means every line that needed a price has one, not that every line has one. A month supplied
+    /// entirely from the company's own store is complete and has no money at all.
+    /// </remarks>
     private static PriceCoverageState CoverageOf(AmountTotals totals) => totals switch
     {
         { ItemCount: 0 } => PriceCoverageState.Unavailable,
+        { MissingRequiredPriceItemCount: 0 } => PriceCoverageState.Complete,
         { KnownPriceItemCount: 0 } => PriceCoverageState.Unavailable,
-        { MissingPriceItemCount: 0 } => PriceCoverageState.Complete,
         _ => PriceCoverageState.Partial,
     };
 
@@ -258,7 +407,13 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
+                // recorded property of the supplier and never a guess from its name. No supplier at all is
+                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -274,7 +429,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
             byVariant[row.ProductVariantId] = new VariantPeriodSnapshot(
                 row.ProductVariantId, row.Quantity, row.ItemCount, row.KnownPriceItemCount,
-                row.MissingPriceItemCount, row.PricedQuantity, row.PricedAmount);
+                row.MissingRequiredPriceItemCount, row.PriceNotRequiredItemCount,
+                row.PricedQuantity, row.PricedAmount);
         }
 
         return byRequest;
@@ -376,6 +532,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var currentItems = withCurrent.Sum(row => row.Current.ItemCount);
         var currentKnownItems = withCurrent.Sum(row => row.Current.KnownPriceItemCount);
         var currentMissing = withCurrent.Sum(row => row.Current.MissingPriceItemCount);
+        var currentNotRequired = withCurrent.Sum(row => row.Current.PriceNotRequiredItemCount);
         var currentAmount = currentKnownItems == 0 ? null : (decimal?)withCurrent.Sum(row => row.Current.KnownAmount ?? 0m);
 
         // Each location contributes the money of its own average baseline month, so the company figure is the
@@ -384,6 +541,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var baselineItems = baselineRows.Sum(row => row.Baseline.ItemCount);
         var baselineKnownItems = baselineRows.Sum(row => row.Baseline.KnownPriceItemCount);
         var baselineMissing = baselineRows.Sum(row => row.Baseline.MissingPriceItemCount);
+        var baselineNotRequired = baselineRows.Sum(row => row.Baseline.PriceNotRequiredItemCount);
         var baselineAmount = baselineKnownItems == 0 ? null : (decimal?)baselineRows.Sum(row => row.Baseline.KnownAmount ?? 0m);
 
         var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(currentAmount, baselineAmount);
@@ -395,8 +553,10 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             withCurrent.Count,
             rows.Count - withCurrent.Count,
             withCurrent.Count,
-            new DashboardAmountDto(currentAmount, currentItems, currentKnownItems, currentMissing, currentMissing == 0),
-            new DashboardAmountDto(baselineAmount, baselineItems, baselineKnownItems, baselineMissing, baselineMissing == 0),
+            new DashboardAmountDto(
+                currentAmount, currentItems, currentKnownItems, currentMissing, currentNotRequired, currentMissing == 0),
+            new DashboardAmountDto(
+                baselineAmount, baselineItems, baselineKnownItems, baselineMissing, baselineNotRequired, baselineMissing == 0),
             delta,
             percent,
             withCurrent.Count(row => row.Current.MissingPriceItemCount > 0),

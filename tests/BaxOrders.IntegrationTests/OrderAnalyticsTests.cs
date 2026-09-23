@@ -351,7 +351,7 @@ public sealed class OrderAnalyticsTests(PostgresDatabaseFixture database)
         Assert.Null(row.Current.KnownAmount);
         Assert.Null(row.Current.WeightedUnitPrice);
         Assert.Equal(PriceCoverageState.Unavailable, row.Current.PriceCoverage.State);
-        Assert.Equal(1, row.Current.PriceCoverage.MissingPriceItemCount);
+        Assert.Equal(1, row.Current.PriceCoverage.MissingRequiredPriceItemCount);
     }
 
     [PostgresFact]

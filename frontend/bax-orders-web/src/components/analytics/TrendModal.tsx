@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { fetchVariantTrend, type VariantIdentity, type VariantTrend } from '../../api/analytics'
 import { formatNumber } from '../imports/labels'
 import { Modal } from '../imports/review/Modal'
-import { formatAnalyticsPeriod, formatVariantLine, unknownValue } from './labels'
+import { formatAnalyticsPeriod, formatVariantLine, internalSupplyLabel, unknownValue } from './labels'
 import { formatTrendValue, metricLabels, monthsBetween, trendValueOf, type TrendMetric, type TrendSlot } from './trend'
 
 // Charting is only downloaded when somebody actually opens a trend.
@@ -129,9 +129,13 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
                       <td className="px-3 py-1.5">
                         {slot.point === null
                           ? unknownValue
-                          : slot.point.missingPriceItemCount > 0
-                            ? formatNumber(slot.point.missingPriceItemCount)
-                            : '0'}
+                          : slot.point.missingRequiredPriceItemCount > 0
+                            ? formatNumber(slot.point.missingRequiredPriceItemCount)
+                            // A month supplied from our own store owes no price, so it is described rather
+                            // than counted as a shortfall of zero.
+                            : slot.point.priceNotRequiredItemCount > 0
+                              ? internalSupplyLabel
+                              : '0'}
                       </td>
                       <td className="px-3 py-1.5">{slot.point === null ? unknownValue : slot.point.version}</td>
                     </tr>

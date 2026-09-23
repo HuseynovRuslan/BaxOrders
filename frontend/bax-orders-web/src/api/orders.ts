@@ -3,6 +3,9 @@ import { getJson } from './client'
 /** A request lives in one of these states. Task 5 only ever displays them. */
 export type OrderRequestStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'ReturnedForCorrection'
 
+/** Whether a supplier's lines are expected to carry a purchase price. */
+export type SupplierPriceRequirement = 'Required' | 'NotRequired'
+
 export type LocationOrderSort = 'Name' | 'LatestPeriod' | 'OrderRequestCount'
 
 export interface PagedResult<T> {
@@ -32,6 +35,8 @@ export interface LocationOrderSummary {
   latestKnownAmount: number | null
   latestItemCount: number
   latestMissingPriceItemCount: number
+  /** Lines of the latest order supplied internally. Neutral context, never a warning. */
+  latestPriceNotRequiredItemCount: number
   latestAmountIsComplete: boolean
   previousPeriod: string | null
   /** The month before the latest order. Null when it has no request, so no difference is offered. */
@@ -105,6 +110,12 @@ export interface OrderRequestItem {
   lineTotal: number | null
   supplierId: number | null
   supplierName: string | null
+  /**
+   * Whether this line's supplier owes a purchase price at all. A null `unitPrice` means two different things
+   * depending on it: a price nobody has filled in, or material issued from the company's own store that never
+   * had one. A line with no supplier is reported as `Required`.
+   */
+  supplierPriceRequirement: SupplierPriceRequirement
   categoryPath: string[]
   /** The workbook row this very line came from. Null for a copied line — its row is reached through the chain. */
   source: OrderItemSourceRef | null

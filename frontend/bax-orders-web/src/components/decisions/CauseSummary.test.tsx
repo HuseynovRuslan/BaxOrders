@@ -27,6 +27,7 @@ function decomposition(overrides: Partial<DecisionDecomposition> = {}): Decision
     totalAmountImpact: categories.reduce((sum, item) => sum + item.amount, 0),
     explanationIsComplete: true,
     unattributedVariantCount: 0,
+    internalSupplyVariantCount: 0,
     drivers: [],
     ...overrides,
   }

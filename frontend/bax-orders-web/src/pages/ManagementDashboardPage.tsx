@@ -11,18 +11,13 @@ import {
 } from '../api/dashboard'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
+import { AttentionSection } from '../components/dashboard/AttentionSection'
 import { DashboardSummary } from '../components/dashboard/DashboardSummary'
 import { LocationRows } from '../components/dashboard/LocationRows'
 import {
-  historyCoverageLabels,
-  historyCoverageOrder,
   isHistoryCoverage,
   isPriceCoverage,
   isSort,
-  priceCoverageLabels,
-  priceCoverageOrder,
-  sortLabels,
-  sortOrder,
 } from '../components/dashboard/labels'
 import { basisLabels, basisOrder, formatCount, formatMonth, isBasis, toMonthKey } from '../components/analytics/format'
 
@@ -87,6 +82,26 @@ export function ManagementDashboardPage() {
   )
 
   // One request per selection; the key keeps a re-render from repeating a fetch already in flight.
+  // The three separate filters the read model offers, behind one question a manager would actually ask.
+  const dataIssue = priceCoverage ? 'missing-price'
+    : historyCoverage === 'Unavailable' ? 'no-history'
+      : hasCurrentRequest === false ? 'no-request'
+        : ''
+
+  function dataIssueParams(choice: string): Record<string, string | undefined> {
+    const cleared = { priceCoverage: undefined, historyCoverage: undefined, hasCurrentRequest: undefined }
+    switch (choice) {
+      case 'missing-price':
+        return { ...cleared, priceCoverage: 'Partial' }
+      case 'no-history':
+        return { ...cleared, historyCoverage: 'Unavailable' }
+      case 'no-request':
+        return { ...cleared, hasCurrentRequest: 'false' }
+      default:
+        return cleared
+    }
+  }
+
   const lastKey = useRef('')
   useEffect(() => {
     if (period === null) {
@@ -185,31 +200,13 @@ export function ManagementDashboardPage() {
 
       {data && <DashboardSummary summary={data.summary} />}
 
+      {/* Meaning first: which objects to read, and why. The full table follows and hides nothing. */}
+      {data && <AttentionSection attention={data.attention} />}
+
+      {data && <h2 className="mb-2 text-sm font-semibold text-slate-900">Bütün obyektlər</h2>}
+
       {data && (
         <div className="mb-3 space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tarixçəyə görə süz">
-            <Chip label="Hamısı" active={!historyCoverage && hasCurrentRequest === undefined} onClick={() => update({ historyCoverage: undefined, hasCurrentRequest: undefined })} />
-            {historyCoverageOrder.map((option) => (
-              <Chip
-                key={option}
-                label={historyCoverageLabels[option]}
-                count={
-                  option === 'Complete' ? data.summary.locationsWithCompleteHistory
-                    : option === 'Partial' ? data.summary.locationsWithPartialHistory
-                      : data.summary.locationsWithNoBaselineHistory
-                }
-                active={historyCoverage === option}
-                onClick={() => update({ historyCoverage: historyCoverage === option ? undefined : option, hasCurrentRequest: undefined })}
-              />
-            ))}
-            <Chip
-              label="Sifariş olmayan obyektlər"
-              count={data.summary.locationsWithoutCurrentRequest}
-              active={hasCurrentRequest === false}
-              onClick={() => update({ hasCurrentRequest: hasCurrentRequest === false ? undefined : 'false', historyCoverage: undefined })}
-            />
-          </div>
-
           <div className="flex flex-wrap items-center gap-2">
             <form onSubmit={(event) => { event.preventDefault(); update({ search: searchInput.trim() }) }}>
               <label className="sr-only" htmlFor="dashboard-search">Obyekt adı və ya kodu üzrə axtar</label>
@@ -223,17 +220,22 @@ export function ManagementDashboardPage() {
               />
             </form>
 
+            {/*
+              One control for data problems, in the reader's words. The three states underneath are separate
+              concepts in the read model, and a manager has no reason to learn that; what they want is the
+              rows where something is wrong with the records.
+            */}
             <label className="text-sm">
-              <span className="sr-only">Qiymət məlumatına görə süz</span>
+              <span className="sr-only">Məlumat vəziyyətinə görə süz</span>
               <select
-                value={priceCoverage ?? ''}
-                onChange={(event) => update({ priceCoverage: event.target.value || undefined })}
+                value={dataIssue}
+                onChange={(event) => update(dataIssueParams(event.target.value))}
                 className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
               >
-                <option value="">Qiymət məlumatı: hamısı</option>
-                {priceCoverageOrder.map((option) => (
-                  <option key={option} value={option}>{priceCoverageLabels[option]}</option>
-                ))}
+                <option value="">Məlumat vəziyyəti: hamısı</option>
+                <option value="missing-price">Qiymət məlumatı çatışmır</option>
+                <option value="no-history">Əvvəlki ay məlumatı yoxdur</option>
+                <option value="no-request">Bu ay sifariş yoxdur</option>
               </select>
             </label>
 
@@ -241,23 +243,14 @@ export function ManagementDashboardPage() {
               <span className="sr-only">Sıralama</span>
               <select
                 value={sort}
-                onChange={(event) => update({ sort: event.target.value })}
+                onChange={(event) => update({ sort: event.target.value, descending: event.target.value === 'LocationName' ? undefined : 'true' })}
                 className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
               >
-                {sortOrder.map((option) => (
-                  <option key={option} value={option}>{sortLabels[option]}</option>
-                ))}
+                <option value="LocationName">Obyekt adı üzrə</option>
+                <option value="KnownAmountDelta">Ən çox dəyişən</option>
+                <option value="CurrentKnownAmount">Bu ayın məbləği üzrə</option>
               </select>
             </label>
-
-            <button
-              type="button"
-              aria-pressed={descending}
-              onClick={() => update({ descending: descending ? undefined : 'true' })}
-              className="rounded-md border border-slate-200 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              {descending ? 'Azalan ↓' : 'Artan ↑'}
-            </button>
 
             {filtered && (
               <button
@@ -302,21 +295,6 @@ export function ManagementDashboardPage() {
   )
 }
 
-function Chip({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${
-        active ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
-      }`}
-    >
-      {label}
-      {count !== undefined && <span className={`ml-1.5 ${active ? 'text-slate-300' : 'text-slate-400'}`}>{formatCount(count)}</span>}
-    </button>
-  )
-}
 
 function message(problem: unknown, fallback: string): string {
   return problem instanceof Error && problem.message ? problem.message : fallback

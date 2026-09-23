@@ -22,13 +22,16 @@ public sealed record VariantIdentityDto(
     string? OrderUnitCode,
     string? OrderUnitName);
 
+/// <param name="MissingRequiredPriceItemCount">Bought lines nobody has priced. The only kind that is a gap.</param>
+/// <param name="PriceNotRequiredItemCount">Internally supplied lines, complete without a purchase price.</param>
 public sealed record PriceCoverageDto(
     PriceCoverageState State,
     decimal TotalQuantity,
     decimal KnownPriceQuantity,
     decimal MissingPriceQuantity,
     int KnownPriceItemCount,
-    int MissingPriceItemCount);
+    int MissingRequiredPriceItemCount,
+    int PriceNotRequiredItemCount);
 
 /// <param name="Quantity">Period total on the current side, per-available-period average on the baseline side.</param>
 /// <param name="KnownAmount">Money that is known; null when nothing on this side has a price.</param>
@@ -74,8 +77,9 @@ public sealed record PeriodRequestDto(DateOnly Period, long OrderRequestId, int 
 /// The comparison at location level.
 /// </summary>
 /// <param name="AmountIsComplete">
-/// False when either side has an item without a price. The totals are then money that is known, not the
-/// complete money of the period, and must be labelled as such.
+/// False when either side has an item that was <b>supposed</b> to be priced and is not. Internally supplied
+/// lines never make it false — nothing about them is missing. When it is false the totals are money that is
+/// known rather than the complete money of the period, and must be labelled as such.
 /// </param>
 /// <param name="BaselineAverageItemCount">Baseline items per available period; null when no period is available.</param>
 public sealed record ComparisonSummaryDto(
@@ -100,6 +104,8 @@ public sealed record ComparisonSummaryDto(
     decimal? KnownAmountPercentChange,
     int CurrentMissingPriceItemCount,
     int BaselineMissingPriceItemCount,
+    int CurrentPriceNotRequiredItemCount,
+    int BaselinePriceNotRequiredItemCount,
     bool AmountIsComplete,
     int NewVariantCount,
     int NoLongerOrderedVariantCount,
@@ -151,6 +157,13 @@ public sealed record AnalyticsPeriodsDto(
 /// Zero when the location ordered that month but not this variant; null for a service-like variant, whose
 /// quantity is not a comparable figure. A month the location has no request for produces no point at all.
 /// </param>
+/// <param name="KnownAmount">
+/// Null when nothing in the month carried a price. That covers two very different months — one nobody has
+/// priced yet, and one supplied from the company's own store — which the two counts below tell apart. Neither
+/// is ever reported as a zero.
+/// </param>
+/// <param name="MissingRequiredPriceItemCount">Bought lines nobody has priced.</param>
+/// <param name="PriceNotRequiredItemCount">Internally supplied lines, complete without a purchase price.</param>
 public sealed record VariantTrendPointDto(
     DateOnly Period,
     long OrderRequestId,
@@ -160,7 +173,8 @@ public sealed record VariantTrendPointDto(
     decimal? WeightedUnitPrice,
     int ItemCount,
     int KnownPriceItemCount,
-    int MissingPriceItemCount);
+    int MissingRequiredPriceItemCount,
+    int PriceNotRequiredItemCount);
 
 public sealed record VariantTrendDto(
     int LocationId,

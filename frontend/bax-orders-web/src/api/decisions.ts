@@ -9,13 +9,19 @@ export type CauseCategory =
   | 'PriceChange'
   | 'NoLongerOrdered'
   | 'Services'
+  /** Supplied from the company's own store: real money, but no price to blame it on. Never a problem. */
+  | 'InternalSupply'
   | 'UnattributedDueToMissingPrice'
 
 export interface DecisionAmount {
   knownAmount: number | null
   itemCount: number
   knownPriceItemCount: number
+  /** Lines somebody still owes a price for — the only kind that is a gap. */
   missingPriceItemCount: number
+  /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
+  priceNotRequiredItemCount: number
+  /** True when every line that needed a price has one — not when every line has one. */
   isComplete: boolean
 }
 
@@ -79,6 +85,8 @@ export interface DecisionDriver {
   currentItemCount: number
   baselineItemCount: number
   missingPriceItemCount: number
+  /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
+  priceNotRequiredItemCount: number
   priceIsComplete: boolean
 }
 
@@ -88,6 +96,8 @@ export interface DecisionDecomposition {
   /** False when a product's price is partly unknown: its money is counted, its cause is not known. */
   explanationIsComplete: boolean
   unattributedVariantCount: number
+  /** Products supplied from the company's own store. Neutral context, never a problem. */
+  internalSupplyVariantCount: number
   /** Largest money first. */
   drivers: DecisionDriver[]
 }

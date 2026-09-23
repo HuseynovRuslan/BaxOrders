@@ -1,3 +1,4 @@
+using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Orders;
 
@@ -17,10 +18,18 @@ public sealed record DashboardPeriodsDto(IReadOnlyList<DashboardPeriodDto> Perio
 /// <c>SUM(Quantity × UnitPrice)</c> over the priced lines only, and null when nothing is priced. For a
 /// baseline window of several months it is the money of an <b>average</b> month, not the total of the window.
 /// </param>
+/// <param name="MissingPriceItemCount">
+/// Lines somebody still has to price. Internally supplied lines are <b>not</b> here — they are counted in
+/// <c>PriceNotRequiredItemCount</c> and are not a shortfall.
+/// </param>
+/// <param name="PriceNotRequiredItemCount">
+/// Lines issued from the company's own store. Neutral context; never a warning.
+/// </param>
 /// <param name="IsComplete">
-/// False as soon as one line has no price. The money is then what is known, not what was spent, and must be
-/// labelled as such. It describes a money figure, so it says nothing where there is none: for a location with
-/// no request this month it is vacuously true beside a null amount, and the caller reads
+/// False as soon as one line that was <b>supposed</b> to carry a price has none. A line supplied internally
+/// never makes it false — nothing about it is missing. The money is then what is known, not what was spent,
+/// and must be labelled as such. It describes a money figure, so it says nothing where there is none: for a
+/// location with no request this month it is vacuously true beside a null amount, and the caller reads
 /// <c>HasCurrentRequest</c> first.
 /// </param>
 public sealed record DashboardAmountDto(
@@ -28,6 +37,7 @@ public sealed record DashboardAmountDto(
     int ItemCount,
     int KnownPriceItemCount,
     int MissingPriceItemCount,
+    int PriceNotRequiredItemCount,
     bool IsComplete);
 
 /// <summary>What one location's selected month looks like beside its own history.</summary>
@@ -39,6 +49,12 @@ public sealed record DashboardAmountDto(
 /// The month and basis a caller needs to open this same comparison in the location analytics screen. The
 /// backend returns the values, never a front-end URL.
 /// </param>
+/// <summary>One share of a location's money difference, from the shared cause decomposition.</summary>
+public sealed record DashboardCauseDto(CauseCategory Category, decimal Amount, int VariantCount);
+
+/// <param name="Location">The whole row, so the section can be drawn without hunting for it in the page.</param>
+public sealed record DashboardAttentionDto(DashboardAttentionReason Reason, LocationDashboardRowDto Location);
+
 public sealed record LocationDashboardRowDto(
     int LocationId,
     string LocationCode,
@@ -70,7 +86,12 @@ public sealed record LocationDashboardRowDto(
     int AmountOrientedServiceCount,
     int ComparedVariantCount,
     DateOnly DeepLinkPeriod,
-    AnalyticsComparisonBasis DeepLinkBasis);
+    AnalyticsComparisonBasis DeepLinkBasis,
+    IReadOnlyList<DashboardCauseDto> Causes,
+    CauseCategory? PrimaryCause,
+    decimal? PrimaryCauseAmount,
+    bool ExplanationIsComplete,
+    decimal UnattributedAmount);
 
 /// <summary>
 /// The company's selected month.
@@ -111,9 +132,14 @@ public sealed record ManagementDashboardSummaryDto(
 /// <param name="FilteredLocationCount">
 /// How many locations the search and filters left. The summary above is unaffected by them.
 /// </param>
+/// <param name="Attention">
+/// A short, deterministic shortlist of objects worth a look, newest facts first. It never hides anything: every
+/// object is still in <paramref name="Rows"/>, and this is only the order somebody would read them in.
+/// </param>
 public sealed record ManagementDashboardDto(
     ManagementDashboardSummaryDto Summary,
     int FilteredLocationCount,
+    IReadOnlyList<DashboardAttentionDto> Attention,
     PagedResult<LocationDashboardRowDto> Rows);
 
 public sealed record DashboardQuery(

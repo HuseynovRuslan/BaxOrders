@@ -14,6 +14,7 @@ function amount(overrides: Partial<DashboardAmount> = {}): DashboardAmount {
     itemCount: 480,
     knownPriceItemCount: 480,
     missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
     isComplete: true,
     ...overrides,
   }

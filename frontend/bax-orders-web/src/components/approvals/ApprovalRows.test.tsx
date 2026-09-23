@@ -71,6 +71,7 @@ function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
     returnedAtUtc: null,
     itemCount: 12,
     missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
     knownAmountTotal: 450.5,
     amountIsComplete: true,
     requiresMissingPriceAcknowledgement: false,

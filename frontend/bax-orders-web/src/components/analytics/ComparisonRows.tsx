@@ -13,6 +13,7 @@ import {
   formatPercent,
   formatPrice,
   formatVariantLine,
+  internalSupplyLabel,
   stateBadgeClass,
   stateLabels,
   stateSign,
@@ -223,7 +224,12 @@ function Coverage({ coverage, compact = false }: { coverage: PriceCoverage; comp
   return (
     <span className={`text-xs ${coverageBadgeClass[coverage.state]}`}>
       {coverageLabels[coverage.state]}
-      {coverage.missingPriceItemCount > 0 && <> · {formatNumber(coverage.missingPriceItemCount)} sətir</>}
+      {coverage.missingRequiredPriceItemCount > 0 && (
+        <> · {formatNumber(coverage.missingRequiredPriceItemCount)} sətir</>
+      )}
+      {coverage.priceNotRequiredItemCount > 0 && (
+        <span className="text-slate-500"> · {internalSupplyLabel}</span>
+      )}
     </span>
   )
 }

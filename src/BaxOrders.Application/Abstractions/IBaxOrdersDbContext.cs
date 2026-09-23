@@ -40,6 +40,9 @@ public interface IBaxOrdersDbContext
 
     DbSet<SupplierAlias> SupplierAliases { get; }
 
+    /// <summary>Append-only record of who changed a supplier's price requirement, and when.</summary>
+    DbSet<SupplierPricingDecision> SupplierPricingDecisions { get; }
+
     DbSet<ResponsiblePerson> ResponsiblePeople { get; }
 
     DbSet<ResponsiblePersonAlias> ResponsiblePersonAliases { get; }

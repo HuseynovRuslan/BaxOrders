@@ -4,11 +4,17 @@ using BaxOrders.Domain.Orders;
 namespace BaxOrders.Application.Decisions;
 
 /// <param name="KnownAmount">Money over the priced lines. Null when nothing on this side carries a price.</param>
+/// <param name="MissingPriceItemCount">Lines somebody still has to price — the only kind that is a gap.</param>
+/// <param name="PriceNotRequiredItemCount">
+/// Lines issued from the company's own store. Neutral context; never a warning, never a shortfall.
+/// </param>
+/// <param name="IsComplete">True when every line that needed a price has one, not when every line has one.</param>
 public sealed record DecisionAmountDto(
     decimal? KnownAmount,
     int ItemCount,
     int KnownPriceItemCount,
     int MissingPriceItemCount,
+    int PriceNotRequiredItemCount,
     bool IsComplete);
 
 /// <summary>Which request a month contributed, so any figure here can be opened and checked.</summary>
@@ -75,6 +81,7 @@ public sealed record DecisionDriverDto(
     int CurrentItemCount,
     int BaselineItemCount,
     int MissingPriceItemCount,
+    int PriceNotRequiredItemCount,
     bool PriceIsComplete);
 
 /// <param name="TotalAmountImpact">The sum of every category, which is the difference against the month before.</param>
@@ -82,12 +89,16 @@ public sealed record DecisionDriverDto(
 /// False when a variant's price is partly unknown, so its money is counted but its cause is not known. The
 /// screen says so rather than presenting a confident answer.
 /// </param>
+/// <param name="InternalSupplyVariantCount">
+/// Products supplied from the company's own store. Shown as neutral context where it helps; never as a problem.
+/// </param>
 /// <param name="Drivers">Every variant that moved, largest money first.</param>
 public sealed record DecisionDecompositionDto(
     IReadOnlyList<DecisionCauseDto> Categories,
     decimal TotalAmountImpact,
     bool ExplanationIsComplete,
     int UnattributedVariantCount,
+    int InternalSupplyVariantCount,
     IReadOnlyList<DecisionDriverDto> Drivers);
 
 /// <summary>

@@ -6,6 +6,8 @@ import { fetchRevision, type OrderRevision } from '../api/revisions'
 import { PageHeader } from '../components/PageHeader'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
+import { InfoHint } from '../components/analytics/InfoHint'
+import { internalSupplyFromWarehouseLabel, internalSupplyHint } from '../components/analytics/labels'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { CauseSummary } from '../components/decisions/CauseSummary'
 import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
@@ -324,10 +326,21 @@ export function OrderDetailPage() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  {item.unitPrice === null ? (
-                    <span className="text-amber-800">{noPriceLabel}</span>
-                  ) : (
+                  {/*
+                    A blank price means two different things. Material bought from outside that nobody has
+                    priced is a gap, and says so in amber. Material issued from our own store was never going
+                    to have a purchase price, so it is described in calm grey — calling it "Qiymət yoxdur"
+                    sent people looking for a number that does not exist.
+                  */}
+                  {item.unitPrice !== null ? (
                     <span className="text-slate-900">{formatAmount(item.unitPrice)}</span>
+                  ) : item.supplierPriceRequirement === 'NotRequired' ? (
+                    <span className="inline-flex items-center gap-1 text-slate-500">
+                      {internalSupplyFromWarehouseLabel}
+                      <InfoHint label="Daxili təminat nədir?">{internalSupplyHint}</InfoHint>
+                    </span>
+                  ) : (
+                    <span className="text-amber-800">{noPriceLabel}</span>
                   )}
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">

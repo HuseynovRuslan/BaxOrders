@@ -2,6 +2,7 @@ using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Reports;
@@ -124,14 +125,25 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
                 OrderRequestId = group.Key,
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
+                // recorded property of the supplier and never a guess from its name. No supplier at all is
+                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(
             row => row.OrderRequestId,
-            row => new RequestTotals(row.ItemCount, row.KnownPriceItemCount, row.MissingPriceItemCount, row.PricedAmount));
+            row => new RequestTotals(
+                row.ItemCount,
+                row.KnownPriceItemCount,
+                row.MissingRequiredPriceItemCount,
+                row.PriceNotRequiredItemCount,
+                row.PricedAmount));
     }
 
     // ---- shaping ------------------------------------------------------------------------------------
@@ -284,9 +296,15 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
     private sealed record RequestRef(
         int LocationId, DateOnly Period, long OrderRequestId, int Version, OrderRequestStatus Status);
 
+    /// <param name="MissingPriceItemCount">Lines somebody owes a price for. The only kind that is a gap.</param>
+    /// <param name="PriceNotRequiredItemCount">Lines issued from the company's own store, complete as they are.</param>
     private sealed record RequestTotals(
-        int ItemCount, int KnownPriceItemCount, int MissingPriceItemCount, decimal PricedAmount)
+        int ItemCount,
+        int KnownPriceItemCount,
+        int MissingPriceItemCount,
+        int PriceNotRequiredItemCount,
+        decimal PricedAmount)
     {
-        public static readonly RequestTotals Empty = new(0, 0, 0, 0m);
+        public static readonly RequestTotals Empty = new(0, 0, 0, 0, 0m);
     }
 }

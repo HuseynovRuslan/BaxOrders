@@ -6,6 +6,7 @@ export const causeLabels: Record<CauseCategory, string> = {
   PriceChange: 'Qiymət dəyişməsi',
   NoLongerOrdered: 'Artıq sifariş olunmayanlar',
   Services: 'Xidmətlər',
+  InternalSupply: 'Daxili təminat',
   UnattributedDueToMissingPrice: 'Qiyməti bilinməyənlər',
 }
 
@@ -18,6 +19,8 @@ export const causeHints: Record<CauseCategory, string> = {
   PriceChange: 'Eyni miqdarın qiymətinin dəyişməsi.',
   NoLongerOrdered: 'Keçən ay sifariş olunan, bu ay sifariş olunmayan məhsullar.',
   Services: 'Xidmətlər miqdar üzrə deyil, yalnız məbləğ üzrə müqayisə olunur.',
+  InternalSupply:
+    'Daxili anbardan verilən material üçün alış qiyməti tələb olunmur, ona görə dəyişikliyin səbəbi miqdara və ya qiymətə ayrılmır.',
   UnattributedDueToMissingPrice: 'Qiyməti tam bilinmədiyi üçün səbəbi miqdara və qiymətə ayrıla bilməyən məbləğ.',
 }
 
@@ -32,6 +35,8 @@ export const causeToneClass: Record<CauseCategory, string> = {
   PriceChange: 'bg-violet-50 text-violet-900 ring-violet-200',
   NoLongerOrdered: 'bg-slate-100 text-slate-700 ring-slate-300',
   Services: 'bg-slate-50 text-slate-700 ring-slate-200',
+  // Slate, never amber: this is how some material arrives, not something anybody has to put right.
+  InternalSupply: 'bg-slate-100 text-slate-700 ring-slate-300',
   UnattributedDueToMissingPrice: 'bg-amber-50 text-amber-900 ring-amber-200',
 }
 
@@ -42,6 +47,7 @@ export const causeOrder: CauseCategory[] = [
   'PriceChange',
   'NoLongerOrdered',
   'Services',
+  'InternalSupply',
   'UnattributedDueToMissingPrice',
 ]
 

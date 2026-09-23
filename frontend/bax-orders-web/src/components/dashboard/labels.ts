@@ -1,4 +1,10 @@
-import type { ComparisonAvailability, DashboardSort, HistoryCoverageState } from '../../api/dashboard'
+import type { CauseCategory } from '../../api/decisions'
+import type {
+  ComparisonAvailability,
+  DashboardAttentionReason,
+  DashboardSort,
+  HistoryCoverageState,
+} from '../../api/dashboard'
 import type { PriceCoverageState } from '../../api/analytics'
 
 export const historyCoverageLabels: Record<HistoryCoverageState, string> = {
@@ -78,3 +84,46 @@ export function isSort(value: string | null): value is DashboardSort {
 
 /** Shown beside a delta whenever either side of it is missing prices. */
 export const partialAmountNote = 'Məbləğ müqayisəsi məlum qiymətlər üzrə hesablanıb.'
+
+/**
+ * A cause written the way a manager would say it out loud: with its direction in the words, so the sign beside
+ * it confirms the reading rather than being the only clue to it.
+ */
+export function causeHeadline(category: CauseCategory, amount: number): string {
+  switch (category) {
+    case 'NewOrders':
+      return 'Yeni sifarişlər'
+    case 'QuantityChange':
+      return amount >= 0 ? 'Miqdar artımı' : 'Miqdar azalması'
+    case 'PriceChange':
+      return amount >= 0 ? 'Qiymət artımı' : 'Qiymət azalması'
+    case 'NoLongerOrdered':
+      return 'Artıq sifariş olunmayanlar'
+    case 'Services':
+      return 'Xidmətlər'
+    case 'InternalSupply':
+      return 'Daxili təminat'
+    case 'UnattributedDueToMissingPrice':
+      return 'Qiymət məlumatı çatışmır'
+  }
+}
+
+/** Why an object was surfaced. Said in the reader's terms, never as the enum name. */
+export const attentionReasonLabels: Record<DashboardAttentionReason, string> = {
+  LargestIncrease: 'Ən çox artan',
+  LargestDecrease: 'Ən çox azalan',
+  StrongPercentageChange: 'Nisbətdə böyük dəyişmə',
+  MissingRequiredPrice: 'Qiymət məlumatı çatışmır',
+  NoComparisonHistory: 'Müqayisə üçün əvvəlki ay yoxdur',
+}
+
+/**
+ * What the "Məlumat vəziyyəti" column says — and, when everything is in order, it says nothing at all. A badge
+ * that appears on every healthy row is noise a reader learns to skip, which is how the real ones get skipped too.
+ */
+export const noComparisonNote = 'Əvvəlki ay üçün məlumat yoxdur'
+export const partialHistoryNote = 'Tarixçə natamamdır'
+export const noCurrentRequestNote = 'Bu ay sifariş yoxdur'
+export const incompleteExplanationNote = 'Məbləğin bir hissəsi izah edilə bilmir — qiymət məlumatı çatışmır'
+export const noComparisonCause = 'Müqayisə üçün əvvəlki ay yoxdur'
+export const detailsLabel = 'Detallara bax'

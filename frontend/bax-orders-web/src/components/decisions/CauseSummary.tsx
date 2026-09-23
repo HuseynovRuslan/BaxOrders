@@ -77,5 +77,6 @@ const barToneClass: Record<string, string> = {
   PriceChange: 'bg-violet-400',
   NoLongerOrdered: 'bg-slate-400',
   Services: 'bg-slate-300',
+  InternalSupply: 'bg-slate-400',
   UnattributedDueToMissingPrice: 'bg-amber-400',
 }

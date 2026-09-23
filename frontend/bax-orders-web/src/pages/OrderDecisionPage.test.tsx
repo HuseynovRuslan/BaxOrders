@@ -80,6 +80,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     currentItemCount: 1,
     baselineItemCount: 1,
     missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
     priceIsComplete: true,
     ...overrides,
   }
@@ -102,6 +103,7 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
       itemCount: 40,
       knownPriceItemCount: 40,
       missingPriceItemCount: 0,
+      priceNotRequiredItemCount: 0,
       isComplete: true,
     },
     previousMonth: {
@@ -113,6 +115,7 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
         itemCount: 38,
         knownPriceItemCount: 38,
         missingPriceItemCount: 0,
+        priceNotRequiredItemCount: 0,
         isComplete: true,
       },
       deltaAmount: 600,
@@ -152,6 +155,7 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
       totalAmountImpact: 600,
       explanationIsComplete: true,
       unattributedVariantCount: 0,
+      internalSupplyVariantCount: 0,
       drivers: [driver()],
     },
     ...overrides,
@@ -177,6 +181,7 @@ function item(): OrderRequestItem {
     lineTotal: 123,
     supplierId: null,
     supplierName: null,
+    supplierPriceRequirement: 'Required',
     categoryPath: [],
     source: null,
     sourceOrderRequestItemId: null,
@@ -184,7 +189,8 @@ function item(): OrderRequestItem {
 }
 
 function detail(overrides: Partial<OrderRequestDetail> = {}): OrderRequestDetail {
-  const items = [item()]
+  // Honour a caller's own lines; the default is one ordinary priced row.
+  const items = overrides.items?.items ?? [item()]
   return {
     orderRequestId: 105,
     locationId: 21,
@@ -209,7 +215,7 @@ function detail(overrides: Partial<OrderRequestDetail> = {}): OrderRequestDetail
     canCreateRevision: false,
     canEditRevision: false,
     ...overrides,
-    items: { items, page: 1, pageSize: 50, totalCount: items.length },
+    items: { items, page: 1, pageSize: 50, totalCount: items.length, ...overrides.items },
   }
 }
 
@@ -257,6 +263,7 @@ function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
     returnedAtUtc: null,
     itemCount: 40,
     missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
     knownAmountTotal: 4800,
     amountIsComplete: true,
     requiresMissingPriceAcknowledgement: false,
@@ -284,7 +291,8 @@ function trend(): VariantTrend {
         weightedUnitPrice: 2.8,
         itemCount: 1,
         knownPriceItemCount: 1,
-        missingPriceItemCount: 0,
+        missingRequiredPriceItemCount: 0,
+        priceNotRequiredItemCount: 0,
       },
       {
         period: '2026-07-01',
@@ -295,7 +303,8 @@ function trend(): VariantTrend {
         weightedUnitPrice: 4.1,
         itemCount: 1,
         knownPriceItemCount: 1,
-        missingPriceItemCount: 0,
+        missingRequiredPriceItemCount: 0,
+        priceNotRequiredItemCount: 0,
       },
     ],
   }
@@ -390,6 +399,7 @@ describe('an order whose prices are not all known', () => {
         itemCount: 40,
         knownPriceItemCount: 38,
         missingPriceItemCount: 2,
+        priceNotRequiredItemCount: 0,
         isComplete: false,
       },
     }))
@@ -467,7 +477,8 @@ describe('the evidence below the decision', () => {
 
 describe('when the comparison cannot be read', () => {
   it('still shows the order rather than failing the whole page', async () => {
-    decisionsApi.fetchDecisionContext.mockRejectedValue(new Error('down'))
+    // Rejected per call rather than once at setup, so the failure belongs to the request that made it.
+    decisionsApi.fetchDecisionContext.mockImplementation(() => Promise.reject(new Error('down')))
     render(
       <MemoryRouter initialEntries={['/orders/105']}>
         <Routes>
@@ -479,5 +490,121 @@ describe('when the comparison cannot be read', () => {
     const fallback = await screen.findByRole('region', { name: 'Sifariş xülasəsi' })
     expect(within(fallback).getByText('4.800,00 ₼')).toBeInTheDocument()
     expect(screen.queryByText('Niyə dəyişib?')).toBeNull()
+  })
+})
+
+describe('a blank price', () => {
+  it('is a warning when somebody owes it', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: {
+        items: [{ ...item(), unitPrice: null, lineTotal: null, supplierName: 'Kənar şirkət', supplierPriceRequirement: 'Required' }],
+        page: 1,
+        pageSize: 50,
+        totalCount: 1,
+      },
+    } as never))
+    await renderPage()
+
+    const table = within(document.querySelector('table')!)
+    expect(table.getByText('Qiymət yoxdur')).toHaveClass('text-amber-800')
+    expect(table.queryByText(/Daxili anbardan/)).toBeNull()
+  })
+
+  it('is a plain fact when the material came out of our own store', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: {
+        items: [{ ...item(), unitPrice: null, lineTotal: null, supplierName: 'Qala baza', supplierPriceRequirement: 'NotRequired' }],
+        page: 1,
+        pageSize: 50,
+        totalCount: 1,
+      },
+    } as never))
+    await renderPage()
+
+    const table = within(document.querySelector('table')!)
+    // Not "Qiymət yoxdur", and above all not amber: nobody is meant to go looking for this number.
+    expect(table.getByText('Daxili anbardan')).toBeInTheDocument()
+    expect(table.queryByText('Qiymət yoxdur')).toBeNull()
+    expect(table.getByText('Daxili anbardan').closest('span')).not.toHaveClass('text-amber-800')
+    // The supplier stays visible; it is the reason the price is absent.
+    expect(table.getByText('Qala baza')).toBeInTheDocument()
+  })
+
+  it('shows a real price even on an internally supplied line', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: {
+        items: [{ ...item(), unitPrice: 4.1, supplierName: 'Qala baza', supplierPriceRequirement: 'NotRequired' }],
+        page: 1,
+        pageSize: 50,
+        totalCount: 1,
+      },
+    } as never))
+    await renderPage()
+
+    const table = within(document.querySelector('table')!)
+    expect(table.queryByText('Daxili anbardan')).toBeNull()
+    expect(table.getAllByText(/4,10/).length).toBeGreaterThan(0)
+  })
+})
+
+describe('internal supply on the decision screen', () => {
+  it('is named as context and never as a shortfall', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      current: {
+        knownAmount: 4800,
+        itemCount: 40,
+        knownPriceItemCount: 37,
+        missingPriceItemCount: 0,
+        priceNotRequiredItemCount: 3,
+        isComplete: true,
+      },
+    }))
+    await renderPage()
+
+    expect(within(headline()).getByText(/Daxili təminat: 3 sətir/)).toBeInTheDocument()
+    expect(within(headline()).queryByText(/qiyməti yoxdur/)).toBeNull()
+  })
+
+  it('keeps a genuine gap amber beside it', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      current: {
+        knownAmount: 4800,
+        itemCount: 40,
+        knownPriceItemCount: 36,
+        missingPriceItemCount: 1,
+        priceNotRequiredItemCount: 3,
+        isComplete: false,
+      },
+    }))
+    await renderPage()
+
+    expect(within(headline()).getByText(/1 məhsulun qiyməti yoxdur/)).toHaveClass('text-amber-800')
+    expect(within(headline()).getByText(/Daxili təminat: 3 sətir/)).toBeInTheDocument()
+  })
+
+  it('appears among the causes without making the explanation incomplete', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      decomposition: {
+        categories: [
+          { category: 'NewOrders', amount: 0, variantCount: 0 },
+          { category: 'QuantityChange', amount: 0, variantCount: 0 },
+          { category: 'PriceChange', amount: 0, variantCount: 0 },
+          { category: 'NoLongerOrdered', amount: 0, variantCount: 0 },
+          { category: 'Services', amount: 0, variantCount: 0 },
+          { category: 'InternalSupply', amount: 600, variantCount: 2 },
+          { category: 'UnattributedDueToMissingPrice', amount: 0, variantCount: 0 },
+        ],
+        totalAmountImpact: 600,
+        explanationIsComplete: true,
+        unattributedVariantCount: 0,
+        internalSupplyVariantCount: 2,
+        drivers: [],
+      },
+    }))
+    await renderPage()
+
+    expect(screen.getByText('Daxili təminat')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByText(/tam izah edilə bilmir/)).toBeNull()
   })
 })

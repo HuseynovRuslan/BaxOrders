@@ -1,6 +1,7 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Decisions;
@@ -173,7 +174,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 variant.BaselineKnownAmount,
                 variant.CurrentItemCount,
                 variant.BaselineItemCount,
-                variant.MissingPriceItemCount,
+                variant.MissingRequiredPriceItemCount,
+                variant.PriceNotRequiredItemCount,
                 variant.PriceIsComplete));
         }
 
@@ -183,6 +185,7 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             result.TotalAmountImpact,
             result.ExplanationIsComplete,
             result.UnattributedVariantCount,
+            result.InternalSupplyVariantCount,
             drivers);
     }
 
@@ -216,7 +219,7 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             average,
             delta,
             percent,
-            totals.MissingPriceItemCount == 0 && current.IsComplete);
+            totals.IsComplete && current.IsComplete);
     }
 
     // ---- reading ------------------------------------------------------------------------------------
@@ -235,7 +238,13 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                MissingPriceItemCount = group.Count(item => item.UnitPrice == null),
+                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
+                // recorded property of the supplier and never a guess from its name. No supplier at all is
+                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -251,7 +260,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
 
             byVariant[row.ProductVariantId] = new VariantPeriodSnapshot(
                 row.ProductVariantId, row.Quantity, row.ItemCount, row.KnownPriceItemCount,
-                row.MissingPriceItemCount, row.PricedQuantity, row.PricedAmount);
+                row.MissingRequiredPriceItemCount, row.PriceNotRequiredItemCount,
+                row.PricedQuantity, row.PricedAmount);
         }
 
         return byRequest;
@@ -301,8 +311,9 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             OrderAnalyticsCalculator.KnownAmount(totals),
             totals.ItemCount,
             totals.KnownPriceItemCount,
-            totals.MissingPriceItemCount,
-            totals.MissingPriceItemCount == 0);
+            totals.MissingRequiredPriceItemCount,
+            totals.PriceNotRequiredItemCount,
+            totals.IsComplete);
     }
 
     private sealed record OrderRef(

@@ -18,7 +18,7 @@ public sealed class DashboardCalculationTests
         var totals = OrderAnalyticsCalculator.Totals([Snapshot(priced: 100m), Snapshot(priced: 50m)]);
 
         Assert.Equal(2, totals.ItemCount);
-        Assert.Equal(0, totals.MissingPriceItemCount);
+        Assert.Equal(0, totals.MissingRequiredPriceItemCount);
         Assert.Equal(150m, OrderAnalyticsCalculator.KnownAmount(totals));
     }
 
@@ -28,7 +28,7 @@ public sealed class DashboardCalculationTests
         var totals = OrderAnalyticsCalculator.Totals([Unpriced(), Unpriced()]);
 
         Assert.Equal(0, totals.KnownPriceItemCount);
-        Assert.Equal(2, totals.MissingPriceItemCount);
+        Assert.Equal(2, totals.MissingRequiredPriceItemCount);
         Assert.Null(OrderAnalyticsCalculator.KnownAmount(totals));
     }
 
@@ -38,8 +38,8 @@ public sealed class DashboardCalculationTests
         var totals = OrderAnalyticsCalculator.Totals([Snapshot(priced: 100m), Unpriced()]);
 
         Assert.Equal(100m, OrderAnalyticsCalculator.KnownAmount(totals));
-        Assert.Equal(1, totals.MissingPriceItemCount);
-        Assert.False(totals.MissingPriceItemCount == 0);
+        Assert.Equal(1, totals.MissingRequiredPriceItemCount);
+        Assert.False(totals.IsComplete);
     }
 
     // ---- baseline averages ---------------------------------------------------------------------------
@@ -139,8 +139,13 @@ public sealed class DashboardCalculationTests
     // ---- helpers -------------------------------------------------------------------------------------
 
     private static VariantPeriodSnapshot Snapshot(decimal quantity = 1m, decimal priced = 100m) =>
-        new(Variant, quantity, 1, 1, 0, quantity, priced);
+        new(Variant, quantity, 1, 1, 0, 0, quantity, priced);
 
+    /// <summary>A line waiting for a price somebody owes.</summary>
     private static VariantPeriodSnapshot Unpriced(decimal quantity = 1m) =>
-        new(Variant, quantity, 1, 0, 1, 0m, 0m);
+        new(Variant, quantity, 1, 0, 1, 0, 0m, 0m);
+
+    /// <summary>A line issued from the company's own store, which owes no price at all.</summary>
+    private static VariantPeriodSnapshot InternallySupplied(decimal quantity = 1m) =>
+        new(Variant, quantity, 1, 0, 0, 1, 0m, 0m);
 }

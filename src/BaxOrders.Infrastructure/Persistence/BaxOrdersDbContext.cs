@@ -46,6 +46,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
 
     public DbSet<SupplierAlias> SupplierAliases => Set<SupplierAlias>();
 
+    public DbSet<SupplierPricingDecision> SupplierPricingDecisions => Set<SupplierPricingDecision>();
+
     public DbSet<ResponsiblePerson> ResponsiblePeople => Set<ResponsiblePerson>();
 
     public DbSet<ResponsiblePersonAlias> ResponsiblePersonAliases => Set<ResponsiblePersonAlias>();

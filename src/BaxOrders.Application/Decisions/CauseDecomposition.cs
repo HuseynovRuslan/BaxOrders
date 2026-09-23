@@ -29,6 +29,17 @@ public enum CauseCategory
     /// effect and a price effect. Their money is still counted; only its cause is unknown.
     /// </summary>
     UnattributedDueToMissingPrice = 6,
+
+    /// <summary>
+    /// Variants issued from the company's own store, which carry no purchase price because none is owed.
+    /// </summary>
+    /// <remarks>
+    /// This is <b>not</b> <see cref="UnattributedDueToMissingPrice"/>. Nothing is missing and nobody has to act.
+    /// The money it carries is real — it is what the month's purchasing did or did not spend on a product that
+    /// changed hands with the warehouse — but its cause is the supply arrangement rather than a price or a
+    /// quantity, so it is neither split nor blamed on a gap in the records.
+    /// </remarks>
+    InternalSupply = 7,
 }
 
 /// <summary>One variant's two months, straight from the permanent items.</summary>
@@ -65,7 +76,8 @@ public sealed record VariantCauseResult(
     decimal? BaselineKnownAmount,
     int CurrentItemCount,
     int BaselineItemCount,
-    int MissingPriceItemCount,
+    int MissingRequiredPriceItemCount,
+    int PriceNotRequiredItemCount,
     bool PriceIsComplete);
 
 /// <param name="VariantCount">
@@ -76,15 +88,22 @@ public sealed record CauseCategoryTotal(CauseCategory Category, decimal Amount, 
 
 /// <param name="TotalAmountImpact">The sum of every category, which is the month's known-money difference.</param>
 /// <param name="ExplanationIsComplete">
-/// False as soon as one variant's price is partly unknown. The money still adds up; what is incomplete is the
-/// explanation of it, and the screen has to say so rather than presenting a confident cause.
+/// False as soon as one variant is missing a price somebody owed. The money still adds up; what is incomplete
+/// is the explanation of it, and the screen has to say so rather than presenting a confident cause.
+/// <para>
+/// Internally supplied variants never make this false. They are not missing anything.
+/// </para>
+/// </param>
+/// <param name="InternalSupplyVariantCount">
+/// Variants supplied from the company's own store. Neutral context, never a warning.
 /// </param>
 public sealed record CauseDecompositionResult(
     IReadOnlyList<CauseCategoryTotal> Categories,
     IReadOnlyList<VariantCauseResult> Variants,
     decimal TotalAmountImpact,
     bool ExplanationIsComplete,
-    int UnattributedVariantCount);
+    int UnattributedVariantCount,
+    int InternalSupplyVariantCount);
 
 /// <summary>
 /// Splits the difference between two months into causes, arithmetically and with no judgement: no model, no
@@ -129,6 +148,7 @@ public static class CauseDecomposition
         CauseCategory.PriceChange,
         CauseCategory.NoLongerOrdered,
         CauseCategory.Services,
+        CauseCategory.InternalSupply,
         CauseCategory.UnattributedDueToMissingPrice,
     ];
 
@@ -164,13 +184,15 @@ public static class CauseDecomposition
         }
 
         var unattributed = variants.Count(variant => variant.Category == CauseCategory.UnattributedDueToMissingPrice);
+        var internalSupply = variants.Count(variant => variant.Category == CauseCategory.InternalSupply);
 
         return new CauseDecompositionResult(
             categories,
             [.. variants.OrderByDescending(variant => Math.Abs(variant.AmountImpact)).ThenBy(variant => variant.ProductVariantId)],
             total,
             unattributed == 0,
-            unattributed);
+            unattributed,
+            internalSupply);
     }
 
     private static (decimal Amount, int Count) Contributions(
@@ -226,8 +248,13 @@ public static class CauseDecomposition
         var baselineAmount = baseline?.PricedAmount ?? 0m;
         var impact = currentAmount - baselineAmount;
 
-        var missingPriceItems = (current?.MissingPriceItemCount ?? 0) + (baseline?.MissingPriceItemCount ?? 0);
-        var priceIsComplete = missingPriceItems == 0;
+        var missingRequired = (current?.MissingRequiredPriceItemCount ?? 0)
+            + (baseline?.MissingRequiredPriceItemCount ?? 0);
+        var priceNotRequired = (current?.PriceNotRequiredItemCount ?? 0)
+            + (baseline?.PriceNotRequiredItemCount ?? 0);
+
+        // Complete means nothing is owed, not that everything carries a price.
+        var priceIsComplete = missingRequired == 0;
 
         var currentPrice = WeightedPrice(current);
         var baselinePrice = WeightedPrice(baseline);
@@ -241,6 +268,13 @@ public static class CauseDecomposition
             // No trustworthy unit price on one of the sides, so no trustworthy split. The money is kept; only
             // the reason for it is withheld.
             category = CauseCategory.UnattributedDueToMissingPrice;
+        }
+        else if (priceNotRequired > 0)
+        {
+            // Issued from the company's own store on one of the two months. There is no unit price to pivot
+            // on and none is owed, so the difference is reported as what it is — a change in how the material
+            // was supplied — rather than dressed up as a price movement or reported as a gap in the records.
+            category = CauseCategory.InternalSupply;
         }
         else if (input.Kind != AnalyticsKind.QuantityComparable)
         {
@@ -297,7 +331,8 @@ public static class CauseDecomposition
             baseline?.KnownAmountTotal,
             current?.ItemCount ?? 0,
             baseline?.ItemCount ?? 0,
-            missingPriceItems,
+            missingRequired,
+            priceNotRequired,
             priceIsComplete);
     }
 
