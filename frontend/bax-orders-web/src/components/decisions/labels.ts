@@ -1,4 +1,4 @@
-import type { CauseCategory, DecisionProductCounts } from '../../api/decisions'
+import type { CauseCategory, DecisionProductCounts, OrderDecisionContext } from '../../api/decisions'
 import { missingPriceShortLabel } from '../../pricing/labels'
 import { newProductsLabel, notOrderedThisMonthLabel, productNoun } from '../../terminology/terms'
 import { formatCount } from '../analytics/format'
@@ -154,3 +154,16 @@ export const coverageHint =
   'Bazanın əhatə etdiyi aylardan yalnız bir hissəsində bu obyektin sifarişi var. Ortalama həmin mövcud aylara bölünür.'
 
 export const noPreviousMonthNote = 'Keçən ay üçün müqayisə məlumatı yoxdur.'
+
+/**
+ * The months an order can be compared against, oldest first, as `yyyy-MM` — what a hand-picked range offers.
+ *
+ * They come from the "Bütün dövr" window, which is every month the company has ordered in before this one — the
+ * same set the dashboard offers, so the screens agree about what a hand-picked range may contain. The order page
+ * and the object page both ask this one function, so their pickers cannot offer two different lists for one order.
+ */
+export function comparablePriorMonths(context: OrderDecisionContext | null | undefined): string[] {
+  return (context?.secondary.find((item) => item.basis === 'AllPriorMonths')?.windowPeriods
+    ?? context?.primary.windowPeriods
+    ?? []).map((period) => period.slice(0, 7))
+}

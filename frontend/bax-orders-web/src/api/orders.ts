@@ -76,6 +76,8 @@ export interface LocationOrderHistoryEntry {
   itemCount: number
   knownPriceItemCount: number
   missingPriceItemCount: number
+  /** Lines supplied from the company's own store. Neutral context, never a warning. */
+  internalSupplyItemCount: number
   knownAmountTotal: number | null
   createdAtUtc: string
 }
@@ -92,6 +94,8 @@ export interface LocationOrderHistory {
   totalItemCount: number
   knownAmountTotal: number | null
   missingPriceItemCount: number
+  /** Lines supplied from the company's own store, over the whole history. Never a warning. */
+  internalSupplyItemCount: number
   years: number[]
   requests: PagedResult<LocationOrderHistoryEntry>
 }

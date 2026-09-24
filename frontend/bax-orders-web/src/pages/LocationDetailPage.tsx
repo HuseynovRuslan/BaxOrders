@@ -1,11 +1,23 @@
 import { TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
+import { basisParams, basisRequest, basisSearch, orderLink, type BasisSelection } from '../analytics/basisParams'
+import { useBasis } from '../analytics/useBasis'
+import { fetchDecisionContext, type OrderDecisionContext } from '../api/decisions'
 import { fetchLocationHistory, type LocationOrderHistory, type LocationOrderHistoryEntry } from '../api/orders'
+import { formatMonthRange } from '../components/analytics/format'
+import { comparablePriorMonths } from '../components/decisions/labels'
 import { LocationTrend } from '../components/locations/LocationTrend'
 import { PageHeader } from '../components/PageHeader'
-import { missingPriceCount, missingPriceShortLabel } from '../pricing/labels'
-import { supersededOrderNote } from '../terminology/terms'
+import {
+  internalSupplyCount,
+  internalSupplyShortLabel,
+  internalToneClass,
+  missingPriceCount,
+  missingPriceShortLabel,
+  warningToneClass,
+} from '../pricing/labels'
+import { supersededOrderNote, wholeHistoryLead } from '../terminology/terms'
 import { StatusBadge } from '../components/StatusBadge'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
@@ -27,10 +39,33 @@ type State =
 export function LocationDetailPage() {
   const { locationId } = useParams()
   const id = Number(locationId)
+  const [params, setParams] = useSearchParams()
+
+  // The basis is the one thing that travels (Task 1): a manager who chose "Son 3 ay" on the dashboard and came
+  // here for an object with no order this month keeps reading against it, and takes it on to every order they
+  // open from here. The filters and the page are this screen's own business and stay out of the URL.
+  const selection = useBasis(params, setParams)
+  const basisKey = `${selection.basis}|${selection.from ?? ''}|${selection.to ?? ''}`
+
+  function selectBasis(next: BasisSelection) {
+    const search = new URLSearchParams(params)
+    for (const [name, value] of Object.entries(basisParams(next))) {
+      if (value === undefined) {
+        search.delete(name)
+      } else {
+        search.set(name, value)
+      }
+    }
+
+    setParams(search)
+  }
+
   const [year, setYear] = useState<number | undefined>(undefined)
   const [month, setMonth] = useState<number | undefined>(undefined)
   const [page, setPage] = useState(1)
   const [state, setState] = useState<State>({ status: 'loading' })
+  const [comparison, setComparison] = useState<OrderDecisionContext | null>(null)
+  const [comparisonPending, setComparisonPending] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -45,6 +80,43 @@ export function LocationDetailPage() {
     return () => controller.abort()
   }, [id, year, month, page])
 
+  const data = state.status === 'success' ? state.data : null
+
+  // Only the unfiltered first page begins with the object's latest order. Anywhere else the first row is just
+  // the first row, so there is no "Son sifariş" to show and nothing to compare.
+  const latest = data && !year && !month && page === 1 ? (data.requests.items[0] ?? null) : null
+  const latestId = latest?.orderRequestId ?? null
+
+  // The comparison is the order page's own, from its own endpoint, so the object page and the order page give
+  // one answer for one order and one basis. It qualifies the card rather than producing it: a failure only
+  // drops the comparison line. While another basis loads the previous answer is kept but not shown — the card
+  // shows a placeholder — so the hand-picked range keeps its months while the reader is still choosing them.
+  useEffect(() => {
+    if (latestId === null) {
+      setComparison(null)
+      setComparisonPending(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setComparisonPending(true)
+    fetchDecisionContext(latestId, basisRequest(selection), controller.signal)
+      .then(setComparison)
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setComparison(null)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setComparisonPending(false)
+        }
+      })
+    return () => controller.abort()
+    // The basis is flattened into a key: a new object every render would re-fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestId, basisKey])
+
   if (state.status === 'error') {
     return (
       <>
@@ -57,7 +129,6 @@ export function LocationDetailPage() {
     )
   }
 
-  const data = state.status === 'success' ? state.data : null
   const totalPages = data ? Math.max(1, Math.ceil(data.requests.totalCount / pageSize)) : 1
   const superseded = supersededRequests(data?.requests.items ?? [])
 
@@ -70,7 +141,7 @@ export function LocationDetailPage() {
           <>
             {data && data.orderRequestCount > 0 && (
               <Link
-                to={`/locations/${id}/analytics`}
+                to={comparisonLink(id, selection)}
                 className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
               >
                 <TrendingUp className="size-4" aria-hidden="true" />
@@ -85,20 +156,52 @@ export function LocationDetailPage() {
       />
 
       {/*
-        What this object ordered last, then the year behind it. The lifetime counts follow as one quiet line:
-        they describe the record rather than the object, and nobody decides anything with them.
+        What this object ordered last, compared against the reader's basis, then the year behind it. Only where
+        the first row really is the latest order — see `latest` above.
       */}
-      {data && !year && !month && <LocationTrend entries={data.requests.items} />}
+      {data && latest && (
+        <LocationTrend
+          entries={data.requests.items}
+          comparison={comparison}
+          comparisonPending={comparisonPending}
+          selection={selection}
+          onSelectBasis={selectBasis}
+          priorMonths={comparablePriorMonths(comparison)}
+        />
+      )}
 
+      {/*
+        The lifetime counts, as one quiet line that names its period. Without it Heydər Əliyev's "15" unpriced
+        lines read as this month's; they are every order the object has, and the lead says so.
+      */}
       {data && (
-        <dl className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
-          <Fact label="Dövrlər" value={formatNumber(data.distinctPeriodCount)} />
-          <Fact label="Sifarişlər" value={formatNumber(data.orderRequestCount)} />
-          <Fact label={knownAmountLabel} value={formatAmount(data.knownAmountTotal)} />
-          {data.missingPriceItemCount > 0 && (
-            <Fact label={missingPriceShortLabel} value={formatNumber(data.missingPriceItemCount)} warn />
-          )}
-        </dl>
+        <div className="mb-4 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs text-slate-500">
+          <p className="font-medium text-slate-600">
+            {wholeHistoryLead(formatMonthRange(
+              data.earliestPeriod && data.latestPeriod ? [data.earliestPeriod, data.latestPeriod] : [],
+            ))}
+          </p>
+          <dl className="flex flex-wrap gap-x-6 gap-y-1">
+            <Fact label="Dövrlər" value={formatNumber(data.distinctPeriodCount)} />
+            <Fact label="Sifarişlər" value={formatNumber(data.orderRequestCount)} />
+            <Fact label={knownAmountLabel} value={formatAmount(data.knownAmountTotal)} />
+            {data.missingPriceItemCount > 0 && (
+              <Fact
+                label={missingPriceShortLabel}
+                value={formatNumber(data.missingPriceItemCount)}
+                toneClass={warningToneClass}
+              />
+            )}
+            {/* Slate, never amber: material from the company's own store is not something anybody owes. */}
+            {data.internalSupplyItemCount > 0 && (
+              <Fact
+                label={internalSupplyShortLabel}
+                value={formatNumber(data.internalSupplyItemCount)}
+                toneClass={internalToneClass}
+              />
+            )}
+          </dl>
+        </div>
       )}
 
       {data && data.years.length > 0 && (
@@ -181,7 +284,7 @@ export function LocationDetailPage() {
             {data?.requests.items.map((request) => (
               <tr key={request.orderRequestId} className="hover:bg-slate-50">
                 <td className="px-4 py-2.5">
-                  <Link to={`/orders/${request.orderRequestId}`} className="font-medium text-slate-900 hover:underline">
+                  <Link to={orderLink(request.orderRequestId, selection)} className="font-medium text-slate-900 hover:underline">
                     {formatPeriod(request.requestPeriod)}
                   </Link>
                   {superseded.has(request.orderRequestId) && (
@@ -190,9 +293,15 @@ export function LocationDetailPage() {
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <p className="whitespace-nowrap text-slate-900">{formatAmount(request.knownAmountTotal)}</p>
+                  {/* The row is its own period, so its counts need no label. */}
                   {request.missingPriceItemCount > 0 && (
-                    <p className="whitespace-nowrap text-xs text-amber-800">
+                    <p className={`whitespace-nowrap text-xs ${warningToneClass}`}>
                       {missingPriceCount(request.missingPriceItemCount)}
+                    </p>
+                  )}
+                  {request.internalSupplyItemCount > 0 && (
+                    <p className={`whitespace-nowrap text-xs ${internalToneClass}`}>
+                      {internalSupplyCount(request.internalSupplyItemCount)}
                     </p>
                   )}
                 </td>
@@ -207,13 +316,13 @@ export function LocationDetailPage() {
                 <td className="px-4 py-2.5 text-right">
                   <div className="flex justify-end gap-1.5">
                     <Link
-                      to={`/orders/${request.orderRequestId}`}
+                      to={orderLink(request.orderRequestId, selection)}
                       className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                       Sifarişə bax
                     </Link>
                     <Link
-                      to={`/locations/${id}/analytics?period=${request.requestPeriod.slice(0, 7)}`}
+                      to={comparisonLink(id, selection, request.requestPeriod.slice(0, 7))}
                       aria-label={`${formatPeriod(request.requestPeriod)} dövrünü müqayisə et`}
                       className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
@@ -257,6 +366,19 @@ export function LocationDetailPage() {
 }
 
 /**
+ * The object's comparison page, for a month when a row asks, carrying the reader's basis. Every link out of this
+ * page keeps the basis, and `basisSearch` owns its spelling.
+ */
+function comparisonLink(locationId: number, selection: BasisSelection, period?: string): string {
+  const search = new URLSearchParams(period === undefined ? {} : { period })
+  for (const [name, value] of new URLSearchParams(basisSearch(selection))) {
+    search.set(name, value)
+  }
+
+  return `/locations/${locationId}/analytics?${search.toString()}`
+}
+
+/**
  * The requests on this page that a later request of the same month replaced.
  *
  * A month can hold more than one request — a correction, or a second import — and with no version number on the
@@ -275,12 +397,12 @@ function supersededRequests(entries: LocationOrderHistoryEntry[]): Set<number> {
     .map((entry) => entry.orderRequestId))
 }
 
-/** One of the record's own counts, said once and quietly — these describe the file, not the object. */
-function Fact({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+/** One of the record's own counts, said once and quietly, under the period the line names. */
+function Fact({ label, value, toneClass = 'text-slate-700' }: { label: string; value: string; toneClass?: string }) {
   return (
     <div className="flex items-baseline gap-1.5">
       <dt>{label}</dt>
-      <dd className={warn ? 'font-medium text-amber-800' : 'font-medium text-slate-700'}>{value}</dd>
+      <dd className={`font-medium ${toneClass}`}>{value}</dd>
     </div>
   )
 }

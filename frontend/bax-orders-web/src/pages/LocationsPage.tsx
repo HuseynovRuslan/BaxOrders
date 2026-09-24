@@ -6,7 +6,11 @@ import { missingPriceCount } from '../pricing/labels'
 import { StatusBadge } from '../components/StatusBadge'
 import { SummaryMetric } from '../components/SummaryMetric'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
+import { DirectionWord } from '../components/analytics/DirectionWord'
+import { noPreviousMonthNote } from '../components/decisions/labels'
 import {
+  costDirectionToneClass,
+  describeBasisCaption,
   formatCount,
   formatMoney,
   formatMoneyDelta,
@@ -114,7 +118,14 @@ export function LocationsPage() {
                 />
               </th>
               <th className="px-4 py-3 text-right">Məbləğ</th>
-              <th className="px-4 py-3 text-right">Dəyişmə</th>
+              {/*
+                The list has no basis of its own to follow: its figure is always each object's latest order
+                against the calendar month before it, and the heading says so rather than leaving it to be guessed.
+              */}
+              <th className="px-4 py-3 text-right">
+                Dəyişmə
+                <span className="block font-normal text-slate-400">{describeBasisCaption('PreviousMonth', [])}</span>
+              </th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3"><span className="sr-only">Bax</span></th>
             </tr>
@@ -165,12 +176,22 @@ export function LocationsPage() {
 
                 <td className="px-4 py-2.5 text-right">
                   {location.knownAmountDelta === null ? (
-                    // No previous month to compare with. Saying "0" or "+100%" would both be inventions.
-                    <span className="text-xs text-slate-400">{unknownValue}</span>
+                    // No previous month to compare with. Saying "0" or "+100%" would both be inventions, so the
+                    // dash says why it is a dash.
+                    <span className="text-xs text-slate-400" title={noPreviousMonthNote}>
+                      {unknownValue}
+                      <span className="sr-only">{noPreviousMonthNote}</span>
+                    </span>
                   ) : (
                     <>
-                      <p className="whitespace-nowrap text-slate-900">{formatMoneyDelta(location.knownAmountDelta)}</p>
-                      <p className="whitespace-nowrap text-xs text-slate-500">{formatPercent(location.knownAmountPercentChange)}</p>
+                      {/* Red up, green down (9.1), with the direction in words for a screen reader. */}
+                      <p className={`whitespace-nowrap ${costDirectionToneClass(location.knownAmountDelta)}`}>
+                        {formatMoneyDelta(location.knownAmountDelta)}
+                        <DirectionWord value={location.knownAmountDelta} />
+                      </p>
+                      <p className={`whitespace-nowrap text-xs ${costDirectionToneClass(location.knownAmountDelta)}`}>
+                        {formatPercent(location.knownAmountPercentChange)}
+                      </p>
                     </>
                   )}
                 </td>

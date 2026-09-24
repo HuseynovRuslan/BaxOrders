@@ -194,6 +194,25 @@ export const latestOrderLinkLabel = 'Ən son sifarişə bax'
 /** Under an older order of a month on the object page, where a later one of the same month replaced it. */
 export const supersededOrderNote = 'Əvvəlki sifariş — sonradan yenilənib'
 
+// ---- the object page (Task 11) ---------------------------------------------------------------------------
+
+/**
+ * "Sentyabr 2026 sifarişində:" — the period the latest order's counts belong to, said before them. A count with no
+ * period read as this month's whether it was or not.
+ */
+export function orderCountsLead(month: string): string {
+  return `${month} sifarişində:`
+}
+
+/**
+ * "Bütün tarixçə (Aprel–Sentyabr 2026):" — the period the object's lifetime counts belong to. Heydər Əliyev's "15"
+ * unpriced lines are every order it has, not this month's, and the line now says so. `range` arrives formatted;
+ * null for an object with no order, which then has no months to name.
+ */
+export function wholeHistoryLead(range: string | null): string {
+  return range === null ? 'Bütün tarixçə:' : `Bütün tarixçə (${range}):`
+}
+
 /**
  * The locative ending follows the vowel of the last number word that is pronounced: 3 "üç" → 3-də, 6 "altı" →
  * 6-da, 40 "qırx" → 40-da, 100 "yüz" → 100-də.

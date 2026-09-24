@@ -14,7 +14,7 @@ import { AnalyticsSummary } from '../components/analytics/AnalyticsSummary'
 import { MaterialRows, ServiceRows } from '../components/analytics/ComparisonRows'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { BasisPicker } from '../components/analytics/BasisPicker'
-import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, locationLink, type BasisSelection } from '../analytics/basisParams'
 import { useBasis } from '../analytics/useBasis'
 import {
   formatAnalyticsPeriod,
@@ -162,7 +162,7 @@ export function LocationAnalyticsPage() {
       <nav aria-label="Naviqasiya" className="mb-2 text-xs text-slate-500">
         <Link to="/locations" className="hover:text-slate-900 hover:underline">Obyektlər</Link>
         <span className="px-1" aria-hidden="true">›</span>
-        <Link to={`/locations/${id}`} className="hover:text-slate-900 hover:underline">
+        <Link to={locationLink(id, selection)} className="hover:text-slate-900 hover:underline">
           {locationName ?? 'Obyekt'}
         </Link>
         <span className="px-1" aria-hidden="true">›</span>
@@ -174,7 +174,7 @@ export function LocationAnalyticsPage() {
         description="Sifariş müqayisəsi"
         actions={
           <Link
-            to={`/locations/${id}`}
+            to={locationLink(id, selection)}
             className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
           >
             Sifarişlərə bax

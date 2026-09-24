@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
-import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, locationLink, type BasisSelection } from '../analytics/basisParams'
 import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
@@ -24,6 +24,7 @@ import {
 } from '../pricing/labels'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { CauseSummary } from '../components/decisions/CauseSummary'
+import { comparablePriorMonths } from '../components/decisions/labels'
 import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
 import { DriverList } from '../components/decisions/DriverList'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
@@ -139,15 +140,8 @@ export function OrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, reloadToken, basisKey])
 
-  /**
-   * The months this object can be compared against, oldest first.
-   *
-   * They come from the "Bütün dövr" window, which is every month the company has ordered in before this one —
-   * the same set the dashboard offers, so the two screens agree about what a hand-picked range may contain.
-   */
-  const priorMonths = (decision?.secondary.find((item) => item.basis === 'AllPriorMonths')?.windowPeriods
-    ?? decision?.primary.windowPeriods
-    ?? []).map((period) => period.slice(0, 7))
+  /** The months this object can be compared against, oldest first — the same list the object page offers. */
+  const priorMonths = comparablePriorMonths(decision)
 
   /** What every dialog does when it succeeds, and what a 409 does: read everything again. */
   const afterChange = useCallback(
@@ -192,8 +186,9 @@ export function OrderDetailPage() {
                 sign={workflowStatusSign[data.status]}
                 toneClass={workflowStatusClass[data.status]}
               />
+              {/* The object page reads the same basis, so the reader comes back to the comparison they left. */}
               <Link
-                to={`/locations/${data.locationId}`}
+                to={locationLink(data.locationId, selection)}
                 className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
               >
                 Obyektin sifarişləri

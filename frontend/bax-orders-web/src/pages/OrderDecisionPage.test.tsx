@@ -492,6 +492,31 @@ describe('the first screenful', () => {
   })
 })
 
+/**
+ * Brief, "Mütləq qorunmalı": "Obyektin sifarişləri" leads to the object page — and now keeps the basis, so the
+ * object page compares against what the reader was looking at here (Task 11).
+ */
+describe('the way back to the object', () => {
+  it('leads to the object page with the basis this page is reading', async () => {
+    render(
+      <MemoryRouter initialEntries={['/orders/105?basis=avg3']}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+
+    expect(screen.getByRole('link', { name: 'Obyektin sifarişləri' })).toHaveAttribute('href', '/locations/21?basis=avg3')
+  })
+
+  it('says last month when the page is reading last month', async () => {
+    await renderPage()
+
+    expect(screen.getByRole('link', { name: 'Obyektin sifarişləri' })).toHaveAttribute('href', '/locations/21?basis=last')
+  })
+})
+
 describe('a month with nothing before it', () => {
   it('says so, and does not present its products as new', async () => {
     decisionsApi.fetchDecisionContext.mockResolvedValue(context({

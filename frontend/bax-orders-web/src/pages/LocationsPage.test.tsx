@@ -166,6 +166,74 @@ describe('the change column', () => {
     expect(screen.queryByText('0,00 ₼')).toBeNull()
     expect(screen.queryByText(/%/)).toBeNull()
   })
+
+  /** Brief acceptance 4 and owner decision 9.1: a rise in cost is red, and says so in words. */
+  it('colours a rise in cost red, on the money and on the percentage, with the direction in words', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      knownAmountDelta: 320.4,
+      knownAmountPercentChange: 26.7,
+    }))
+    await renderPage()
+
+    const money = await screen.findByText('+320,40 ₼')
+    expect(money).toHaveClass('text-red-700')
+    expect(within(money).getByText(', xərc artıb')).toHaveClass('sr-only')
+    expect(screen.getByText('+26,7%')).toHaveClass('text-red-700')
+    expect(money.closest('td')!.querySelector('[class*="text-emerald"]')).toBeNull()
+  })
+
+  it('colours a fall in cost green, on the money and on the percentage, with the direction in words', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      previousKnownAmount: 1670.4,
+      knownAmountDelta: -150,
+      knownAmountPercentChange: -8.98,
+    }))
+    await renderPage()
+
+    const money = await screen.findByText('−150,00 ₼')
+    expect(money).toHaveClass('text-emerald-700')
+    expect(within(money).getByText(', xərc azalıb')).toHaveClass('sr-only')
+    expect(screen.getByText('−8,98%')).toHaveClass('text-emerald-700')
+    expect(money.closest('td')!.querySelector('[class*="text-red"]')).toBeNull()
+  })
+
+  it('leaves a change of nothing slate, with no direction to announce', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      previousKnownAmount: 1520.4,
+      knownAmountDelta: 0,
+      knownAmountPercentChange: 0,
+    }))
+    await renderPage()
+
+    const money = await screen.findByText('0,00 ₼')
+    expect(money).toHaveClass('text-slate-600')
+    expect(money.closest('td')).not.toHaveTextContent('xərc')
+  })
+
+  it('says under its heading what the change is measured against', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows())
+    await renderPage()
+
+    await screen.findByText('1.520,40 ₼')
+    const heading = screen.getByRole('columnheader', { name: /Dəyişmə/ })
+    const caption = within(heading).getByText('Keçən aya görə')
+    expect(caption).toHaveClass('block', 'font-normal', 'text-slate-400')
+  })
+
+  it('says why a dash is a dash', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      previousPeriod: null,
+      previousKnownAmount: null,
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+    }))
+    await renderPage()
+
+    await screen.findByText('1.520,40 ₼')
+    const dash = screen.getByTitle('Keçən ay üçün müqayisə məlumatı yoxdur.')
+    expect(dash).toHaveTextContent('—')
+    expect(within(dash).getByText('Keçən ay üçün müqayisə məlumatı yoxdur.')).toHaveClass('sr-only')
+  })
 })
 
 describe('the columns the list no longer carries', () => {
@@ -175,10 +243,12 @@ describe('the columns the list no longer carries', () => {
 
     await screen.findByText('1.520,40 ₼')
     const table = document.querySelector('table')!
-    // The sort indicator rides on the header it belongs to; the column names are what this pins down.
+    // The sort indicator rides on the header it belongs to; the column names are what this pins down. "Dəyişmə"
+    // now carries the basis it is measured against under it (Task 11) — asserted on its own in the change column's
+    // tests, and taken off here so the names stay exactly these six.
     const headers = within(table)
       .getAllByRole('columnheader')
-      .map((cell) => (cell.textContent ?? '').replace(/[↑↓]/g, ''))
+      .map((cell) => (cell.textContent ?? '').replace(/[↑↓]/g, '').replace('Keçən aya görə', ''))
 
     expect(headers).toEqual(['Obyekt', 'Son sifariş', 'Məbləğ', 'Dəyişmə', 'Status', 'Bax'])
     expect(within(table).queryByText('Məlum qiymətlər üzrə')).toBeNull()

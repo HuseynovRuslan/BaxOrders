@@ -1,20 +1,30 @@
-import { render, screen, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DecisionComparison, OrderDecisionContext } from '../api/decisions'
 import type { LocationOrderHistory, LocationOrderHistoryEntry } from '../api/orders'
 import { LocationDetailPage } from './LocationDetailPage'
 
 /**
  * One object's page as the manager reads it (Task 05b): named, not coded; no version column and no line count;
  * and two orders of one month still told apart, in words rather than by a number.
+ *
+ * Task 11: the page accepts the basis it was opened with and keeps it on every link out, compares its latest
+ * order through the order page's own endpoint, and says which period each count belongs to.
  */
 const ordersApi = vi.hoisted(() => ({
   fetchLocationHistory: vi.fn(),
 }))
+const decisionsApi = vi.hoisted(() => ({ fetchDecisionContext: vi.fn() }))
 
 vi.mock('../api/orders', async () => {
   const actual = await vi.importActual<typeof import('../api/orders')>('../api/orders')
   return { ...actual, ...ordersApi }
+})
+vi.mock('../api/decisions', async () => {
+  const actual = await vi.importActual<typeof import('../api/decisions')>('../api/decisions')
+  return { ...actual, ...decisionsApi }
 })
 
 function entry(overrides: Partial<LocationOrderHistoryEntry> = {}): LocationOrderHistoryEntry {
@@ -27,6 +37,7 @@ function entry(overrides: Partial<LocationOrderHistoryEntry> = {}): LocationOrde
     itemCount: 40,
     knownPriceItemCount: 40,
     missingPriceItemCount: 0,
+    internalSupplyItemCount: 0,
     knownAmountTotal: 4800,
     createdAtUtc: '2026-09-22T10:00:00Z',
     ...overrides,
@@ -46,6 +57,7 @@ function history(entries: LocationOrderHistoryEntry[], overrides: Partial<Locati
     totalItemCount: 120,
     knownAmountTotal: 9000,
     missingPriceItemCount: 0,
+    internalSupplyItemCount: 0,
     years: [2026],
     requests: { items: entries, page: 1, pageSize: 24, totalCount: entries.length },
     ...overrides,
@@ -59,12 +71,79 @@ const twoOfJuly = [
   entry({ orderRequestId: 104, requestPeriod: '2026-06-01', version: 1, status: 'Approved', knownAmountTotal: 4200 }),
 ]
 
-beforeEach(() => ordersApi.fetchLocationHistory.mockReset())
+function comparison(overrides: Partial<DecisionComparison> = {}): DecisionComparison {
+  return {
+    basis: 'PreviousMonth',
+    customStart: null,
+    customEnd: null,
+    windowPeriods: ['2026-06-01'],
+    expectedPeriodCount: 1,
+    availablePeriodCount: 1,
+    missingPeriods: [],
+    periods: [],
+    available: true,
+    baselineKnownAmount: 4200,
+    deltaAmount: 500,
+    deltaPercent: 11.9,
+    amountIsComplete: true,
+    ...overrides,
+  }
+}
+
+/** The order page's answer for July's newest order, against whichever basis it was asked for. */
+function contextFor(basis: DecisionComparison['basis']): OrderDecisionContext {
+  const primary = basis === 'Previous3MonthAverage'
+    ? comparison({
+      basis,
+      windowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
+      expectedPeriodCount: 3,
+      baselineKnownAmount: 4850,
+      deltaAmount: -150,
+      deltaPercent: -3.09,
+    })
+    : comparison({ basis })
+
+  return {
+    orderRequestId: 107,
+    locationId: 43,
+    locationCode: 'LOC-000043',
+    locationName: 'Nərimanov heykəli',
+    requestPeriod: '2026-07-01',
+    version: 2,
+    status: 'PendingApproval',
+    isLatestVersion: true,
+    latestOrderRequestId: 107,
+    latestVersion: 2,
+    current: {
+      knownAmount: 4700,
+      itemCount: 40,
+      knownPriceItemCount: 40,
+      missingPriceItemCount: 0,
+      priceNotRequiredItemCount: 0,
+      isComplete: true,
+    },
+    primary,
+    secondary: [comparison({ basis: 'AllPriorMonths', windowPeriods: ['2026-05-01', '2026-06-01'] })],
+    decomposition: null,
+  }
+}
+
+beforeEach(() => {
+  ordersApi.fetchLocationHistory.mockReset()
+  decisionsApi.fetchDecisionContext.mockReset().mockImplementation(
+    (_id: number, query: { basis: DecisionComparison['basis'] }) => Promise.resolve(contextFor(query.basis)))
+})
 afterEach(() => vi.clearAllMocks())
 
-async function renderPage() {
+/** The router's own URL, so a test can watch what the page writes back to it. */
+function Search() {
+  return <span data-testid="search">{useLocation().search}</span>
+}
+
+async function renderPage(url = '/locations/43') {
   const result = render(
-    <MemoryRouter initialEntries={['/locations/43']}>
+    <MemoryRouter initialEntries={[url]}>
+      <Search />
       <Routes>
         <Route path="/locations/:locationId" element={<LocationDetailPage />} />
       </Routes>
@@ -72,6 +151,10 @@ async function renderPage() {
   )
   await screen.findByRole('heading', { name: 'Nərimanov heykəli' })
   return result
+}
+
+function card() {
+  return screen.getByRole('region', { name: 'Son sifariş və tarixçə' })
 }
 
 function table() {
@@ -153,5 +236,199 @@ describe('two orders of one month', () => {
     await renderPage()
 
     expect(screen.queryByText('Əvvəlki sifariş — sonradan yenilənib')).toBeNull()
+  })
+})
+
+/** Brief acceptance 2: "Son 3 ay" chosen on the dashboard is still "Son 3 ay" here, and on every link out. */
+describe('the basis the page was opened with', () => {
+  it('compares the latest order against it, through the order page’s own endpoint', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenCalled())
+    // July's newest order — not the one it replaced — against the three-month average.
+    expect(decisionsApi.fetchDecisionContext).toHaveBeenCalledTimes(1)
+    expect(decisionsApi.fetchDecisionContext.mock.calls[0][0]).toBe(107)
+    expect(decisionsApi.fetchDecisionContext.mock.calls[0][1]).toEqual({ basis: 'Previous3MonthAverage' })
+
+    const trend = within(card())
+    expect(await trend.findByText('Son 3 ayın ortalamasına görə')).toBeInTheDocument()
+    expect(trend.getByText('Müqayisə: Son 3 ayın ortalaması (Aprel–İyun 2026)')).toBeInTheDocument()
+    const delta = trend.getByText('−150,00 ₼')
+    expect(delta).toHaveClass('text-emerald-700')
+    expect(delta).toHaveTextContent('xərc azalıb')
+    expect(trend.getByRole('button', { name: 'Son 3 ayın ortalaması' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps it on every link out of the page', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+    await within(card()).findByText('Son 3 ayın ortalamasına görə')
+
+    const toOrders = screen.getAllByRole('link', { name: 'Sifarişə bax' })
+    // The card's and one per row.
+    expect(toOrders).toHaveLength(4)
+    for (const link of toOrders) {
+      expect(link.getAttribute('href')).toMatch(/^\/orders\/\d+\?basis=avg3$/)
+    }
+
+    const periods = table().getAllByRole('link', { name: /2026$/ })
+    expect(periods.map((link) => link.getAttribute('href'))).toEqual([
+      '/orders/107?basis=avg3',
+      '/orders/105?basis=avg3',
+      '/orders/104?basis=avg3',
+    ])
+
+    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/locations/43/analytics?basis=avg3')
+    const compare = table().getAllByRole('link', { name: /dövrünü müqayisə et$/ })
+    expect(compare.map((link) => link.getAttribute('href'))).toEqual([
+      '/locations/43/analytics?period=2026-07&basis=avg3',
+      '/locations/43/analytics?period=2026-07&basis=avg3',
+      '/locations/43/analytics?period=2026-06&basis=avg3',
+    ])
+  })
+
+  it('rewrites the URL and asks again when the reader picks another basis', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+    await within(card()).findByText('Son 3 ayın ortalamasına görə')
+
+    await userEvent.click(within(card()).getByRole('button', { name: 'Keçən ay' }))
+
+    expect(screen.getByTestId('search')).toHaveTextContent('?basis=last')
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenCalledTimes(2))
+    expect(decisionsApi.fetchDecisionContext.mock.calls[1][0]).toBe(107)
+    expect(decisionsApi.fetchDecisionContext.mock.calls[1][1]).toEqual({ basis: 'PreviousMonth' })
+    expect(await within(card()).findByText('Keçən aya görə')).toBeInTheDocument()
+    expect(within(card()).queryByText('Son 3 ayın ortalamasına görə')).toBeNull()
+    for (const link of screen.getAllByRole('link', { name: 'Sifarişə bax' })) {
+      expect(link.getAttribute('href')).toMatch(/\?basis=last$/)
+    }
+  })
+
+  it('reads as last month when the URL names no basis', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage()
+
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenCalled())
+    expect(decisionsApi.fetchDecisionContext.mock.calls[0][1]).toEqual({ basis: 'PreviousMonth' })
+    expect(await within(card()).findByText('Keçən aya görə')).toBeInTheDocument()
+    expect(within(card()).getByRole('button', { name: 'Keçən ay' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('still shows the latest order when the comparison cannot be read', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    decisionsApi.fetchDecisionContext.mockReset().mockRejectedValue(new Error('500'))
+    await renderPage('/locations/43?basis=avg3')
+
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenCalled())
+    await waitFor(() => expect(card().querySelector('.animate-pulse')).toBeNull())
+    expect(within(card()).getByText(/Son sifariş · İyul 2026/)).toBeInTheDocument()
+    expect(within(card()).getByText('4.700,00 ₼', { selector: '.text-2xl' })).toBeInTheDocument()
+    expect(within(card()).getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/107?basis=avg3')
+    expect(within(card()).queryByText(/Müqayisə:/)).toBeNull()
+  })
+})
+
+describe('where the card and the strip are shown', () => {
+  it('not under a year or month filter, and nothing is compared then', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage()
+    await within(card()).findByText('Keçən aya görə')
+    decisionsApi.fetchDecisionContext.mockClear()
+
+    const [yearFilter] = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(yearFilter, '2026')
+    await waitFor(() => expect(ordersApi.fetchLocationHistory).toHaveBeenLastCalledWith(
+      43, expect.objectContaining({ year: 2026 }), expect.anything()))
+    await screen.findAllByRole('link', { name: 'Sifarişə bax' })
+
+    expect(screen.queryByRole('region', { name: 'Son sifariş və tarixçə' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Son ayların məbləğləri' })).toBeNull()
+    expect(decisionsApi.fetchDecisionContext).not.toHaveBeenCalled()
+  })
+
+  it('not on the second page, where the first row is not the latest order', async () => {
+    const many = Array.from({ length: 24 }, (_, index) => entry({ orderRequestId: 200 + index }))
+    ordersApi.fetchLocationHistory.mockImplementation(
+      (_id: number, query: { page: number }) => Promise.resolve(history(many, {
+        requests: { items: query.page === 1 ? many : [twoOfJuly[2]], page: query.page, pageSize: 24, totalCount: 25 },
+      })))
+    await renderPage()
+    await within(card()).findByText('Keçən aya görə')
+    decisionsApi.fetchDecisionContext.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Növbəti' }))
+    await screen.findByText('Səhifə 2 / 2 · 25 sifariş')
+
+    expect(screen.queryByRole('region', { name: 'Son sifariş və tarixçə' })).toBeNull()
+    expect(screen.queryByText(/Son sifariş ·/)).toBeNull()
+    expect(decisionsApi.fetchDecisionContext).not.toHaveBeenCalled()
+  })
+})
+
+/** Brief acceptance 3: each count is shown apart and says which period it belongs to. */
+describe('the counts and their periods', () => {
+  it('says the lifetime counts are the whole history, and names its months', async () => {
+    // Heydər Əliyev-shaped: fifteen owed prices across the whole history, and some internal supply.
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly, {
+      earliestPeriod: '2025-11-01',
+      latestPeriod: '2026-07-01',
+      missingPriceItemCount: 15,
+      internalSupplyItemCount: 4,
+    }))
+    await renderPage()
+
+    const lead = screen.getByText('Bütün tarixçə (Noyabr 2025–İyul 2026):')
+    const line = lead.parentElement!
+    expect(within(line).getByText('Qiymət yoxdur').nextElementSibling).toHaveTextContent('15')
+    expect(within(line).getByText('15')).toHaveClass('text-amber-800')
+    expect(within(line).getByText('Daxili təminat').nextElementSibling).toHaveTextContent('4')
+    expect(within(line).getByText('4')).not.toHaveClass('text-amber-800')
+    // The facts that were already there stay under the same lead.
+    expect(within(line).getByText('Dövrlər')).toBeInTheDocument()
+    expect(within(line).getByText('Sifarişlər')).toBeInTheDocument()
+  })
+
+  it('leaves out a count of nothing', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage()
+
+    const line = screen.getByText(/^Bütün tarixçə/).parentElement!
+    expect(line).not.toHaveTextContent('Qiymət yoxdur')
+    expect(line).not.toHaveTextContent('Daxili təminat')
+  })
+
+  it('has no months to name for an object that has never ordered', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([], { earliestPeriod: null, latestPeriod: null }))
+    await renderPage()
+
+    expect(screen.getByText('Bütün tarixçə:')).toBeInTheDocument()
+    expect(screen.getByText('Bu obyektin hələ sifarişi yoxdur.')).toBeInTheDocument()
+    expect(decisionsApi.fetchDecisionContext).not.toHaveBeenCalled()
+  })
+
+  it('names the latest order’s counts with its month', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([
+      entry({ orderRequestId: 109, requestPeriod: '2026-09-01', missingPriceItemCount: 1, internalSupplyItemCount: 1 }),
+      ...twoOfJuly,
+    ]))
+    await renderPage()
+
+    expect(within(card()).getByText(/sifarişində:/))
+      .toHaveTextContent('Sentyabr 2026 sifarişində: Qiymət yoxdur 1 · Daxili təminat 1')
+  })
+
+  it('gives each row its own internal supply, beside its owed prices', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([
+      entry({ orderRequestId: 107, version: 2, missingPriceItemCount: 1, internalSupplyItemCount: 2 }),
+      twoOfJuly[2],
+    ]))
+    await renderPage()
+
+    const [july, june] = table().getAllByRole('row').slice(1)
+    expect(within(july).getByText('1 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
+    expect(within(july).getByText('2 sətir daxili təminat (ödənişsiz)')).toHaveClass('text-slate-500')
+    expect(june).not.toHaveTextContent('daxili təminat')
   })
 })

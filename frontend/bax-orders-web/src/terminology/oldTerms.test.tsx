@@ -33,7 +33,7 @@ import { ManagementDashboardPage } from '../pages/ManagementDashboardPage'
 import { MonthlyReportPage } from '../pages/MonthlyReportPage'
 import { OrderDetailPage } from '../pages/OrderDetailPage'
 import { partition, partitionMember } from '../test/dashboardFixtures'
-import { findOldTerms } from '../test/oldTerms'
+import { findOldTerms, readableText } from '../test/oldTerms'
 
 /**
  * Owner decision 5.1 and the brief's pairs, checked where the manager reads them.
@@ -636,6 +636,8 @@ function locationHistory(): LocationOrderHistory {
     itemCount: 40,
     knownPriceItemCount: 39,
     missingPriceItemCount: 1,
+    // A line from the company's own store beside the owed price, so the card's two counts are swept (Task 11).
+    internalSupplyItemCount: 1,
     knownAmountTotal: 4800,
     createdAtUtc: '2026-09-22T10:00:00Z',
   }
@@ -652,6 +654,7 @@ function locationHistory(): LocationOrderHistory {
     totalItemCount: 80,
     knownAmountTotal: 9000,
     missingPriceItemCount: 1,
+    internalSupplyItemCount: 3,
     years: [2026],
     requests: {
       // July twice — the order and the one it replaced — so the page has to tell them apart without a number.
@@ -1139,15 +1142,25 @@ describe('no retired word on the manager’s screens', () => {
   })
 
   it('the object page', async () => {
-    const { container } = renderAt('/locations/22', '/locations/:locationId', <LocationDetailPage />)
+    const { container } = renderAt('/locations/22?basis=avg3', '/locations/:locationId', <LocationDetailPage />)
     await screen.findByRole('heading', { name: 'Nərimanov heykəli' })
+    await screen.findByText('Son 3 ayın ortalamasına görə')
 
     expectNoOldTerms(container)
-    // The same sentence in the header strip and in the table (5.3).
+    // Task 2's sentence on every row of the table (5.3). The card says the brief's short words with its month now.
     expect(screen.getAllByText('1 sətirdə qiymət yoxdur').length).toBeGreaterThanOrEqual(2)
     expect(container).toHaveTextContent('Qiyməti olan sətirlərin cəmi')
     // July's two orders are told apart in words, not by "Versiya 1" and "Versiya 2".
     expect(screen.getAllByText('Əvvəlki sifariş — sonradan yenilənib')).toHaveLength(1)
+    // Task 11's lines are on the screen being swept: each count with its period, the row's internal supply, and
+    // the comparison caption.
+    expect(container).toHaveTextContent('İyul 2026 sifarişində: Qiymət yoxdur 1 · Daxili təminat 1')
+    expect(container).toHaveTextContent('Bütün tarixçə (İyun–İyul 2026):')
+    expect(container).toHaveTextContent('1 sətir daxili təminat (ödənişsiz)')
+    expect(container).toHaveTextContent('Müqayisə: Son 3 ayın ortalaması')
+    expect(container).not.toHaveTextContent(/yaxşı|pis/i)
+    // The strip names its months in full: no three-letter cut such as "İyu", "Avq" or "Sen" stands as a word.
+    expect(readableText(container)).not.toMatch(/(?<![\p{L}])(?:Yan|Fev|Mar|Apr|İyu|Avq|Sen|Okt|Noy|Dek)(?![\p{L}])/u)
   })
 
   it('the object comparison page, materials and services', async () => {
