@@ -222,6 +222,15 @@ export function toMonthKey(period: string): string {
   return period.slice(0, 7)
 }
 
+/**
+ * Whether a month has not begun yet: after the reader's own calendar month. The current month is not future —
+ * it is under way. Compared as `yyyy-MM` text, so neither side is moved by a time zone.
+ */
+export function isFutureMonth(period: string, today: Date = new Date()): boolean {
+  const current = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  return toMonthKey(period) > current
+}
+
 const numberFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 4 })
 const moneyFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const percentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 2 })
@@ -293,7 +302,7 @@ export function formatPeriodCoverage(available: number, expected: number): strin
 }
 
 /**
- * The pre-9.1 rule, kept only for the screens Tasks 08, 09, 10 and 11 will move onto `costDirectionToneClass`:
+ * The pre-9.1 rule, kept only for the screens Tasks 09, 10 and 11 will move onto `costDirectionToneClass`:
  * emerald up, rose down, slate flat — the opposite of owner decision 9.1. Nothing new may use it.
  *
  * It says which way the figure went and nothing else. More is not better and less is not worse — an object
@@ -327,4 +336,18 @@ export function costDirectionBarClass(value: number | null | undefined): string 
   }
 
   return value > 0 ? 'bg-red-500' : 'bg-emerald-500'
+}
+
+/**
+ * The same rule again, for a whole area that has to stand out without being read — a light fill and a thin ring
+ * of the same hue. Nothing when there is no direction, so an unmarked area stays as it is.
+ */
+export function costDirectionTintClass(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) {
+    return ''
+  }
+
+  return value > 0
+    ? 'bg-red-50 ring-1 ring-inset ring-red-200'
+    : 'bg-emerald-50 ring-1 ring-inset ring-emerald-200'
 }

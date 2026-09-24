@@ -74,6 +74,50 @@ export function unexplainedPartNote(amount: string, names: readonly string[]): s
 export const costIncreasedLabel = 'xərc artıb'
 export const costDecreasedLabel = 'xərc azalıb'
 
+// ---- the monthly report (Task 08) ------------------------------------------------------------------------
+
+/** The row under the monthly report's locations: each month's company total and the year's (owner decision 8.1). */
+export const monthlyTotalsRowLabel = 'Cəmi'
+
+/**
+ * The same row while a search is narrowing the locations. The totals stay the whole company's, and the label
+ * says so, so nobody tries to add the visible rows up to it.
+ */
+export const monthlyTotalsAllLocationsLabel = 'Cəmi — bütün obyektlər'
+
+/** A month that has not begun yet. Never "sifariş yoxdur": nothing can have been ordered for it yet. */
+export const futureMonthLabel = 'Gələcək ay'
+
+/** "Oktyabr 2026: gələcək ay" — a future month's cell, said to a screen reader or on hover. */
+export function futureMonthNote(month: string): string {
+  return `${month}: ${futureMonthLabel.toLowerCase()}`
+}
+
+/** "Oktyabr 2026 — gələcək ay" — the narrow layout's line for a month that has not begun. */
+export function futureMonthLine(month: string): string {
+  return `${month} — ${futureMonthLabel.toLowerCase()}`
+}
+
+/** A month far from its location's recent months (owner decision 8.2). A fact to look at, never a verdict. */
+export const unusualMonthLabel = 'Qeyri-adi ay'
+
+/** What "Qeyri-adi ay" means, in the legend above the report. */
+export const unusualMonthHint = 'əvvəlki 3 mövcud ayın ortalamasından 50%-dən çox fərq'
+
+/**
+ * "Qeyri-adi ay: əvvəlki 3 mövcud ayın ortalaması 14.458,58 ₼, fərq +149,06%". `average` and `percent` arrive
+ * already formatted, for the reason `unexplainedPartNote` gives.
+ */
+export function unusualMonthNote(average: string, percent: string): string {
+  return `${unusualMonthLabel}: əvvəlki 3 mövcud ayın ortalaması ${average}, fərq ${percent}`
+}
+
+/** What the percentage in a report cell is measured against. */
+export const previousMonthPercentLabel = 'Faiz — əvvəlki aya görə'
+
+/** The name of the legend above the report, for a screen reader. */
+export const reportLegendLabel = 'Cədvəldəki işarələr'
+
 const sharePercentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 0 })
 
 /**

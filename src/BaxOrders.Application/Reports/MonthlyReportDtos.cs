@@ -19,6 +19,18 @@ namespace BaxOrders.Application.Reports;
 /// The month before this one, which for January is December of the year before. Null when that month has no
 /// request, so no difference is claimed against a month that does not exist.
 /// </param>
+/// <param name="RecentAverageKnownAmount">
+/// The average of the location's three most recent <i>available</i> months before this one — months with a
+/// request and a known amount, skipping the ones without, and reaching into earlier years. Null when there are
+/// fewer than three, and when this month has no request or no known amount. See <see cref="UnusualMonth"/>.
+/// </param>
+/// <param name="RecentAveragePercent">
+/// This month against that average, to the two places the report prints. Null wherever the average is, and when
+/// the average is 0.
+/// </param>
+/// <param name="IsUnusual">
+/// More than ±50% from that average (owner decision 8.2). False, never a guess, when there is no average.
+/// </param>
 public sealed record MonthlyReportCellDto(
     int Month,
     DateOnly Period,
@@ -31,10 +43,18 @@ public sealed record MonthlyReportCellDto(
     bool AmountIsComplete,
     decimal? PreviousMonthKnownAmount,
     decimal? DeltaAmount,
-    decimal? DeltaPercent);
+    decimal? DeltaPercent,
+    decimal? RecentAverageKnownAmount,
+    decimal? RecentAveragePercent,
+    bool IsUnusual);
 
 /// <param name="Months">Twelve cells, January first, whether or not the location ordered in them.</param>
 /// <param name="KnownAmount">The year's priced money for this location. Null when it ordered nothing priced.</param>
+/// <param name="HasAnyRequest">
+/// Whether the location has a request in any month up to the end of the report's year — this year or any
+/// before it. False is the dashboard's "Sistemdə hələ sifarişi yoxdur", judged as of the year being read;
+/// a location that ordered in an earlier year and not in this one is true, with twelve empty months.
+/// </param>
 public sealed record MonthlyReportRowDto(
     int LocationId,
     string LocationCode,
@@ -44,7 +64,8 @@ public sealed record MonthlyReportRowDto(
     int RequestCount,
     decimal? KnownAmount,
     int MissingPriceItemCount,
-    int MonthsWithoutRequest);
+    int MonthsWithoutRequest,
+    bool HasAnyRequest);
 
 /// <summary>One month across every location, so a column can be read as well as a row.</summary>
 public sealed record MonthlyReportMonthDto(

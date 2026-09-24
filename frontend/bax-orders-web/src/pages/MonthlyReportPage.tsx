@@ -110,7 +110,7 @@ export function MonthlyReportPage() {
         </form>
 
         {/* Below the panorama width one month is read at a time; the choice belongs beside the other controls. */}
-        <label className="flex items-center gap-2 text-sm text-slate-600 xl:hidden">
+        <label className="flex items-center gap-2 text-sm text-slate-600 lg:hidden">
           <span>Ay</span>
           <select
             value={String(month)}
@@ -156,7 +156,7 @@ export function MonthlyReportPage() {
 
       {data && data.rows.length > 0 && (
         <>
-          <MonthlyReportTable rows={data.rows} />
+          <MonthlyReportTable report={data} />
           <MonthlyReportMonthList rows={data.rows} month={month} />
         </>
       )}

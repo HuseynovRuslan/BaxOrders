@@ -14,13 +14,16 @@ namespace BaxOrders.Application.Reports;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Four queries whatever the size of the year: the locations, the requests of the thirteen months the report
-/// needs, the lines of those requests, and the years that can be asked for. Nothing here loops over locations
-/// or months to fetch anything, because a report of 26 locations and 12 months would then be 312 round trips.
+/// Four queries whatever the size of the year: the locations, the requests of every month up to the year's end,
+/// the lines of those requests, and the years that can be asked for. Nothing here loops over locations or
+/// months to fetch anything, because a report of 26 locations and 12 months would then be 312 round trips.
 /// </para>
 /// <para>
-/// <b>Thirteen months, not twelve.</b> January's difference is against the December before it, so the December
-/// of the previous year is fetched as well and then left out of the report's own totals.
+/// <b>Every month up to the year's end, not only the year.</b> January's difference is against the December
+/// before it; an unusual month is judged against the location's three previous available months, which for the
+/// first months of a year lie in the year before (owner decision 8.2); and a location that has never ordered is
+/// told apart from one that only did not order this year. All three need the months before the year, so they
+/// are read with it. Only the year's own twelve months enter a cell, a row total, a month total or the year's.
 /// </para>
 /// <para>
 /// <b>One version per month.</b> The highest version of a location and month is the one the report shows, which
@@ -53,12 +56,12 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             .Select(location => new LocationRef(location.Id, location.Code, location.Name, location.IsActive, location.NormalizedName))
             .ToListAsync(cancellationToken);
 
-        var from = new DateOnly(year - 1, 12, 1);
+        // No lower bound: the months before the year are what January's difference, the unusual-month look-back
+        // and "has this location ever ordered" are answered from. None of them is added into the year.
         var to = new DateOnly(year, 12, 1);
 
         var requests = await db.OrderRequests.AsNoTracking()
-            .Where(request => request.RequestPeriod >= from
-                && request.RequestPeriod <= to
+            .Where(request => request.RequestPeriod <= to
                 && !db.OrderRequests.Any(other =>
                     other.LocationId == request.LocationId
                     && other.RequestPeriod == request.RequestPeriod
@@ -102,7 +105,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
 
     // ---- reading ------------------------------------------------------------------------------------
 
-    /// <summary>The lines of every request in the window, added up once per request rather than once per cell.</summary>
+    /// <summary>The lines of every request read, added up once per request rather than once per cell.</summary>
     private async Task<Dictionary<long, RequestTotals>> TotalsAsync(
         long[] requestIds, CancellationToken cancellationToken)
     {
@@ -154,10 +157,25 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         var requestCount = 0;
         var without = 0;
 
+        // The location's available months, oldest first — the ones with a figure to average. A month with no
+        // request is not here, and neither is one whose every line is unpriced: unknown money, not zero money.
+        var available = new List<(DateOnly Period, decimal Amount)>();
+        foreach (var request in requests.Values.OrderBy(request => request.Period))
+        {
+            if (KnownAmountOf(request, totals) is { } known)
+            {
+                available.Add((request.Period, known));
+            }
+        }
+
         for (var month = 1; month <= 12; month++)
         {
             var period = new DateOnly(year, month, 1);
-            var cell = Cell(period, requests, totals);
+            var earlier = available
+                .TakeWhile(candidate => candidate.Period < period)
+                .Select(candidate => candidate.Amount)
+                .ToList();
+            var cell = Cell(period, requests, totals, earlier);
             cells.Add(cell);
 
             if (cell.OrderRequestId is null)
@@ -174,17 +192,20 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             }
         }
 
+        // Every request read is at or before the year's end, so any request at all means the location has ordered.
         return new MonthlyReportRowDto(
             location.Id, location.Code, location.Name, location.IsActive,
-            cells, requestCount, yearAmount, yearMissing, without);
+            cells, requestCount, yearAmount, yearMissing, without, requests.Count > 0);
     }
 
+    /// <param name="earlierAmounts">The location's available months before this one, oldest first.</param>
     private static MonthlyReportCellDto Cell(
         DateOnly period,
         Dictionary<DateOnly, RequestRef> requests,
-        Dictionary<long, RequestTotals> totals)
+        Dictionary<long, RequestTotals> totals,
+        IReadOnlyList<decimal> earlierAmounts)
     {
-        // The month before, which for January is the December that was fetched alongside the year.
+        // The month before, which for January is the December of the year before.
         var previousAmount = requests.TryGetValue(period.AddMonths(-1), out var previous)
             ? KnownAmountOf(previous, totals)
             : null;
@@ -193,12 +214,13 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         {
             // No request: no amount, no difference, and nothing that could be mistaken for a zero.
             return new MonthlyReportCellDto(
-                period.Month, period, null, null, null, null, 0, 0, true, previousAmount, null, null);
+                period.Month, period, null, null, null, null, 0, 0, true, previousAmount, null, null, null, null, false);
         }
 
         var found = totals.GetValueOrDefault(request.OrderRequestId) ?? RequestTotals.Empty;
         var amount = KnownAmountOf(request, totals);
         var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(amount, previousAmount);
+        var recent = UnusualMonth.Of(amount, earlierAmounts);
 
         return new MonthlyReportCellDto(
             period.Month,
@@ -212,7 +234,10 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             found.MissingPriceItemCount == 0,
             previousAmount,
             delta,
-            percent);
+            percent,
+            recent.RecentAverage,
+            recent.RecentAveragePercent,
+            recent.IsUnusual);
     }
 
     private static decimal? KnownAmountOf(RequestRef request, Dictionary<long, RequestTotals> totals)

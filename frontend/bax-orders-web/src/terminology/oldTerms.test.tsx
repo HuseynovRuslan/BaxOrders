@@ -755,12 +755,29 @@ function reportCell(month: number, overrides: Partial<MonthlyReportCell> = {}): 
     previousMonthKnownAmount: 999 + month,
     deltaAmount: 1.25,
     deltaPercent: 0.1,
+    // June is the unusual month, so the sweep reads its description too.
+    recentAverageKnownAmount: month === 6 ? 14458.58 : null,
+    recentAveragePercent: month === 6 ? 149.06 : null,
+    isUnusual: month === 6,
     ...overrides,
   }
 }
 
 function monthlyReport(): MonthlyReport {
-  const months = Array.from({ length: 12 }, (_, index) => reportCell(index + 1))
+  // December has no request, so on a September today it is a future month and the sweep reads that too.
+  const months = Array.from({ length: 12 }, (_, index) => index === 11
+    ? reportCell(12, {
+      orderRequestId: null,
+      version: null,
+      status: null,
+      knownAmount: null,
+      itemCount: 0,
+      missingPriceItemCount: 0,
+      amountIsComplete: true,
+      deltaAmount: null,
+      deltaPercent: null,
+    })
+    : reportCell(index + 1))
   return {
     year: 2026,
     availableYears: [2026],
@@ -769,23 +786,51 @@ function monthlyReport(): MonthlyReport {
       locationCode: 'LOC-000043',
       locationName: 'Fəvvarələr meydanı',
       isActive: true,
-      requestCount: 12,
+      requestCount: 11,
       knownAmount: 12066,
       missingPriceItemCount: 2,
-      monthsWithoutRequest: 0,
+      monthsWithoutRequest: 1,
+      hasAnyRequest: true,
       months,
+    }, {
+      // Çadır, which has never ordered: one line in the dashboard's words.
+      locationId: 22,
+      locationCode: 'LOC-000044',
+      locationName: 'Çadır',
+      isActive: true,
+      requestCount: 0,
+      knownAmount: null,
+      missingPriceItemCount: 0,
+      monthsWithoutRequest: 12,
+      hasAnyRequest: false,
+      months: months.map((cell) => ({
+        ...cell,
+        orderRequestId: null,
+        version: null,
+        status: null,
+        knownAmount: null,
+        itemCount: 0,
+        missingPriceItemCount: 0,
+        amountIsComplete: true,
+        previousMonthKnownAmount: null,
+        deltaAmount: null,
+        deltaPercent: null,
+        recentAverageKnownAmount: null,
+        recentAveragePercent: null,
+        isUnusual: false,
+      })),
     }],
     months: months.map((cell) => ({
       month: cell.month,
       period: cell.period,
-      locationsWithRequest: 1,
+      locationsWithRequest: cell.orderRequestId === null ? 0 : 1,
       knownAmount: cell.knownAmount,
       missingPriceItemCount: cell.missingPriceItemCount,
       amountIsComplete: cell.amountIsComplete,
     })),
     locationCount: 27,
     filteredLocationCount: 27,
-    requestCount: 12,
+    requestCount: 11,
     knownAmount: 431670.91,
     missingPriceItemCount: 2,
     amountIsComplete: false,
@@ -1085,14 +1130,28 @@ describe('no retired word on the manager’s screens', () => {
   })
 
   it('the monthly report', async () => {
-    const { container } = render(
-      <MemoryRouter initialEntries={['/dashboard/monthly']}>
-        <MonthlyReportPage />
-      </MemoryRouter>,
-    )
-    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+    // Today in September 2026, so December is a future month on the screen being swept.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 8, 24))
+    try {
+      const { container } = render(
+        <MemoryRouter initialEntries={['/dashboard/monthly']}>
+          <MonthlyReportPage />
+        </MemoryRouter>,
+      )
+      await screen.findByRole('group', { name: 'İlin xülasəsi' })
 
-    expectNoOldTerms(container)
+      expectNoOldTerms(container)
+      // The Task 08 words are on the screen being swept: the totals row, the legend, an unusual month, a future
+      // month and a location that has never ordered.
+      expect(container).toHaveTextContent('Cəmi')
+      expect(container).toHaveTextContent('Qeyri-adi ay')
+      expect(container).toHaveTextContent('Gələcək ay')
+      expect(container).toHaveTextContent('Sistemdə hələ sifarişi yoxdur')
+      expect(screen.getAllByTitle('Dekabr 2026: gələcək ay').length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('the approval inbox', async () => {

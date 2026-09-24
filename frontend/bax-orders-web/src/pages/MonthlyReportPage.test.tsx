@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MonthlyReport, MonthlyReportCell, MonthlyReportRow } from '../api/reports'
+import type { MonthlyReport, MonthlyReportCell, MonthlyReportMonth, MonthlyReportRow } from '../api/reports'
 import { MonthlyReportPage } from './MonthlyReportPage'
 
 /**
@@ -32,6 +32,9 @@ function cell(month: number, overrides: Partial<MonthlyReportCell> = {}): Monthl
     previousMonthKnownAmount: 999 + month,
     deltaAmount: 1,
     deltaPercent: 0.1,
+    recentAverageKnownAmount: null,
+    recentAveragePercent: null,
+    isUnusual: false,
     ...overrides,
   }
 }
@@ -61,8 +64,22 @@ function row(overrides: Partial<MonthlyReportRow> = {}): MonthlyReportRow {
     knownAmount: 12066,
     missingPriceItemCount: 0,
     monthsWithoutRequest: months.filter((month) => month.orderRequestId === null).length,
+    hasAnyRequest: true,
     ...overrides,
     months,
+  }
+}
+
+/** The company's month, as the totals row reads it. */
+function companyMonth(month: number, overrides: Partial<MonthlyReportMonth> = {}): MonthlyReportMonth {
+  return {
+    month,
+    period: `2026-${String(month).padStart(2, '0')}-01`,
+    locationsWithRequest: 1,
+    knownAmount: 1000,
+    missingPriceItemCount: 0,
+    amountIsComplete: true,
+    ...overrides,
   }
 }
 
@@ -71,14 +88,7 @@ function report(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
     year: 2026,
     availableYears: [2026, 2025],
     rows: [row()],
-    months: Array.from({ length: 12 }, (_, index) => ({
-      month: index + 1,
-      period: `2026-${String(index + 1).padStart(2, '0')}-01`,
-      locationsWithRequest: 1,
-      knownAmount: 1000,
-      missingPriceItemCount: 0,
-      amountIsComplete: true,
-    })),
+    months: Array.from({ length: 12 }, (_, index) => companyMonth(index + 1)),
     locationCount: 26,
     filteredLocationCount: 26,
     requestCount: 167,
@@ -169,11 +179,11 @@ describe('the grid', () => {
     expect(within(table()).queryByText('0,00 ₼')).toBeNull()
   })
 
-  it('marks unpriced lines compactly, and still says what the mark means', async () => {
+  it('marks unpriced lines compactly, beside the percentage, and still says what the mark means', async () => {
     serving(report({
       rows: [row({
         months: [
-          cell(1, { missingPriceItemCount: 2, amountIsComplete: false }),
+          cell(1, { missingPriceItemCount: 2, amountIsComplete: false, deltaPercent: 12.5 }),
           ...Array.from({ length: 11 }, (_, index) => cell(index + 2)),
         ],
       })],
@@ -181,8 +191,10 @@ describe('the grid', () => {
     await renderPage()
 
     // A sentence twelve times to a row would drown the money, so the cell shows a count and explains itself.
-    expect(within(table()).getByText('⚠ 2')).toBeInTheDocument()
     const link = within(table()).getByRole('link', { name: /Yanvar 2026/ })
+    expect(within(link).getByText('⚠ 2')).toBeInTheDocument()
+    // The partial figure still moved, and the reader needs both (brief: "⚠ və faiz eyni hücrədə").
+    expect(within(link).getByText('+12,5%')).toBeInTheDocument()
     expect(link).toHaveAccessibleName(expect.stringContaining('2 sətirdə qiymət yoxdur') as unknown as string)
     expect(link).toHaveAttribute('title', expect.stringContaining('2 sətirdə qiymət yoxdur') as unknown as string)
   })
@@ -240,8 +252,10 @@ describe('the phone', () => {
     const month = screen.getByRole('combobox', { name: /Ay/ })
     expect(month).toHaveValue('3')
 
-    // The narrow layout lists the locations of the one chosen month, each linking to its own order.
-    const list = document.querySelector('.xl\\:hidden ul')!
+    // The narrow layout lists the locations of the one chosen month, each linking to its own order. It gives way
+    // to the twelve-month table from 1024 pixels, as the month picker does.
+    expect(month.closest('label')!.className).toContain('lg:hidden')
+    const list = document.querySelector('.lg\\:hidden ul')!
     expect(within(list as HTMLElement).getByRole('link', { name: /Fəvvarələr meydanı/ })).toHaveAttribute(
       'href',
       '/orders/103',
@@ -270,35 +284,69 @@ describe('the loading it actually does', () => {
 })
 
 describe('the panorama', () => {
-  it('lays the year out at a fixed width, so a long value can never push a month off the screen', async () => {
+  /**
+   * Brief: "12 aylıq cədvəl təxminən 1024px-dən başlayaraq işləyir" and "1200px enində də 12 aylıq cədvəli görürəm".
+   * Below the width the twelve months need, the table scrolls inside its own box rather than becoming a list; from
+   * 1340 pixels it fits, and the box stops being a scroll container so the header can follow the page.
+   */
+  it('shows the twelve months from 1024 pixels, scrolling inside its own box until the year fits', async () => {
     await renderPage()
 
-    // Fixed layout plus full width is what makes horizontal scrolling structurally impossible: the table is
-    // exactly as wide as its container, whatever is inside it.
+    const panorama = table().closest('.lg\\:block')!
+    expect(panorama.className).toContain('hidden')
+    const box = table().closest('div')!
+    expect(box.className).toContain('lg:overflow-x-auto')
+    expect(box.className).toContain('min-[1340px]:overflow-x-visible')
+
+    // Fixed layout: a long value can never push a month out. The minimum is what twelve readable months need.
     expect(table().className).toContain('table-fixed')
     expect(table().className).toContain('w-full')
-    expect(table().closest('div')!.className).not.toContain('overflow-x-auto')
+    expect(table().className).toContain('min-w-[1000px]')
   })
 
-  it('spends its width on twelve equal months, with the object and the year fixed', async () => {
+  it('gives every month at least 64 pixels, with the object and the year fixed', async () => {
     await renderPage()
 
     const cols = [...table().querySelectorAll('col')]
     expect(cols).toHaveLength(14)
-    expect(cols[0].className).toContain('w-[180px]')
-    expect(cols[13].className).toContain('w-[96px]')
+    // 144 + 12 × 64 + 88 = 1000, the table's minimum width.
+    expect(cols[0].className).toContain('w-[9rem]')
+    expect(cols[13].className).toContain('w-[5.5rem]')
     // The twelve in between carry no width of their own, so a fixed layout divides the remainder equally.
     for (const month of cols.slice(1, 13)) {
       expect(month.className).toBe('')
     }
   })
 
-  it('reclaims the page gutters that the rest of the application keeps', async () => {
+  /** Brief: "1440-da cədvəl yuxarıdakı kartların hüdudundan kənara çıxır". The cards above set the edge now. */
+  it('stays within the page, as wide as the cards above it', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/dashboard/monthly']}>
+        <MonthlyReportPage />
+      </MemoryRouter>,
+    )
+    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+
+    expect(container.querySelector('[class*="-mx-"]')).toBeNull()
+  })
+
+  it('keeps the header row at the top of the page, under the application header', async () => {
     await renderPage()
 
-    const wrapper = table().closest('div')!
-    expect(wrapper.className).toContain('-mx-4')
-    expect(wrapper.className).toContain('xl:-mx-8')
+    const headers = [...table().querySelectorAll('thead th')]
+    expect(headers).toHaveLength(14)
+    for (const header of headers) {
+      expect(header.className).toContain('sticky')
+      expect(header.className).toContain('top-16')
+    }
+  })
+
+  it('keeps the year pinned on the right while the months scroll', async () => {
+    await renderPage()
+
+    const year = within(table()).getByRole('columnheader', { name: 'İl cəmi' })
+    expect(year.className).toContain('sticky')
+    expect(year.className).toContain('right-0')
   })
 
   it('shows every month of the year at once', async () => {
@@ -310,11 +358,12 @@ describe('the panorama', () => {
     ])
   })
 
-  it('keeps money on one line', async () => {
+  it('keeps money on one line, in figures of one width', async () => {
     await renderPage()
 
     for (const value of within(table()).getAllByText(/₼/)) {
       expect(value.className).toContain('whitespace-nowrap')
+      expect(value.className).toContain('tabular-nums')
     }
   })
 
@@ -364,5 +413,323 @@ describe('the panorama', () => {
 
     expect(within(table()).getByTitle('Yanvar 2026: sifariş yoxdur')).toBeInTheDocument()
     expect(within(table()).queryByText('0,00 ₼')).toBeNull()
+  })
+})
+
+/** U+00A0, by its code point: the no-break space the money formatter puts before ₼. */
+const nbsp = String.fromCharCode(0xa0)
+
+/** The row of company totals under the locations. */
+function totalsRow(): HTMLElement {
+  return table().querySelector('tfoot tr')!
+}
+
+/** Today pinned, where which months have not begun matters. Only `Date` is faked; timers stay real. */
+function today(date: Date) {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(date)
+}
+
+/** The brief's audit figures for the company's months of 2026; October to December have not begun. */
+const auditMonths = [
+  11084.35, 25652.22, 48296.72, 49106.54, 62556.61, 70992.62, 48430.78, 44340.78, 71210.29,
+].map((amount, index) => companyMonth(index + 1, { knownAmount: amount }))
+  .concat([10, 11, 12].map((month) => companyMonth(month, { locationsWithRequest: 0, knownAmount: null })))
+
+describe('the totals row (owner decision 8.1)', () => {
+  it('adds each month and the year up under the locations, from the backend’s own figures', async () => {
+    serving(report({ months: auditMonths, knownAmount: 431670.91 }))
+    await renderPage()
+
+    const totals = totalsRow()
+    expect(within(totals).getByRole('rowheader', { name: 'Cəmi' })).toBeInTheDocument()
+    expect(within(totals).getByText('11.084,35 ₼')).toBeInTheDocument()
+    // September is the dashboard's month total, 71.210,29 ₼ on the audit data (brief).
+    expect(within(totals).getByText('71.210,29 ₼')).toBeInTheDocument()
+    expect(within(totals).getByText('431.670,91 ₼')).toBeInTheDocument()
+  })
+
+  it('shows no percentage, no change and no direction colour', async () => {
+    serving(report({ months: auditMonths, knownAmount: 431670.91 }))
+    await renderPage()
+
+    const totals = totalsRow()
+    expect(totals.textContent).not.toContain('%')
+    expect(totals.querySelector('.text-red-700')).toBeNull()
+    expect(totals.querySelector('.text-emerald-700')).toBeNull()
+  })
+
+  it('says when a month’s total leaves out a line nobody has priced', async () => {
+    serving(report({
+      months: auditMonths.map((month) =>
+        month.month === 9 ? { ...month, missingPriceItemCount: 3, amountIsComplete: false } : month),
+    }))
+    await renderPage()
+
+    const mark = within(totalsRow()).getByText('⚠ 3')
+    expect(mark.parentElement).toHaveAttribute('title', '3 sətirdə qiymət yoxdur')
+    expect(within(totalsRow()).getByText('3 sətirdə qiymət yoxdur')).toHaveClass('sr-only')
+  })
+
+  it('says it is the whole company’s while a search narrows the rows', async () => {
+    serving(report({ filteredLocationCount: 1, locationCount: 26 }))
+    await renderPage('/dashboard/monthly?search=meydan')
+
+    // The rows above are one object; the totals are all of them, and the label says so.
+    expect(within(totalsRow()).getByRole('rowheader', { name: 'Cəmi — bütün obyektlər' })).toBeInTheDocument()
+  })
+
+  it('draws a month nobody ordered in as a dash, never a zero', async () => {
+    serving(report({
+      months: [companyMonth(1, { locationsWithRequest: 0, knownAmount: null }), ...auditMonths.slice(1)],
+    }))
+    await renderPage()
+
+    expect(within(totalsRow()).getByTitle('Yanvar 2026: sifariş yoxdur')).toHaveTextContent('—')
+    expect(within(totalsRow()).queryByText('0,00 ₼')).toBeNull()
+  })
+})
+
+describe('an unusual month (owner decision 8.2)', () => {
+  /** Heydər Əliyev: June 36.010,19 ₼ after March–May averaging 14.458,58 ₼ — +149,06%. */
+  const heyderAliyev = () => row({
+    locationName: 'Heydər Əliyev',
+    months: [
+      ...Array.from({ length: 5 }, (_, index) => cell(index + 1)),
+      cell(6, { knownAmount: 36010.19, isUnusual: true, recentAverageKnownAmount: 14458.58, recentAveragePercent: 149.06 }),
+      cell(7, { knownAmount: 400, isUnusual: true, recentAverageKnownAmount: 1000, recentAveragePercent: -60 }),
+      cell(8, { knownAmount: 11985.02, isUnusual: false, recentAverageKnownAmount: 23048.12, recentAveragePercent: -48 }),
+      ...Array.from({ length: 4 }, (_, index) => cell(index + 9)),
+    ],
+  })
+
+  it('tints the month by the direction its cost moved, so it is seen before it is read', async () => {
+    serving(report({ rows: [heyderAliyev()] }))
+    await renderPage()
+
+    const june = within(table()).getByRole('link', { name: /İyun 2026/ })
+    expect(june.className).toContain('bg-red-50')
+    expect(june.className).toContain('ring-red-200')
+    expect(within(june).getByText('36.010,19 ₼').className).toContain('font-semibold')
+
+    const july = within(table()).getByRole('link', { name: /İyul 2026/ })
+    expect(july.className).toContain('bg-emerald-50')
+    expect(july.className).toContain('ring-emerald-200')
+  })
+
+  it('says why in words, with the average and the difference', async () => {
+    serving(report({ rows: [heyderAliyev()] }))
+    await renderPage()
+
+    const june = within(table()).getByRole('link', { name: /İyun 2026/ })
+    const why = `Qeyri-adi ay: əvvəlki 3 mövcud ayın ortalaması 14.458,58${nbsp}₼, fərq +149,06%`
+    expect(june).toHaveAttribute('title', expect.stringContaining(why) as unknown as string)
+    expect(june).toHaveAccessibleName(expect.stringContaining(why) as unknown as string)
+    // Still the order, and still without a basis, so it opens on "Keçən ay" (Task 1).
+    expect(june).toHaveAttribute('href', '/orders/106')
+  })
+
+  it('leaves a month within half of its average as it is', async () => {
+    serving(report({ rows: [heyderAliyev()] }))
+    await renderPage()
+
+    // August, −48,00% from May–July: not marked, and not described as unusual.
+    const august = within(table()).getByRole('link', { name: /Avqust 2026/ })
+    expect(august.className).not.toContain('bg-red-50')
+    expect(august.className).not.toContain('bg-emerald-50')
+    expect(august.className).not.toContain('ring-1')
+    expect(august.getAttribute('title')).not.toContain('Qeyri-adi ay')
+    expect(within(august).getByText('11.985,02 ₼').className).toContain('font-medium')
+  })
+})
+
+describe('months that have not begun', () => {
+  afterEach(() => vi.useRealTimers())
+
+  const withFutureGap = () => row({
+    months: [
+      noRequest(1),
+      ...Array.from({ length: 8 }, (_, index) => cell(index + 2)),
+      noRequest(10),
+      cell(11),
+      noRequest(12),
+    ],
+  })
+
+  it('draws a future month without a dash, and never says nothing was ordered', async () => {
+    today(new Date(2026, 8, 24))
+    serving(report({ rows: [withFutureGap()] }))
+    await renderPage()
+
+    const october = within(table()).getByLabelText('Fəvvarələr meydanı · Oktyabr 2026: gələcək ay')
+    expect(october).toHaveAttribute('title', 'Oktyabr 2026: gələcək ay')
+    expect(october.textContent).toBe('')
+    expect(within(table()).queryByTitle('Oktyabr 2026: sifariş yoxdur')).toBeNull()
+    expect(within(table()).queryByTitle('Dekabr 2026: sifariş yoxdur')).toBeNull()
+
+    // A past month with no order is still a dash, and looks different.
+    const january = within(table()).getByLabelText('Fəvvarələr meydanı · Yanvar 2026 · sifariş yoxdur')
+    expect(january.textContent).toBe('—')
+    expect(october.className).not.toBe(january.className)
+  })
+
+  it('shows an order entered ahead of time as an ordinary month', async () => {
+    today(new Date(2026, 8, 24))
+    serving(report({ rows: [withFutureGap()] }))
+    await renderPage()
+
+    expect(within(table()).getByRole('link', { name: /Noyabr 2026/ })).toHaveAttribute('href', '/orders/111')
+  })
+
+  it('quietens the headers of the months to come', async () => {
+    today(new Date(2026, 8, 24))
+    await renderPage()
+
+    for (const month of ['Okt', 'Noy', 'Dek']) {
+      expect(within(table()).getByRole('columnheader', { name: month }).className).toContain('text-slate-400')
+    }
+
+    for (const month of ['Yan', 'Sen']) {
+      expect(within(table()).getByRole('columnheader', { name: month }).className).not.toContain('text-slate-400')
+    }
+  })
+
+  it('treats no month of a year gone by as future', async () => {
+    today(new Date(2027, 1, 3))
+    serving(report({ rows: [withFutureGap()] }))
+    await renderPage()
+
+    expect(within(table()).getByTitle('Oktyabr 2026: sifariş yoxdur')).toHaveTextContent('—')
+    expect(within(table()).queryByLabelText(/gələcək ay/)).toBeNull()
+    for (const header of within(table()).getAllByRole('columnheader')) {
+      expect(header.className).not.toContain('text-slate-400')
+    }
+  })
+
+  it('says so on the narrow layout too, instead of listing who did not order', async () => {
+    today(new Date(2026, 8, 24))
+    serving(report({ rows: [withFutureGap()] }))
+    await renderPage('/dashboard/monthly?month=10')
+
+    expect(screen.getByText('Oktyabr 2026 — gələcək ay')).toBeInTheDocument()
+    expect(screen.queryByText(/obyektin bu ay üçün sifarişi yoxdur/)).toBeNull()
+  })
+})
+
+describe('an incomplete month that also moved', () => {
+  /** Bayıl yolu's September: one line without a price, and +254,03% on the month before (brief). */
+  it('shows the unpriced line and the percentage together', async () => {
+    serving(report({
+      rows: [row({
+        locationName: 'Bayıl yolu',
+        months: [
+          ...Array.from({ length: 8 }, (_, index) => cell(index + 1)),
+          cell(9, { amountIsComplete: false, missingPriceItemCount: 1, deltaPercent: 254.03, deltaAmount: 5080.6 }),
+          ...Array.from({ length: 3 }, (_, index) => cell(index + 10)),
+        ],
+      })],
+    }))
+    await renderPage()
+
+    const september = within(table()).getByRole('link', { name: /Sentyabr 2026/ })
+    expect(within(september).getByText('⚠ 1')).toBeInTheDocument()
+    expect(within(september).getByText('+254,03%')).toBeInTheDocument()
+  })
+})
+
+describe('the colour of a change (owner decision 9.1)', () => {
+  it('is red when the cost went up and green when it went down', async () => {
+    serving(report({
+      rows: [row({
+        months: [
+          cell(1, { deltaPercent: 12, deltaAmount: 120 }),
+          cell(2, { deltaPercent: -8, deltaAmount: -90 }),
+          ...Array.from({ length: 10 }, (_, index) => cell(index + 3)),
+        ],
+      })],
+    }))
+    await renderPage()
+
+    const up = within(table()).getByRole('link', { name: /Yanvar 2026/ })
+    expect(within(up).getByText('+12%').className).toContain('text-red-700')
+    expect(up).toHaveAccessibleName(expect.stringContaining('xərc artıb') as unknown as string)
+
+    const down = within(table()).getByRole('link', { name: /Fevral 2026/ })
+    expect(within(down).getByText('−8%').className).toContain('text-emerald-700')
+    expect(down).toHaveAccessibleName(expect.stringContaining('xərc azalıb') as unknown as string)
+  })
+
+  it('no longer uses the rule 9.1 replaced', async () => {
+    serving(report({
+      rows: [row({ months: [cell(1, { deltaPercent: -8, deltaAmount: -90 }), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))] })],
+    }))
+    await renderPage()
+
+    // The old rule painted a fall rose and a rise emerald.
+    expect(table().querySelector('.text-rose-700')).toBeNull()
+    const text = table().textContent ?? ''
+    expect(text).not.toMatch(/yaxşı|\bpis\b/i)
+  })
+})
+
+describe('the legend', () => {
+  it('explains every mark in the grid on the screen, not only on hover', async () => {
+    await renderPage()
+
+    const legend = screen.getByRole('list', { name: 'Cədvəldəki işarələr' })
+    for (const word of [
+      'Təsdiq gözləyir', 'Təsdiqlənib', 'Düzəliş tələb olunur',
+      'Qiymət yoxdur',
+      'xərc artıb', 'xərc azalıb',
+      'Qeyri-adi ay', 'Gələcək ay',
+    ]) {
+      expect(within(legend).getByText(word)).toBeInTheDocument()
+    }
+
+    expect(legend).toHaveTextContent('Faiz — əvvəlki aya görə')
+    expect(legend).toHaveTextContent('əvvəlki 3 mövcud ayın ortalamasından 50%-dən çox fərq')
+    // Directly above the table, in the part of the page that shows from 1024 pixels.
+    expect(legend.closest('.lg\\:block')).toBe(table().closest('.lg\\:block'))
+  })
+})
+
+describe('a location that has never ordered', () => {
+  it('reads as one line in the dashboard’s words, not as twelve empty months', async () => {
+    serving(report({
+      rows: [
+        row(),
+        row({
+          locationId: 27,
+          locationName: 'Çadır',
+          knownAmount: null,
+          hasAnyRequest: false,
+          months: Array.from({ length: 12 }, (_, index) => noRequest(index + 1)),
+        }),
+      ],
+    }))
+    await renderPage()
+
+    const words = within(table()).getByText('Sistemdə hələ sifarişi yoxdur')
+    const merged = words.closest('td')!
+    expect(merged).toHaveAttribute('colspan', '12')
+    // The object, the one merged cell and the year: still the row it always was, in its place.
+    const chadir = merged.closest('tr')!
+    expect(chadir.children).toHaveLength(3)
+    expect(within(chadir).getByRole('rowheader', { name: 'Çadır' })).toBeInTheDocument()
+    expect(within(chadir).queryByTitle(/sifariş yoxdur/)).toBeNull()
+  })
+
+  it('leaves a location that ordered in an earlier year with its twelve months', async () => {
+    serving(report({
+      rows: [row({
+        knownAmount: null,
+        hasAnyRequest: true,
+        months: Array.from({ length: 12 }, (_, index) => noRequest(index + 1)),
+      })],
+    }))
+    await renderPage()
+
+    expect(within(table()).queryByText('Sistemdə hələ sifarişi yoxdur')).toBeNull()
+    expect(within(table()).getByTitle('Yanvar 2026: sifariş yoxdur')).toBeInTheDocument()
   })
 })

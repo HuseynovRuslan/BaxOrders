@@ -4,6 +4,7 @@ import {
   amountHeading,
   basisLabels,
   costDirectionBarClass,
+  costDirectionTintClass,
   costDirectionToneClass,
   describeBasis,
   describeDirection,
@@ -15,6 +16,7 @@ import {
   formatPeriodCoverage,
   formatPrice,
   formatQuantity,
+  isFutureMonth,
   knownAmountLabel,
   manatSuffix,
   signedToneClass,
@@ -248,5 +250,36 @@ describe('the colour of a cost that moved', () => {
     expect(costDirectionBarClass(0)).toBe('bg-slate-300')
     expect(costDirectionBarClass(null)).toBe('bg-slate-300')
     expect(costDirectionBarClass(undefined)).toBe('bg-slate-300')
+  })
+
+  /** The monthly report's unusual month (Task 08): the same two hues, as a fill and a ring. */
+  it('tints an area by the same rule, and leaves it alone without a direction', () => {
+    expect(costDirectionTintClass(149.06)).toBe('bg-red-50 ring-1 ring-inset ring-red-200')
+    expect(costDirectionTintClass(-60)).toBe('bg-emerald-50 ring-1 ring-inset ring-emerald-200')
+    expect(costDirectionTintClass(0)).toBe('')
+    expect(costDirectionTintClass(null)).toBe('')
+    expect(costDirectionTintClass(undefined)).toBe('')
+  })
+})
+
+describe('a month that has not begun', () => {
+  const september24 = new Date(2026, 8, 24)
+
+  it('is after the reader’s calendar month', () => {
+    expect(isFutureMonth('2026-10-01', september24)).toBe(true)
+    expect(isFutureMonth('2026-12', september24)).toBe(true)
+    expect(isFutureMonth('2027-01-01', september24)).toBe(true)
+  })
+
+  it('is never the month under way, nor one gone by', () => {
+    expect(isFutureMonth('2026-09-01', september24)).toBe(false)
+    expect(isFutureMonth('2026-01-01', september24)).toBe(false)
+    expect(isFutureMonth('2025-12-01', september24)).toBe(false)
+  })
+
+  /** The first of the month, late at night: the month is the reader's own, not the one UTC is in. */
+  it('reads today in the reader’s own calendar', () => {
+    expect(isFutureMonth('2026-10-01', new Date(2026, 8, 30, 23, 59))).toBe(true)
+    expect(isFutureMonth('2026-10-01', new Date(2026, 9, 1, 0, 1))).toBe(false)
   })
 })

@@ -23,6 +23,15 @@ export interface MonthlyReportCell {
   previousMonthKnownAmount: number | null
   deltaAmount: number | null
   deltaPercent: number | null
+  /**
+   * The average of the location's three most recent available months before this one — months with a request
+   * and a known amount, reaching into earlier years. Null with fewer than three, or when this month has no amount.
+   */
+  recentAverageKnownAmount: number | null
+  /** This month against that average, to two places. Null wherever the average is. */
+  recentAveragePercent: number | null
+  /** More than ±50% from that average (owner decision 8.2). Decided by the backend; the browser only draws it. */
+  isUnusual: boolean
 }
 
 export interface MonthlyReportRow {
@@ -36,6 +45,11 @@ export interface MonthlyReportRow {
   knownAmount: number | null
   missingPriceItemCount: number
   monthsWithoutRequest: number
+  /**
+   * Whether the location has a request in any month up to the end of the year being read. False is the
+   * dashboard's "Sistemdə hələ sifarişi yoxdur".
+   */
+  hasAnyRequest: boolean
 }
 
 export interface MonthlyReportMonth {

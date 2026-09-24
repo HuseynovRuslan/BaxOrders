@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { formatMoneyDelta } from '../components/analytics/format'
+import { formatMoney, formatMoneyDelta, formatPercent } from '../components/analytics/format'
 import { findOldTerms } from '../test/oldTerms'
-import { locativeSuffix, productShareLabel, unexplainedPartNote } from './terms'
+import {
+  futureMonthLabel,
+  futureMonthLine,
+  futureMonthNote,
+  locativeSuffix,
+  monthlyTotalsAllLocationsLabel,
+  monthlyTotalsRowLabel,
+  previousMonthPercentLabel,
+  productShareLabel,
+  unexplainedPartNote,
+  unusualMonthHint,
+  unusualMonthLabel,
+  unusualMonthNote,
+} from './terms'
 
 /** U+00A0, by its code point: the no-break space the money formatter puts before ₼. */
 const nbsp = String.fromCharCode(0xa0)
@@ -112,6 +125,44 @@ describe('a product’s share of the movement', () => {
     ].join(' ')
 
     expect(findOldTerms(root)).toEqual([])
+  })
+})
+
+/** The monthly report's words (Task 08): the totals row, the month that has not begun, the unusual month. */
+describe('the monthly report', () => {
+  it('names the totals row, and says when it is the whole company under a search', () => {
+    expect(monthlyTotalsRowLabel).toBe('Cəmi')
+    expect(monthlyTotalsAllLocationsLabel).toBe('Cəmi — bütün obyektlər')
+  })
+
+  it('calls a month that has not begun a future month, never one without an order', () => {
+    expect(futureMonthLabel).toBe('Gələcək ay')
+    expect(futureMonthNote('Oktyabr 2026')).toBe('Oktyabr 2026: gələcək ay')
+    expect(futureMonthLine('Oktyabr 2026')).toBe('Oktyabr 2026 — gələcək ay')
+    expect(futureMonthNote('Oktyabr 2026')).not.toContain('sifariş yoxdur')
+  })
+
+  it('says why a month is unusual, with its average and its difference', () => {
+    expect(unusualMonthLabel).toBe('Qeyri-adi ay')
+    expect(unusualMonthNote(formatMoney(14458.58), formatPercent(149.06))).toBe(
+      `Qeyri-adi ay: əvvəlki 3 mövcud ayın ortalaması 14.458,58${nbsp}₼, fərq +149,06%`,
+    )
+  })
+
+  it('uses no retired word, and no verdict', () => {
+    const root = document.createElement('div')
+    root.textContent = [
+      monthlyTotalsRowLabel,
+      monthlyTotalsAllLocationsLabel,
+      futureMonthNote('Oktyabr 2026'),
+      futureMonthLine('Oktyabr 2026'),
+      unusualMonthNote(formatMoney(14458.58), formatPercent(-60)),
+      unusualMonthHint,
+      previousMonthPercentLabel,
+    ].join(' ')
+
+    expect(findOldTerms(root)).toEqual([])
+    expect(root.textContent).not.toMatch(/yaxşı|\bpis\b/i)
   })
 })
 

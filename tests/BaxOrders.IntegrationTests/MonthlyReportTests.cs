@@ -1,3 +1,5 @@
+using BaxOrders.Application.Analytics;
+using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Reports;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
@@ -322,7 +324,7 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
             await new MonthlyReportQueries(counted).GetAsync(new MonthlyReportQuery(2026), None);
         }
 
-        // The years, the locations, the requests of thirteen months, and their lines. Twenty-six locations
+        // The years, the locations, the requests up to the year's end, and their lines. Twenty-six locations
         // times twelve months would otherwise be three hundred round trips.
         Assert.Equal(4, counter.Count);
     }
@@ -341,6 +343,234 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
         Assert.Equal(before, after);
     }
 
+    // ---- the unusual month (owner decision 8.2) ------------------------------------------------------
+
+    [PostgresFact]
+    public async Task The_look_back_skips_a_month_with_no_request()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db,
+            (Month(2026, 1), 100m), (Month(2026, 2), 200m), (Month(2026, 4), 300m), (Month(2026, 5), 1_000m));
+
+        var row = Row(await ReportAsync(db, 2026), locationId);
+        var may = row.Months[4];
+
+        // March has no request, so May's three are January, February and April — never a March read as zero.
+        Assert.Equal(200m, may.RecentAverageKnownAmount);
+        Assert.Equal(400m, may.RecentAveragePercent);
+        Assert.True(may.IsUnusual);
+
+        // April has only two available months behind it, so it is not judged at all.
+        var april = row.Months[3];
+        Assert.Null(april.RecentAverageKnownAmount);
+        Assert.Null(april.RecentAveragePercent);
+        Assert.False(april.IsUnusual);
+    }
+
+    [PostgresFact]
+    public async Task The_look_back_skips_a_month_whose_every_line_is_unpriced()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db,
+            (Month(2026, 1), 100m), (Month(2026, 2), 200m), (Month(2026, 3), null),
+            (Month(2026, 4), 300m), (Month(2026, 5), 250m));
+
+        var row = Row(await ReportAsync(db, 2026), locationId);
+
+        // March ordered, but nothing in it has a price: its money is unknown, not zero, and it is passed over.
+        Assert.NotNull(row.Months[2].OrderRequestId);
+        Assert.Null(row.Months[2].KnownAmount);
+        Assert.Null(row.Months[2].RecentAverageKnownAmount);
+
+        Assert.Null(row.Months[3].RecentAverageKnownAmount);
+        Assert.Equal(200m, row.Months[4].RecentAverageKnownAmount);
+        Assert.Equal(25m, row.Months[4].RecentAveragePercent);
+        Assert.False(row.Months[4].IsUnusual);
+    }
+
+    [PostgresFact]
+    public async Task January_is_judged_against_the_end_of_the_year_before()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db,
+            (Month(2025, 10), 100m), (Month(2025, 11), 200m), (Month(2025, 12), 300m), (Month(2026, 1), 1_000m));
+
+        var january = Row(await ReportAsync(db, 2026), locationId).Months[0];
+
+        // A location's history does not restart in January.
+        Assert.Equal(200m, january.RecentAverageKnownAmount);
+        Assert.Equal(400m, january.RecentAveragePercent);
+        Assert.True(january.IsUnusual);
+    }
+
+    [PostgresFact]
+    public async Task A_January_with_two_months_behind_it_is_not_judged()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db,
+            (Month(2025, 11), 100m), (Month(2025, 12), 200m), (Month(2026, 1), 1_000m));
+
+        var january = Row(await ReportAsync(db, 2026), locationId).Months[0];
+
+        Assert.Null(january.RecentAverageKnownAmount);
+        Assert.Null(january.RecentAveragePercent);
+        Assert.False(january.IsUnusual);
+    }
+
+    [PostgresFact]
+    public async Task A_month_with_no_request_carries_no_verdict()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db,
+            (Month(2026, 1), 100m), (Month(2026, 2), 200m), (Month(2026, 3), 300m));
+
+        var april = Row(await ReportAsync(db, 2026), locationId).Months[3];
+
+        Assert.Null(april.OrderRequestId);
+        Assert.Null(april.RecentAverageKnownAmount);
+        Assert.Null(april.RecentAveragePercent);
+        Assert.False(april.IsUnusual);
+    }
+
+    // ---- a location that has never ordered -----------------------------------------------------------
+
+    [PostgresFact]
+    public async Task A_location_that_has_never_ordered_says_so()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+        var quiet = await BareLocationAsync(db);
+
+        var report = await ReportAsync(db, 2026);
+
+        Assert.False(Row(report, quiet.LocationId).HasAnyRequest);
+        Assert.True(Row(report, world.LocationId).HasAnyRequest);
+        // Every location that ordered during the year has, by definition, ordered.
+        Assert.All(report.Rows.Where(row => row.RequestCount > 0), row => Assert.True(row.HasAnyRequest));
+    }
+
+    [PostgresFact]
+    public async Task A_location_that_ordered_only_in_an_earlier_year_has_ordered_but_has_an_empty_year()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db, (Month(2025, 6), 100m), (Month(2025, 7), 200m));
+
+        var row = Row(await ReportAsync(db, 2026), locationId);
+
+        Assert.True(row.HasAnyRequest);
+        Assert.Equal(0, row.RequestCount);
+        Assert.Equal(12, row.MonthsWithoutRequest);
+        Assert.Null(row.KnownAmount);
+        Assert.All(row.Months, month => Assert.Null(month.OrderRequestId));
+
+        // Judged as of the year being read: in 2024 it had not ordered yet.
+        Assert.False(Row(await ReportAsync(db, 2024), locationId).HasAnyRequest);
+    }
+
+    // ---- the wider window adds nothing ---------------------------------------------------------------
+
+    [PostgresFact]
+    public async Task Months_before_the_year_are_read_but_never_added_into_it()
+    {
+        await using var db = database.CreateContext();
+        var locationId = await HistoryAsync(db,
+            (Month(2024, 12), 500m), (Month(2025, 1), 100m), (Month(2025, 12), 80m), (Month(2026, 1), 100m));
+
+        var year2025 = Row(await ReportAsync(db, 2025), locationId);
+        var year2026 = Row(await ReportAsync(db, 2026), locationId);
+
+        // December 2024 is January 2025's month before, and nothing else.
+        Assert.Equal(500m, year2025.Months[0].PreviousMonthKnownAmount);
+        Assert.Equal(-400m, year2025.Months[0].DeltaAmount);
+        Assert.Equal(100m + 80m, year2025.KnownAmount);
+        Assert.Equal(2, year2025.RequestCount);
+        Assert.Equal(10, year2025.MonthsWithoutRequest);
+
+        // January 2026 is still compared with December 2025, and 2026's year is 2026's months.
+        Assert.Equal(80m, year2026.Months[0].PreviousMonthKnownAmount);
+        Assert.Equal(20m, year2026.Months[0].DeltaAmount);
+        Assert.Equal(100m, year2026.KnownAmount);
+        Assert.Equal(1, year2026.RequestCount);
+    }
+
+    [PostgresFact]
+    public async Task The_company_totals_are_the_years_own_cells_added_up()
+    {
+        await using var db = database.CreateContext();
+        await HistoryAsync(db, (Month(2025, 11), 7_000m), (Month(2025, 12), 9_000m), (Month(2026, 1), 100m));
+
+        var report = await ReportAsync(db, 2026);
+
+        for (var index = 0; index < 12; index++)
+        {
+            var cells = report.Rows.Select(row => row.Months[index]).Where(cell => cell.KnownAmount is not null).ToList();
+            Assert.Equal(cells.Count == 0 ? null : cells.Sum(cell => cell.KnownAmount), report.Months[index].KnownAmount);
+        }
+
+        Assert.Equal(report.Months.Sum(month => month.KnownAmount ?? 0m), report.KnownAmount ?? 0m);
+        Assert.Equal(report.Rows.Sum(row => row.RequestCount), report.RequestCount);
+    }
+
+    // ---- one answer with the dashboard ---------------------------------------------------------------
+
+    /// <summary>
+    /// The report's month total is the dashboard's month, and a location's change in the report is its "Keçən ay"
+    /// change on the dashboard (brief: "Rəqəmlər panellə eynidir"; the totals row's September is the panel's).
+    /// </summary>
+    /// <remarks>
+    /// On a database of its own, because both figures describe the whole company and the shared database holds
+    /// every other test's objects too. Prices to four places, so the sums only agree if both sides round each
+    /// object to the qəpik before adding it up.
+    /// </remarks>
+    [PostgresFact]
+    public async Task Each_month_total_is_the_dashboards_month_and_each_change_its_Keçən_ay_change()
+    {
+        await using var isolated = await IsolatedDatabase.CreateAsync("baxorders_report");
+        await using var db = isolated.CreateContext();
+        await IdentityCompanyAsync(db);
+
+        var report = await ReportAsync(db, 2026);
+        var dashboards = new ManagementDashboardQueries(db);
+
+        var compared = 0;
+        foreach (var month in report.Months)
+        {
+            var dashboard = await dashboards.GetAsync(
+                month.Period, new DashboardQuery(PageSize: ManagementDashboardQueries.MaxPageSize), None);
+
+            if (dashboard is null)
+            {
+                // A month nobody ordered in: no dashboard, and no total on the report either — never a zero.
+                Assert.Equal(0, month.LocationsWithRequest);
+                Assert.Null(month.KnownAmount);
+                continue;
+            }
+
+            Assert.Equal(dashboard.Summary.Current.KnownAmount, month.KnownAmount);
+            compared++;
+        }
+
+        Assert.Equal(4, compared);
+
+        var september = (await dashboards.GetAsync(
+            Month(2026, 9),
+            new DashboardQuery(AnalyticsComparisonBasis.PreviousMonth, PageSize: ManagementDashboardQueries.MaxPageSize),
+            None))!;
+
+        var withPercent = 0;
+        foreach (var dashboardRow in september.Rows.Items)
+        {
+            var cell = Row(report, dashboardRow.LocationId).Months[8];
+            Assert.Equal(dashboardRow.KnownAmountPercentChange, cell.DeltaPercent);
+            if (cell.DeltaPercent is not null)
+            {
+                withPercent++;
+            }
+        }
+
+        Assert.Equal(2, withPercent);
+    }
+
     // ---- fixture -------------------------------------------------------------------------------------
 
     private static Task<MonthlyReportDto> ReportAsync(BaxOrdersDbContext db, int year, string? search = null) =>
@@ -348,6 +578,97 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
 
     private static MonthlyReportRowDto Row(MonthlyReportDto report, int locationId) =>
         report.Rows.Single(row => row.LocationId == locationId);
+
+    private static DateOnly Month(int year, int month) => new(year, month, 1);
+
+    /// <summary>
+    /// A location of its own with one request in each month given, of one line priced at the amount — or, for a
+    /// null amount, of one line with no price at all.
+    /// </summary>
+    private static async Task<int> HistoryAsync(BaxOrdersDbContext db, params (DateOnly Period, decimal? Amount)[] months)
+    {
+        var tag = Unique();
+
+        var location = new Location(
+            await new PostgresLocationCodeGenerator(db).NextAsync(None), $"Tarixçə obyekti {tag}");
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Tarixçə malı {tag}");
+        await db.SaveChangesAsync();
+
+        var variant = product.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        foreach (var (period, amount) in months)
+        {
+            var request = new OrderRequest(location, period);
+            request.AddItem(variant, 1m, amount);
+            db.OrderRequests.Add(request);
+        }
+
+        await db.SaveChangesAsync();
+        return location.Id;
+    }
+
+    /// <summary>
+    /// The company of the identity test: four months of orders, prices to four places so an object's month lands
+    /// between two qəpik, a partly unpriced September, an object whose first order is September, one that stopped
+    /// in July, and Çadır, which has never ordered.
+    /// </summary>
+    private static async Task IdentityCompanyAsync(BaxOrdersDbContext db)
+    {
+        var locationCodes = new PostgresLocationCodeGenerator(db);
+
+        async Task<Location> LocationAsync(string name)
+        {
+            var location = new Location(await locationCodes.NextAsync(None), name);
+            db.Locations.Add(location);
+            await db.SaveChangesAsync();
+            return location;
+        }
+
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var productCodes = new PostgresProductCodeGenerator(db);
+        var first = await ProductAsync(db, productCodes, "Birinci mal");
+        var second = await ProductAsync(db, productCodes, "İkinci mal");
+        await db.SaveChangesAsync();
+
+        var firstVariant = first.AddVariant(null, null, null, pieces);
+        var secondVariant = second.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        var steady = await LocationAsync("Birinci obyekt");
+        var mixed = await LocationAsync("İkinci obyekt");
+        var newcomer = await LocationAsync("Üçüncü obyekt");
+        var stopped = await LocationAsync("Dördüncü obyekt");
+        await LocationAsync("Çadır");
+
+        OrderRequest Order(Location location, int month, params (ProductVariant Variant, decimal Quantity, decimal? Price)[] lines)
+        {
+            var request = new OrderRequest(location, Month(2026, month));
+            foreach (var (variant, quantity, price) in lines)
+            {
+                request.AddItem(variant, quantity, price);
+            }
+
+            return request;
+        }
+
+        db.OrderRequests.AddRange(
+            Order(steady, 6, (firstVariant, 3m, 333.3333m)),
+            Order(steady, 7, (firstVariant, 3m, 356.5000m)),
+            Order(steady, 8, (firstVariant, 3m, 356.5050m)),
+            Order(steady, 9, (firstVariant, 5m, 400m)),
+            Order(mixed, 8, (firstVariant, 4m, 12.3456m), (secondVariant, 9m, 7.7777m)),
+            Order(mixed, 9, (firstVariant, 11m, 13.5791m), (secondVariant, 4m, 8.8888m), (secondVariant, 2m, null)),
+            Order(newcomer, 9, (secondVariant, 7m, 21.1111m)),
+            Order(stopped, 7, (firstVariant, 1m, 99.9999m)));
+
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+    }
 
     private static async Task<string> FingerprintAsync(BaxOrdersDbContext db, int locationId)
     {
