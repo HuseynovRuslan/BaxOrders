@@ -213,7 +213,7 @@ function dashboard(): ManagementDashboard {
       locationsWithCurrentRequest: 3,
       locationsWithoutCurrentRequest: 0,
       currentRequestCount: 3,
-      current: amount({ knownAmount: 3000 }),
+      current: amount({ knownAmount: 3180.04 }),
       comparedCurrent: amount({ knownAmount: 3000 }),
       baseline: amount({ knownAmount: 2400 }),
       knownAmountDelta: 600,
@@ -224,6 +224,8 @@ function dashboard(): ManagementDashboard {
           partitionMember(22, 'Nərimanov heykəli'),
           partitionMember(23, 'Bakı Konqres Mərkəzi'),
         ],
+        // Left out of the comparison, so the headline's subtraction (Task 09) is swept too.
+        noBaseline: [partitionMember(24, 'EXPO Center', { currentKnownAmount: 180.04 })],
       }),
       locationsWithMissingPrices: 3,
       locationsWithCompleteHistory: 2,
@@ -239,10 +241,11 @@ function dashboard(): ManagementDashboard {
       amountOrientedServiceCount: 0,
     },
     filteredLocationCount: 3,
+    // A rank and a "Həm də" line (Task 09), so the card titles are swept in every form they take.
     attention: [
-      { reason: 'MissingRequiredPrice', location: first },
-      { reason: 'LargestIncrease', location: second },
-      { reason: 'LargestDecrease', location: third },
+      { reason: 'MissingRequiredPrice', location: first, rank: 1, alsoFirstIn: [] },
+      { reason: 'LargestIncrease', location: second, rank: 2, alsoFirstIn: ['StrongPercentageChange'] },
+      { reason: 'LargestDecrease', location: third, rank: 1, alsoFirstIn: [] },
     ],
     rows: { items: [first, second, third], page: 1, pageSize: 25, totalCount: 3 },
   }
@@ -989,7 +992,8 @@ function expectNoOldTerms(root: HTMLElement) {
 
 describe('no retired word on the manager’s screens', () => {
   it('the dashboard', async () => {
-    const { container } = renderAt('/dashboard?period=2026-07&basis=all', '/dashboard', <ManagementDashboardPage />)
+    // With a chip on (Task 09), so the pressed chip and the filtered table are swept as well.
+    const { container } = renderAt('/dashboard?period=2026-07&basis=all&missingPrice=true', '/dashboard', <ManagementDashboardPage />)
     await screen.findAllByText('Nərimanov heykəli')
 
     expectNoOldTerms(container)
@@ -997,8 +1001,17 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).toHaveTextContent('Yeni məhsullar')
     expect(container).toHaveTextContent('Bu ay yazılmayan məhsullar')
     expect(container).toHaveTextContent('Müqayisə üçün data azdır')
-    expect(container).toHaveTextContent('Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.')
+    // Said by the ⚠ mark now, as its name and hover text, rather than as a sentence on every card (Task 09).
+    expect(screen.getAllByRole('img', { name: /Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur\./ }).length)
+      .toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Bütün dövrün ortalaması' })).toBeInTheDocument()
+    // Task 09's own words: the card titles, the direction of the cost, the subtraction and the pressed chip.
+    expect(container).toHaveTextContent('İkinci ən böyük məbləğ artımı')
+    expect(container).toHaveTextContent('Həm də ən böyük faiz dəyişməsi')
+    expect(container).toHaveTextContent('Bütün dövrün ortalamasına görə xərc artıb')
+    expect(container).toHaveTextContent('Müqayisəyə daxil deyil: EXPO Center')
+    expect(screen.getByRole('button', { name: 'Qiymət yoxdur · 3 obyekt' })).toHaveAttribute('aria-pressed', 'true')
+    expect(container).not.toHaveTextContent(/yaxşı|pis/i)
     // The product lines under "Əsas səbəb" (Task 07), swept with the rest of the page.
     expect(container).toHaveTextContent('Rosmarinus — +300,00 ₼')
     expect(container).toHaveTextContent('(artımların 86%-i)')

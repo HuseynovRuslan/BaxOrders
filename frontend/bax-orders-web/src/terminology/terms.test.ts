@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { formatMoney, formatMoneyDelta, formatPercent } from '../components/analytics/format'
 import { findOldTerms } from '../test/oldTerms'
 import {
+  costDirectionSentence,
+  costUnchangedLabel,
   futureMonthLabel,
   futureMonthLine,
   futureMonthNote,
@@ -170,6 +172,36 @@ describe('the monthly report', () => {
  * "Son 9 ayın 3-də sifariş edilib": the ending follows the last number word that is pronounced, so it is
  * worked out from the number rather than written as "-də" for all of them.
  */
+/**
+ * Owner decision 9.1 in words, where the dashboard shows it: the direction of the cost after the caption that says
+ * what it is measured against — never "yaxşı" or "pis", never "müsbət" or "mənfi".
+ */
+describe('the direction of a cost', () => {
+  it('says a rise, a fall and no change, after its caption', () => {
+    expect(costDirectionSentence('Keçən aya görə', 26_689.47)).toBe('Keçən aya görə xərc artıb')
+    expect(costDirectionSentence('Son 3 ayın ortalamasına görə', -2_584.45)).toBe('Son 3 ayın ortalamasına görə xərc azalıb')
+    expect(costDirectionSentence('Keçən aya görə', 0)).toBe(`Keçən aya görə ${costUnchangedLabel}`)
+    expect(costUnchangedLabel).toBe('xərc dəyişməyib')
+  })
+
+  it('says nothing when there is no difference to describe', () => {
+    expect(costDirectionSentence('Keçən aya görə', null)).toBeNull()
+    expect(costDirectionSentence('Keçən aya görə', undefined)).toBeNull()
+  })
+
+  it('uses no retired word, and no verdict', () => {
+    const element = document.createElement('div')
+    element.textContent = [
+      costDirectionSentence('Keçən aya görə', 1),
+      costDirectionSentence('Keçən aya görə', -1),
+      costDirectionSentence('Keçən aya görə', 0),
+    ].join('\n')
+
+    expect(findOldTerms(element)).toEqual([])
+    expect(element.textContent).not.toMatch(/yaxşı|pis|müsbət|mənfi/i)
+  })
+})
+
 describe('the locative ending of a number', () => {
   it('follows the last digit when it is not zero', () => {
     const expected: Record<number, string> = {

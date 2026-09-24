@@ -57,6 +57,11 @@ public sealed class DashboardController(ManagementDashboardQueries queries) : Co
             Require(priceCoverage, nameof(DashboardQuery.PriceCoverage));
         }
 
+        if (query.Group is { } group)
+        {
+            Require(group, nameof(DashboardQuery.Group));
+        }
+
         return await queries.GetAsync(selected, query, cancellationToken) is { } dashboard
             ? dashboard
             : throw new NotFoundException(

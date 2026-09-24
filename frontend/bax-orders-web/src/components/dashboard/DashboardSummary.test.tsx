@@ -1,10 +1,16 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { DashboardAmount, ManagementDashboardSummary } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
 import { comparedOnly, partition, partitionMember } from '../../test/dashboardFixtures'
-import { DashboardSummary } from './DashboardSummary'
+import {
+  DashboardCoverageChips,
+  DashboardExceptions,
+  DashboardHeadline,
+  type CoverageChip,
+} from './DashboardSummary'
 
 /**
  * The three-second read, in the order a decision needs it: the amount, which way it moved, over which
@@ -96,10 +102,27 @@ function september(overrides: Partial<ManagementDashboardSummary> = {}): Managem
 
 const selection: BasisSelection = { basis: 'PreviousMonth', from: null, to: null }
 
-function renderSummary(value: ManagementDashboardSummary) {
+/**
+ * The three parts the page places apart — the headline, the objects left out, the chips — rendered together,
+ * in the page's order, so every expectation below reads the dashboard's top as a reader meets it.
+ */
+function renderSummary(
+  value: ManagementDashboardSummary,
+  {
+    active = null,
+    onSelect = () => {},
+    onShowMissingPrices = () => {},
+  }: {
+    active?: CoverageChip | null
+    onSelect?: (chip: CoverageChip) => void
+    onShowMissingPrices?: () => void
+  } = {},
+) {
   return render(
     <MemoryRouter>
-      <DashboardSummary summary={value} selection={selection} />
+      <DashboardHeadline summary={value} onShowMissingPrices={onShowMissingPrices} />
+      <DashboardExceptions summary={value} selection={selection} />
+      <DashboardCoverageChips summary={value} active={active} onSelect={onSelect} />
     </MemoryRouter>,
   )
 }
@@ -112,14 +135,38 @@ describe('the headline amount', () => {
     expect(screen.queryByText(/Cari dövrün məbləği/)).toBeNull()
   })
 
-  it('is the whole month, with the change directly beneath it', () => {
-    renderSummary(september())
+  /**
+   * Task 09: only when every object that ordered was compared. Then the month's total is the amount the
+   * difference is of, and the change belongs right under it.
+   */
+  it('is the whole month, with the change directly beneath it, when nothing was left out', () => {
+    renderSummary(summary())
 
-    expect(screen.getByText('71.210,29 ₼')).toBeInTheDocument()
-    expect(screen.getByText(/\+26\.689,47 ₼/)).toBeInTheDocument()
-    expect(screen.getByText(/\+60,19%/)).toBeInTheDocument()
+    const total = screen.getByText('71.210,29 ₼')
+    expect(total.nextElementSibling).toHaveTextContent('+26.869,51 ₼ · +60,6%')
   })
 
+  /**
+   * Brief: "İstisna olanda fərq müqayisə olunan məbləğin yanında görünür: 71,030.25 − 44,340.78 = +26,689.47".
+   * The difference used to sit under 71.210,29 ₼, and a manager who subtracted the baseline from that got another
+   * number. Now the total stands alone and the comparison is written as the subtraction it is, in one line.
+   */
+  it('is written as a subtraction beside the compared amount when an object was left out', () => {
+    renderSummary(september())
+
+    // What is right under the total is the subtraction, never the difference standing on its own.
+    const total = screen.getByText('71.210,29 ₼')
+    expect(total.nextElementSibling!.textContent).not.toMatch(/^\s*\+26\.689,47/)
+    expect(total.nextElementSibling!.textContent).toMatch(/^\s*Müqayisə olunan 23 obyekt/)
+
+    const subtraction = screen.getByText(/Müqayisə olunan 23 obyekt: 71\.030,25 ₼/).closest('p')!
+    expect(screen.getByText(/\+26\.689,47 ₼/).closest('p')).toBe(subtraction)
+    expect(subtraction).toHaveTextContent('Müqayisə olunan 23 obyekt: 71.030,25 ₼ − Keçən ay (Avqust 2026): 44.340,78 ₼ = +26.689,47 ₼ · +60,19%')
+    expect(within(subtraction).getByText(/\+26\.689,47 ₼/)).toHaveClass('font-semibold', 'text-red-700')
+    expect(within(subtraction).getByText(/71\.030,25 ₼/)).toHaveClass('font-medium', 'text-slate-700')
+  })
+
+  /** Owner decision 9.1: the direction of the cost, in words — "xərc artıb / azalıb", never a verdict. */
   it('says which way it went and against what, in words', () => {
     renderSummary(summary({
       basis: 'Previous6MonthAverage',
@@ -127,27 +174,35 @@ describe('the headline amount', () => {
       knownAmountDelta: -22561.84,
     }))
 
-    expect(screen.getByText('Son 6 ayın ortalamasından aşağıdır')).toBeInTheDocument()
+    expect(screen.getByText('Son 6 ayın ortalamasına görə xərc azalıb')).toBeInTheDocument()
     expect(screen.getByText(/Son 6 ayın ortalaması:/)).toHaveTextContent('44.340,78 ₼')
   })
 
-  it('says a rise is a rise', () => {
+  it('says a rise in cost is a rise in cost (9.1)', () => {
     renderSummary(summary())
 
-    expect(screen.getByText('Keçən aydan yüksəkdir')).toBeInTheDocument()
+    expect(screen.getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(/yaxşı|pis|yüksəkdir|aşağıdır/i)
   })
 
-  /** Colour is direction and nothing else: less spending is not "good", and more is not "bad". */
+  it('says it in words under the subtraction too', () => {
+    renderSummary(september())
+
+    expect(screen.getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+  })
+
+  /** 9.1: a cost that went up is red and one that went down is green. Direction, never "good" or "bad". */
   it('colours the change by direction alone', () => {
     const { unmount } = renderSummary(summary({
       knownAmountDelta: -22561.84,
       knownAmountPercentChange: -31.8,
     }))
-    expect(screen.getByText(/−22\.561,84 ₼/).closest('p')).toHaveClass('text-rose-700')
+    expect(screen.getByText(/−22\.561,84 ₼/).closest('p')).toHaveClass('text-emerald-700')
     unmount()
 
     renderSummary(summary({ knownAmountDelta: 10626.82, knownAmountPercentChange: 17.54 }))
-    expect(screen.getByText(/\+10\.626,82 ₼/).closest('p')).toHaveClass('text-emerald-700')
+    expect(screen.getByText(/\+10\.626,82 ₼/).closest('p')).toHaveClass('text-red-700')
+    expect(document.querySelector('.text-rose-700')).toBeNull()
   })
 
   it('never breaks a money value between the amount and its manat sign', () => {
@@ -228,6 +283,19 @@ describe('incomplete price data', () => {
     expect(screen.getByText('10 obyektin sifarişində qiyməti olmayan sətir var')).toBeInTheDocument()
   })
 
+  /** Brief: "Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid." The same words, and now they open them. */
+  it('opens those objects when it is clicked', async () => {
+    const onShowMissingPrices = vi.fn()
+    renderSummary(summary({
+      current: amount({ isComplete: false, missingPriceItemCount: 11 }),
+      locationsWithMissingPrices: 10,
+    }), { onShowMissingPrices })
+
+    await userEvent.click(screen.getByRole('button', { name: '10 obyektin sifarişində qiyməti olmayan sətir var' }))
+
+    expect(onShowMissingPrices).toHaveBeenCalledTimes(1)
+  })
+
   /**
    * A month supplied entirely from the company's own store is complete. The backend counts internal supply
    * apart from a missing price, and the screen must not put the two back together.
@@ -286,12 +354,13 @@ describe('data coverage', () => {
    * rows for. The old chips overlapped — an object could be in three of them at once — so nothing could be
    * checked against anything. Sentyabr 2026 on the previous-month basis: 23 + 1 + 2 + 1 = 27.
    */
+  /** Task 09: every chip is a button now (brief: "Hər çip klik olunur"). Its count is inside it. */
   it('chips the groups and shows them adding up', () => {
     renderSummary(september())
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
     const counts = ['Müqayisə olunan', 'Bazası yoxdur', 'Sifariş qeydə alınmayıb', 'Sistemdə hələ sifarişi yoxdur']
-      .map((label) => within(coverage).getByText(label).closest('div')!.textContent)
+      .map((label) => within(coverage).getByText(label).closest('button')!.textContent)
 
     expect(counts).toEqual([
       expect.stringContaining('23'),
@@ -307,18 +376,66 @@ describe('data coverage', () => {
     renderSummary(summary())
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
-    expect(within(coverage).getByText('Müqayisə olunan').closest('div')).not.toHaveClass('bg-amber-50')
+    expect(within(coverage).getByText('Müqayisə olunan').closest('button')!.className).not.toMatch(/amber/)
     expect(within(coverage).queryByText('Bazası yoxdur')).toBeNull()
     expect(within(coverage).queryByText('Sifariş qeydə alınmayıb')).toBeNull()
     expect(within(coverage).getByText('= 26 obyekt')).toBeInTheDocument()
   })
 
-  it('ambers only the groups that have somebody in them', () => {
-    renderSummary(september())
+  /**
+   * Brief: "narıncı rəng çox işlənir". Amber means a price somebody owes, so only the price chip has it; a group
+   * is a situation, not something anybody owes.
+   */
+  it('ambers only the price chip', () => {
+    renderSummary(september({ locationsWithPartialHistory: 3, locationsWithMissingPrices: 10 }))
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
-    expect(within(coverage).getByText('Sifariş qeydə alınmayıb').closest('div')).toHaveClass('bg-amber-50')
-    expect(within(coverage).getByText('Müqayisə olunan').closest('div')).not.toHaveClass('bg-amber-50')
+    expect(within(coverage).getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' })).toHaveClass('bg-amber-50')
+    for (const label of ['Müqayisə olunan', 'Bazası yoxdur', 'Sifariş qeydə alınmayıb', 'Sistemdə hələ sifarişi yoxdur', 'Müqayisə üçün data azdır']) {
+      expect(within(coverage).getByText(label).closest('button')!.className, label).not.toMatch(/amber/)
+    }
+  })
+
+  /** Brief: "sıfır saylı çip görünmür" — and "Müqayisə olunan" is no exception. The total still counts them. */
+  it('shows no chip with nobody in it', () => {
+    renderSummary(summary({
+      locationCount: 2,
+      locationsWithCurrentRequest: 0,
+      locationsWithoutCurrentRequest: 2,
+      partition: partition({ noOrderThisMonth: [partitionMember(1, 'Bir'), partitionMember(2, 'İki')] }),
+    }))
+
+    const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
+    expect(within(coverage).getAllByRole('button', { pressed: false }).map((button) => button.textContent))
+      .toEqual(['Sifariş qeydə alınmayıb2'])
+    expect(within(coverage).queryByText('Müqayisə olunan')).toBeNull()
+    expect(within(coverage).queryByText('Müqayisə üçün data azdır')).toBeNull()
+    expect(within(coverage).queryByText(/Qiymət yoxdur/)).toBeNull()
+    expect(within(coverage).getByText('= 2 obyekt')).toBeInTheDocument()
+  })
+
+  it('hands the page the filter of the chip that was clicked', async () => {
+    const onSelect = vi.fn()
+    renderSummary(september({ locationsWithPartialHistory: 3, locationsWithMissingPrices: 10 }), { onSelect })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' }))
+    await userEvent.click(screen.getByText('Bazası yoxdur').closest('button')!)
+    await userEvent.click(screen.getByText('Müqayisə üçün data azdır').closest('button')!)
+
+    expect(onSelect.mock.calls.map(([chip]) => chip)).toEqual([
+      { kind: 'missingPrice' },
+      { kind: 'group', group: 'NoBaseline' },
+      { kind: 'partialHistory' },
+    ])
+  })
+
+  it('says which chip is on, to the eye and to a screen reader', () => {
+    renderSummary(september({ locationsWithMissingPrices: 10 }), { active: { kind: 'group', group: 'NoBaseline' } })
+
+    const chip = screen.getByText('Bazası yoxdur').closest('button')!
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    expect(chip).toHaveClass('ring-2')
+    expect(screen.getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   /**
@@ -331,7 +448,7 @@ describe('data coverage', () => {
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
     // Owner decision 5.1: "Tarixçə natamam" is "Müqayisə üçün data azdır".
-    expect(within(coverage).getByText('Müqayisə üçün data azdır').closest('div')).toHaveTextContent('3')
+    expect(within(coverage).getByText('Müqayisə üçün data azdır').closest('button')).toHaveTextContent('3')
     expect(within(coverage).queryByText(/Tarixçə natamam/)).toBeNull()
     expect(within(coverage).getByText('Qiymət yoxdur · 10 obyekt')).toBeInTheDocument()
     expect(within(coverage).getByText('= 27 obyekt')).toBeInTheDocument()
@@ -345,7 +462,7 @@ describe('data coverage', () => {
     renderSummary(september())
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
-    const chip = within(coverage).getByText('Sistemdə hələ sifarişi yoxdur').closest('div')!
+    const chip = within(coverage).getByText('Sistemdə hələ sifarişi yoxdur').closest('button')!
     expect(chip).toHaveTextContent('1')
     expect(within(coverage).queryByText('Tarixçə yoxdur')).toBeNull()
   })

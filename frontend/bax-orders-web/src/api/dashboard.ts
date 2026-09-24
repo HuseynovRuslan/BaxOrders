@@ -23,6 +23,11 @@ export type DashboardSort =
   | 'IncreasedVariantCount'
   | 'DecreasedVariantCount'
   | 'CurrentItemCount'
+  /** The size of the money change whichever way it went: the order the dashboard page opens on. */
+  | 'AbsoluteKnownAmountDelta'
+
+/** The mirror of `BaxOrders.Application.Analytics.Dashboard.PortfolioGroup`. Its words are in `coverage/labels`. */
+export type PortfolioGroup = 'Compared' | 'NoOrderThisMonth' | 'NoBaseline' | 'NoHistory'
 
 export interface DashboardPeriod {
   period: string
@@ -130,6 +135,13 @@ export type DashboardAttentionReason =
 export interface DashboardAttention {
   reason: DashboardAttentionReason
   location: LocationDashboardRow
+  /**
+   * The object's place, from 1, in its reason's whole ordering — counted before any object is set aside for
+   * already having a card. Rank 1 is the largest, so only a rank-1 card may say "Ən böyük".
+   */
+  rank: number
+  /** The other movement reasons this object is first in, so a largest figure is named on the card it sits on. */
+  alsoFirstIn: DashboardAttentionReason[]
 }
 
 /**
@@ -232,6 +244,10 @@ export interface DashboardRequest {
   historyCoverage?: HistoryCoverageState
   priceCoverage?: PriceCoverageState
   hasCurrentRequest?: boolean
+  /** Only the objects of one portfolio group: a group chip's filter, on the rule its count uses. */
+  group?: PortfolioGroup
+  /** Only the objects whose order this month has a line somebody owes a price for: the price chip's filter. */
+  missingPrice?: boolean
   sort?: DashboardSort
   descending?: boolean
   page: number
@@ -259,6 +275,8 @@ export function fetchDashboard(
   if (query.historyCoverage) params.set('historyCoverage', query.historyCoverage)
   if (query.priceCoverage) params.set('priceCoverage', query.priceCoverage)
   if (query.hasCurrentRequest !== undefined) params.set('hasCurrentRequest', String(query.hasCurrentRequest))
+  if (query.group) params.set('group', query.group)
+  if (query.missingPrice !== undefined) params.set('missingPrice', String(query.missingPrice))
   if (query.sort) params.set('sort', query.sort)
   if (query.descending) params.set('descending', 'true')
   return getJson<ManagementDashboard>(`/api/v1/dashboard?${params.toString()}`, signal)

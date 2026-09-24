@@ -7,13 +7,9 @@ import type {
   ManagementDashboardSummary,
 } from '../../api/dashboard'
 import { locationLink, orderLink, type BasisSelection } from '../../analytics/basisParams'
-import { missingPriceCount } from '../../pricing/labels'
-import {
-  costDecreasedLabel,
-  costIncreasedLabel,
-  incompleteExplanationNote,
-  productShareLabel,
-} from '../../terminology/terms'
+import { costDirectionSentence, productShareLabel } from '../../terminology/terms'
+import { DirectionWord } from '../analytics/DirectionWord'
+import { InfoHint } from '../analytics/InfoHint'
 import {
   costDirectionToneClass,
   describeBasisCaption,
@@ -23,13 +19,16 @@ import {
 } from '../analytics/format'
 import { causeTieOrder } from '../decisions/labels'
 import {
-  attentionReasonIsWarning,
-  attentionReasonLabels,
+  alsoFirstLine,
+  attentionReasonIsMissingPrice,
+  attentionTitle,
   causeHeadline,
   detailsLabel,
   noComparisonCause,
+  strongPercentageHint,
   supplyChangedNote,
 } from './labels'
+import { MissingPriceMark } from './MissingPriceMark'
 
 /** How many secondary causes a card shows before it stops being a summary. */
 const secondaryCount = 2
@@ -89,33 +88,39 @@ function Card({
 }) {
   const row = item.location
 
-  // Amber is reserved for cards that are here because something is missing from the records. A card about a
-  // movement gets no amber at all, so amber anywhere on this screen means the same one thing.
-  const isWarning = attentionReasonIsWarning[item.reason]
+  // Amber means a price somebody owes is missing, and nothing else: the "Qiymət yoxdur" title and the ⚠ mark.
+  const isMissingPrice = attentionReasonIsMissingPrice[item.reason]
+  const alsoFirst = alsoFirstLine(item.alsoFirstIn)
 
   return (
-    <article className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4">
-      <p className={`text-xs ${isWarning ? 'font-medium text-amber-800' : 'text-slate-500'}`}>
-        {attentionReasonLabels[item.reason]}
+    // The id is where Back returns the reader to: the card they opened.
+    <article id={`attention-${row.locationId}`} className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4">
+      <p className={`flex items-center gap-1 text-xs ${isMissingPrice ? 'font-medium text-amber-800' : 'text-slate-500'}`}>
+        {attentionTitle(item.reason, item.rank)}
+        {/* "The largest" is only checkable if the reader can see what it is the largest of. */}
+        {item.reason === 'StrongPercentageChange' && (
+          <InfoHint label="Faiz dəyişməsi necə seçilir?">{strongPercentageHint}</InfoHint>
+        )}
       </p>
       <p className="mt-0.5 font-medium text-slate-900">{row.locationName}</p>
+      {alsoFirst && <p className="text-xs text-slate-500">{alsoFirst}</p>}
 
-      {/* The amount itself is never coloured: it is a sum, not a direction. */}
-      <p className="mt-2 whitespace-nowrap text-2xl font-semibold text-slate-900">
-        {formatMoney(row.current.knownAmount)}
+      {/* The amount itself is never coloured: it is a sum, not a direction. A missing price is marked beside it. */}
+      <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
+        <span className="whitespace-nowrap text-2xl font-semibold text-slate-900">{formatMoney(row.current.knownAmount)}</span>
+        <MissingPriceMark count={row.current.missingPriceItemCount} explanationIsComplete={row.explanationIsComplete} />
       </p>
 
       {row.knownAmountDelta === null ? (
         <p className="mt-0.5 text-sm text-slate-600">{noComparisonCause}</p>
       ) : (
         <>
-          {/* Red up, green down (9.1): the direction of the cost, never a verdict on it. */}
+          {/* Red up, green down (9.1): the direction of the cost, never a verdict on it — said in the words below. */}
           <p className={`mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm font-medium ${costDirectionToneClass(row.knownAmountDelta)}`}>
             <span className="whitespace-nowrap">{formatMoneyDelta(row.knownAmountDelta)}</span>
             <span className="whitespace-nowrap">{formatPercent(row.knownAmountPercentChange)}</span>
-            <DirectionWord value={row.knownAmountDelta} />
           </p>
-          <p className="text-xs text-slate-500">{caption}</p>
+          <p className="text-xs text-slate-500">{costDirectionSentence(caption, row.knownAmountDelta)}</p>
         </>
       )}
 
@@ -176,16 +181,6 @@ function Causes({ row }: { row: LocationDashboardRow }) {
       {row.supplyChangedVariantCount > 0 && (
         <p className="mt-1 text-xs text-slate-500">{supplyChangedNote(row.supplyChangedVariantCount)}</p>
       )}
-
-      {!row.explanationIsComplete && (
-        <p className="mt-1 text-xs text-amber-800">{incompleteExplanationNote}</p>
-      )}
-
-      {row.current.missingPriceItemCount > 0 && (
-        <p className="mt-1 text-xs text-amber-800">
-          {missingPriceCount(row.current.missingPriceItemCount)}
-        </p>
-      )}
     </div>
   )
 }
@@ -207,12 +202,6 @@ function CauseProduct({ product }: { product: DashboardCauseProduct }) {
       <span className="whitespace-nowrap">({productShareLabel(product.amount, product.sameDirectionAmount)})</span>
     </p>
   )
-}
-
-/** The direction in words beside the colour that shows it (9.1), so the colour is never the only carrier. */
-function DirectionWord({ value }: { value: number }) {
-  const direction = value > 0 ? costIncreasedLabel : value < 0 ? costDecreasedLabel : null
-  return direction === null ? null : <span className="sr-only">, {direction}</span>
 }
 
 /**
@@ -237,7 +226,8 @@ export function DetailsLink({
     <Link
       to={to}
       aria-label={`${row.locationName} · ${detailsLabel}`}
-      className={`inline-flex items-center gap-1 rounded-md border border-slate-200 font-medium text-slate-700 hover:bg-slate-50 ${
+      // One line, always: "Detallara bax" broken over two lines doubled the height of every table row.
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-200 font-medium text-slate-700 hover:bg-slate-50 ${
         compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
       }`}
     >

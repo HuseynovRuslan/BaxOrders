@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
 import { partition, partitionMember } from '../test/dashboardFixtures'
@@ -92,12 +92,14 @@ function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashbo
       locationsWithoutCurrentRequest: 2,
       currentRequestCount: 24,
       current: amount(),
-      comparedCurrent: amount(),
+      // EXPO Center's 180,04 ₼ is in the month and not in the comparison.
+      comparedCurrent: amount({ knownAmount: 71030.25 }),
       baseline: amount({ knownAmount: 60583.47 }),
       knownAmountDelta: 10626.82,
       knownAmountPercentChange: 17.54,
       partition: partition({
-        compared: Array.from({ length: 24 }, (_, index) => partitionMember(index + 1, `Obyekt ${index + 1}`)),
+        compared: Array.from({ length: 23 }, (_, index) => partitionMember(index + 1, `Obyekt ${index + 1}`)),
+        noBaseline: [partitionMember(97, 'EXPO Center', { currentKnownAmount: 180.04 })],
         noOrderThisMonth: [partitionMember(98, 'Puşkin parkı'), partitionMember(99, 'Təmir-tikinti')],
       }),
       locationsWithMissingPrices: 10,
@@ -114,8 +116,8 @@ function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashbo
       amountOrientedServiceCount: 0,
     },
     filteredLocationCount: 1,
-    attention: [{ reason: 'LargestIncrease', location: row() }],
-    rows: { items: [row()], page: 1, pageSize: 25, totalCount: 1 },
+    attention: [{ reason: 'LargestIncrease', location: row(), rank: 1, alsoFirstIn: [] }],
+    rows: { items: [row()], page: 1, pageSize: 100, totalCount: 1 },
   }
 }
 
@@ -139,6 +141,8 @@ async function renderPage(url = '/dashboard?period=2026-09') {
 }
 
 beforeEach(() => {
+  // Where each page was left is kept per history entry, and a memory router's first entry is always "default".
+  window.sessionStorage.clear()
   dashboardApi.fetchDashboardPeriods.mockReset().mockResolvedValue({
     periods: [
       { period: '2026-09-01', locationCount: 24, requestCount: 24, itemCount: 480 },
@@ -322,10 +326,12 @@ describe('carrying the basis into the order', () => {
     expect(link).toHaveAttribute('href', '/orders/154?basis=custom&from=2026-05&to=2026-08')
   })
 
+  /** Task 1's "…görə" stays; Task 09 finishes the sentence with the direction of the cost (9.1). */
   it('says on each attention card which basis its figures use', async () => {
     await renderPage('/dashboard?period=2026-09&basis=avg3')
 
-    expect(screen.getAllByText('Son 3 ayın ortalamasına görə').length).toBeGreaterThan(0)
+    const cards = within(screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' }))
+    expect(cards.getAllByText('Son 3 ayın ortalamasına görə xərc artıb').length).toBeGreaterThan(0)
   })
 })
 
@@ -347,7 +353,7 @@ describe('the product behind the main cause', () => {
       return Promise.resolve({
         ...data,
         summary: { ...data.summary, basis: query.basis },
-        attention: [{ reason: 'LargestIncrease', location }],
+        attention: [{ reason: 'LargestIncrease', location, rank: 1, alsoFirstIn: [] }],
         rows: { ...data.rows, items: [location] },
       })
     })
@@ -421,5 +427,279 @@ describe('an older link', () => {
     await renderPage('/dashboard?period=2026-09&basis=avg6')
 
     await waitFor(() => expect(screen.getByTestId('search').textContent).toBe('?period=2026-09&basis=avg6'))
+  })
+
+  /** The old "Məlumat vəziyyəti" select's filters have no control now, but a saved link still means them. */
+  it('still sends the filters of the select the chips replaced', async () => {
+    await renderPage('/dashboard?period=2026-09&priceCoverage=Partial&hasCurrentRequest=false&historyCoverage=Unavailable')
+
+    expect(dashboardApi.fetchDashboard).toHaveBeenLastCalledWith(
+      '2026-09',
+      expect.objectContaining({ priceCoverage: 'Partial', hasCurrentRequest: false, historyCoverage: 'Unavailable' }),
+      expect.anything(),
+    )
+  })
+})
+
+// ---- Task 09 ------------------------------------------------------------------------------------------------
+
+/** The last request's query, as the page sent it. */
+function lastQuery(): Record<string, unknown> {
+  return dashboardApi.fetchDashboard.mock.lastCall![1] as Record<string, unknown>
+}
+
+function urlParams(): URLSearchParams {
+  return new URLSearchParams(screen.getByTestId('search').textContent ?? '')
+}
+
+/** Brief: "27 sətir bir səhifədədir; varsayılan sıra dəyişmənin böyüklüyünə görədir". */
+describe('the table', () => {
+  it('asks for every object on one page, largest change first, and writes nothing for that default', async () => {
+    await renderPage()
+
+    expect(dashboardApi.fetchDashboard).toHaveBeenCalledWith(
+      '2026-09',
+      expect.objectContaining({ pageSize: 100, sort: 'AbsoluteKnownAmountDelta', descending: true, page: 1 }),
+      expect.anything(),
+    )
+    expect(urlParams().has('sort')).toBe(false)
+    expect(screen.getByRole('combobox', { name: /^Sıralama/ })).toHaveValue('AbsoluteKnownAmountDelta')
+  })
+
+  it('offers three orders, the size of the change first', async () => {
+    await renderPage()
+
+    const options = within(screen.getByRole('combobox', { name: /^Sıralama/ })).getAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual(['Ən çox dəyişən', 'Bu ayın məbləği üzrə', 'Obyekt adı üzrə'])
+  })
+
+  it('sends the name when the name is chosen, and nothing in the URL when the default is chosen back', async () => {
+    await renderPage()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /^Sıralama/ }), 'LocationName')
+    await waitFor(() => expect(lastQuery()).toMatchObject({ sort: 'LocationName', descending: false }))
+    expect(urlParams().get('sort')).toBe('LocationName')
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /^Sıralama/ }), 'AbsoluteKnownAmountDelta')
+    await waitFor(() => expect(lastQuery()).toMatchObject({ sort: 'AbsoluteKnownAmountDelta', descending: true }))
+    expect(urlParams().has('sort')).toBe(false)
+    expect(urlParams().has('descending')).toBe(false)
+  })
+
+  /** An older link's sort the page no longer offers opens on the default rather than on a hidden order. */
+  it('treats a sort it does not offer as none', async () => {
+    await renderPage('/dashboard?period=2026-09&sort=KnownAmountDelta&descending=true')
+
+    expect(lastQuery()).toMatchObject({ sort: 'AbsoluteKnownAmountDelta', descending: true })
+  })
+
+  it('has no "Məlumat vəziyyəti" select any more: the chips do its work', async () => {
+    await renderPage()
+
+    expect(screen.queryByRole('combobox', { name: /Məlumat vəziyyəti/ })).toBeNull()
+    expect(screen.queryByText('Məlumat vəziyyəti: hamısı')).toBeNull()
+    // The month and the order: nothing else is a select on the page.
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+  })
+})
+
+/** Brief: "Hər çip klik olunur və cədvəli həmin obyektlərə süzür ... 'Qiymət yoxdur · N obyekt' həmin obyektləri göstərir". */
+describe('the chips', () => {
+  function chips() {
+    return within(screen.getByText('Məlumatın əhatəsi').closest('section')!)
+  }
+
+  it('opens exactly the objects of the price chip, and says so in the URL', async () => {
+    await renderPage('/dashboard?period=2026-09&group=NoBaseline')
+
+    await userEvent.click(chips().getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' }))
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ missingPrice: true }))
+    expect(lastQuery().group).toBeUndefined()
+    expect(urlParams().get('missingPrice')).toBe('true')
+    expect(urlParams().has('group')).toBe(false)
+    await waitFor(() =>
+      expect(chips().getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' })).toHaveAttribute('aria-pressed', 'true'))
+  })
+
+  it('opens a group with its chip', async () => {
+    await renderPage()
+
+    await userEvent.click(chips().getByText('Bazası yoxdur').closest('button')!)
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ group: 'NoBaseline' }))
+    expect(lastQuery().missingPrice).toBeUndefined()
+    expect(urlParams().get('group')).toBe('NoBaseline')
+  })
+
+  it('clears its filter when the chip that is on is clicked again', async () => {
+    await renderPage('/dashboard?period=2026-09&group=NoBaseline&search=Obyekt')
+
+    await userEvent.click(chips().getByText('Bazası yoxdur').closest('button')!)
+
+    await waitFor(() => expect(urlParams().has('group')).toBe(false))
+    // The search is the reader's own, and a chip leaves it alone.
+    expect(urlParams().get('search')).toBe('Obyekt')
+  })
+
+  it('clears every filter, chip and search alike, with "Filtri təmizlə"', async () => {
+    await renderPage('/dashboard?period=2026-09&group=NoBaseline&missingPrice=true&priceCoverage=Partial&historyCoverage=Partial&hasCurrentRequest=false&search=Obyekt')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filtri təmizlə' }))
+
+    await waitFor(() => expect(urlParams().toString()).toBe('period=2026-09'))
+    expect(lastQuery()).toMatchObject({
+      group: undefined,
+      missingPrice: undefined,
+      priceCoverage: undefined,
+      historyCoverage: undefined,
+      hasCurrentRequest: undefined,
+      search: undefined,
+    })
+  })
+
+  /** Brief: "Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid". The headline's line opens the same objects. */
+  it('lets the headline\'s price line open the same objects, and brings the table into view', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      await renderPage()
+
+      await userEvent.click(screen.getByRole('button', { name: '10 obyektin sifarişində qiyməti olmayan sətir var' }))
+
+      await waitFor(() => expect(lastQuery()).toMatchObject({ missingPrice: true }))
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
+      expect(scrollIntoView.mock.contexts[0]).toHaveTextContent('Bütün obyektlər')
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+})
+
+/** Brief acceptance 1: at 1366×768 the first card is on the first screen. The order on the page is what makes it so. */
+describe('the first screen', () => {
+  it('reads: the month, the cards, who was left out, then the chips over the table', async () => {
+    await renderPage()
+
+    const headline = screen.getByText('71.210,29 ₼')
+    const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+    const exceptions = screen.getByText('Müqayisədən kənarda qalan obyektlər')
+    const chips = screen.getByText('Məlumatın əhatəsi')
+    const table = document.querySelector('table')!
+
+    const inOrder = [headline, cards, exceptions, chips, table]
+    for (let index = 1; index < inOrder.length; index++) {
+      expect(inOrder[index - 1].compareDocumentPosition(inOrder[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+  })
+
+  it('puts the period and the comparison beside the title, and drops the description', async () => {
+    await renderPage()
+
+    expect(screen.queryByText('Sifarişlərin obyektlər üzrə ümumi görünüşü')).toBeNull()
+    const header = screen.getByRole('heading', { level: 1, name: 'İdarəetmə paneli' }).parentElement!.parentElement!
+    expect(within(header).getByRole('group', { name: 'Müqayisə' })).toBeInTheDocument()
+    expect(within(header).getByText('Dövr')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Brief: "'Növbəti' basılanda səhifə ən yuxarı qalxır". A reload used to blank the page, and a page that goes
+ * blank throws the reader to the top. The last answer stays on screen, marked busy, until the next one lands.
+ */
+describe('while the next answer loads', () => {
+  it('keeps the figures and the table on screen, marked busy', async () => {
+    await renderPage()
+
+    let answer: (value: ManagementDashboard) => void = () => {}
+    dashboardApi.fetchDashboard.mockImplementationOnce(() => new Promise<ManagementDashboard>((resolve) => { answer = resolve }))
+    await userEvent.click(screen.getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' }))
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ missingPrice: true }))
+    expect(screen.getByText('71.210,29 ₼')).toBeInTheDocument()
+    expect(document.querySelector('table')).toHaveTextContent('Fəvvarələr meydanı')
+    expect(screen.getByText('71.210,29 ₼').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByText('Panel yüklənir')).toBeNull()
+
+    answer(dashboard())
+    await waitFor(() => expect(screen.getByText('71.210,29 ₼').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'false'))
+  })
+})
+
+/**
+ * Brief acceptance 6: "Heydər Əliyev kartından sifarişə keçib qayıdanda həmin kartın yanına dönürəm". The order
+ * page is a stub here; what is under test is that Back brings the card that was opened into view once the
+ * figures are there, and that a fresh arrival does not.
+ */
+describe('coming back', () => {
+  function OrderStub() {
+    const navigate = useNavigate()
+    return (
+      <>
+        <button type="button" onClick={() => navigate(-1)}>Geri</button>
+        <Link to="/dashboard?period=2026-09">Panelə</Link>
+      </>
+    )
+  }
+
+  function renderWithOrder() {
+    render(
+      <MemoryRouter initialEntries={['/dashboard?period=2026-09']}>
+        <Search />
+        <Routes>
+          <Route path="/dashboard" element={<ManagementDashboardPage />} />
+          <Route path="/orders/:id" element={<OrderStub />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  let scrollIntoView = vi.fn()
+  beforeEach(() => {
+    scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+  })
+  afterEach(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
+
+  async function openTheCard() {
+    const cards = within(await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' }))
+    await userEvent.click(cards.getByRole('link', { name: /Detallara bax/ }))
+    await screen.findByRole('button', { name: 'Geri' })
+  }
+
+  it('returns to the card that was opened, once the figures are there', async () => {
+    renderWithOrder()
+    await openTheCard()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Geri' }))
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
+    expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'attention-21')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    // And Back brought the comparison back with it (Task 1).
+    expect(urlParams().get('period')).toBe('2026-09')
+  })
+
+  it('restores nothing on a fresh arrival, even with a place remembered for another visit', async () => {
+    renderWithOrder()
+    await openTheCard()
+
+    await userEvent.click(screen.getByRole('link', { name: 'Panelə' }))
+    await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('keeps the browser from restoring on its own while the page is shown, and gives it back after', async () => {
+    const before = window.history.scrollRestoration
+    renderWithOrder()
+    await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+
+    expect(window.history.scrollRestoration).toBe('manual')
+
+    await openTheCard()
+    expect(window.history.scrollRestoration).toBe(before)
   })
 })

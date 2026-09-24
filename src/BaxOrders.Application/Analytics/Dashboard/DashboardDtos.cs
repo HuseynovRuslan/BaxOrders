@@ -62,7 +62,17 @@ public sealed record DashboardCauseProductDto(
     long ProductVariantId, string ProductName, decimal Amount, decimal SameDirectionAmount);
 
 /// <param name="Location">The whole row, so the section can be drawn without hunting for it in the page.</param>
-public sealed record DashboardAttentionDto(DashboardAttentionReason Reason, LocationDashboardRowDto Location);
+/// <param name="Rank">
+/// The object's place, from 1, in its reason's own ordering over every object that qualifies for that reason —
+/// counted before any object is set aside for having a card under an earlier reason. Rank 1 is the largest.
+/// </param>
+/// <param name="AlsoFirstIn">
+/// The other movement reasons (largest increase, largest decrease, largest percentage) in which this object is
+/// rank 1, so a largest figure is never hidden behind another card's title.
+/// </param>
+public sealed record DashboardAttentionDto(
+    DashboardAttentionReason Reason, LocationDashboardRowDto Location,
+    int Rank, IReadOnlyList<DashboardAttentionReason> AlsoFirstIn);
 
 public sealed record LocationDashboardRowDto(
     int LocationId,
@@ -186,6 +196,15 @@ public sealed record ManagementDashboardDto(
 
 /// <param name="CustomStart">First month of a hand-picked comparison range, as <c>yyyy-MM</c>. Only with <see cref="AnalyticsComparisonBasis.CustomRange"/>.</param>
 /// <param name="CustomEnd">Last month of that range, as <c>yyyy-MM</c>. It lies before the month being looked at.</param>
+/// <param name="Group">
+/// Only the objects of one portfolio group — the same group, decided by the same rule, that the summary's
+/// partition counts them in, so a chip's count and the rows it opens cannot disagree.
+/// </param>
+/// <param name="MissingPrice">
+/// True for only the objects whose order this month has a line somebody owes a price for — exactly the objects
+/// <see cref="ManagementDashboardSummaryDto.LocationsWithMissingPrices"/> counts. Unlike
+/// <see cref="PriceCoverage"/>, it includes an object none of whose owed lines is priced.
+/// </param>
 public sealed record DashboardQuery(
     AnalyticsComparisonBasis Basis = AnalyticsComparisonBasis.PreviousMonth,
     string? Search = null,
@@ -197,7 +216,9 @@ public sealed record DashboardQuery(
     int Page = 1,
     int PageSize = 25,
     string? CustomStart = null,
-    string? CustomEnd = null)
+    string? CustomEnd = null,
+    PortfolioGroup? Group = null,
+    bool? MissingPrice = null)
 {
     /// <summary>The window this query asks for, with its months checked against the month being looked at.</summary>
     public ComparisonSelection SelectionFor(DateOnly currentPeriod) => ComparisonSelection.Of(

@@ -1,10 +1,15 @@
-﻿using BaxOrders.Application.Analytics;
+﻿using System.Net;
+using BaxOrders.Api;
+using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.IntegrationTests;
@@ -309,6 +314,141 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
         Assert.Equal(world.UnpricedId, Assert.Single(partial.Rows.Items).LocationId);
     }
 
+    // ---- the chips' filters (Task 9) --------------------------------------------------------------------
+
+    /// <summary>
+    /// "Qiymət yoxdur · 10 obyekt" opens those ten objects and no others. The price-coverage filter the old
+    /// select used could not: an object whose every owed line is unpriced has no partial coverage — it has none —
+    /// so it was counted by the chip and missing from the rows.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_missing_price_filter_leaves_exactly_the_objects_the_chip_counts()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+        var nothingPriced = await NothingPricedAsync(db, world);
+
+        var ours = await DashboardAsync(db, world, new DashboardQuery(MissingPrice: true));
+        Assert.Equal(
+            new[] { world.UnpricedId, nothingPriced }.Order(),
+            ours.Rows.Items.Select(row => row.LocationId).Order());
+
+        // The whole company: the rows it leaves are the rows with an owed price missing, and there are as many
+        // of them as the summary counts.
+        var every = await EveryRowAsync(db, world.July, new DashboardQuery());
+        var filtered = await EveryRowAsync(db, world.July, new DashboardQuery(MissingPrice: true));
+        var summary = (await Queries(db).GetAsync(world.July, new DashboardQuery(MissingPrice: true), CancellationToken.None))!;
+
+        Assert.Equal(
+            every.Where(row => row.HasCurrentRequest && row.Current.MissingPriceItemCount > 0)
+                .Select(row => row.LocationId).Order(),
+            filtered.Select(row => row.LocationId).Order());
+        Assert.Equal(summary.Summary.LocationsWithMissingPrices, summary.FilteredLocationCount);
+        Assert.Equal(summary.Summary.LocationsWithMissingPrices, filtered.Count);
+
+        // And the case the old filter missed, stated as a test.
+        var partial = await DashboardAsync(db, world, new DashboardQuery(PriceCoverage: PriceCoverageState.Partial));
+        Assert.DoesNotContain(partial.Rows.Items, row => row.LocationId == nothingPriced);
+    }
+
+    /// <summary>
+    /// Each group chip opens exactly the objects the partition names under it — the same rule, decided once —
+    /// and the four together are every object of the month.
+    /// </summary>
+    [PostgresFact]
+    public async Task Each_group_filter_leaves_exactly_that_groups_members()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+        var summary = (await Queries(db).GetAsync(world.July, new DashboardQuery(), CancellationToken.None))!.Summary;
+
+        var members = new Dictionary<PortfolioGroup, IReadOnlyList<DashboardPartitionMemberDto>>
+        {
+            [PortfolioGroup.Compared] = summary.Partition.Compared,
+            [PortfolioGroup.NoOrderThisMonth] = summary.Partition.NoOrderThisMonth,
+            [PortfolioGroup.NoBaseline] = summary.Partition.NoBaseline,
+            [PortfolioGroup.NoHistory] = summary.Partition.NoHistory,
+        };
+
+        var total = 0;
+        foreach (var (group, expected) in members)
+        {
+            var rows = await EveryRowAsync(db, world.July, new DashboardQuery(Group: group));
+
+            Assert.Equal(expected.Select(member => member.LocationId).Order(), rows.Select(row => row.LocationId).Order());
+            total += rows.Count;
+        }
+
+        Assert.Equal(summary.LocationCount, total);
+
+        // This world's objects land where their months put them.
+        var noBaseline = await DashboardAsync(db, world, new DashboardQuery(Group: PortfolioGroup.NoBaseline));
+        Assert.Contains(noBaseline.Rows.Items, row => row.LocationId == world.PartialId);
+        var noOrder = await DashboardAsync(db, world, new DashboardQuery(Group: PortfolioGroup.NoOrderThisMonth));
+        Assert.Equal(world.DormantId, Assert.Single(noOrder.Rows.Items).LocationId);
+    }
+
+    /// <summary>
+    /// The page opens on the size of the change: a fall of 8.000 ₼ is a bigger change than a rise of 5.000 ₼,
+    /// whichever way it went. A row with no change to measure goes last in both directions, by name.
+    /// </summary>
+    [PostgresFact]
+    public async Task Rows_sort_by_the_size_of_the_change_whichever_way_it_went()
+    {
+        await using var db = database.CreateContext();
+        var world = await SizeWorldAsync(db);
+
+        var largest = await Queries(db).GetAsync(world.July, new DashboardQuery(
+            Search: world.Tag, Sort: DashboardSort.AbsoluteKnownAmountDelta, Descending: true, PageSize: 100), CancellationToken.None);
+        var smallest = await Queries(db).GetAsync(world.July, new DashboardQuery(
+            Search: world.Tag, Sort: DashboardSort.AbsoluteKnownAmountDelta, Descending: false, PageSize: 100), CancellationToken.None);
+
+        Assert.Equal(
+            [world.Fell8000, world.Rose5000, world.Rose10, world.NoBaseline, world.NoOrder],
+            largest!.Rows.Items.Select(row => row.LocationId));
+        Assert.Equal(
+            [world.Rose10, world.Rose5000, world.Fell8000, world.NoBaseline, world.NoOrder],
+            smallest!.Rows.Items.Select(row => row.LocationId));
+
+        // The signed sort keeps its meaning for the links that already use it.
+        var signed = await Queries(db).GetAsync(world.July, new DashboardQuery(
+            Search: world.Tag, Sort: DashboardSort.KnownAmountDelta, Descending: true, PageSize: 100), CancellationToken.None);
+        Assert.Equal(
+            [world.Rose5000, world.Rose10, world.Fell8000, world.NoBaseline, world.NoOrder],
+            signed!.Rows.Items.Select(row => row.LocationId));
+    }
+
+    /// <summary>A group the API does not know is refused like every other enum, not quietly ignored.</summary>
+    [PostgresFact]
+    public async Task A_group_the_api_does_not_know_is_refused()
+    {
+        await using (var db = database.CreateContext())
+        {
+            await WorldAsync(db);
+        }
+
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("ConnectionStrings:BaxOrders", PostgresDatabaseFixture.ConnectionString);
+        });
+
+        var manager = await AuthenticatedApi.CreateUserAsync(factory, BaxOrdersRoles.Manager, "Panel rəhbəri");
+        using var client = AuthenticatedApi.Anonymous(factory);
+        await AuthenticatedApi.SignInAsync(client, manager.UserName, manager.Password);
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.GetAsync("/api/v1/dashboard?period=2026-07&group=NoBaseline&missingPrice=true")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.GetAsync("/api/v1/dashboard?period=2026-07&sort=AbsoluteKnownAmountDelta&descending=true")).StatusCode);
+
+        foreach (var group in new[] { "99", "Nonsense" })
+        {
+            var response = await client.GetAsync($"/api/v1/dashboard?period=2026-07&group={group}");
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+    }
+
     [PostgresFact]
     public async Task Rows_sort_by_name_by_default_and_by_money_when_asked()
     {
@@ -496,6 +636,90 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
         var dashboard = await DashboardAsync(db, world, new DashboardQuery(Basis: basis));
         return dashboard.Rows.Items.SingleOrDefault(row => row.LocationId == locationId)
             ?? throw new InvalidOperationException($"Location #{locationId} is not among the dashboard rows.");
+    }
+
+    /// <summary>Every row a query leaves in the whole company, page by page, since the database is shared.</summary>
+    private static async Task<List<LocationDashboardRowDto>> EveryRowAsync(
+        BaxOrdersDbContext db, DateOnly month, DashboardQuery query)
+    {
+        var rows = new List<LocationDashboardRowDto>();
+        for (var page = 1; ; page++)
+        {
+            var dashboard = (await Queries(db).GetAsync(
+                month, query with { Page = page, PageSize = ManagementDashboardQueries.MaxPageSize }, CancellationToken.None))!;
+            rows.AddRange(dashboard.Rows.Items);
+            if (rows.Count >= dashboard.Rows.TotalCount || dashboard.Rows.Items.Count == 0)
+            {
+                return rows;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One more object for <paramref name="world"/>: a priced June, and a July in which the only line is one
+    /// somebody still owes a price for — no partial coverage, because nothing at all is priced.
+    /// </summary>
+    private static async Task<int> NothingPricedAsync(BaxOrdersDbContext db, World world)
+    {
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var location = await LocationAsync(db, new PostgresLocationCodeGenerator(db), $"Heç qiyməti yoxdur {world.Tag}");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Qiymətsiz fırça {world.Tag}");
+        await db.SaveChangesAsync();
+
+        var variant = product.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        var june = new OrderRequest(location, world.June);
+        june.AddItem(variant, 4m, 10m);
+        var july = new OrderRequest(location, world.July);
+        july.AddItem(variant, 6m, null);
+        db.OrderRequests.AddRange(june, july);
+        await db.SaveChangesAsync();
+
+        return location.Id;
+    }
+
+    private sealed record SizeWorld(
+        string Tag, DateOnly July, int Fell8000, int Rose5000, int Rose10, int NoBaseline, int NoOrder);
+
+    /// <summary>
+    /// Three changes of different sizes and signs, and two objects with no change at all: one with a July and
+    /// nothing before it, one with a June and nothing since. Named so the two without a change fall in name order.
+    /// </summary>
+    private static async Task<SizeWorld> SizeWorldAsync(BaxOrdersDbContext db)
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var (june, july) = (new DateOnly(2026, 6, 1), new DateOnly(2026, 7, 1));
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+
+        var codes = new PostgresLocationCodeGenerator(db);
+        var fell = await LocationAsync(db, codes, $"Azalan {tag}");
+        var rose = await LocationAsync(db, codes, $"Artan {tag}");
+        var barely = await LocationAsync(db, codes, $"Az artan {tag}");
+        var noBaseline = await LocationAsync(db, codes, $"Bazasız {tag}");
+        var noOrder = await LocationAsync(db, codes, $"Susmuş {tag}");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Ölçü malı {tag}");
+        await db.SaveChangesAsync();
+
+        var variant = product.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        OrderRequest Order(Location location, DateOnly month, decimal amount)
+        {
+            var request = new OrderRequest(location, month);
+            request.AddItem(variant, 10m, amount / 10m);
+            return request;
+        }
+
+        db.OrderRequests.AddRange(
+            Order(fell, june, 10_000m), Order(fell, july, 2_000m),     // −8.000
+            Order(rose, june, 1_000m), Order(rose, july, 6_000m),      // +5.000
+            Order(barely, june, 100m), Order(barely, july, 110m),      // +10
+            Order(noBaseline, july, 500m),                             // nothing to compare against
+            Order(noOrder, june, 700m));                               // nothing this month
+        await db.SaveChangesAsync();
+
+        return new SizeWorld(tag, july, fell.Id, rose.Id, barely.Id, noBaseline.Id, noOrder.Id);
     }
 
     private static async Task<(int Requests, int Items, int Locations, int Variants)> CountsAsync(BaxOrdersDbContext db) =>

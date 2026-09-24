@@ -171,11 +171,42 @@ describe('the columns a manager reads', () => {
     expect(table().getByRole('columnheader', { name: 'Yanvar–May 2026 ortalaması' })).toBeInTheDocument()
   })
 
+  /** Owner decision 9.1: a cost that went up is red, one that went down is green — direction, never a verdict. */
   it('colours the difference by direction alone', () => {
+    const { container } = renderRows([row(), row({ locationId: 22, knownAmountDelta: -200, knownAmountPercentChange: -25 })])
+
+    expect(table().getByText('+200,00 ₼')).toHaveClass('text-red-700')
+    expect(table().getByText('+25%')).toHaveClass('text-red-700')
+    expect(table().getByText('−200,00 ₼')).toHaveClass('text-emerald-700')
+    expect(table().getByText('−25%')).toHaveClass('text-emerald-700')
+    // The main cause follows the same rule.
+    expect(table().getAllByText('+150,00 ₼')[0]).toHaveClass('text-red-700')
+    expect(container.querySelector('.text-rose-700')).toBeNull()
+  })
+
+  it('says the direction in words to a screen reader beside the difference', () => {
     renderRows([row(), row({ locationId: 22, knownAmountDelta: -200, knownAmountPercentChange: -25 })])
 
-    expect(table().getByText('+200,00 ₼')).toHaveClass('text-emerald-700')
-    expect(table().getByText('−200,00 ₼')).toHaveClass('text-rose-700')
+    const rising = table().getByText('+200,00 ₼')
+    expect(rising).toHaveTextContent('+200,00 ₼, xərc artıb')
+    expect(within(rising).getByText(/xərc artıb/)).toHaveClass('sr-only')
+    expect(table().getByText('−200,00 ₼')).toHaveTextContent('−200,00 ₼, xərc azalıb')
+    expect(document.body).not.toHaveTextContent(/yaxşı|pis/i)
+  })
+
+  it('puts the object\'s id on its row, for Back to return to', () => {
+    renderRows([row()])
+
+    expect(table().getByText('Fəvvarələr meydanı').closest('tr')).toHaveAttribute('id', 'row-21')
+  })
+
+  /** Brief: "Detallara bax iki sətrə sınır". It keeps its one line, and its cell does not give way. */
+  it('keeps "Detallara bax" on one line', () => {
+    renderRows([row()])
+
+    const link = table().getByRole('link', { name: /Detallara bax/ })
+    expect(link).toHaveClass('whitespace-nowrap')
+    expect(link.closest('td')).toHaveClass('whitespace-nowrap')
   })
 
   it('has dropped the line count nobody decided anything with', () => {
@@ -297,20 +328,60 @@ describe('the data-state column', () => {
     expect(table().queryByText('0,00 ₼')).toBeNull()
   })
 
-  it('says when part of the money cannot be explained', () => {
+  /**
+   * Task 09 (brief: "qiymət xəbərdarlığı 4 sətir tutur"): the ⚠ mark on the amount says it — the one sentence
+   * the cards and the order page say is its name — and the column no longer repeats it.
+   */
+  it('says when part of the money cannot be explained, once, on the mark', () => {
     renderRows([row({ explanationIsComplete: false, unattributedAmount: 120 })])
 
-    // The one sentence the cards and the order page say too.
-    expect(table().getByText('Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.'))
-      .toBeInTheDocument()
+    const mark = table().getByRole('img', { name: 'Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.' })
+    expect(mark.closest('td')).toHaveTextContent('1.000,00 ₼')
+    expect(table().queryByText('Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.')).toBeNull()
+    expect(table().queryByText('Məlumat tamdır')).toBeNull()
+  })
+
+  /** Amber means a price somebody owes; an object that did not order owes nothing, so its status is slate. */
+  it('says an object did not order in slate, not amber', () => {
+    renderRows([row({
+      hasCurrentRequest: false,
+      currentRequestId: null,
+      current: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+      primaryCause: null,
+      primaryCauseAmount: null,
+    })])
+
+    const status = table().getByText('Sifariş qeydə alınmayıb · son sifariş İyun 2026 (800,00 ₼)')
+    expect(status).toHaveClass('text-slate-600')
+    expect(status.className).not.toMatch(/amber/)
   })
 })
 
 describe('the unpriced lines', () => {
-  it('names them beside the money they affect', () => {
+  /**
+   * Task 09 (brief: "Qiymət xəbərdarlığı ... qısa işarə və say ilə"): "⚠ 3" beside the money it affects, on the
+   * same line, with the sentence as its name — not a sentence under the amount.
+   */
+  it('marks them beside the money they affect', () => {
     renderRows([row({ current: amount({ missingPriceItemCount: 3, isComplete: false }) })])
 
-    expect(table().getByText(/3 sətirdə qiymət yoxdur/)).toBeInTheDocument()
+    const mark = table().getByRole('img', { name: '3 sətirdə qiymət yoxdur' })
+    expect(mark).toHaveTextContent('⚠ 3')
+    expect(mark).toHaveClass('whitespace-nowrap', 'text-amber-800')
+    const line = mark.closest('p')!
+    expect(line).toHaveClass('whitespace-nowrap')
+    expect(line).toHaveTextContent('⚠ 3 1.000,00 ₼')
+    expect(table().queryByText(/3 sətirdə qiymət yoxdur/)).toBeNull()
+  })
+
+  it('marks them on the phone list too, beside its amount', () => {
+    const { container } = renderRows([row({ current: amount({ missingPriceItemCount: 3, isComplete: false }) })])
+    const cards = container.querySelector('ul.lg\\:hidden') as HTMLElement
+
+    expect(within(cards).getByRole('img', { name: '3 sətirdə qiymət yoxdur' }).closest('p')).toHaveTextContent('1.000,00 ₼')
+    expect(within(cards).queryByText(/3 sətirdə qiymət yoxdur/)).toBeNull()
   })
 
   it('says nothing of the sort when every line that needed a price has one', () => {
@@ -318,6 +389,7 @@ describe('the unpriced lines', () => {
 
     // Internal supply is not a shortfall, so it raises nothing here.
     expect(table().queryByText(/qiymət yoxdur/i)).toBeNull()
+    expect(table().queryByRole('img')).toBeNull()
   })
 })
 
@@ -414,10 +486,24 @@ describe('the footer', () => {
     expect(footer().queryByText(/Bütün sifarişlər/)).toBeNull()
   })
 
+  /** 9.1, as a row: the company's cost went up, so it is red, and a screen reader hears it said. */
   it('colours its difference by direction, exactly as a row does', () => {
     renderRows([row()])
 
-    expect(footer().getByText('+4.000,00 ₼')).toHaveClass('text-emerald-700')
+    const delta = footer().getByText('+4.000,00 ₼')
+    expect(delta).toHaveClass('text-red-700')
+    expect(delta).toHaveTextContent('+4.000,00 ₼, xərc artıb')
+    expect(footer().getByText('+20%')).toHaveClass('text-red-700')
+  })
+
+  it('follows 9.1 on the phone list too, rows and total alike', () => {
+    const { container } = renderRows([row(), row({ locationId: 22, locationName: 'Bayıl yolu', knownAmountDelta: -200, knownAmountPercentChange: -25 })])
+    const cards = container.querySelector('ul.lg\\:hidden') as HTMLElement
+
+    expect(within(cards).getByText(/\+200,00 ₼/)).toHaveClass('text-red-700')
+    expect(within(cards).getByText(/−200,00 ₼/)).toHaveClass('text-emerald-700')
+    expect(within(cards).getByText(/\+4\.000,00 ₼/)).toHaveClass('text-red-700')
+    expect(cards.querySelector('.text-rose-700')).toBeNull()
   })
 
   /** It is a summary of the table, not a row of it: it must not turn up among the objects. */

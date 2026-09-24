@@ -302,8 +302,9 @@ export function formatPeriodCoverage(available: number, expected: number): strin
 }
 
 /**
- * The pre-9.1 rule, kept only for the screens Tasks 09, 10 and 11 will move onto `costDirectionToneClass`:
- * emerald up, rose down, slate flat — the opposite of owner decision 9.1. Nothing new may use it.
+ * The pre-9.1 rule, kept only for the screens Tasks 10 and 11 will move onto `costDirectionToneClass`
+ * ("Əsas dəyişikliklər" and the product history; the location screens): emerald up, rose down, slate flat — the
+ * opposite of owner decision 9.1. The dashboard is off it (Task 09). Nothing new may use it.
  *
  * It says which way the figure went and nothing else. More is not better and less is not worse — an object
  * that spent less may have skipped work it needed to do — so this is never used on anything but a signed

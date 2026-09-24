@@ -6,9 +6,10 @@ import type {
   HistoryCoverageState,
 } from '../../api/dashboard'
 import type { PriceCoverageState } from '../../api/analytics'
+import { portfolioGroupLabels } from '../../coverage/labels'
 import { missingPriceShortLabel } from '../../pricing/labels'
 import { limitedComparisonDataLabel, newProductsLabel, notOrderedThisMonthLabel } from '../../terminology/terms'
-import { formatCount, formatMonth } from '../analytics/format'
+import { formatCount, formatMonth, manatSuffix } from '../analytics/format'
 
 export const historyCoverageLabels: Record<HistoryCoverageState, string> = {
   Complete: 'Tam tarixçə',
@@ -52,10 +53,11 @@ export function isPriceCoverage(value: string | null): value is PriceCoverageSta
 }
 
 /**
- * The sorts the dashboard accepts in its URL. Every one is a plain fact about the row, and the default is the
- * object's name, which asserts nothing about it. None of them is offered by name on the screen.
+ * Every sort the dashboard API accepts. Each is a plain fact about the row; none says an object is doing well or
+ * badly. The page offers three of them (`dashboardSortOptions`).
  */
 export const sortOrder: DashboardSort[] = [
+  'AbsoluteKnownAmountDelta',
   'LocationName',
   'CurrentKnownAmount',
   'KnownAmountDelta',
@@ -70,6 +72,28 @@ export const sortOrder: DashboardSort[] = [
 
 export function isSort(value: string | null): value is DashboardSort {
   return value !== null && (sortOrder as string[]).includes(value)
+}
+
+export interface DashboardSortOption {
+  sort: DashboardSort
+  descending: boolean
+  label: string
+}
+
+/**
+ * The three orders the page offers, the first being the one it opens on: the size of the change, whichever way
+ * it went, because "which object moved the most" is the first question asked of the table. The API's own
+ * default stays the name, which asserts nothing, so an older link that names no sort still gets an answer.
+ */
+export const dashboardSortOptions: DashboardSortOption[] = [
+  { sort: 'AbsoluteKnownAmountDelta', descending: true, label: 'Ən çox dəyişən' },
+  { sort: 'CurrentKnownAmount', descending: true, label: 'Bu ayın məbləği üzrə' },
+  { sort: 'LocationName', descending: false, label: 'Obyekt adı üzrə' },
+]
+
+/** The page's order for a `sort` read from the URL. Anything but the three it offers reads as none at all. */
+export function dashboardSortOption(value: string | null): DashboardSortOption {
+  return dashboardSortOptions.find((option) => option.sort === value) ?? dashboardSortOptions[0]
 }
 
 /**
@@ -96,32 +120,78 @@ export function causeHeadline(category: CauseCategory, amount: number): string {
 }
 
 /**
- * Why an object was surfaced, said as the fact that put it there.
+ * Why an object was surfaced, said as the fact that put it there — and, for a movement, where it stands.
  *
- * "Ən çox artan" and "Nisbətdə böyük dəyişmə" were both true and both vague — neither said what was measured,
- * and two cards could sit side by side for what looked like the same reason. Each label now names its own
- * measure, so a card for the biggest sum and a card for the biggest proportion cannot be confused.
+ * Each title names its own measure, so a card for the biggest sum and a card for the biggest proportion cannot
+ * be confused. It also names the card's place in that measure: two cards both called "Ən böyük məbləğ artımı"
+ * were one true title and one false one, so the second now says it is the second.
  */
-export const attentionReasonLabels: Record<DashboardAttentionReason, string> = {
+const largestTitles: Record<DashboardAttentionReason, string> = {
   LargestIncrease: 'Ən böyük məbləğ artımı',
   LargestDecrease: 'Ən böyük məbləğ azalması',
   StrongPercentageChange: 'Ən böyük faiz dəyişməsi',
   MissingRequiredPrice: missingPriceShortLabel,
-  NoComparisonHistory: 'Müqayisə üçün əvvəlki ay yoxdur',
+  NoComparisonHistory: portfolioGroupLabels.NoBaseline,
+}
+
+/** The measure with no claim about its size, for a place the section never shows (a third or later). */
+const plainTitles: Record<DashboardAttentionReason, string> = {
+  LargestIncrease: 'Məbləğ artımı',
+  LargestDecrease: 'Məbləğ azalması',
+  StrongPercentageChange: 'Faiz dəyişməsi',
+  MissingRequiredPrice: missingPriceShortLabel,
+  NoComparisonHistory: portfolioGroupLabels.NoBaseline,
+}
+
+/** The three reasons that are a ranking of money moved, as opposed to a gap in the records. */
+const movementReasons: DashboardAttentionReason[] = ['LargestIncrease', 'LargestDecrease', 'StrongPercentageChange']
+
+/**
+ * "Ən böyük məbləğ artımı" for the first, "İkinci ən böyük məbləğ artımı" for the second. A warning's title does
+ * not rank — "Qiymət yoxdur", "Müqayisə bazası yoxdur" — and a place the section never shows is named without
+ * a superlative rather than with a false one.
+ */
+export function attentionTitle(reason: DashboardAttentionReason, rank: number): string {
+  if (!movementReasons.includes(reason) || rank === 1) {
+    return largestTitles[reason]
+  }
+
+  return rank === 2 ? `İkinci ${lowerFirst(largestTitles[reason])}` : plainTitles[reason]
 }
 
 /**
- * Which cards report a movement and which report a gap in the records.
- *
- * It decides one thing: whether the card's figures are coloured by direction or left neutral under an amber
- * warning. A card about missing data has no direction to colour.
+ * "Həm də ən böyük faiz dəyişməsi" — the largest figure of another movement, named on the card it already has,
+ * so it is never hidden behind that card's title. Null when there is nothing to name.
  */
-export const attentionReasonIsWarning: Record<DashboardAttentionReason, boolean> = {
+export function alsoFirstLine(reasons: readonly DashboardAttentionReason[]): string | null {
+  return reasons.length === 0
+    ? null
+    : `Həm də ${reasons.map((reason) => lowerFirst(largestTitles[reason])).join(' · ')}`
+}
+
+/**
+ * What "Ən böyük faiz dəyişməsi" is the largest of. The two thresholds are the backend's
+ * (`ManagementDashboardQueries.MeaningfulBaseline` and `StrongPercentage`): a percentage of a tiny baseline says
+ * more about the divisor than about the change, so those objects are not in the running.
+ */
+export const strongPercentageHint =
+  `Faiz yalnız müqayisə bazası ən azı 100${manatSuffix} olan və ən azı 50% dəyişən obyektlər arasında müqayisə olunur.`
+
+/**
+ * Whether a card's title is amber. Amber means one thing on the dashboard — a price somebody owes is missing
+ * (Task 2's ⚠) — so only the "Qiymət yoxdur" card has it. "Müqayisə bazası yoxdur" is slate: it states a fact
+ * about the window, and nothing is owed.
+ */
+export const attentionReasonIsMissingPrice: Record<DashboardAttentionReason, boolean> = {
   LargestIncrease: false,
   LargestDecrease: false,
   StrongPercentageChange: false,
   MissingRequiredPrice: true,
-  NoComparisonHistory: true,
+  NoComparisonHistory: false,
+}
+
+function lowerFirst(text: string): string {
+  return text.charAt(0).toLocaleLowerCase('az') + text.slice(1)
 }
 
 /**

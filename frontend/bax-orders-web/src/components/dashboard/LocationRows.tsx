@@ -1,16 +1,16 @@
 import type { LocationDashboardRow, ManagementDashboardSummary } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
-import { missingPriceCount } from '../../pricing/labels'
 import {
+  costDirectionToneClass,
   describeBasis,
   describeBasisWithRange,
   formatMoney,
   formatMoneyDelta,
   formatMonth,
   formatPercent,
-  signedToneClass,
   unknownValue,
 } from '../analytics/format'
+import { DirectionWord } from '../analytics/DirectionWord'
 import type { DashboardPartitionMember } from '../../api/dashboard'
 import { DetailsLink } from './AttentionSection'
 import {
@@ -19,12 +19,12 @@ import {
   noOrderRowStatus,
   portfolioGroupLabels,
 } from '../../coverage/labels'
-import { incompleteExplanationNote } from '../../terminology/terms'
 import {
   causeHeadline,
   noComparisonCause,
   partialHistoryNote,
 } from './labels'
+import { MissingPriceMark } from './MissingPriceMark'
 
 interface LocationRowsProps {
   rows: LocationDashboardRow[]
@@ -80,14 +80,18 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => (
-              <tr key={row.locationId} className="hover:bg-slate-50">
+              // The id is where Back returns the reader to: the row they opened.
+              <tr key={row.locationId} id={`row-${row.locationId}`} className="hover:bg-slate-50">
                 <th scope="row" className="px-4 py-2.5 text-left font-normal">
                   <p className="font-medium text-slate-900">{row.locationName}</p>
                 </th>
 
+                {/* A missing price is a short mark on the amount's own line, not a sentence under it. */}
                 <td className="px-3 py-2.5 text-right">
-                  <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(row.current.knownAmount)}</p>
-                  <MissingPrices row={row} />
+                  <p className="whitespace-nowrap font-medium text-slate-900">
+                    <RowMissingPrices row={row} />
+                    {formatMoney(row.current.knownAmount)}
+                  </p>
                 </td>
 
                 {/*
@@ -106,10 +110,12 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                     <span className="text-slate-400">{unknownValue}</span>
                   ) : (
                     <>
-                      <p className={`whitespace-nowrap font-medium ${signedToneClass(row.knownAmountDelta)}`}>
+                      {/* Red up, green down (9.1), with the direction in words for a screen reader. */}
+                      <p className={`whitespace-nowrap font-medium ${costDirectionToneClass(row.knownAmountDelta)}`}>
                         {formatMoneyDelta(row.knownAmountDelta)}
+                        <DirectionWord value={row.knownAmountDelta} />
                       </p>
-                      <p className={`whitespace-nowrap text-xs ${signedToneClass(row.knownAmountDelta)}`}>
+                      <p className={`whitespace-nowrap text-xs ${costDirectionToneClass(row.knownAmountDelta)}`}>
                         {formatPercent(row.knownAmountPercentChange)}
                       </p>
                     </>
@@ -125,7 +131,8 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                   />
                 </td>
 
-                <td className="px-3 py-2.5 text-right">
+                {/* Never squeezed: the button keeps its one line and the other columns give way. */}
+                <td className="w-px whitespace-nowrap px-3 py-2.5 text-right">
                   <DetailsLink row={row} selection={selection} compact />
                 </td>
               </tr>
@@ -159,10 +166,11 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
               </td>
 
               <td className="px-3 py-3 text-right">
-                <p className={`whitespace-nowrap font-semibold ${signedToneClass(summary.knownAmountDelta)}`}>
+                <p className={`whitespace-nowrap font-semibold ${costDirectionToneClass(summary.knownAmountDelta)}`}>
                   {formatMoneyDelta(summary.knownAmountDelta)}
+                  <DirectionWord value={summary.knownAmountDelta} />
                 </p>
-                <p className={`whitespace-nowrap text-xs ${signedToneClass(summary.knownAmountDelta)}`}>
+                <p className={`whitespace-nowrap text-xs ${costDirectionToneClass(summary.knownAmountDelta)}`}>
                   {formatPercent(summary.knownAmountPercentChange)}
                 </p>
               </td>
@@ -178,17 +186,19 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
       {/* A phone gets the same four answers, stacked. The table is never squeezed sideways to fit. */}
       <ul className="space-y-2 lg:hidden">
         {rows.map((row) => (
-          <li key={row.locationId} className="rounded-lg border border-slate-200 bg-white p-3">
+          // Its own id, for Back on a phone, where the table and its row ids are hidden.
+          <li key={row.locationId} id={`row-${row.locationId}-phone`} className="rounded-lg border border-slate-200 bg-white p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-medium text-slate-900">{row.locationName}</p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="whitespace-nowrap text-base font-semibold text-slate-900">
+                  <RowMissingPrices row={row} />
                   {formatMoney(row.current.knownAmount)}
                 </p>
                 {row.knownAmountDelta !== null && (
-                  <p className={`whitespace-nowrap text-xs font-medium ${signedToneClass(row.knownAmountDelta)}`}>
+                  <p className={`whitespace-nowrap text-xs font-medium ${costDirectionToneClass(row.knownAmountDelta)}`}>
                     {formatMoneyDelta(row.knownAmountDelta)} {formatPercent(row.knownAmountPercentChange)}
                   </p>
                 )}
@@ -203,7 +213,6 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                 lastOrder={noOrder.get(row.locationId)}
                 neverOrdered={neverOrdered.has(row.locationId)}
               />
-              <MissingPrices row={row} />
             </div>
 
             <div className="mt-2 border-t border-slate-100 pt-2">
@@ -227,7 +236,7 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
               <p className="whitespace-nowrap text-base font-semibold text-slate-900">
                 {formatMoney(summary.comparedCurrent.knownAmount)}
               </p>
-              <p className={`whitespace-nowrap text-xs font-medium ${signedToneClass(summary.knownAmountDelta)}`}>
+              <p className={`whitespace-nowrap text-xs font-medium ${costDirectionToneClass(summary.knownAmountDelta)}`}>
                 {formatMoneyDelta(summary.knownAmountDelta)} {formatPercent(summary.knownAmountPercentChange)}
               </p>
               <p className="text-xs text-slate-400">
@@ -258,7 +267,7 @@ function MainCause({ row }: { row: LocationDashboardRow }) {
   return (
     <span className="text-xs text-slate-700">
       {causeHeadline(row.primaryCause, row.primaryCauseAmount)}{' '}
-      <span className={`whitespace-nowrap font-medium ${signedToneClass(row.primaryCauseAmount)}`}>
+      <span className={`whitespace-nowrap font-medium ${costDirectionToneClass(row.primaryCauseAmount)}`}>
         {formatMoneyDelta(row.primaryCauseAmount)}
       </span>
     </span>
@@ -282,10 +291,11 @@ function DataState({ row, lastOrder, neverOrdered }: {
 
   /*
     Not "sifariş yoxdur", which reads as an order of zero, and not an average either. What the object last
-    did is the fact a reader wants next, and it is the one fact that is actually known.
+    did is the fact a reader wants next, and it is the one fact that is actually known. Slate, not amber:
+    amber means a price somebody owes, and nobody owes anything here.
   */
   if (!row.hasCurrentRequest) {
-    return <span className="text-xs text-amber-900">{noOrderRowStatus(lastOrder)}</span>
+    return <span className="text-xs text-slate-600">{noOrderRowStatus(lastOrder)}</span>
   }
 
   // One wording for it, the same one the chip and the exceptions block use.
@@ -297,22 +307,25 @@ function DataState({ row, lastOrder, neverOrdered }: {
     return <span className="text-xs text-slate-600">{partialHistoryNote}</span>
   }
 
-  if (!row.explanationIsComplete) {
-    return <span className="text-xs text-amber-800">{incompleteExplanationNote}</span>
+  // A missing price is said once, by the ⚠ mark on the amount; repeating it here was the sentence on every row.
+  if (!row.explanationIsComplete || row.current.missingPriceItemCount > 0) {
+    return null
   }
 
   return <span className="sr-only">Məlumat tamdır</span>
 }
 
-/** Said next to the money it affects, so a partial figure never looks authoritative. */
-function MissingPrices({ row }: { row: LocationDashboardRow }) {
-  if (!row.hasCurrentRequest || row.current.missingPriceItemCount === 0) {
+/** Beside the money it affects, so a partial figure never looks authoritative. An object with no order has none. */
+function RowMissingPrices({ row }: { row: LocationDashboardRow }) {
+  if (!row.hasCurrentRequest) {
     return null
   }
 
+  // The space parts the mark from the amount; with no mark, a space at the start of the line is not drawn.
   return (
-    <p className="text-xs text-amber-800">
-      {missingPriceCount(row.current.missingPriceItemCount)}
-    </p>
+    <>
+      <MissingPriceMark count={row.current.missingPriceItemCount} explanationIsComplete={row.explanationIsComplete} />
+      {' '}
+    </>
   )
 }

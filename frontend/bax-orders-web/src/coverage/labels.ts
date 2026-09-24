@@ -1,5 +1,5 @@
 import type { AnalyticsComparisonBasis } from '../api/analytics'
-import type { DashboardPartition, DashboardPartitionMember } from '../api/dashboard'
+import type { DashboardPartition, DashboardPartitionMember, PortfolioGroup } from '../api/dashboard'
 import { formatCount, formatMoney, formatMonth } from '../components/analytics/format'
 import { limitedComparisonDataLabel } from '../terminology/terms'
 
@@ -24,14 +24,19 @@ import { limitedComparisonDataLabel } from '../terminology/terms'
  * a total nobody can reconcile is a total nobody can check.
  */
 
-/** The mirror of `BaxOrders.Application.Analytics.Dashboard.PortfolioGroup`. */
-export type PortfolioGroup = 'Compared' | 'NoOrderThisMonth' | 'NoBaseline' | 'NoHistory'
+/** The mirror of `BaxOrders.Application.Analytics.Dashboard.PortfolioGroup`, re-exported where its words are. */
+export type { PortfolioGroup }
 
 export const portfolioGroupLabels: Record<PortfolioGroup, string> = {
   Compared: 'Müqayisə olunan',
   NoOrderThisMonth: 'Sifariş qeydə alınmayıb',
   NoBaseline: 'Müqayisə bazası yoxdur',
   NoHistory: 'Sistemdə hələ sifarişi yoxdur',
+}
+
+/** Whether a value read from the URL is one of the four groups; anything else is ignored rather than sent. */
+export function isPortfolioGroup(value: string | null): value is PortfolioGroup {
+  return value !== null && Object.hasOwn(portfolioGroupLabels, value)
 }
 
 /** Short enough for a chip, where the surrounding row already says these are comparison groups. */

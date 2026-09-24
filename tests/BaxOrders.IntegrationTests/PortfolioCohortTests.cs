@@ -228,6 +228,32 @@ public sealed class PortfolioCohortTests(PostgresDatabaseFixture database)
     }
 
     /// <summary>
+    /// The subtraction the headline writes out when an object is left out (Task 9): the compared amount minus
+    /// the baseline is the difference, and the month's total is the compared amount plus the excluded objects'
+    /// own money — so "71.030,25 − 44.340,78 = +26.689,47" is an identity, not something the browser works out.
+    /// </summary>
+    /// <remarks>
+    /// <c>MoneyIdentityTests</c> holds the subtraction on every basis, but over a world that need not leave any
+    /// object out; this pins it with one left out, on "Keçən ay", which is the case the headline changes for.
+    /// </remarks>
+    [PostgresFact]
+    public async Task With_an_object_left_out_the_headline_is_still_its_own_subtraction()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+        var summary = (await DashboardAsync(db, AnalyticsComparisonBasis.PreviousMonth))!.Summary;
+
+        Assert.Contains(summary.Partition.NoBaseline, member => member.LocationId == world.OutsideWindow);
+        Assert.Equal(
+            summary.ComparedCurrent.KnownAmount - summary.Baseline.KnownAmount,
+            summary.KnownAmountDelta);
+        Assert.Equal(
+            (summary.Current.KnownAmount ?? 0m) - (summary.ComparedCurrent.KnownAmount ?? 0m),
+            summary.Partition.NoBaseline.Sum(member => member.CurrentKnownAmount ?? 0m)
+                + summary.Partition.NoHistory.Sum(member => member.CurrentKnownAmount ?? 0m));
+    }
+
+    /// <summary>
     /// The month is a fact about the month. Only the comparison depends on what it is being compared with, so
     /// the headline amount must not move when the reader changes the basis.
     /// </summary>

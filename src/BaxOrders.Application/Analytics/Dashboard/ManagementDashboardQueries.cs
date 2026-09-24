@@ -32,8 +32,15 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     /// <summary>How many objects the attention section may name at once before it stops being a shortlist.</summary>
     private const int MaxAttention = 8;
 
-    /// <summary>How many each signal may contribute, so no single signal fills the whole section.</summary>
+    /// <summary>How many each movement signal may contribute, so no single signal fills the whole section.</summary>
     private const int PerReason = 2;
+
+    /// <summary>
+    /// How many each warning signal contributes. Its title cannot rank — "the object with the second-most
+    /// missing prices" is not why anybody looks — so a second card would only repeat the first one's title, and
+    /// every object of the group is one chip away.
+    /// </summary>
+    private const int PerWarning = 1;
 
     /// <summary>A movement worth reading as a proportion rather than as a sum.</summary>
     private const decimal StrongPercentage = 50m;
@@ -126,9 +133,13 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         }
 
         rows = [.. rows.OrderByName(row => row.LocationName)];
-        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, lastOrders);
 
-        var filtered = Sort(Filter(rows, query), query);
+        // Every object lands in exactly one group. Decided once and handed to both the summary and the filter,
+        // so a chip's count and the rows its filter leaves are the same objects by construction.
+        var groups = GroupsOf(rows, lastOrders);
+        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, groups, lastOrders);
+
+        var filtered = Sort(Filter(rows, groups, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
         var pageRows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
@@ -298,9 +309,16 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     /// The short list of objects worth reading first.
     /// </summary>
     /// <remarks>
-    /// Five signals, each one a fact the data states outright, taken two at a time and capped. There is no
+    /// Five signals, each one a fact the data states outright, taken a few at a time and capped. There is no
     /// score, no weighting and no threshold anybody will be tempted to tune: an object is here because it moved
     /// the most money, or because its records are incomplete, and the card says which.
+    /// <para>
+    /// Each card carries its place in its own reason's whole ordering, counted before any object is set aside
+    /// for already having a card. That is what keeps the titles true: two cards used to say "the largest
+    /// increase", and when the object with the largest percentage already had a card for its money, the
+    /// runner-up was given the percentage title instead. Now the runner-up says it is the second, and the card
+    /// the largest figure sits on says so as well (<see cref="DashboardAttentionDto.AlsoFirstIn"/>).
+    /// </para>
     /// <para>
     /// This hides nothing. Every object remains in the full table below, whatever its change; this is a reading
     /// order, not a filter.
@@ -317,22 +335,41 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             && Math.Abs(row.KnownAmountPercentChange.Value) >= StrongPercentage
             && row.Baseline.KnownAmount >= MeaningfulBaseline);
 
-        var candidates = new List<DashboardAttentionDto>();
-        void Take(DashboardAttentionReason reason, IEnumerable<LocationDashboardRowDto> found) =>
-            candidates.AddRange(found.Take(PerReason).Select(row => new DashboardAttentionDto(reason, row)));
+        // Every reason's whole ordering, made total by the name, so a rank is a fact rather than an accident
+        // of the order the rows happened to arrive in.
+        (DashboardAttentionReason Reason, int Cards, List<LocationDashboardRowDto> Ordered)[] reasons =
+        [
+            (DashboardAttentionReason.LargestIncrease, PerReason,
+                [.. moved.Where(row => row.KnownAmountDelta > 0)
+                    .OrderByDescending(row => row.KnownAmountDelta).ThenByName(row => row.LocationName)]),
+            (DashboardAttentionReason.LargestDecrease, PerReason,
+                [.. moved.Where(row => row.KnownAmountDelta < 0)
+                    .OrderBy(row => row.KnownAmountDelta).ThenByName(row => row.LocationName)]),
+            (DashboardAttentionReason.StrongPercentageChange, PerReason,
+                [.. meaningful
+                    .OrderByDescending(row => Math.Abs(row.KnownAmountPercentChange!.Value))
+                    .ThenByName(row => row.LocationName)]),
+            (DashboardAttentionReason.MissingRequiredPrice, PerWarning,
+                [.. rows.Where(row => row.Current.MissingPriceItemCount > 0)
+                    .OrderByDescending(row => row.Current.MissingPriceItemCount).ThenByName(row => row.LocationName)]),
+            (DashboardAttentionReason.NoComparisonHistory, PerWarning,
+                [.. rows.Where(row => row.ComparisonAvailability == ComparisonAvailability.NoBaselineHistory)
+                    .OrderByDescending(row => row.Current.KnownAmount ?? 0m).ThenByName(row => row.LocationName)]),
+        ];
 
-        Take(DashboardAttentionReason.LargestIncrease,
-            moved.Where(row => row.KnownAmountDelta > 0).OrderByDescending(row => row.KnownAmountDelta));
-        Take(DashboardAttentionReason.LargestDecrease,
-            moved.Where(row => row.KnownAmountDelta < 0).OrderBy(row => row.KnownAmountDelta));
-        Take(DashboardAttentionReason.StrongPercentageChange,
-            meaningful.OrderByDescending(row => Math.Abs(row.KnownAmountPercentChange!.Value)));
-        Take(DashboardAttentionReason.MissingRequiredPrice,
-            rows.Where(row => row.Current.MissingPriceItemCount > 0)
-                .OrderByDescending(row => row.Current.MissingPriceItemCount));
-        Take(DashboardAttentionReason.NoComparisonHistory,
-            rows.Where(row => row.ComparisonAvailability == ComparisonAvailability.NoBaselineHistory)
-                .OrderByDescending(row => row.Current.KnownAmount ?? 0m));
+        // The object that is first in each movement, so a card can say it is also the largest of another.
+        var firstIn = reasons
+            .Where(reason => IsMovement(reason.Reason) && reason.Ordered.Count > 0)
+            .Select(reason => (reason.Reason, reason.Ordered[0].LocationId))
+            .ToList();
+
+        IReadOnlyList<DashboardAttentionReason> AlsoFirstIn(DashboardAttentionReason own, int locationId) =>
+            [.. firstIn.Where(first => first.Reason != own && first.LocationId == locationId).Select(first => first.Reason)];
+
+        var candidates = reasons.SelectMany(reason => reason.Ordered
+            .Take(reason.Cards)
+            .Select((row, index) => new DashboardAttentionDto(
+                reason.Reason, row, index + 1, AlsoFirstIn(reason.Reason, row.LocationId))));
 
         // One card per object: the first reason it qualified under is the one it is filed against.
         return [.. candidates
@@ -342,6 +379,19 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             .ThenByDescending(item => Math.Abs(item.Location.KnownAmountDelta ?? 0m))
             .Take(MaxAttention)];
     }
+
+    /// <summary>The reasons that are an ordering of money moved, as opposed to a gap in the records.</summary>
+    private static bool IsMovement(DashboardAttentionReason reason) => reason is
+        DashboardAttentionReason.LargestIncrease
+        or DashboardAttentionReason.LargestDecrease
+        or DashboardAttentionReason.StrongPercentageChange;
+
+    /// <summary>
+    /// Whether an object's order this month has a line somebody owes a price for. Written once, because the
+    /// price chip counts it and the price filter applies it, and the two must be the same objects.
+    /// </summary>
+    private static bool HasOwedMissingPrice(LocationDashboardRowDto row) =>
+        row.HasCurrentRequest && row.Current.MissingPriceItemCount > 0;
 
     /// <summary>
     /// Price coverage of a period, counted in lines rather than in quantity across unlike units.
@@ -468,7 +518,10 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
     // ---- shaping ------------------------------------------------------------------------------------
 
-    private static List<LocationDashboardRowDto> Filter(List<LocationDashboardRowDto> rows, DashboardQuery query)
+    private static List<LocationDashboardRowDto> Filter(
+        List<LocationDashboardRowDto> rows,
+        IReadOnlyDictionary<int, PortfolioGroup> groups,
+        DashboardQuery query)
     {
         IEnumerable<LocationDashboardRowDto> filtered = rows;
 
@@ -492,6 +545,17 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         if (query.HasCurrentRequest is { } hasRequest)
         {
             filtered = filtered.Where(row => row.HasCurrentRequest == hasRequest);
+        }
+
+        // The two filters behind the dashboard's chips, each on the very predicate its chip counts with.
+        if (query.Group is { } group)
+        {
+            filtered = filtered.Where(row => groups[row.LocationId] == group);
+        }
+
+        if (query.MissingPrice is { } missingPrice)
+        {
+            filtered = filtered.Where(row => HasOwedMissingPrice(row) == missingPrice);
         }
 
         return [.. filtered];
@@ -521,6 +585,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             DashboardSort.IncreasedVariantCount => row.IncreasedVariantCount,
             DashboardSort.DecreasedVariantCount => row.DecreasedVariantCount,
             DashboardSort.CurrentItemCount => row.Current.ItemCount,
+            DashboardSort.AbsoluteKnownAmountDelta => row.KnownAmountDelta is { } delta ? Math.Abs(delta) : null,
             _ => null,
         };
 
@@ -537,6 +602,24 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     private static (int Page, int PageSize) PageOf(int page, int pageSize) =>
         (Math.Max(1, page), pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize));
 
+    /// <summary>
+    /// Every object's group, by the one rule in <see cref="PortfolioCohort.GroupOf"/>.
+    /// </summary>
+    /// <remarks>
+    /// Partition refuses to return a set that does not add up to the universe. The rows are the universe, so an
+    /// object that has never ordered is a row here too — it lands in "no history" with no money in either
+    /// direction, because nothing about it is missing.
+    /// </remarks>
+    private static Dictionary<int, PortfolioGroup> GroupsOf(
+        IReadOnlyList<LocationDashboardRowDto> rows,
+        IReadOnlyDictionary<int, LastOrderRef> lastOrders) =>
+        rows.ToDictionary(
+            row => row.LocationId,
+            row => PortfolioCohort.GroupOf(
+                row.HasCurrentRequest,
+                lastOrders.ContainsKey(row.LocationId),
+                row.AvailableBaselinePeriodCount));
+
     /// <remarks>
     /// The headline is summed over the cohort and nothing else — see <see cref="PortfolioCohort"/> for the rule
     /// and for what the three different sets used to do to the difference. What is kept apart from it is the
@@ -548,18 +631,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         ComparisonSelection selection,
         IReadOnlyList<DateOnly> baselinePeriods,
         IReadOnlyList<LocationDashboardRowDto> rows,
+        IReadOnlyDictionary<int, PortfolioGroup> groups,
         IReadOnlyDictionary<int, LastOrderRef> lastOrders)
     {
-        // Every object lands in exactly one group, and Partition refuses to return a set that does not add up
-        // to the universe. The rows are the universe, so an object that has never ordered is a row here too —
-        // it lands in "no history" with no money in either direction, because nothing about it is missing.
-        var groups = rows.ToDictionary(
-            row => row.LocationId,
-            row => PortfolioCohort.GroupOf(
-                row.HasCurrentRequest,
-                lastOrders.ContainsKey(row.LocationId),
-                row.AvailableBaselinePeriodCount));
-
         var rowMembers = rows.Select(row =>
         {
             var last = lastOrders.GetValueOrDefault(row.LocationId);
@@ -627,7 +701,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             delta,
             percent,
             partition,
-            withCurrent.Count(row => row.Current.MissingPriceItemCount > 0),
+            rows.Count(HasOwedMissingPrice),
             rows.Count(row => row.HistoryCoverage == HistoryCoverageState.Complete),
             rows.Count(row => row.HistoryCoverage == HistoryCoverageState.Partial),
             rows.Count(row => row.HistoryCoverage == HistoryCoverageState.Unavailable),

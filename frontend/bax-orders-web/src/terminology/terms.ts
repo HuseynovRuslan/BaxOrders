@@ -73,6 +73,21 @@ export function unexplainedPartNote(amount: string, names: readonly string[]): s
  */
 export const costIncreasedLabel = 'xərc artıb'
 export const costDecreasedLabel = 'xərc azalıb'
+export const costUnchangedLabel = 'xərc dəyişməyib'
+
+/**
+ * "Keçən aya görə xərc artıb" — the direction of a cost in words, after the caption that says what it is measured
+ * against (`describeBasisCaption`). The dashboard's headline and cards say it where the reader sees it, so 9.1 is
+ * read and not only coloured. Null when there is no difference to describe.
+ */
+export function costDirectionSentence(caption: string, delta: number | null | undefined): string | null {
+  if (delta === null || delta === undefined) {
+    return null
+  }
+
+  const direction = delta > 0 ? costIncreasedLabel : delta < 0 ? costDecreasedLabel : costUnchangedLabel
+  return `${caption} ${direction}`
+}
 
 // ---- the monthly report (Task 08) ------------------------------------------------------------------------
 

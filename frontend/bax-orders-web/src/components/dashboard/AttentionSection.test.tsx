@@ -166,11 +166,15 @@ function summary(): ManagementDashboardSummary {
 }
 
 function renderCards(...locations: LocationDashboardRow[]) {
-  const attention: DashboardAttention[] = locations.map((location) => ({
+  return renderAttention(locations.map((location) => ({
     reason: (location.knownAmountDelta ?? 0) < 0 ? 'LargestDecrease' : 'LargestIncrease',
     location,
-  }))
+    rank: 1,
+    alsoFirstIn: [],
+  })))
+}
 
+function renderAttention(attention: DashboardAttention[]) {
   return render(
     <MemoryRouter>
       <AttentionSection
@@ -340,23 +344,195 @@ describe('colour by direction on the card (9.1)', () => {
     }
   })
 
-  it('says the direction in words to a screen reader, beside the difference and the product', () => {
+  /**
+   * Task 09 says the difference's direction where everybody reads it — "Keçən aya görə xərc artıb" under the
+   * figure — so the screen-reader word that used to sit on the difference itself would only repeat it. The
+   * product's stays: nothing visible says its direction in words.
+   */
+  it('says the direction in words: under the difference for everybody, beside the product for a screen reader', () => {
     renderCards(heyderAliyev(), fevvareler())
 
     const rising = card('Heydər Əliyev Mərkəzi')
-    expect(within(rising).getByText('+23.852,70 ₼').closest('p')).toHaveTextContent('xərc artıb')
+    const risingDelta = within(rising).getByText('+23.852,70 ₼').closest('p')!
+    expect(risingDelta.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc artıb$/)
+    expect(risingDelta).not.toHaveTextContent('xərc')
     const tractor = within(rising).getByText('+21.900,00 ₼')
     expect(tractor).toHaveTextContent('+21.900,00 ₼, xərc artıb')
     expect(within(tractor).getByText(/xərc artıb/)).toHaveClass('sr-only')
 
     const falling = card('Fəvvarələr meydanı')
-    expect(within(falling).getByText('−2.584,45 ₼').closest('p')).toHaveTextContent('xərc azalıb')
+    const fallingDelta = within(falling).getByText('−2.584,45 ₼').closest('p')!
+    expect(fallingDelta.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc azalıb$/)
     const shoes = within(falling).getByText('−1.988,00 ₼')
     expect(shoes).toHaveTextContent('−1.988,00 ₼, xərc azalıb')
     expect(within(shoes).getByText(/xərc azalıb/)).toHaveClass('sr-only')
 
     // Never a verdict.
-    expect(document.body).not.toHaveTextContent(/yaxşı|pis/i)
+    expect(document.body).not.toHaveTextContent(/yaxşı|pis|müsbət|mənfi/i)
+  })
+
+  it('paints the Heydər Əliyev rise red and the Fəvvarələr fall green, each with its words (brief acceptance 3)', () => {
+    renderCards(heyderAliyev(), fevvareler())
+
+    const rising = card('Heydər Əliyev Mərkəzi')
+    expect(within(rising).getByText('+23.852,70 ₼').closest('p')).toHaveClass('text-red-700')
+    expect(within(rising).getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+
+    const falling = card('Fəvvarələr meydanı')
+    expect(within(falling).getByText('−2.584,45 ₼').closest('p')).toHaveClass('text-emerald-700')
+    expect(within(falling).getByText('Keçən aya görə xərc azalıb')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Each card says truthfully why it is there (Task 09). Two cards both titled "Ən böyük məbləğ artımı" were one
+ * true title and one false one; the card now carries its place in its reason's ordering and says it.
+ */
+describe('the card title', () => {
+  function attention(
+    location: LocationDashboardRow,
+    reason: DashboardAttention['reason'],
+    rank: number,
+    alsoFirstIn: DashboardAttention['alsoFirstIn'] = [],
+  ): DashboardAttention {
+    return { reason, location, rank, alsoFirstIn }
+  }
+
+  /** The card's first line — its title — and only its own words, not the hint beside it. */
+  function title(article: HTMLElement): string {
+    const first = article.querySelector('p')!
+    return Array.from(first.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent)
+      .join('')
+  }
+
+  it('says "the largest" of the first and "the second largest" of the second, never both of both', () => {
+    renderAttention([
+      attention(heyderAliyev(), 'LargestIncrease', 1),
+      attention(row({ locationId: 3, locationName: 'Novxanı', knownAmountDelta: 10_000 }), 'LargestIncrease', 2),
+    ])
+
+    expect(title(card('Heydər Əliyev Mərkəzi'))).toBe('Ən böyük məbləğ artımı')
+    expect(title(card('Novxanı'))).toBe('İkinci ən böyük məbləğ artımı')
+  })
+
+  /** The audit's "Son 3 ay": Novxanı has the largest percentage and already has a card for its money. */
+  it('names the largest percentage on the card it sits on, and the runner-up says it is second', () => {
+    renderAttention([
+      attention(row({ locationId: 3, locationName: 'Novxanı' }), 'LargestIncrease', 2, ['StrongPercentageChange']),
+      attention(row({ locationId: 4, locationName: 'Milli Konservatoriya' }), 'StrongPercentageChange', 2),
+    ])
+
+    expect(within(card('Novxanı')).getByText('Həm də ən böyük faiz dəyişməsi')).toBeInTheDocument()
+    const milli = card('Milli Konservatoriya')
+    expect(title(milli)).toBe('İkinci ən böyük faiz dəyişməsi')
+    expect(milli.textContent).not.toMatch(/^Ən böyük/)
+    expect(milli.textContent).not.toContain('Həm də')
+  })
+
+  it('says what the largest percentage is the largest of', () => {
+    renderAttention([attention(row({ locationName: 'Bayıl yolu' }), 'StrongPercentageChange', 1)])
+
+    const article = card('Bayıl yolu')
+    expect(within(article).getByRole('button', { name: 'Faiz dəyişməsi necə seçilir?' })).toBeInTheDocument()
+    expect(within(article).getByRole('note', { hidden: true }))
+      .toHaveTextContent('Faiz yalnız müqayisə bazası ən azı 100 ₼ olan və ən azı 50% dəyişən obyektlər arasında müqayisə olunur.')
+  })
+
+  it('calls an object with nothing to compare against by the decided words, in slate', () => {
+    renderAttention([attention(row({
+      locationName: 'EXPO Center',
+      comparisonAvailability: 'NoBaselineHistory',
+      knownAmountDelta: null,
+      knownAmountPercentChange: null,
+      causes: [],
+      primaryCause: null,
+      primaryCauseAmount: null,
+    }), 'NoComparisonHistory', 1)])
+
+    const article = card('EXPO Center')
+    expect(title(article)).toBe('Müqayisə bazası yoxdur')
+    const heading = article.querySelector('p')!
+    expect(heading).toHaveClass('text-slate-500')
+    expect(heading.className).not.toMatch(/amber/)
+  })
+
+  it('keeps amber for the one card that is about a missing price', () => {
+    renderAttention([attention(row({
+      locationName: 'Bayıl yolu',
+      current: amount({ missingPriceItemCount: 4, isComplete: false }),
+    }), 'MissingRequiredPrice', 1)])
+
+    const article = card('Bayıl yolu')
+    expect(title(article)).toBe('Qiymət yoxdur')
+    expect(article.querySelector('p')).toHaveClass('text-amber-800')
+  })
+
+  it('puts the object\'s id on the card, for Back to return to', () => {
+    renderAttention([attention(heyderAliyev(), 'LargestIncrease', 1)])
+
+    expect(card('Heydər Əliyev Mərkəzi')).toHaveAttribute('id', 'attention-1')
+  })
+})
+
+/**
+ * A missing price was two amber sentences on nearly every card, and a warning said everywhere stops being read.
+ * It is one short mark with a count, beside the amount it affects, with the sentences as its name.
+ */
+describe('the price mark', () => {
+  it('shows "⚠ 3" beside the amount, named by what it means, and neither sentence as text', () => {
+    renderCards(row({
+      locationName: 'Novxanı',
+      current: amount({ knownAmount: 1000, missingPriceItemCount: 3, isComplete: false }),
+    }))
+    const article = card('Novxanı')
+
+    const mark = within(article).getByRole('img', { name: '3 sətirdə qiymət yoxdur' })
+    expect(mark).toHaveTextContent('⚠ 3')
+    expect(mark).toHaveAttribute('title', '3 sətirdə qiymət yoxdur')
+    expect(mark).toHaveClass('text-amber-800', 'whitespace-nowrap')
+    // On the amount's own line.
+    expect(mark.closest('p')).toHaveTextContent('1.000,00 ₼')
+
+    expect(within(article).queryByText(/sətirdə qiymət yoxdur/)).toBeNull()
+    expect(within(article).queryByText(/izah edilə bilmir/)).toBeNull()
+  })
+
+  it('adds the unexplained part to its name when the change cannot be fully explained', () => {
+    renderCards(row({
+      locationName: 'Novxanı',
+      current: amount({ missingPriceItemCount: 3, isComplete: false }),
+      explanationIsComplete: false,
+    }))
+
+    const mark = within(card('Novxanı')).getByRole('img', {
+      name: '3 sətirdə qiymət yoxdur. Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.',
+    })
+    expect(mark).toHaveTextContent('⚠ 3')
+    expect(within(card('Novxanı')).queryByText(/izah edilə bilmir/)).toBeNull()
+  })
+
+  it('stands alone when only a month it is compared with was missing a price', () => {
+    renderCards(row({ locationName: 'Novxanı', explanationIsComplete: false }))
+
+    const mark = within(card('Novxanı'))
+      .getByRole('img', { name: 'Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.' })
+    expect(mark.textContent).toBe('⚠')
+  })
+
+  it('is absent when nothing is owed, and internal supply never raises it', () => {
+    renderCards(row({ locationName: 'Novxanı', current: amount({ priceNotRequiredItemCount: 4 }) }))
+
+    expect(within(card('Novxanı')).queryByRole('img')).toBeNull()
+    expect(card('Novxanı').textContent).not.toContain('⚠')
+  })
+
+  /** Amber means a missing price and nothing else: a movement card without one has none at all. */
+  it('leaves a movement card with no missing price without any amber', () => {
+    const { container } = renderCards(heyderAliyev(), fevvareler())
+
+    expect(container.querySelector('[class*="amber"]')).toBeNull()
   })
 })
 
