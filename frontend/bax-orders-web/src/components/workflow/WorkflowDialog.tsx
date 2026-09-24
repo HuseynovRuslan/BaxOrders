@@ -2,6 +2,7 @@ import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import type { OrderWorkflow } from '../../api/workflow'
 import { missingPriceShortLabel } from '../../pricing/labels'
+import { pricedLinesTotalLabel } from '../../terminology/terms'
 import { ApiError } from '../../api/client'
 import { formatMoney, formatMonth } from '../analytics/format'
 import { Modal } from '../imports/review/Modal'
@@ -105,7 +106,7 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
           {submission && <Fact label={decisionFactLabels.submission} value={submission} />}
           <Fact label="Sətir sayı" value={String(workflow.itemCount)} />
           <Fact
-            label={workflow.amountIsComplete ? 'Məbləğ' : 'Məlum qiymətlər üzrə məbləğ'}
+            label={workflow.amountIsComplete ? 'Məbləğ' : pricedLinesTotalLabel}
             value={formatMoney(workflow.knownAmountTotal)}
           />
           <Fact label={missingPriceShortLabel} value={String(missing)} />

@@ -93,7 +93,7 @@ export function LocationDetailPage() {
           <Fact label="Dövrlər" value={formatNumber(data.distinctPeriodCount)} />
           <Fact label="Sifarişlər" value={formatNumber(data.orderRequestCount)} />
           <Fact label="Sətirlər" value={formatNumber(data.totalItemCount)} />
-          <Fact label={`${knownAmountLabel} cəm`} value={formatAmount(data.knownAmountTotal)} />
+          <Fact label={knownAmountLabel} value={formatAmount(data.knownAmountTotal)} />
           {data.missingPriceItemCount > 0 && (
             <Fact label={missingPriceShortLabel} value={formatNumber(data.missingPriceItemCount)} warn />
           )}

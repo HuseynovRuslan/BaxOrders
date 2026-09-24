@@ -1,6 +1,6 @@
 import { systemActorLabel } from '../../auth/labels'
 import type { WorkflowEvent } from '../../api/workflow'
-import { formatCount } from '../analytics/format'
+import { missingPriceCount } from '../../pricing/labels'
 import { formatWorkflowMoment, workflowActionClass, workflowActionLabels } from './labels'
 
 /**
@@ -36,7 +36,7 @@ export function WorkflowHistory({ entries }: { entries: WorkflowEvent[] }) {
             )}
             {entry.missingPricesAcknowledged && (
               <p className="text-xs text-amber-800">
-                {formatCount(entry.missingPriceItemCount)} qiymətsiz sətir təsdiq zamanı qeyd edilib.
+                Təsdiq zamanı qeyd edilib: {missingPriceCount(entry.missingPriceItemCount)}.
               </p>
             )}
           </div>

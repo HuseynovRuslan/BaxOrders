@@ -2,7 +2,8 @@ import type { DecisionDecomposition } from '../../api/decisions'
 import { formatCount, formatMoneyDelta } from '../analytics/format'
 import { InfoHint } from '../analytics/InfoHint'
 import { WarningNote } from '../WarningNote'
-import { causeHints, causeLabels, causeToneClass, incompleteExplanationNote } from './labels'
+import { incompleteExplanationNote, productNoun } from '../../terminology/terms'
+import { causeHints, causeLabels, causeToneClass } from './labels'
 
 /**
  * "Niyə dəyişib?" — the month's difference broken into the causes that add up to it.
@@ -42,7 +43,7 @@ export function CauseSummary({ decomposition }: { decomposition: DecisionDecompo
                   <InfoHint label={`${causeLabels[category.category]} nədir?`}>
                     {causeHints[category.category]}
                   </InfoHint>
-                  <span className="text-xs text-slate-400">{formatCount(category.variantCount)} mövqe</span>
+                  <span className="text-xs text-slate-400">{formatCount(category.variantCount)} {productNoun}</span>
                 </p>
                 <p className="whitespace-nowrap text-sm font-medium text-slate-900">
                   {formatMoneyDelta(category.amount)}

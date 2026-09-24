@@ -23,6 +23,7 @@ import { formatCount, formatMonth, toMonthKey } from '../components/analytics/fo
 import { BasisPicker } from '../components/analytics/BasisPicker'
 import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
 import { useBasis } from '../analytics/useBasis'
+import { missingPriceShortLabel } from '../pricing/labels'
 
 const pageSize = 25
 
@@ -255,7 +256,7 @@ export function ManagementDashboardPage() {
                 className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
               >
                 <option value="">Məlumat vəziyyəti: hamısı</option>
-                <option value="missing-price">Qiymət məlumatı çatışmır</option>
+                <option value="missing-price">{missingPriceShortLabel}</option>
                 <option value="no-history">Əvvəlki ay məlumatı yoxdur</option>
                 <option value="no-request">Bu ay sifariş yoxdur</option>
               </select>

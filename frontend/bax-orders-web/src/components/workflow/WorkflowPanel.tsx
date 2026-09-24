@@ -9,7 +9,6 @@ import {
   type WorkflowDecisionFacts,
 } from '../../api/workflow'
 import { systemActorLabel } from '../../auth/labels'
-import { formatCount, formatMoney } from '../analytics/format'
 import { WorkflowDialog, type WorkflowDialogKind } from './WorkflowDialog'
 import { WorkflowHistory } from './WorkflowHistory'
 import {
@@ -151,14 +150,10 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
         <DecisionFacts workflow={workflow} />
       </div>
 
+      {/* The amount itself is in the page headline beside this panel; only what qualifies it is said here. */}
       {workflow.missingPriceItemCount > 0 && (
         <p className="mt-3 text-xs text-amber-800">{missingPriceNote(workflow.missingPriceItemCount)}</p>
       )}
-
-      <p className="mt-1 text-xs text-slate-500">
-        {workflow.amountIsComplete ? 'Məbləğ' : 'Məlum qiymətlər üzrə məbləğ'}:{' '}
-        {formatMoney(workflow.knownAmountTotal)} · {formatCount(workflow.itemCount)} sətir
-      </p>
 
       {workflow.status === 'ReturnedForCorrection' && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">

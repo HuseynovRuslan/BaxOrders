@@ -118,7 +118,7 @@ export function EditLineDialog({
           <div>
             <dt className="text-slate-500">Variant</dt>
             <dd className="text-slate-900">{formatItemSpecification(item) ?? '—'}</dd>
-            <dd className="text-slate-500">{formatOrderUnit(item.orderUnitCode)}</dd>
+            <dd className="text-slate-500">{formatOrderUnit(item.orderUnitCode, item.orderUnitName)}</dd>
           </div>
         </dl>
         <p className="text-xs text-slate-500">

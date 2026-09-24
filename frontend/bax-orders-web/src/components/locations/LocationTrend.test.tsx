@@ -56,10 +56,15 @@ describe('the latest order', () => {
     expect(screen.queryByText(/Keçən aya görə/)).toBeNull()
   })
 
-  it('names the unpriced products beside the amount they affect', () => {
+  /**
+   * The Nərimanov heykəli page said "1 məhsulun qiyməti yoxdur" here and "1 sətirdə qiymət yoxdur" in the table
+   * under it. The count is of lines, so both now say Task 2's sentence (5.3).
+   */
+  it('names the unpriced lines beside the amount they affect, in the words the table uses', () => {
     renderTrend([entry('2026-09-01', 3246.43, { missingPriceItemCount: 2 })])
 
-    expect(screen.getByText('2 məhsulun qiyməti yoxdur')).toBeInTheDocument()
+    expect(screen.getByText('2 sətirdə qiymət yoxdur')).toBeInTheDocument()
+    expect(screen.queryByText(/məhsulun qiyməti yoxdur/)).toBeNull()
   })
 
   it('opens the order it is about', () => {
@@ -88,7 +93,9 @@ describe('the strip behind it', () => {
   it('says what each month was worth', () => {
     const { container } = renderTrend([entry('2026-09-01', 3000), entry('2026-08-01', 1000)])
 
-    expect(container.querySelector('[title^="Sentyabr 2026"]')).toHaveAttribute('title', 'Sentyabr 2026: 3.000,00 ₼')
+    // An attribute is compared exactly, so the no-break space (U+00A0) that keeps ₼ with its amount is written out.
+    expect(container.querySelector('[title^="Sentyabr 2026"]'))
+      .toHaveAttribute('title', `Sentyabr 2026: 3.000,00${String.fromCharCode(0xa0)}₼`)
   })
 
   it('shows nothing at all for an object that has never ordered', () => {

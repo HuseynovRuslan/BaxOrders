@@ -24,6 +24,7 @@ import {
   stateLabels,
 } from '../components/analytics/labels'
 import { formatNumber } from '../components/imports/labels'
+import { productNoun } from '../terminology/terms'
 
 const pageSize = 50
 
@@ -284,7 +285,7 @@ export function LocationAnalyticsPage() {
             )}
 
             <span className="ml-auto text-xs text-slate-500">
-              {formatNumber(data?.rows.totalCount ?? 0)} mövqe
+              {formatNumber(data?.rows.totalCount ?? 0)} {productNoun}
             </span>
           </div>
         </>
@@ -301,7 +302,7 @@ export function LocationAnalyticsPage() {
 
       {data && summary && data.rows.items.length === 0 && (
         <p className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-          {search || state ? 'Bu filtrə uyğun məhsul tapılmadı.' : 'Bu bölmədə göstəriləcək mövqe yoxdur.'}
+          {search || state ? 'Bu filtrə uyğun məhsul tapılmadı.' : `Bu bölmədə göstəriləcək ${productNoun} yoxdur.`}
         </p>
       )}
 
@@ -316,7 +317,7 @@ export function LocationAnalyticsPage() {
       {data && data.rows.totalCount > pageSize && (
         <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
           <span>
-            Səhifə {data.rows.page} / {totalPages} · {formatNumber(data.rows.totalCount)} mövqe
+            Səhifə {data.rows.page} / {totalPages} · {formatNumber(data.rows.totalCount)} {productNoun}
           </span>
           <div className="flex gap-2">
             <button

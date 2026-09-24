@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { formatAmount } from '../imports/labels'
 import {
   amountHeading,
+  basisLabels,
   describeBasis,
   describeDirection,
   formatDelta,
@@ -9,11 +11,14 @@ import {
   formatMonth,
   formatPercent,
   formatPeriodCoverage,
+  formatPrice,
   formatQuantity,
   knownAmountLabel,
+  manatSuffix,
   signedToneClass,
   toMonthKey,
   unknownValue,
+  weightedPriceHint,
 } from './format'
 
 /**
@@ -50,22 +55,57 @@ describe('percentages', () => {
   })
 })
 
+/**
+ * U+00A0, built from its code point rather than typed: on screen the character cannot be told from a space,
+ * and these tests exist to tell them apart.
+ */
+const nbsp = String.fromCharCode(0xa0)
+
 describe('money', () => {
   it('writes an amount the backend did not give as an em dash, never as zero', () => {
     expect(formatMoney(null)).toBe(unknownValue)
-    expect(formatMoney(null)).not.toBe('0,00 ₼')
+    expect(formatMoney(null)).not.toBe(`0,00${nbsp}₼`)
   })
 
   it('writes an amount in manat with two decimals, grouped the Azerbaijani way', () => {
     // The separators come from the az-Latn-AZ locale: "." between groups and "," before the decimals.
-    expect(formatMoney(48430.78)).toBe('48.430,78 ₼')
-    expect(formatMoney(0)).toBe('0,00 ₼')
+    expect(formatMoney(48430.78)).toBe(`48.430,78${nbsp}₼`)
+    expect(formatMoney(0)).toBe(`0,00${nbsp}₼`)
   })
 
   it('signs a money difference the same way as a percentage', () => {
-    expect(formatMoneyDelta(1200)).toBe('+1.200,00 ₼')
-    expect(formatMoneyDelta(-22561.84)).toBe('−22.561,84 ₼')
+    expect(formatMoneyDelta(1200)).toBe(`+1.200,00${nbsp}₼`)
+    expect(formatMoneyDelta(-22561.84)).toBe(`−22.561,84${nbsp}₼`)
     expect(formatMoneyDelta(null)).toBe(unknownValue)
+  })
+
+  /**
+   * An ordinary space is somewhere a line may break, which is how "99,00" and "₼" landed on two lines of a
+   * narrow cell at 1366 px and on a phone. A no-break space cannot be broken.
+   */
+  it('keeps ₼ on the same line as its amount in every money and price formatter', () => {
+    const written = [
+      formatMoney(431670.91),
+      formatMoneyDelta(-99),
+      formatPrice(32.1273),
+      formatAmount(99),
+    ]
+
+    for (const text of written) {
+      expect(text.endsWith(`${nbsp}₼`)).toBe(true)
+      expect(text).not.toContain(' ₼')
+    }
+
+    expect(weightedPriceHint).not.toContain(' ₼')
+    expect(manatSuffix).toBe(`${nbsp}₼`)
+  })
+
+  /** Display rounding only: the value passed in is untouched, and so is everything computed from it. */
+  it('shows a price to the qəpik, never to four decimals', () => {
+    expect(formatPrice(32.1273)).toBe(`32,13${nbsp}₼`)
+    expect(formatPrice(2.8)).toBe(`2,80${nbsp}₼`)
+    expect(formatPrice(4)).toBe(`4,00${nbsp}₼`)
+    expect(formatPrice(null)).toBe(unknownValue)
   })
 
   it('heads an incomplete amount as money that is known', () => {
@@ -131,6 +171,12 @@ describe('naming the comparison basis', () => {
 
   it('names every prior month as an average of the whole period', () => {
     expect(describeBasis('AllPriorMonths', ['2026-01-01', '2026-02-01'])).toBe('Bütün dövrün ortalaması')
+  })
+
+  /** One name for one choice: the button says what the sentence it produces says. */
+  it('calls the whole-period button by the same words as its result', () => {
+    expect(basisLabels.AllPriorMonths).toBe(describeBasis('AllPriorMonths', ['2026-01-01']))
+    expect(basisLabels.AllPriorMonths).toBe('Bütün dövrün ortalaması')
   })
 
   /** A window of one month is that month, not an average of it. */

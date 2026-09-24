@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import type { DashboardAttention, LocationDashboardRow, ManagementDashboardSummary } from '../../api/dashboard'
 import { locationLink, orderLink, type BasisSelection } from '../../analytics/basisParams'
 import { missingPriceCount } from '../../pricing/labels'
+import { incompleteExplanationNote } from '../../terminology/terms'
 import {
   describeBasisCaption,
   formatMoney,
@@ -15,7 +16,6 @@ import {
   attentionReasonLabels,
   causeHeadline,
   detailsLabel,
-  incompleteExplanationNote,
   noComparisonCause,
   supplyChangedNote,
 } from './labels'

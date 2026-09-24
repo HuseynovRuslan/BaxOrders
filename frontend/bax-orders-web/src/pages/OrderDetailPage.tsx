@@ -18,6 +18,7 @@ import {
   lineToneClass,
   missingPriceCount,
   missingPriceLabel,
+  missingPriceShortLabel,
   unclassifiedHint,
 } from '../pricing/labels'
 import { TrendModal } from '../components/analytics/TrendModal'
@@ -224,17 +225,14 @@ export function OrderDetailPage() {
             data && (
               <section className="rounded-lg border border-slate-200 bg-white p-4" aria-label="Sifariş xülasəsi">
                 <h2 className="text-xs text-slate-500">
-                  {data.missingPriceItemCount === 0 ? 'Məbləğ' : `${knownAmountLabel} məbləği`}
+                  {data.missingPriceItemCount === 0 ? 'Məbləğ' : knownAmountLabel}
                 </h2>
                 <p className="mt-1 whitespace-nowrap text-3xl font-semibold text-slate-900">
                   {formatAmount(data.knownAmountTotal)}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {formatNumber(data.itemCount)} sətir
-                  {data.missingPriceItemCount > 0 && (
-                    <span className="text-amber-800"> · {missingPriceCount(data.missingPriceItemCount)}</span>
-                  )}
-                </p>
+                {data.missingPriceItemCount > 0 && (
+                  <p className="mt-0.5 text-xs text-amber-800">{missingPriceCount(data.missingPriceItemCount)}</p>
+                )}
                 {/* The comparison is still on its way, or did not come; the amount never waits for it. */}
                 {decisionPending && <p className="mt-2 h-4 w-48 animate-pulse rounded bg-slate-100" aria-hidden="true" />}
               </section>
@@ -305,8 +303,8 @@ export function OrderDetailPage() {
           className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         >
           <option value="">Bütün sətirlər</option>
-          <option value="true">Yalnız qiyməti olanlar</option>
-          <option value="false">Yalnız qiyməti olmayanlar</option>
+          <option value="true">Qiyməti olan sətirlər</option>
+          <option value="false">{missingPriceShortLabel}</option>
         </select>
 
         {/* Offered only where the server says this version may be edited; the endpoint checks again. */}
@@ -329,7 +327,7 @@ export function OrderDetailPage() {
               <th className="px-3 py-3">Məhsul</th>
               <th className="px-3 py-3">Spesifikasiya</th>
               <th className="px-3 py-3 text-right">Miqdar</th>
-              <th className="px-3 py-3">Ö/v</th>
+              <th className="px-3 py-3">Vahid</th>
               <th className="px-3 py-3 text-right">Qiymət</th>
               <th className="px-3 py-3 text-right">Cəmi</th>
               <th className="px-3 py-3">Təchizatçı</th>
@@ -372,7 +370,7 @@ export function OrderDetailPage() {
                 <td className="px-3 py-2 text-right text-slate-900">{formatQuantity(item.quantity)}</td>
                 <td className="px-3 py-2 text-slate-700">
                   {item.orderUnitCode ? (
-                    <span title={item.orderUnitName ?? undefined}>{formatOrderUnit(item.orderUnitCode)}</span>
+                    formatOrderUnit(item.orderUnitCode, item.orderUnitName)
                   ) : (
                     <span className="text-slate-500">{formatOrderUnit(null)}</span>
                   )}

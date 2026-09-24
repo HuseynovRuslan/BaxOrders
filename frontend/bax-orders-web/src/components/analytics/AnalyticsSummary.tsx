@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { ComparisonSummary } from '../../api/analytics'
+import { missingPriceCount } from '../../pricing/labels'
 import { WarningNote } from '../WarningNote'
 import { formatNumber } from '../imports/labels'
 import { orderStatusLabels } from '../imports/labels'
@@ -48,13 +49,10 @@ function AmountSummary({ summary }: { summary: ComparisonSummary }) {
         {/* Never "ümumi məbləğ": the backend says whether this is the whole story, and usually it is not. */}
         {summary.amountIsComplete
           ? `${formatMonth(summary.currentPeriod)} sifarişlərinin məbləği`
-          : `${knownAmountLabel} məbləği`}
+          : knownAmountLabel}
       </h2>
       <p className="mt-1 text-3xl font-semibold text-slate-900">{formatAnalyticsAmount(summary.currentKnownAmountTotal)}</p>
-      <p className="mt-0.5 text-xs text-slate-500">
-        {formatNumber(summary.currentItemCount)} sətir
-        {missing > 0 && <span className="text-amber-800"> · {formatNumber(missing)} qiymətsiz</span>}
-      </p>
+      {missing > 0 && <p className="mt-0.5 text-xs text-amber-800">{missingPriceCount(missing)}</p>}
 
       {summary.knownAmountDelta !== null && (
         <div className="mt-3 border-t border-slate-100 pt-3">
@@ -69,8 +67,8 @@ function AmountSummary({ summary }: { summary: ComparisonSummary }) {
       {missing > 0 && summary.baselineMissingPriceItemCount > 0 && (
         <div className="mt-3">
           <WarningNote>
-            Müqayisə dövründə də {formatNumber(summary.baselineMissingPriceItemCount)} qiymətsiz sətir var —
-            fərq iki natamam məbləğ arasındadır.
+            Müqayisə dövründə də {missingPriceCount(summary.baselineMissingPriceItemCount)} — hər iki məbləğ tam
+            deyil.
           </WarningNote>
         </div>
       )}

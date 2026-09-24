@@ -133,6 +133,16 @@ function primary() {
 beforeEach(() => analyticsApi.fetchVariantTrend.mockReset().mockResolvedValue(trend()))
 afterEach(() => vi.clearAllMocks())
 
+describe('the name of the screen', () => {
+  /** Owner decision 5.1: "Trend" is "Məhsul tarixçəsi". */
+  it('is called the product history', async () => {
+    await renderModal()
+
+    expect(screen.getByRole('heading', { name: 'Məhsul tarixçəsi' })).toBeInTheDocument()
+    expect(screen.queryByText(/Trend/)).toBeNull()
+  })
+})
+
 describe('the history table', () => {
   it('is the four figures a manager thinks in', async () => {
     await renderModal()
@@ -154,7 +164,7 @@ describe('the history table', () => {
   it('shows each month with its quantity, price and amount', async () => {
     await renderModal()
 
-    expect(primary().getByText('30 PCS')).toBeInTheDocument()
+    expect(primary().getByText('30 ədəd')).toBeInTheDocument()
     expect(primary().getByText('2,80 ₼')).toBeInTheDocument()
     expect(primary().getByText('84,00 ₼')).toBeInTheDocument()
   })
@@ -167,7 +177,7 @@ describe('the history table', () => {
     await renderModal()
 
     expect(primary().getByText('sifariş yoxdur')).toBeInTheDocument()
-    expect(primary().queryByText('0 PCS')).toBeNull()
+    expect(primary().queryByText('0 ədəd')).toBeNull()
   })
 
   /** Nothing is missing about it, so it is not amber and it is certainly not "Qiymət çatışmır". */
@@ -187,7 +197,7 @@ describe('the history table', () => {
     expect(label).not.toHaveClass('text-amber-800')
     expect(primary().queryByText(/Qiymət çatışmır/)).toBeNull()
     // Real quantity, and no fabricated zero money.
-    expect(primary().getByText('30 PCS')).toBeInTheDocument()
+    expect(primary().getByText('30 ədəd')).toBeInTheDocument()
     expect(primary().queryByText('0,00 ₼')).toBeNull()
   })
 
@@ -202,7 +212,8 @@ describe('the history table', () => {
     }))
     await renderModal()
 
-    expect(primary().getByText('2 sətir qiymətsiz')).toHaveClass('text-amber-800')
+    // Task 2's one sentence for a count of price warnings, not a second wording of it.
+    expect(primary().getByText('2 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
   })
 
   it('shows a real price on an internally supplied product that has one', async () => {
@@ -220,7 +231,7 @@ describe('the chart tabs', () => {
   it('offers quantity, money and the average price', async () => {
     await renderModal()
 
-    const tabs = within(screen.getByRole('group', { name: 'Trend göstəricisi' }))
+    const tabs = within(screen.getByRole('group', { name: 'Göstərici' }))
     expect(tabs.getByRole('button', { name: 'Miqdar' })).toBeInTheDocument()
     expect(tabs.getByRole('button', { name: 'Məbləğ' })).toBeInTheDocument()
     expect(tabs.getByRole('button', { name: 'Orta qiymət' })).toBeInTheDocument()
@@ -237,7 +248,8 @@ describe('how often it is ordered', () => {
   it('counts the months that exist, not the months of the year', async () => {
     await renderModal()
 
-    expect(screen.getByText('Son 9 mövcud aydan 6-də sifariş edilib')).toBeInTheDocument()
+    // Owner decision 5.1, with the ending "altı" takes.
+    expect(screen.getByText('Son 9 ayın 6-da sifariş edilib')).toBeInTheDocument()
     expect(screen.getByText(/İlk sifariş: Yanvar 2026/)).toBeInTheDocument()
     expect(screen.getByText(/Son sifariş: Sentyabr 2026/)).toBeInTheDocument()
     expect(screen.getByText(/Tipik interval: 1–2 ay/)).toBeInTheDocument()
@@ -268,9 +280,11 @@ describe('the comparison it was opened from', () => {
     const section = screen.getByLabelText('Bu ayın müqayisəsi')
     const detail = within(section)
     // The arrow sits in its own element, so the pair is read from the line rather than matched as one string.
-    expect(section.textContent).toContain('30 PCS → 30 PCS')
-    expect(section.textContent).toContain('2,80 ₼ → 4,10 ₼')
-    expect(section.textContent).toContain('84,00 ₼ → 123,00 ₼')
+    // ₼ is joined to its amount by a no-break space (U+00A0), so it can never fall onto a line of its own.
+    const nbsp = String.fromCharCode(0xa0)
+    expect(section.textContent).toContain('30 ədəd → 30 ədəd')
+    expect(section.textContent).toContain(`2,80${nbsp}₼ → 4,10${nbsp}₼`)
+    expect(section.textContent).toContain(`84,00${nbsp}₼ → 123,00${nbsp}₼`)
     expect(detail.getByText('Miqdar təsiri')).toBeInTheDocument()
     expect(detail.getByText('Qiymət təsiri')).toBeInTheDocument()
     expect(detail.getByText('+39,00 ₼')).toHaveClass('text-emerald-700')

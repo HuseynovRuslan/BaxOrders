@@ -1,4 +1,4 @@
-import { missingPriceShortLabel } from '../../pricing/labels'
+import { missingPriceCount, missingPriceShortLabel } from '../../pricing/labels'
 import type {
   ApprovalActionability,
   ApprovalInboxSort,
@@ -46,7 +46,7 @@ export const sortLabels: Record<ApprovalInboxSort, string> = {
   SubmittedAtUtc: 'Göndərilmə vaxtı',
   LocationName: 'Obyekt adı',
   RequestPeriod: 'Dövr',
-  KnownAmount: 'Məlum məbləğ',
+  KnownAmount: 'Məbləğ',
   MissingPriceItemCount: missingPriceShortLabel,
 }
 
@@ -71,10 +71,9 @@ export const selfApprovalBlockedRowNote = 'Öz göndərdiyiniz sifarişi təsdiq
 /** Said on a row this person may not decide because they worked on this version's correction. */
 export const ownContributionBlockedRowNote = 'Bu versiyada düzəliş etdiyiniz üçün qərar verə bilməzsiniz.'
 
-export const knownAmountRowLabel = 'Məlum qiymətlər üzrə'
-
+/** Task 2's one sentence for a count of price warnings, on the row it belongs to. */
 export function missingPriceRowNote(count: number): string {
-  return `${count} qiymətsiz sətir`
+  return missingPriceCount(count)
 }
 
 export const originalLabel = 'İlkin'

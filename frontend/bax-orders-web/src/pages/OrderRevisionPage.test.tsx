@@ -372,12 +372,18 @@ describe('the header and the summary', () => {
     expect(screen.getAllByText('Təsdiqlənməyib').length).toBeGreaterThan(0)
   })
 
-  it('gives the amount the primary number, and the line count and any missing prices as its quiet second line', async () => {
+  /**
+   * The line count used to be the quiet second line. Beside a missing-price count it said "sətir" twice
+   * ("1 sətir · 1 sətirdə qiymət yoxdur"), so Task 5 dropped it (5.3); the second line now appears only when
+   * there is a missing price to name.
+   */
+  it('gives the amount the primary number, and adds nothing when every price is known', async () => {
     await renderPage()
     const summary = screen.getByRole('region', { name: 'Sifariş xülasəsi' })
 
     expect(within(summary).getByText('20,00 ₼')).toBeInTheDocument()
-    expect(within(summary).getByText('1 sətir')).toBeInTheDocument()
+    expect(within(summary).getByText('Məbləğ')).toBeInTheDocument()
+    expect(within(summary).queryByText('1 sətir')).toBeNull()
   })
 
   it('names the missing-price count next to the amount, instead of a second banner repeating it', async () => {
@@ -388,7 +394,9 @@ describe('the header and the summary', () => {
     await renderPage()
     const summary = screen.getByRole('region', { name: 'Sifariş xülasəsi' })
 
-    expect(summary).toHaveTextContent('1 sətir · 1 sətirdə qiymət yoxdur')
+    expect(within(summary).getByText('Qiyməti olan sətirlərin cəmi')).toBeInTheDocument()
+    expect(within(summary).getByText('1 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
+    expect(summary).not.toHaveTextContent('1 sətir ·')
   })
 })
 

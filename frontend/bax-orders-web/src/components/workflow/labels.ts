@@ -31,7 +31,8 @@ export const workflowStatusSign: Record<OrderRequestStatus, string> = {
 export const workflowActionLabels: Record<OrderWorkflowAction, string> = {
   SubmittedForApproval: 'Təsdiqə göndərildi',
   Approved: 'Təsdiqləndi',
-  ReturnedForCorrection: 'Düzəlişə qaytarıldı',
+  // The past of the action's own name, "Düzəliş tələb et", and of the status it leaves, "Düzəliş tələb olunur".
+  ReturnedForCorrection: 'Düzəliş tələb olundu',
   // Says what happened, not that somebody here decided it: these orders were approved before this system.
   ImportedAsApproved: 'Təsdiqlənmiş kimi köçürülüb',
 }
@@ -138,7 +139,7 @@ export const ownContributionBlockedNote =
   'Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.'
 
 export function missingPriceWarning(count: number): string {
-  return `Bu sifarişdə ${count} qiymətsiz sətir var. Təsdiq edilən məbləğ tam maliyyə məbləği deyil.`
+  return `${missingPriceCount(count)}. Təsdiq edilən məbləğ tam deyil.`
 }
 
 export function missingPriceNote(count: number): string {

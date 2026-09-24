@@ -83,20 +83,45 @@ describe('a row', () => {
   })
 
   /**
-   * Both dimensions, even the one that stayed put. "30 → 30 PCS · Qiymət 2,80 ₼ → 4,10 ₼" is what makes the
+   * Both dimensions, even the one that stayed put. "30 → 30 ədəd · Qiymət 2,80 ₼ → 4,10 ₼" is what makes the
    * effect beside it checkable: a reader can see the money came from the price and not from the quantity.
    */
   it('states the quantity even when only the price moved', () => {
     renderList([driver()])
 
-    expect(screen.getByText(/30 → 30 PCS/)).toBeInTheDocument()
+    expect(screen.getByText(/30 → 30 ədəd/)).toBeInTheDocument()
   })
 
   it('shows the quantity it moved between when that is the story', () => {
     renderList([bags])
 
-    expect(screen.getByText(/20 → 60 PCS/)).toBeInTheDocument()
+    expect(screen.getByText(/20 → 60 ədəd/)).toBeInTheDocument()
     expect(screen.getByText('+120,00 ₼')).toBeInTheDocument()
+  })
+
+  /**
+   * The Fəvvarələr order the owner read (brief acceptance): "71 → 0 PCS" and "32.1273 ₼" become "71 → 0 ədəd"
+   * and a price to the qəpik. The figures themselves are the backend's and are not touched.
+   */
+  it('says a unit and a price the way the Fəvvarələr order should read', () => {
+    renderList([driver({
+      variant: variant({ productVariantId: 25, productName: 'Zibil paketi' }),
+      category: 'NoLongerOrdered',
+      amountImpact: -2281.04,
+      quantityImpact: null,
+      priceImpact: null,
+      baselineQuantity: 71,
+      currentQuantity: 0,
+      baselineUnitPrice: 32.1273,
+      currentUnitPrice: null,
+      unitPricePercentChange: null,
+    })])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    expect(row).toHaveTextContent('71 → 0 ədəd')
+    expect(row).toHaveTextContent('32,13 ₼')
+    expect(row).not.toHaveTextContent('PCS')
+    expect(row).not.toHaveTextContent('32,1273')
   })
 
   /** The money is an effect on money, not a quantity, and the badge above it says so. */
@@ -151,7 +176,10 @@ describe('a row', () => {
     })])
 
     expect(screen.getByText(/2 sətirdə qiymət yoxdur/)).toBeInTheDocument()
-    expect(screen.getByText('Qiyməti olmayanlar')).toBeInTheDocument()
+    // The cause says the same two words as the line and the filter — not a third name for one gap.
+    const row = screen.getByRole('button', { name: /York qatlama salfet/ })
+    expect(within(row).getByText('Qiymət yoxdur')).toBeInTheDocument()
+    expect(screen.queryByText('Qiyməti olmayanlar')).toBeNull()
     // The money it did move is known and real, so it is shown.
     expect(screen.getByText('+39,00 ₼')).toBeInTheDocument()
   })
@@ -217,8 +245,25 @@ describe('the filters', () => {
     renderList([driver()])
 
     const filters = screen.getByRole('group', { name: 'Dəyişiklik növü' })
-    expect(within(filters).queryByRole('button', { name: /Yeni/ })).toBeNull()
-    expect(within(filters).queryByRole('button', { name: /Artıq sifariş olunmur/ })).toBeNull()
+    expect(within(filters).queryByRole('button', { name: /Yeni məhsullar/ })).toBeNull()
+    expect(within(filters).queryByRole('button', { name: /Bu ay yazılmayan məhsullar/ })).toBeNull()
+  })
+
+  /** Owner decision 5.1: the filter and the badge under it say the same words. */
+  it('names new and no-longer-ordered products in the approved words', () => {
+    renderList([
+      driver({ variant: variant({ productVariantId: 31, productName: 'Yeni mal' }), category: 'NewOrders' }),
+      driver({ variant: variant({ productVariantId: 32, productName: 'Köhnə mal' }), category: 'NoLongerOrdered' }),
+    ])
+
+    const filters = screen.getByRole('group', { name: 'Dəyişiklik növü' })
+    expect(within(filters).getByRole('button', { name: /Yeni məhsullar/ })).toBeInTheDocument()
+    expect(within(filters).getByRole('button', { name: /Bu ay yazılmayan məhsullar/ })).toBeInTheDocument()
+
+    expect(within(screen.getByRole('button', { name: /Yeni mal/ })).getByText('Yeni məhsullar')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /Köhnə mal/ })).getByText('Bu ay yazılmayan məhsullar'))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/Yeni sifarişlər|Artıq sifariş olunma|Artıq sifariş olunmur/)).toBeNull()
   })
 })
 

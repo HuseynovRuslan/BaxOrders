@@ -333,9 +333,10 @@ describe('the panorama', () => {
     await renderPage()
 
     expect(within(table()).getByText('+65,8%')).toBeInTheDocument()
-    // The manat difference is not lost — it moves into the cell's own description.
+    // The manat difference is not lost — it moves into the cell's own description, with ₼ kept to its amount
+    // by a no-break space (U+00A0).
     expect(within(table()).getByRole('link', { name: /Yanvar 2026/ }))
-      .toHaveAttribute('title', expect.stringContaining('+1.287,91 ₼') as unknown as string)
+      .toHaveAttribute('title', expect.stringContaining(`+1.287,91${String.fromCharCode(0xa0)}₼`) as unknown as string)
   })
 
   it('leaves the undecided state unmarked and marks anything else', async () => {

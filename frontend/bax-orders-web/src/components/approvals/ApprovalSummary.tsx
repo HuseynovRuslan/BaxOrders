@@ -1,4 +1,5 @@
 import type { ApprovalInboxSummary } from '../../api/approvals'
+import { missingPriceCount } from '../../pricing/labels'
 import { SummaryMetric } from '../SummaryMetric'
 import { formatCount } from '../analytics/format'
 
@@ -28,9 +29,9 @@ export function ApprovalSummary({ summary }: ApprovalSummaryProps) {
         warn={summary.blockedForCurrentUserCount > 0}
       />
       <SummaryMetric
-        label="Qiymətsiz sifarişlər"
+        label="Qiyməti olmayan sətiri olan sifarişlər"
         value={formatCount(summary.missingPriceRequestCount)}
-        note={summary.missingPriceItemCount > 0 ? `${formatCount(summary.missingPriceItemCount)} qiymətsiz sətir` : undefined}
+        note={summary.missingPriceItemCount > 0 ? missingPriceCount(summary.missingPriceItemCount) : undefined}
         warn={summary.missingPriceRequestCount > 0}
       />
     </div>

@@ -6,11 +6,13 @@ import type {
   HistoryCoverageState,
 } from '../../api/dashboard'
 import type { PriceCoverageState } from '../../api/analytics'
+import { missingPriceShortLabel } from '../../pricing/labels'
+import { limitedComparisonDataLabel, newProductsLabel, notOrderedThisMonthLabel } from '../../terminology/terms'
 import { formatCount, formatMonth } from '../analytics/format'
 
 export const historyCoverageLabels: Record<HistoryCoverageState, string> = {
   Complete: 'Tam tarixçə',
-  Partial: 'Natamam tarixçə',
+  Partial: limitedComparisonDataLabel,
   Unavailable: 'Tarixçə yoxdur',
 }
 
@@ -58,7 +60,7 @@ export const sortLabels: Record<DashboardSort, string> = {
   CurrentKnownAmount: 'Cari məbləğ',
   KnownAmountDelta: 'Məbləğ fərqi',
   KnownAmountPercentChange: 'Dəyişmə %',
-  MissingPriceItemCount: 'Qiymətsiz sətirlər',
+  MissingPriceItemCount: missingPriceShortLabel,
   CurrentItemCount: 'Sətir sayı',
   NewVariantCount: 'Yeni məhsullar',
   IncreasedVariantCount: 'Artan məhsullar',
@@ -83,9 +85,6 @@ export function isSort(value: string | null): value is DashboardSort {
   return value !== null && value in sortLabels
 }
 
-/** Shown beside a delta whenever either side of it is missing prices. */
-export const partialAmountNote = 'Məbləğ müqayisəsi məlum qiymətlər üzrə hesablanıb.'
-
 /**
  * A cause written the way a manager would say it out loud: with its direction in the words, so the sign beside
  * it confirms the reading rather than being the only clue to it.
@@ -93,19 +92,19 @@ export const partialAmountNote = 'Məbləğ müqayisəsi məlum qiymətlər üzr
 export function causeHeadline(category: CauseCategory, amount: number): string {
   switch (category) {
     case 'NewOrders':
-      return 'Yeni sifarişlər'
+      return newProductsLabel
     case 'QuantityChange':
       return amount >= 0 ? 'Miqdar artımı' : 'Miqdar azalması'
     case 'PriceChange':
       return amount >= 0 ? 'Qiymət artımı' : 'Qiymət azalması'
     case 'NoLongerOrdered':
-      return 'Artıq sifariş olunmayanlar'
+      return notOrderedThisMonthLabel
     case 'Services':
       return 'Xidmətlər'
     case 'InternalSupply':
       return 'Daxili təminat'
     case 'UnattributedDueToMissingPrice':
-      return 'Qiymət məlumatı çatışmır'
+      return missingPriceShortLabel
   }
 }
 
@@ -120,7 +119,7 @@ export const attentionReasonLabels: Record<DashboardAttentionReason, string> = {
   LargestIncrease: 'Ən böyük məbləğ artımı',
   LargestDecrease: 'Ən böyük məbləğ azalması',
   StrongPercentageChange: 'Ən böyük faiz dəyişməsi',
-  MissingRequiredPrice: 'Qiymət məlumatı natamamdır',
+  MissingRequiredPrice: missingPriceShortLabel,
   NoComparisonHistory: 'Müqayisə üçün əvvəlki ay yoxdur',
 }
 
@@ -154,24 +153,14 @@ export function locationsWithoutRequestNote(count: number): string {
   return `${formatCount(count)} obyekt üzrə sifariş qeydə alınmayıb`
 }
 
-/**
- * How much of an object's own comparison window it actually has.
- *
- * A property of the objects that are being compared, never a group of its own: an object averaged over two of
- * the three months the basis asked for is compared, and is compared against the months it has.
- */
-export function partialHistoryCoverageNote(count: number): string {
-  return `${formatCount(count)} obyektin müqayisə dövrü natamamdır — ortalama yalnız mövcud aylar üzrədir`
-}
-
 /** Products bought in one of the two months and supplied from the company's own store in the other. */
 export function supplyChangedNote(count: number): string {
   return `${formatCount(count)} məhsulun təchizat forması dəyişib (alınan / şirkətdaxili)`
 }
 
 export const noComparisonNote = 'Əvvəlki ay üçün məlumat yoxdur'
-export const partialHistoryNote = 'Tarixçə natamamdır'
+/** An object averaged over fewer months than the basis asked for — the same words as the chip above. */
+export const partialHistoryNote = limitedComparisonDataLabel
 export const noCurrentRequestNote = 'Bu ay sifariş yoxdur'
-export const incompleteExplanationNote = 'Məbləğin bir hissəsi izah edilə bilmir — qiymət yoxdur'
 export const noComparisonCause = 'Müqayisə üçün əvvəlki ay yoxdur'
 export const detailsLabel = 'Detallara bax'

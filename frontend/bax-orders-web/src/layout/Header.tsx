@@ -27,20 +27,25 @@ export function Header({ onMenuClick }: HeaderProps) {
   )
 }
 
-function ApiStatus() {
+/**
+ * Said only when the server cannot be reached. A badge that reads "working" on every page is one a reader learns
+ * to skip, and then skips on the day it says something else — so while checking and while healthy it says
+ * nothing at all.
+ */
+export function ApiStatus() {
   const health = useApiResource(fetchHealth)
 
-  const { dot, text } =
-    health.status === 'loading'
-      ? { dot: 'bg-slate-400', text: 'Yoxlanılır…' }
-      : health.status === 'success'
-        ? { dot: 'bg-emerald-500', text: 'Server işləyir' }
-        : { dot: 'bg-red-500', text: 'Server əlçatan deyil' }
+  if (health.status !== 'error') {
+    return null
+  }
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">
-      <span className={`size-2 rounded-full ${dot}`} aria-hidden="true" />
-      {text}
+    <span
+      className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600"
+      role="status"
+    >
+      <span className="size-2 rounded-full bg-red-500" aria-hidden="true" />
+      Server əlçatan deyil
     </span>
   )
 }

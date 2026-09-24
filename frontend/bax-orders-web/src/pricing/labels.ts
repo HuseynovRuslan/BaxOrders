@@ -13,7 +13,8 @@ import type { PricingMode } from '../api/orders'
  *   **Qiymət yoxdur** — a price is owed and absent, or nobody has said which. Amber. Somebody must act.
  *   **Daxili təminat** — the company supplies this itself, free. Neutral. Nothing is missing.
  *
- * Task 5 extends this module to the rest of the app's terminology; it is the shared home for it.
+ * This module stays the home of the price words. The app's other shared terms — "Yeni məhsullar", "Orta qiymət",
+ * "Məhsul tarixçəsi" and the rest of owner decision 5.1 — live in `src/terminology`.
  */
 
 /** The mirror of `BaxOrders.Domain.Orders.OrderLinePricingState`. */

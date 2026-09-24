@@ -7,6 +7,8 @@ import {
   type VariantTrendPoint,
 } from '../../api/analytics'
 import type { DecisionDriver } from '../../api/decisions'
+import { missingPriceCount } from '../../pricing/labels'
+import { productHistoryLabel } from '../../terminology/terms'
 import { formatNumber, formatOrderUnit } from '../imports/labels'
 import { Modal } from '../imports/review/Modal'
 import { InfoHint } from './InfoHint'
@@ -66,7 +68,7 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
       .then(setTrend)
       .catch((problem: unknown) => {
         if (!controller.signal.aborted) {
-          setError(problem instanceof Error ? problem.message : 'Trend yüklənmədi')
+          setError(problem instanceof Error ? problem.message : `${productHistoryLabel} yüklənmədi`)
         }
       })
     return () => controller.abort()
@@ -86,10 +88,10 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
 
   const metrics: TrendMetric[] = isService ? ['amount', 'price'] : ['quantity', 'amount', 'price']
   const gaps = slots.filter((slot) => slot.point === null).length
-  const unit = formatOrderUnit(variant.orderUnitCode)
+  const unit = formatOrderUnit(variant.orderUnitCode, variant.orderUnitName)
 
   return (
-    <Modal title="Trend" subtitle={`${variant.productName} · ${formatVariantLine(variant)}`} onClose={onClose} width="wide">
+    <Modal title={productHistoryLabel} subtitle={`${variant.productName} · ${formatVariantLine(variant)}`} onClose={onClose} width="wide">
       {trend === null && error === null && <p className="py-8 text-center text-sm text-slate-500">Yüklənir…</p>}
 
       {error !== null && (
@@ -113,7 +115,7 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
               {formatNumber(trend.points.length)} dövr
             </p>
 
-            <div className="flex items-center gap-1" role="group" aria-label="Trend göstəricisi">
+            <div className="flex items-center gap-1" role="group" aria-label="Göstərici">
               {metrics.map((option) => (
                 <button
                   key={option}
@@ -240,7 +242,7 @@ function PriceCell({ point }: { point: VariantTrendPoint }) {
   }
 
   if (point.missingRequiredPriceItemCount > 0) {
-    return <span className="text-amber-800">{formatNumber(point.missingRequiredPriceItemCount)} sətir qiymətsiz</span>
+    return <span className="text-amber-800">{missingPriceCount(point.missingRequiredPriceItemCount)}</span>
   }
 
   return <span className="text-slate-400">{unknownValue}</span>

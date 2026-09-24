@@ -162,7 +162,7 @@ function Change({ driver }: { driver: DecisionDriver }) {
     notes.push(supplyChangedDriverNote)
   }
 
-  const unit = formatOrderUnit(driver.variant.orderUnitCode)
+  const unit = formatOrderUnit(driver.variant.orderUnitCode, driver.variant.orderUnitName)
   const quantity = driver.currentQuantity !== null && driver.baselineQuantity !== null
     ? `${formatQuantity(driver.baselineQuantity)} → ${formatQuantity(driver.currentQuantity)}${unit ? ` ${unit}` : ''}`
     : null

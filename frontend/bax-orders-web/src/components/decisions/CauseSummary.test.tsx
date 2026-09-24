@@ -38,15 +38,34 @@ describe('the causes', () => {
   it('names each one with the money it moved', () => {
     render(<CauseSummary decomposition={decomposition()} />)
 
-    expect(screen.getByText('Yeni sifarişlər')).toBeInTheDocument()
+    expect(screen.getByText('Yeni məhsullar')).toBeInTheDocument()
     expect(screen.getByText('+50,00 ₼')).toBeInTheDocument()
     // Named as effects on money: the manat figure beside "Miqdar" is not a quantity.
     expect(screen.getByText('Miqdar təsiri')).toBeInTheDocument()
     expect(screen.getByText('+120,00 ₼')).toBeInTheDocument()
     expect(screen.getByText('Qiymət təsiri')).toBeInTheDocument()
     expect(screen.getByText('+39,00 ₼')).toBeInTheDocument()
-    expect(screen.getByText('Artıq sifariş olunmayanlar')).toBeInTheDocument()
+    expect(screen.getByText('Bu ay yazılmayan məhsullar')).toBeInTheDocument()
     expect(screen.getByText('−20,00 ₼')).toBeInTheDocument()
+  })
+
+  /** Owner decision 5.1: a row of the comparison is a "məhsul", never a "mövqe". */
+  it('counts products as products', () => {
+    render(<CauseSummary decomposition={decomposition()} />)
+
+    expect(screen.getByText('2 məhsul')).toBeInTheDocument()
+    expect(screen.getAllByText('1 məhsul')).toHaveLength(3)
+    expect(screen.queryByText(/mövqe/)).toBeNull()
+  })
+
+  it('calls the unexplained part by the same words as the line it comes from', () => {
+    render(<CauseSummary decomposition={decomposition({
+      categories: [cause('QuantityChange', 120, 2), cause('UnattributedDueToMissingPrice', 30, 1)],
+      explanationIsComplete: false,
+    })} />)
+
+    expect(screen.getByText('Qiymət yoxdur')).toBeInTheDocument()
+    expect(screen.queryByText('Qiyməti olmayanlar')).toBeNull()
   })
 
   it('shows the total the causes add up to', () => {
@@ -80,8 +99,9 @@ describe('an explanation that cannot be complete', () => {
       unattributedVariantCount: 2,
     })} />)
 
+    // The one sentence the dashboard cards and rows say too (5.3), defined once in src/terminology.
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir.',
+      'Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.',
     )
   })
 

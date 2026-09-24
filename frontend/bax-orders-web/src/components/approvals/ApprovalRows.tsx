@@ -3,11 +3,10 @@ import { Link } from 'react-router'
 import type { ApprovalInboxRow } from '../../api/approvals'
 import { ApiError } from '../../api/client'
 import { approveOrder, fetchWorkflow, returnForCorrection, type OrderWorkflow } from '../../api/workflow'
-import { formatCount, formatMonth, formatMoney } from '../analytics/format'
+import { formatMonth, formatMoney } from '../analytics/format'
 import { WorkflowDialog, type WorkflowDialogKind } from '../workflow/WorkflowDialog'
 import { approveLabel, formatWorkflowMoment, missingAuthorityNote, returnLabel, workflowErrors } from '../workflow/labels'
 import {
-  knownAmountRowLabel,
   missingPriceRowNote,
   originalLabel,
   ownContributionBlockedRowNote,
@@ -176,12 +175,14 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
   )
 }
 
+/**
+ * The money, and — only when it is not the whole of it — how many lines it leaves out. That line already says
+ * the amount is incomplete, so nothing above it repeats the fact under another name.
+ */
 function Amount({ row }: { row: ApprovalInboxRow }) {
   return (
     <>
       <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(row.knownAmount)}</p>
-      <p className="text-xs text-slate-500">{formatCount(row.itemCount)} sətir</p>
-      {!row.amountIsComplete && <p className="text-xs text-amber-800">{knownAmountRowLabel}</p>}
       {row.missingPriceItemCount > 0 && (
         <p className="text-xs font-medium text-amber-800">{missingPriceRowNote(row.missingPriceItemCount)}</p>
       )}

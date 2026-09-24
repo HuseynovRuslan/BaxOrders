@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import type { LocationOrderHistoryEntry } from '../../api/orders'
+import { missingPriceCount } from '../../pricing/labels'
 import { formatMoney, formatMoneyDelta, formatMonth, formatPercent, toMonthKey, unknownValue } from '../analytics/format'
 import { monthsBetween } from '../analytics/trend'
 import { StatusBadge } from '../StatusBadge'
@@ -67,9 +68,7 @@ export function LocationTrend({ entries }: LocationTrendProps) {
               <span className="text-slate-500">Keçən ay üçün müqayisə məlumatı yoxdur.</span>
             )}
             {latest.missingPriceItemCount > 0 && (
-              <span className="text-amber-800">
-                {latest.missingPriceItemCount} məhsulun qiyməti yoxdur
-              </span>
+              <span className="text-amber-800">{missingPriceCount(latest.missingPriceItemCount)}</span>
             )}
           </p>
         </div>

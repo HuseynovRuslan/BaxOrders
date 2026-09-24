@@ -182,6 +182,48 @@ describe('a material row', () => {
 
     expect(screen.getAllByText(/Qiymət qismən məlumdur/).length).toBeGreaterThan(0)
   })
+
+  /** One product's row says the state in the singular; the filter and the counts use the 5.1 plural. */
+  it('badges a product not ordered this month in the approved words', () => {
+    const { container } = render(
+      <MaterialRows rows={[comparison({ state: 'NoLongerOrdered' })]} summary={summary()} onTrend={() => {}} />,
+    )
+
+    const table = container.querySelector('table')!
+    expect(within(table).getByText('Bu ay yazılmayıb')).toBeInTheDocument()
+    expect(within(table).queryByText(/Artıq sifariş olunmur/)).toBeNull()
+  })
+
+  it('calls the weighted price the average price, to the qəpik', () => {
+    const { container } = render(
+      <MaterialRows
+        rows={[comparison({ current: side({ weightedUnitPrice: 32.1273 }) })]}
+        summary={summary()}
+        onTrend={() => {}}
+      />,
+    )
+
+    const table = container.querySelector('table')!
+    expect(within(table).getByText(/Orta qiymət: 32,13 ₼/)).toBeInTheDocument()
+    expect(within(table).queryByText(/Çəkili/)).toBeNull()
+  })
+
+  it('writes the units under the name as words', () => {
+    const { container } = render(<MaterialRows rows={[comparison()]} summary={summary()} onTrend={() => {}} />)
+
+    const table = container.querySelector('table')!
+    expect(within(table).getByText('50 sm · ədəd')).toBeInTheDocument()
+  })
+
+  /** Owner decision 5.1: "Trend" is "Məhsul tarixçəsi" — on the button, in its name, and in the column. */
+  it('opens the product history by that name', () => {
+    const { container } = render(<MaterialRows rows={[comparison()]} summary={summary()} onTrend={() => {}} />)
+
+    const table = container.querySelector('table')!
+    expect(within(table).getByRole('button', { name: 'Mop — məhsul tarixçəsinə bax' }))
+      .toHaveTextContent('Məhsul tarixçəsi')
+    expect(within(table).queryByText(/Trend/)).toBeNull()
+  })
 })
 
 describe('a service row', () => {
@@ -218,7 +260,9 @@ describe('a service row', () => {
     const table = container.querySelector('table')!
 
     expect(within(table).queryByText('Cari')).toBeNull()
-    expect(within(table).getByText(/Cari məlum məbləğ/)).toBeInTheDocument()
+    // "Məlum" is gone from the heading (5.1); the price coverage column beside it says what is missing.
+    expect(within(table).getByText(/Cari məbləğ/)).toBeInTheDocument()
+    expect(within(table).queryByText(/məlum məbləğ/)).toBeNull()
   })
 
   it('is compared by money', () => {

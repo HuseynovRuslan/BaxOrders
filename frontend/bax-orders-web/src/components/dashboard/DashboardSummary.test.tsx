@@ -330,7 +330,9 @@ describe('data coverage', () => {
     renderSummary(september({ locationsWithPartialHistory: 3, locationsWithMissingPrices: 10 }))
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
-    expect(within(coverage).getByText('Tarixçə natamam').closest('div')).toHaveTextContent('3')
+    // Owner decision 5.1: "Tarixçə natamam" is "Müqayisə üçün data azdır".
+    expect(within(coverage).getByText('Müqayisə üçün data azdır').closest('div')).toHaveTextContent('3')
+    expect(within(coverage).queryByText(/Tarixçə natamam/)).toBeNull()
     expect(within(coverage).getByText('Qiymət yoxdur · 10 obyekt')).toBeInTheDocument()
     expect(within(coverage).getByText('= 27 obyekt')).toBeInTheDocument()
   })

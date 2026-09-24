@@ -115,7 +115,8 @@ describe('the queue', () => {
     expect(table.getByText(/May:44/)).toBeInTheDocument()
     expect(table.getByText('Fəvvarələr meydanı')).toBeInTheDocument()
     expect(table.getByText('May 2026')).toBeInTheDocument()
-    expect(table.getByText(/12 PCS/)).toBeInTheDocument()
+    // The unit as a word (5.4): the formatter is shared with the manager's screens.
+    expect(table.getByText(/12 ədəd/)).toBeInTheDocument()
   })
 })
 

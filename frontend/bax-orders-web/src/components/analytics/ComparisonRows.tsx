@@ -15,11 +15,12 @@ import {
   formatVariantLine,
   internalSupplyLabel,
   stateBadgeClass,
-  stateLabels,
+  stateBadgeLabels,
   stateSign,
   unknownValue,
   weightedPriceLabel,
 } from './labels'
+import { productHistoryLabel } from '../../terminology/terms'
 
 interface RowsProps {
   rows: VariantComparison[]
@@ -68,7 +69,7 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
               <th scope="col" className="px-3 py-3 text-right">Fərq</th>
               <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
               <th scope="col" className="px-3 py-3">Status</th>
-              <th scope="col" className="px-3 py-3"><span className="sr-only">Trend</span></th>
+              <th scope="col" className="px-3 py-3"><span className="sr-only">{productHistoryLabel}</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -140,14 +141,14 @@ export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
             <tr>
               <th scope="col" className="px-4 py-3">Xidmət</th>
               <th scope="col" className="px-3 py-3 text-right">
-                Cari məlum məbləğ
+                Cari məbləğ
                 <span className="block font-normal text-slate-400">{formatAnalyticsPeriod(summary.currentPeriod)}</span>
               </th>
               <th scope="col" className="px-3 py-3 text-right"><BaselineHeading summary={summary} /></th>
               <th scope="col" className="px-3 py-3 text-right">Məbləğ fərqi</th>
               <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
               <th scope="col" className="px-3 py-3">Qiymət məlumatı</th>
-              <th scope="col" className="px-3 py-3"><span className="sr-only">Trend</span></th>
+              <th scope="col" className="px-3 py-3"><span className="sr-only">{productHistoryLabel}</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -240,7 +241,7 @@ function StateBadge({ row }: { row: VariantComparison }) {
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${stateBadgeClass[row.state]}`}
     >
       <span aria-hidden="true">{stateSign[row.state]}</span>
-      {stateLabels[row.state]}
+      {stateBadgeLabels[row.state]}
     </span>
   )
 }
@@ -250,11 +251,11 @@ function TrendButton({ row, onTrend }: { row: VariantComparison; onTrend: (row: 
     <button
       type="button"
       onClick={() => onTrend(row)}
-      aria-label={`${row.variant.productName} üzrə trendə bax`}
+      aria-label={`${row.variant.productName} — məhsul tarixçəsinə bax`}
       className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
     >
       <LineChart className="size-3.5" aria-hidden="true" />
-      Trend
+      {productHistoryLabel}
     </button>
   )
 }

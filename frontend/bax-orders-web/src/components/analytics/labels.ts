@@ -6,6 +6,8 @@ import type {
 } from '../../api/analytics'
 import { formatCount, formatMonth, formatMoney, formatQuantity, unknownValue } from './format'
 import { unitlessOrderUnitLabel } from '../imports/labels'
+import { newProductsLabel, notOrderedThisMonthLabel } from '../../terminology/terms'
+import { unitWord } from '../../terminology/units'
 
 // The shared formatting rules live in ./format and are re-exported here, so the analytics screens keep one
 // behaviour for a null percentage, for money and for a month.
@@ -35,14 +37,25 @@ export {
   weightedPriceLabel,
 } from './format'
 
+/** What a group of products is called — in the filter, the counts and the notice. */
 export const stateLabels: Record<ComparisonState, string> = {
-  New: 'Yeni',
-  NoLongerOrdered: 'Artıq sifariş olunmur',
+  New: newProductsLabel,
+  NoLongerOrdered: notOrderedThisMonthLabel,
   Increased: 'Artıb',
   Decreased: 'Azalıb',
   Unchanged: 'Dəyişməyib',
   NotComparable: 'Miqdar üzrə müqayisə edilmir',
   InsufficientHistory: 'Tarixçə kifayət deyil',
+}
+
+/**
+ * The same states on one product's row, where the plural of a list would read wrong: the row says "Yeni", the
+ * filter above it "Yeni məhsullar".
+ */
+export const stateBadgeLabels: Record<ComparisonState, string> = {
+  ...stateLabels,
+  New: 'Yeni',
+  NoLongerOrdered: 'Bu ay yazılmayıb',
 }
 
 /** The states a material row can carry; a service is always NotComparable and lives in its own section. */
@@ -118,15 +131,16 @@ export function formatAnalyticsPeriod(period: string): string {
 
 /**
  * The variant under its product name: "120 sm · ədəd", "28 diş · ədəd", "Vahidsiz". Technical values never
- * reach the screen — no variant key, no null, no empty code.
+ * reach the screen — no variant key, no null, no empty code, and no unit code where a unit word exists.
  */
 export function formatVariantLine(variant: VariantIdentity): string {
   const specification = variant.specificationValue?.trim()
-  const suffix = variant.specificationDescriptor?.trim() || variant.specificationUnitCode?.trim()
+  const suffix = variant.specificationDescriptor?.trim()
+    || unitWord(variant.specificationUnitCode, variant.specificationUnitName)
   const parts = [
     specification ? (suffix ? `${specification} ${suffix}` : specification) : null,
     variant.modelCode?.trim() || null,
-    variant.orderUnitCode?.trim() || unitlessOrderUnitLabel,
+    unitWord(variant.orderUnitCode, variant.orderUnitName) ?? unitlessOrderUnitLabel,
   ]
 
   return parts.filter((part): part is string => Boolean(part)).join(' · ')

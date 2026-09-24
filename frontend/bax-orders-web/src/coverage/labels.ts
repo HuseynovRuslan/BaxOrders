@@ -1,6 +1,7 @@
 import type { AnalyticsComparisonBasis } from '../api/analytics'
 import type { DashboardPartition, DashboardPartitionMember } from '../api/dashboard'
 import { formatCount, formatMoney, formatMonth } from '../components/analytics/format'
+import { limitedComparisonDataLabel } from '../terminology/terms'
 
 /**
  * What the app calls each of the four situations an object can be in, and how it explains them.
@@ -190,7 +191,7 @@ export function missingPriceChipLabel(count: number): string {
 }
 
 /** An object averaged over fewer months than the basis asked for. A property of a compared object. */
-export const partialHistoryChipLabel = 'Tarixçə natamam'
+export const partialHistoryChipLabel = limitedComparisonDataLabel
 
 /** "= 27 obyekt" — the line that closes the chips, so the reader can see them add up. */
 export function coverageTotalNote(count: number): string {

@@ -387,7 +387,9 @@ describe('the first screenful', () => {
     await renderPage()
 
     expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
-    expect(within(headline()).getByText(/40 sətir/)).toBeInTheDocument()
+    // The line count left this line (5.3): beside "2 sətirdə qiymət yoxdur" it said "sətir" twice, and with
+    // every line priced it was the only thing on it.
+    expect(within(headline()).queryByText(/40 sətir/)).toBeNull()
   })
 
   it('puts the comparison with last month directly under it', async () => {
@@ -416,7 +418,8 @@ describe('the first screenful', () => {
     await renderPage()
 
     const picker = within(within(headline()).getByRole('group', { name: 'Müqayisə' }))
-    for (const label of ['Keçən ay', 'Son 3 ayın ortalaması', 'Son 6 ayın ortalaması', 'Bütün dövr', 'Xüsusi seçim']) {
+    // The whole-period button carries the same words as the sentence it produces (5.3).
+    for (const label of ['Keçən ay', 'Son 3 ayın ortalaması', 'Son 6 ayın ortalaması', 'Bütün dövrün ortalaması', 'Xüsusi seçim']) {
       expect(picker.getByRole('button', { name: label })).toBeInTheDocument()
     }
   })
@@ -448,7 +451,7 @@ describe('a month with nothing before it', () => {
     // About the window the reader chose, not about "last month": they may have chosen any window.
     expect(within(headline()).getByText('Seçilmiş dövrdə müqayisə üçün sifariş yoxdur')).toBeInTheDocument()
     expect(screen.queryByText('Niyə dəyişib?')).toBeNull()
-    expect(screen.queryByText('Yeni sifarişlər')).toBeNull()
+    expect(screen.queryByText('Yeni məhsullar')).toBeNull()
   })
 })
 
@@ -467,6 +470,8 @@ describe('an order whose prices are not all known', () => {
     await renderPage()
 
     expect(within(headline()).getByText(/2 sətirdə qiymət yoxdur/)).toBeInTheDocument()
+    // Task 2's sentence alone, not "40 sətir · 2 sətirdə qiymət yoxdur".
+    expect(headline()).not.toHaveTextContent(/40 sətir/)
   })
 })
 

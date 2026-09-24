@@ -199,7 +199,7 @@ describe('the columns a manager reads', () => {
     // Answers to a question nobody asks of a list of twenty-six objects.
     expect(table().queryByText('Yeni')).toBeNull()
     expect(table().queryByText('Artıb')).toBeNull()
-    expect(table().queryByText('Artıq sifariş olunmur')).toBeNull()
+    expect(table().queryByText('Bu ay yazılmayan məhsullar')).toBeNull()
   })
 })
 
@@ -207,8 +207,16 @@ describe('the main reason', () => {
   it('is the cause that moved the most money, with its direction in the words', () => {
     renderRows([row()])
 
-    expect(table().getByText(/Yeni sifarişlər/)).toBeInTheDocument()
+    expect(table().getByText(/Yeni məhsullar/)).toBeInTheDocument()
     expect(table().getByText('+150,00 ₼')).toBeInTheDocument()
+  })
+
+  /** One name for one gap: the line, the order page and the dashboard all say Task 2's "Qiymət yoxdur". */
+  it('names the money a missing price leaves unexplained in the words the line uses', () => {
+    renderRows([row({ primaryCause: 'UnattributedDueToMissingPrice', primaryCauseAmount: 90 })])
+
+    expect(table().getByText(/Qiymət yoxdur/)).toBeInTheDocument()
+    expect(table().queryByText(/Qiymət məlumatı çatışmır/)).toBeNull()
   })
 
   it('says a price rose when that is what happened', () => {
@@ -247,7 +255,7 @@ describe('the data-state column', () => {
     // Silence is the point: a badge on every healthy row is one nobody reads.
     expect(table().queryByText('Tam tarixçə')).toBeNull()
     expect(table().queryByText(/1\/1 ay/)).toBeNull()
-    expect(table().queryByText('Tarixçə natamamdır')).toBeNull()
+    expect(table().queryByText('Müqayisə üçün data azdır')).toBeNull()
   })
 
   it('says the previous month is missing when it is', () => {
@@ -269,7 +277,8 @@ describe('the data-state column', () => {
       'Previous3MonthAverage',
     )
 
-    expect(table().getByText('Tarixçə natamamdır')).toBeInTheDocument()
+    // Owner decision 5.1, and the same words as the chip above the table.
+    expect(table().getByText('Müqayisə üçün data azdır')).toBeInTheDocument()
   })
 
   it('says an object did not order rather than showing it as a zero', () => {
@@ -290,7 +299,9 @@ describe('the data-state column', () => {
   it('says when part of the money cannot be explained', () => {
     renderRows([row({ explanationIsComplete: false, unattributedAmount: 120 })])
 
-    expect(table().getByText(/Məbləğin bir hissəsi izah edilə bilmir/)).toBeInTheDocument()
+    // The one sentence the cards and the order page say too.
+    expect(table().getByText('Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.'))
+      .toBeInTheDocument()
   })
 })
 
@@ -305,7 +316,7 @@ describe('the unpriced lines', () => {
     renderRows([row({ current: amount({ priceNotRequiredItemCount: 4 }) })])
 
     // Internal supply is not a shortfall, so it raises nothing here.
-    expect(table().queryByText(/qiymətsiz sətir/)).toBeNull()
+    expect(table().queryByText(/qiymət yoxdur/i)).toBeNull()
   })
 })
 
@@ -343,7 +354,7 @@ describe('a phone', () => {
 
     expect(within(cards).getByText('Fəvvarələr meydanı')).toBeInTheDocument()
     expect(within(cards).getByText('1.000,00 ₼')).toBeInTheDocument()
-    expect(within(cards).getByText(/Yeni sifarişlər/)).toBeInTheDocument()
+    expect(within(cards).getByText(/Yeni məhsullar/)).toBeInTheDocument()
     expect(within(cards).getByRole('link', { name: /Detallara bax/ })).toBeInTheDocument()
   })
 })

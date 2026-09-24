@@ -1,5 +1,8 @@
 import type { ImportStatus, IssueSeverity, IssueType, RowStatus } from '../../api/imports'
 import type { BulkItemStatus, ResolutionKind, UnitType, UnresolvedStatus } from '../../api/review'
+import { pricedLinesTotalLabel } from '../../terminology/terms'
+import { unitWord } from '../../terminology/units'
+import { manatSuffix } from '../analytics/format'
 
 export const importStatusLabels: Record<ImportStatus, string> = {
   Uploaded: 'Yükləndi',
@@ -184,13 +187,13 @@ export const noPriceLabel = 'Qiymət yoxdur'
 export const unknownSupplierLabel = 'Məlum deyil'
 
 /** Money the system can actually account for, as opposed to a complete total. */
-export const knownAmountLabel = 'Məlum qiymətlər üzrə'
+export const knownAmountLabel = pricedLinesTotalLabel
 
 const currencyFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** Formats a decimal the backend already calculated. Nothing is added up in the browser. */
 export function formatAmount(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : `${currencyFormat.format(value)} ₼`
+  return value === null || value === undefined ? '—' : `${currencyFormat.format(value)}${manatSuffix}`
 }
 
 /** Quantities keep their own precision; they are counts, not money. */
@@ -211,11 +214,12 @@ export function formatItemSpecification(item: {
   const value = item.specificationValue?.trim()
   if (!value) return null
 
-  const suffix = item.specificationDescriptor?.trim() || item.specificationUnitCode?.trim()
+  const suffix = item.specificationDescriptor?.trim()
+    || unitWord(item.specificationUnitCode, item.specificationUnitName)
   return suffix ? `${value} ${suffix}` : value
 }
 
-/** The order unit of a line, or the word for a line that legitimately has none. */
-export function formatOrderUnit(orderUnitCode: string | null): string {
-  return orderUnitCode?.trim() || unitlessOrderUnitLabel
+/** The order unit of a line in words ("ədəd", "kisə"), or the word for a line that legitimately has none. */
+export function formatOrderUnit(orderUnitCode: string | null, orderUnitName?: string | null): string {
+  return unitWord(orderUnitCode, orderUnitName) ?? unitlessOrderUnitLabel
 }

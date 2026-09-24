@@ -6,7 +6,6 @@ import {
   basisHints,
   describeBasis,
   describeBasisWithRange,
-  formatCount,
   formatMoney,
   formatMoneyDelta,
   formatMonth,
@@ -20,6 +19,7 @@ import {
   missingPriceCount,
   warningToneClass,
 } from '../../pricing/labels'
+import { limitedComparisonDataLabel } from '../../terminology/terms'
 import { averagingHint, emptyWindowNote, coverageHint } from './labels'
 
 interface DecisionHeadlineProps {
@@ -52,24 +52,24 @@ export function DecisionHeadline({ context, selection, onSelect, priorMonths }: 
         {formatMoney(current.knownAmount)}
       </p>
 
-      <p className="mt-1 text-xs text-slate-500">
-        {formatCount(current.itemCount)} sətir
-        {/* Only prices somebody owes are a shortfall. */}
-        {current.missingPriceItemCount > 0 && (
-          <span className={warningToneClass}>
-            {' · '}
-            {missingPriceCount(current.missingPriceItemCount)}
-          </span>
-        )}
-        {/* Material from our own store has no purchase price and never had one: context, not a problem,
-            and never amber. */}
-        {current.priceNotRequiredItemCount > 0 && (
-          <span className={internalToneClass}>
-            {' · '}
-            {internalSupplyCount(current.priceNotRequiredItemCount)}
-          </span>
-        )}
-      </p>
+      {/*
+        Only what the lines say about the money. The line count used to lead this line, which made it read
+        "40 sətir · 2 sətirdə qiymət yoxdur" — "sətir" twice for two different things.
+      */}
+      {(current.missingPriceItemCount > 0 || current.priceNotRequiredItemCount > 0) && (
+        <p className="mt-1 text-xs text-slate-500">
+          {/* Only prices somebody owes are a shortfall. */}
+          {current.missingPriceItemCount > 0 && (
+            <span className={warningToneClass}>{missingPriceCount(current.missingPriceItemCount)}</span>
+          )}
+          {current.missingPriceItemCount > 0 && current.priceNotRequiredItemCount > 0 && ' · '}
+          {/* Material from our own store has no purchase price and never had one: context, not a problem,
+              and never amber. */}
+          {current.priceNotRequiredItemCount > 0 && (
+            <span className={internalToneClass}>{internalSupplyCount(current.priceNotRequiredItemCount)}</span>
+          )}
+        </p>
+      )}
 
       <div className="mt-4 border-t border-slate-100 pt-3">
         <BasisPicker
@@ -133,7 +133,7 @@ function Coverage({ comparison }: { comparison: DecisionComparison }) {
       <span>
         ({comparison.availablePeriodCount}/{comparison.expectedPeriodCount} ay)
       </span>
-      <InfoHint label="Natamam tarixçə nə deməkdir?">{coverageHint}</InfoHint>
+      <InfoHint label={`${limitedComparisonDataLabel} — bu nə deməkdir?`}>{coverageHint}</InfoHint>
     </p>
   )
 }

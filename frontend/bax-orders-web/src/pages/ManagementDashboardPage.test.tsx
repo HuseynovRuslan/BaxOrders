@@ -159,14 +159,16 @@ describe('the comparison choices', () => {
     await renderPage()
 
     const group = within(screen.getByRole('group', { name: 'Müqayisə' }))
-    for (const label of ['Keçən ay', 'Son 3 ayın ortalaması', 'Son 6 ayın ortalaması', 'Bütün dövr', 'Xüsusi seçim']) {
+    // The whole-period button carries the same words as the sentence it produces (5.3).
+    for (const label of ['Keçən ay', 'Son 3 ayın ortalaması', 'Son 6 ayın ortalaması', 'Bütün dövrün ortalaması', 'Xüsusi seçim']) {
       expect(group.getByRole('button', { name: label })).toBeInTheDocument()
     }
+    expect(group.queryByRole('button', { name: 'Bütün dövr' })).toBeNull()
   })
 
   it('asks for the whole period by name', async () => {
     await renderPage()
-    await userEvent.click(screen.getByRole('button', { name: 'Bütün dövr' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Bütün dövrün ortalaması' }))
 
     await waitFor(() => expect(dashboardApi.fetchDashboard).toHaveBeenLastCalledWith(
       '2026-09',

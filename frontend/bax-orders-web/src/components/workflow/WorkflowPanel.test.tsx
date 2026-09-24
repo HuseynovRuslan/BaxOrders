@@ -240,14 +240,19 @@ describe('the facts behind the decision', () => {
     expect(within(panel).getByText('Zibil paketi sayı çoxdur')).toBeInTheDocument()
   })
 
-  it('keeps the amount line as it was, without the moments that are now facts', async () => {
+  /**
+   * Task 04a left this line to Task 5, which removed it (5.2.2): the page headline shows the same amount right
+   * beside the panel, so saying it twice — once as "Məlum qiymətlər üzrə məbləğ" — only added a second name.
+   */
+  it('leaves the amount to the headline beside it, and keeps the moments that are now facts out', async () => {
     const panel = await renderPanel(workflow({
       status: 'Approved',
       submittedAtUtc: '2026-09-10T08:00:00Z',
       approvedAtUtc: '2026-09-11T09:30:00Z',
     }))
 
-    expect(within(panel).getByText(/Məbləğ: 12\.317,61 ₼ · 95 sətir/)).toBeInTheDocument()
+    expect(within(panel).queryByText(/12\.317,61/)).toBeNull()
+    expect(within(panel).queryByText(/Məlum qiymətlər üzrə/)).toBeNull()
     expect(within(panel).queryByText(/Təqdim: /)).toBeNull()
     expect(within(panel).queryByText(/Təsdiq: /)).toBeNull()
   })
@@ -457,7 +462,7 @@ describe('an order whose money is partly unknown', () => {
   it('says so on the panel', async () => {
     await renderPanel(unpriced)
     expect(screen.getByText('3 sətirdə qiymət yoxdur. Məbləğ tam deyil.')).toBeInTheDocument()
-    expect(screen.getByText(/Məlum qiymətlər üzrə məbləğ/)).toBeInTheDocument()
+    expect(screen.queryByText(/Məlum qiymətlər üzrə/)).toBeNull()
   })
 
   it('will not approve until the approver says they know', async () => {
@@ -467,7 +472,7 @@ describe('an order whose money is partly unknown', () => {
     await user.click(screen.getByRole('button', { name: 'Təsdiqlə' }))
 
     const confirm = screen.getAllByRole('button', { name: 'Təsdiqlə' }).at(-1)!
-    expect(screen.getByText(/3 qiymətsiz sətir var/)).toBeInTheDocument()
+    expect(screen.getByText('3 sətirdə qiymət yoxdur. Təsdiq edilən məbləğ tam deyil.')).toBeInTheDocument()
     expect(confirm).toBeDisabled()
 
     await user.click(screen.getByRole('checkbox'))
@@ -528,7 +533,9 @@ describe('the history', () => {
     expect(entries).toHaveLength(2)
     expect(entries[0]).toHaveTextContent('Təsdiqə göndərildi')
     expect(entries[0]).toHaveTextContent('Test Koordinator')
-    expect(entries[1]).toHaveTextContent('Düzəlişə qaytarıldı')
+    // The past of the action "Düzəliş tələb et" and of the status "Düzəliş tələb olunur".
+    expect(entries[1]).toHaveTextContent('Düzəliş tələb olundu')
+    expect(entries[1]).not.toHaveTextContent('Düzəlişə qaytarıldı')
     expect(entries[1]).toHaveTextContent('Test Rəhbər')
     expect(entries[1]).toHaveTextContent('Səbəb: Zibil paketi sayı çoxdur')
   })
@@ -591,7 +598,7 @@ describe('the history', () => {
       }],
     }))
 
-    expect(screen.getByText(/3 qiymətsiz sətir təsdiq zamanı qeyd edilib/)).toBeInTheDocument()
+    expect(screen.getByText('Təsdiq zamanı qeyd edilib: 3 sətirdə qiymət yoxdur.')).toBeInTheDocument()
   })
 })
 

@@ -19,9 +19,9 @@ import {
   noOrderRowStatus,
   portfolioGroupLabels,
 } from '../../coverage/labels'
+import { incompleteExplanationNote } from '../../terminology/terms'
 import {
   causeHeadline,
-  incompleteExplanationNote,
   noComparisonCause,
   partialHistoryNote,
 } from './labels'

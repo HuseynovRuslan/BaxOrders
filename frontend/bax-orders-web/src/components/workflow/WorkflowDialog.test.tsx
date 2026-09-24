@@ -107,6 +107,19 @@ describe('what is being decided', () => {
     }
   })
 
+  /** Owner decision 5.1: an amount that leaves out unpriced lines is named as exactly that. */
+  it('heads an incomplete amount as the total of the priced lines', () => {
+    const { dialog } = renderDialog('approve', workflow({
+      missingPriceItemCount: 3,
+      amountIsComplete: false,
+      requiresMissingPriceAcknowledgement: true,
+    }))
+
+    expect(within(dialog).getByText('Qiyməti olan sətirlərin cəmi')).toBeInTheDocument()
+    expect(within(dialog).queryByText(/Məlum qiymətlər üzrə/)).toBeNull()
+    expect(within(dialog).getByText('3 sətirdə qiymət yoxdur. Təsdiq edilən məbləğ tam deyil.')).toBeInTheDocument()
+  })
+
   it('shows no count for an order that is only now being sent', () => {
     const { dialog } = renderDialog('submit', workflow({
       status: 'Draft',

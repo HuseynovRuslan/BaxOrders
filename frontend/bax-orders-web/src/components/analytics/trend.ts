@@ -1,4 +1,5 @@
 import type { VariantOrderFrequency, VariantTrendPoint } from '../../api/analytics'
+import { locativeSuffix } from '../../terminology/terms'
 import { formatNumber } from '../imports/labels'
 import { formatAnalyticsAmount, formatPrice, unknownValue } from './labels'
 
@@ -48,7 +49,7 @@ export function formatTrendValue(value: number | null, metric: TrendMetric): str
  * than being skipped over as if the two months either side were neighbours.
  */
 /**
- * "Son 9 mövcud aydan 6-da sifariş edilib" — what the counts below the sentence are counted out of.
+ * "Son 9 ayın 6-da sifariş edilib" — what the counts below the sentence are counted out of.
  *
  * Only months the object has a request for are in the denominator. A month with no request is not a month the
  * product was skipped; nobody recorded anything about it, so it is in neither number.
@@ -59,11 +60,11 @@ export function frequencySentence(frequency: VariantOrderFrequency): string {
   }
 
   if (frequency.orderedMonthCount === 0) {
-    return `Son ${formatNumber(frequency.availableMonthCount)} mövcud ayın heç birində sifariş edilməyib`
+    return `Son ${formatNumber(frequency.availableMonthCount)} ayın heç birində sifariş edilməyib`
   }
 
-  return `Son ${formatNumber(frequency.availableMonthCount)} mövcud aydan `
-    + `${formatNumber(frequency.orderedMonthCount)}-də sifariş edilib`
+  return `Son ${formatNumber(frequency.availableMonthCount)} ayın `
+    + `${formatNumber(frequency.orderedMonthCount)}-${locativeSuffix(frequency.orderedMonthCount)} sifariş edilib`
 }
 
 export function monthsBetween(from: string, to: string): string[] {

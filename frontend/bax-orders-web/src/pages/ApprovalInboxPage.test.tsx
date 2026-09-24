@@ -65,8 +65,10 @@ describe('the summary', () => {
     expect(metricValue('Gözləyən sifarişlər')).toBe('6')
     expect(screen.getByText('4 qərar verə bilərəm')).toBeInTheDocument()
     expect(metricValue('Mənim üçün bloklanıb')).toBe('2')
-    expect(metricValue('Qiymətsiz sifarişlər')).toBe('1')
-    expect(screen.getByText('3 qiymətsiz sətir')).toBeInTheDocument()
+    // Task 2's words for a missing price, not the old "qiymətsiz" (5.3).
+    expect(metricValue('Qiyməti olmayan sətiri olan sifarişlər')).toBe('1')
+    expect(screen.getByText('3 sətirdə qiymət yoxdur')).toBeInTheDocument()
+    expect(screen.queryByText(/qiymətsiz/i)).toBeNull()
   })
 })
 

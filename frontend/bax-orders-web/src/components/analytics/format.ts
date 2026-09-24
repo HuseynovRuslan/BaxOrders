@@ -1,4 +1,5 @@
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
+import { allPriorMonthsLabel, averagePriceLabel, pricedLinesTotalLabel } from '../../terminology/terms'
 
 /**
  * The formatting rules the analytics screens share. They are business rules as much as presentation ones —
@@ -9,14 +10,24 @@ import type { AnalyticsComparisonBasis } from '../../api/analytics'
 /** A value the backend did not give. Never `0`, never `∞`, never `NaN`. */
 export const unknownValue = '—'
 
-/** Money the system can account for, as opposed to money that was spent. */
-export const knownAmountLabel = 'Məlum qiymətlər üzrə'
+/** U+00A0. Written by its code point, because the character itself cannot be told from a space on screen. */
+export const noBreakSpace = String.fromCharCode(0xa0)
 
-/** A weighted price is not the last purchase price, and is named accordingly. */
-export const weightedPriceLabel = 'Çəkili orta qiymət'
+/**
+ * What comes between an amount and ₼: a no-break space. An ordinary one is a place a line may break, which is
+ * how "99,00" and "₼" ended up on two lines of a narrow table cell at 1366 px and on a phone.
+ */
+export const manatSuffix = `${noBreakSpace}₼`
+
+/** Money the system can account for, as opposed to money that was spent. */
+export const knownAmountLabel = pricedLinesTotalLabel
+
+/** A weighted price is not the last purchase price; the hint beside it says how it is weighted. */
+export const weightedPriceLabel = averagePriceLabel
 
 export const weightedPriceHint =
-  'Çəkili orta qiymət miqdar nəzərə alınaraq hesablanır: 1 ədəd 10 ₼-dan və 9 ədəd 20 ₼-dan alınıbsa, çəkili orta qiymət 19 ₼-dır, 15 ₼ deyil.'
+  `Orta qiymət miqdar nəzərə alınaraq hesablanır: 1 ədəd 10${manatSuffix}-dan və 9 ədəd 20${manatSuffix}-dan `
+  + `alınıbsa, orta qiymət 19${manatSuffix}-dır, 15${manatSuffix} deyil.`
 
 export const knownAmountHint = 'Qiyməti olmayan sətirlər bu məbləğə daxil deyil.'
 
@@ -27,7 +38,7 @@ export const basisLabels: Record<AnalyticsComparisonBasis, string> = {
   PreviousMonth: 'Keçən ay',
   Previous3MonthAverage: 'Son 3 ayın ortalaması',
   Previous6MonthAverage: 'Son 6 ayın ortalaması',
-  AllPriorMonths: 'Bütün dövr',
+  AllPriorMonths: allPriorMonthsLabel,
   CustomRange: 'Xüsusi seçim',
 }
 
@@ -61,15 +72,11 @@ export function basisNeedsRange(basis: AnalyticsComparisonBasis): boolean {
 /**
  * What the comparison is actually against, in words, for the column heading and the summary line.
  *
- * The fixed bases name themselves. The other two cannot: "Bütün dövr" is however many months the company
- * turns out to have, and a hand-picked range is whatever was picked — so both are named from the months the
- * backend resolved, and a range of one month is named as that month rather than as an average of it.
+ * The fixed bases name themselves, and so does "Bütün dövrün ortalaması" — the button and the sentence it
+ * produces say the same words. A hand-picked range cannot: it is whatever was picked, so it is named from the
+ * months the backend resolved, and a range of one month is named as that month rather than as an average of it.
  */
 export function describeBasis(basis: AnalyticsComparisonBasis, periods: readonly string[]): string {
-  if (basis === 'AllPriorMonths') {
-    return 'Bütün dövrün ortalaması'
-  }
-
   if (basis !== 'CustomRange') {
     return basisLabels[basis]
   }
@@ -217,7 +224,6 @@ export function toMonthKey(period: string): string {
 
 const numberFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 4 })
 const moneyFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const priceFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
 const percentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 2 })
 
 export function formatCount(value: number | null | undefined): string {
@@ -226,11 +232,15 @@ export function formatCount(value: number | null | undefined): string {
 
 /** Money in manat, or an em dash when there is none to show. */
 export function formatMoney(value: number | null | undefined): string {
-  return value === null || value === undefined ? unknownValue : `${moneyFormat.format(value)} ₼`
+  return value === null || value === undefined ? unknownValue : `${moneyFormat.format(value)}${manatSuffix}`
 }
 
+/**
+ * A unit price, to the qəpik: "32,13 ₼", never "32,1273 ₼". Rounded for display only — the value passed in,
+ * and everything the backend computed from it, is untouched.
+ */
 export function formatPrice(value: number | null | undefined): string {
-  return value === null || value === undefined ? unknownValue : `${priceFormat.format(value)} ₼`
+  return formatMoney(value)
 }
 
 /** A quantity as the backend gave it, without invented trailing zeros. */

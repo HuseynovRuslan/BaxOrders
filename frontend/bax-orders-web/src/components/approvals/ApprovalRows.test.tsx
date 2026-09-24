@@ -209,17 +209,24 @@ describe('a row blocked by the reader’s own contribution to the correction', (
 })
 
 describe('a request with unpriced lines', () => {
+  /**
+   * The line under the amount says, in Task 2's words, that lines are missing a price — which is what makes
+   * the amount above it not a total. A second line saying "Məlum qiymətlər üzrə" repeated that under another
+   * name (5.2.2), and the line count beside it said "sətir" a second time (5.3); both are gone.
+   */
   it('shows the missing count and never shows the partial amount as the total', () => {
-    renderRows([row({ knownAmount: 200, amountIsComplete: false, missingPriceItemCount: 4 })])
+    const { table } = renderRows([row({ knownAmount: 200, amountIsComplete: false, missingPriceItemCount: 4 })])
 
-    expect(screen.getAllByText('4 qiymətsiz sətir').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Məlum qiymətlər üzrə').length).toBeGreaterThan(0)
+    expect(table.getByText('4 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
+    expect(screen.queryByText(/qiymətsiz/)).toBeNull()
+    expect(screen.queryByText('Məlum qiymətlər üzrə')).toBeNull()
+    expect(table.queryByText('12 sətir')).toBeNull()
   })
 
   it('says nothing extra about a fully priced request', () => {
     renderRows([row({ amountIsComplete: true, missingPriceItemCount: 0 })])
 
-    expect(screen.queryByText(/qiymətsiz sətir/)).toBeNull()
+    expect(screen.queryByText(/qiymət yoxdur/)).toBeNull()
     expect(screen.queryByText('Məlum qiymətlər üzrə')).toBeNull()
   })
 })

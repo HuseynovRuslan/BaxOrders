@@ -1,5 +1,6 @@
 import type { CauseCategory } from '../../api/decisions'
 import { missingPriceShortLabel } from '../../pricing/labels'
+import { newProductsLabel, notOrderedThisMonthLabel } from '../../terminology/terms'
 
 /**
  * What each category is called where money is shown beside it.
@@ -8,13 +9,14 @@ import { missingPriceShortLabel } from '../../pricing/labels'
  * the money difference that ordering more or less accounts for, so it is named as an effect on money.
  */
 export const causeLabels: Record<CauseCategory, string> = {
-  NewOrders: 'Yeni sifarişlər',
+  NewOrders: newProductsLabel,
   QuantityChange: 'Miqdar təsiri',
   PriceChange: 'Qiymət təsiri',
-  NoLongerOrdered: 'Artıq sifariş olunmayanlar',
+  NoLongerOrdered: notOrderedThisMonthLabel,
   Services: 'Xidmətlər',
   InternalSupply: 'Daxili təminat',
-  UnattributedDueToMissingPrice: 'Qiyməti olmayanlar',
+  // The same two words the line itself says, not a third name for the same gap.
+  UnattributedDueToMissingPrice: missingPriceShortLabel,
 }
 
 /**
@@ -64,8 +66,8 @@ export const driverFilterLabels: Record<DriverFilter, string> = {
   All: 'Hamısı',
   PriceChange: 'Qiymət dəyişən',
   QuantityChange: 'Miqdar dəyişən',
-  NewOrders: 'Yeni',
-  NoLongerOrdered: 'Artıq sifariş olunmur',
+  NewOrders: newProductsLabel,
+  NoLongerOrdered: notOrderedThisMonthLabel,
   MissingPrice: missingPriceShortLabel,
 }
 
@@ -97,6 +99,3 @@ export const coverageHint =
   'Bazanın əhatə etdiyi aylardan yalnız bir hissəsində bu obyektin sifarişi var. Ortalama həmin mövcud aylara bölünür.'
 
 export const noPreviousMonthNote = 'Keçən ay üçün müqayisə məlumatı yoxdur.'
-
-export const incompleteExplanationNote =
-  'Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir.'
