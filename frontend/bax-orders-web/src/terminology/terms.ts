@@ -74,6 +74,31 @@ export function unexplainedPartNote(amount: string, names: readonly string[]): s
 export const costIncreasedLabel = 'xərc artıb'
 export const costDecreasedLabel = 'xərc azalıb'
 
+const sharePercentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 0 })
+
+/**
+ * A product's share of every movement in its direction (owner decisions 7.1, 7.1a): "artımların 74%-i",
+ * "azalmaların 25%-i". Which product and which movement are the backend's; this only divides and words it.
+ *
+ * A whole percent, with two guards so the figure is never false: a share short of all of it never reads 100
+ * (it reads 99), and a share that is something never reads 0 ("1%-dən azı"). Never above 100 — the backend
+ * guarantees the product is part of its denominator, and the cap says so here too.
+ */
+export function productShareLabel(amount: number, sameDirectionAmount: number): string {
+  const movement = amount < 0 ? 'azalmaların' : 'artımların'
+  const exact = sameDirectionAmount === 0
+    ? 0
+    : Math.min(100, (Math.abs(amount) / Math.abs(sameDirectionAmount)) * 100)
+
+  if (exact > 0 && exact < 0.5) {
+    return `${movement} 1%-dən azı`
+  }
+
+  // Math.round on a positive number is half away from zero.
+  const whole = exact < 100 ? Math.min(99, Math.round(exact)) : 100
+  return `${movement} ${sharePercentFormat.format(whole)}%-i`
+}
+
 /**
  * The versions of one month's order, in business words rather than "Versiya N" (Task 05b). A version made to
  * correct a returned order is the "düzəldilmiş sifariş", the one it was made from the "əvvəlki sifariş", and the

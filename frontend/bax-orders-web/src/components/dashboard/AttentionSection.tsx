@@ -1,16 +1,27 @@
 import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
-import type { DashboardAttention, LocationDashboardRow, ManagementDashboardSummary } from '../../api/dashboard'
+import type {
+  DashboardAttention,
+  DashboardCauseProduct,
+  LocationDashboardRow,
+  ManagementDashboardSummary,
+} from '../../api/dashboard'
 import { locationLink, orderLink, type BasisSelection } from '../../analytics/basisParams'
 import { missingPriceCount } from '../../pricing/labels'
-import { incompleteExplanationNote } from '../../terminology/terms'
 import {
+  costDecreasedLabel,
+  costIncreasedLabel,
+  incompleteExplanationNote,
+  productShareLabel,
+} from '../../terminology/terms'
+import {
+  costDirectionToneClass,
   describeBasisCaption,
   formatMoney,
   formatMoneyDelta,
   formatPercent,
-  signedToneClass,
 } from '../analytics/format'
+import { causeTieOrder } from '../decisions/labels'
 import {
   attentionReasonIsWarning,
   attentionReasonLabels,
@@ -98,9 +109,11 @@ function Card({
         <p className="mt-0.5 text-sm text-slate-600">{noComparisonCause}</p>
       ) : (
         <>
-          <p className={`mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm font-medium ${signedToneClass(row.knownAmountDelta)}`}>
+          {/* Red up, green down (9.1): the direction of the cost, never a verdict on it. */}
+          <p className={`mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm font-medium ${costDirectionToneClass(row.knownAmountDelta)}`}>
             <span className="whitespace-nowrap">{formatMoneyDelta(row.knownAmountDelta)}</span>
             <span className="whitespace-nowrap">{formatPercent(row.knownAmountPercentChange)}</span>
+            <DirectionWord value={row.knownAmountDelta} />
           </p>
           <p className="text-xs text-slate-500">{caption}</p>
         </>
@@ -116,17 +129,20 @@ function Card({
 }
 
 /**
- * The reason the money moved, largest first, with the next two beneath it. The causes come from the same
- * decomposition the decision screen uses, so the card and the page it opens never disagree.
+ * The reason the money moved, largest first, the product that did most of it, and the next two causes beneath.
+ * The causes and the product come from the same decomposition the decision screen uses, so the card and the
+ * page it opens never disagree.
  */
 function Causes({ row }: { row: LocationDashboardRow }) {
   if (row.primaryCause === null || row.primaryCauseAmount === null) {
     return null
   }
 
+  // Two causes of the same size fall in the order the order page uses, so the two screens agree on ties too.
   const secondary = row.causes
     .filter((cause) => cause.category !== row.primaryCause)
-    .sort((left, right) => Math.abs(right.amount) - Math.abs(left.amount))
+    .sort((left, right) => Math.abs(right.amount) - Math.abs(left.amount)
+      || causeTieOrder.indexOf(left.category) - causeTieOrder.indexOf(right.category))
     .slice(0, secondaryCount)
 
   return (
@@ -135,17 +151,19 @@ function Causes({ row }: { row: LocationDashboardRow }) {
       <p className="text-xs text-slate-500">Əsas səbəb</p>
       <p className="text-sm text-slate-900">
         <span className="font-medium">{causeHeadline(row.primaryCause, row.primaryCauseAmount)}</span>{' '}
-        <span className={`whitespace-nowrap font-medium ${signedToneClass(row.primaryCauseAmount)}`}>
+        <span className={`whitespace-nowrap font-medium ${costDirectionToneClass(row.primaryCauseAmount)}`}>
           {formatMoneyDelta(row.primaryCauseAmount)}
         </span>
       </p>
+
+      {row.primaryCauseProduct !== null && <CauseProduct product={row.primaryCauseProduct} />}
 
       {secondary.length > 0 && (
         <ul className="mt-1 space-y-0.5">
           {secondary.map((cause) => (
             <li key={cause.category} className="text-xs text-slate-500">
               {causeHeadline(cause.category, cause.amount)}{' '}
-              <span className={`whitespace-nowrap ${signedToneClass(cause.amount)}`}>
+              <span className={`whitespace-nowrap ${costDirectionToneClass(cause.amount)}`}>
                 {formatMoneyDelta(cause.amount)}
               </span>
             </li>
@@ -170,6 +188,31 @@ function Causes({ row }: { row: LocationDashboardRow }) {
       )}
     </div>
   )
+}
+
+/**
+ * The product that did most of the main cause, and its share of every movement that way (7.1, 7.1a). Quieter
+ * than the cause above it and louder than the causes below. Text, not a link: "Detallara bax" already opens the
+ * order, where this product is the first row of its cause in "Əsas dəyişikliklər".
+ */
+function CauseProduct({ product }: { product: DashboardCauseProduct }) {
+  return (
+    <p className="text-sm text-slate-700">
+      {product.productName}
+      {' — '}
+      <span className={`whitespace-nowrap font-medium ${costDirectionToneClass(product.amount)}`}>
+        {formatMoneyDelta(product.amount)}
+        <DirectionWord value={product.amount} />
+      </span>{' '}
+      <span className="whitespace-nowrap">({productShareLabel(product.amount, product.sameDirectionAmount)})</span>
+    </p>
+  )
+}
+
+/** The direction in words beside the colour that shows it (9.1), so the colour is never the only carrier. */
+function DirectionWord({ value }: { value: number }) {
+  const direction = value > 0 ? costIncreasedLabel : value < 0 ? costDecreasedLabel : null
+  return direction === null ? null : <span className="sr-only">, {direction}</span>
 }
 
 /**

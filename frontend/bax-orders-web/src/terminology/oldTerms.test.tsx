@@ -176,6 +176,8 @@ function dashboardRow(overrides: Partial<LocationDashboardRow> = {}): LocationDa
     ],
     primaryCause: 'NewOrders',
     primaryCauseAmount: 300,
+    // A product under the card's "Əsas səbəb", so the line that names it and its share is swept too.
+    primaryCauseProduct: { productVariantId: 22, productName: 'Rosmarinus', amount: 300, sameDirectionAmount: 350 },
     explanationIsComplete: false,
     unattributedAmount: 50,
     supplyChangedVariantCount: 0,
@@ -191,6 +193,7 @@ function dashboard(): ManagementDashboard {
     historyCoverage: 'Complete',
     primaryCause: 'UnattributedDueToMissingPrice',
     primaryCauseAmount: 50,
+    primaryCauseProduct: null,
   })
   const third = dashboardRow({
     locationId: 23,
@@ -198,6 +201,7 @@ function dashboard(): ManagementDashboard {
     historyCoverage: 'Complete',
     primaryCause: 'NoLongerOrdered',
     primaryCauseAmount: -150,
+    primaryCauseProduct: { productVariantId: 21, productName: 'Zibil paketi', amount: -150, sameDirectionAmount: -150 },
   })
 
   return {
@@ -950,6 +954,10 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).toHaveTextContent('Müqayisə üçün data azdır')
     expect(container).toHaveTextContent('Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.')
     expect(screen.getByRole('button', { name: 'Bütün dövrün ortalaması' })).toBeInTheDocument()
+    // The product lines under "Əsas səbəb" (Task 07), swept with the rest of the page.
+    expect(container).toHaveTextContent('Rosmarinus — +300,00 ₼')
+    expect(container).toHaveTextContent('(artımların 86%-i)')
+    expect(container).toHaveTextContent('(azalmaların 100%-i)')
   })
 
   it('the order page, with its decision panel and its histories', async () => {

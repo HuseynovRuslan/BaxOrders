@@ -96,6 +96,39 @@ public sealed class ComparisonBasisConsistencyTests(PostgresDatabaseFixture data
         Assert.Equal(row.PrimaryCauseAmount, strongest.Amount);
     }
 
+    /// <summary>
+    /// The product the card names is the one the reader finds first under that cause on the order page, with the
+    /// same amount, and its share is of every product moving the same way there (7.1, 7.1a) — for every basis, so
+    /// a change of basis changes the product and the share with it.
+    /// </summary>
+    [PostgresTheory]
+    [MemberData(nameof(EveryBasis))]
+    public async Task The_card_names_the_order_screens_first_product_of_its_cause(
+        AnalyticsComparisonBasis basis, string? from, string? to)
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var row = await RowAsync(db, world, basis, from, to);
+        var context = await ContextAsync(db, world, basis, from, to);
+        var drivers = context.Decomposition!.Drivers;
+
+        var product = row.PrimaryCauseProduct;
+        Assert.NotNull(product);
+        var direction = Math.Sign(row.PrimaryCauseAmount!.Value);
+
+        var first = drivers.First(driver =>
+            driver.Category == row.PrimaryCause && Math.Sign(driver.AmountImpact) == direction);
+        Assert.Equal(first.Variant.ProductVariantId, product.ProductVariantId);
+        Assert.Equal(first.Variant.ProductName, product.ProductName);
+        Assert.Equal(first.AmountImpact, product.Amount);
+
+        Assert.Equal(
+            drivers.Where(driver => Math.Sign(driver.AmountImpact) == direction).Sum(driver => driver.AmountImpact),
+            product.SameDirectionAmount);
+        Assert.True(Math.Abs(product.Amount) <= Math.Abs(product.SameDirectionAmount));
+    }
+
     // ---- the causes account for the difference ---------------------------------------------------------
 
     [PostgresTheory]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { formatMoneyDelta } from '../components/analytics/format'
 import { findOldTerms } from '../test/oldTerms'
-import { locativeSuffix, unexplainedPartNote } from './terms'
+import { locativeSuffix, productShareLabel, unexplainedPartNote } from './terms'
 
 /** U+00A0, by its code point: the no-break space the money formatter puts before ₼. */
 const nbsp = String.fromCharCode(0xa0)
@@ -53,6 +53,63 @@ describe('the unexplained part of a change', () => {
   it('uses no retired word', () => {
     const root = document.createElement('div')
     root.textContent = unexplainedPartNote(formatMoneyDelta(-40), ['A', 'B', 'C', 'D', 'E'])
+
+    expect(findOldTerms(root)).toEqual([])
+  })
+})
+
+/**
+ * The product's share on a dashboard card (7.1, 7.1a): its effect over every product effect in the same direction.
+ * A whole percent that is never false — never 100 short of all of it, never 0 when it is something, never above 100.
+ */
+describe('a product’s share of the movement', () => {
+  it('says which movement it is a share of', () => {
+    // Heydər Əliyev: the tractor over every rise, 73,76% at the most.
+    expect(productShareLabel(21900, 29691.52)).toBe('artımların 74%-i')
+    // Fəvvarələr: the summer shoes over every fall, 24,56% at the most.
+    expect(productShareLabel(-1988, -8093.7)).toBe('azalmaların 25%-i')
+  })
+
+  it('reads 100 only when it is all of it', () => {
+    expect(productShareLabel(250, 250)).toBe('artımların 100%-i')
+    expect(productShareLabel(-883.2, -883.2)).toBe('azalmaların 100%-i')
+    expect(productShareLabel(99.6, 100)).toBe('artımların 99%-i')
+    expect(productShareLabel(-99.99, -100)).toBe('azalmaların 99%-i')
+  })
+
+  it('never reads 0 when it is something', () => {
+    expect(productShareLabel(0.3, 100)).toBe('artımların 1%-dən azı')
+    expect(productShareLabel(-0.49, -100)).toBe('azalmaların 1%-dən azı')
+    expect(productShareLabel(0.6, 100)).toBe('artımların 1%-i')
+  })
+
+  it('rounds half away from zero', () => {
+    expect(productShareLabel(12.5, 100)).toBe('artımların 13%-i')
+    expect(productShareLabel(-12.5, -100)).toBe('azalmaların 13%-i')
+    expect(productShareLabel(12.49, 100)).toBe('artımların 12%-i')
+  })
+
+  it('never prints a number above 100', () => {
+    const shares = [
+      productShareLabel(21900, 29691.52),
+      productShareLabel(1, 1),
+      productShareLabel(-5, -4),
+      productShareLabel(150, 100),
+    ]
+
+    for (const share of shares) {
+      const percent = Number(/(\d+)%/.exec(share)![1])
+      expect(percent, share).toBeLessThanOrEqual(100)
+    }
+  })
+
+  it('uses no retired word', () => {
+    const root = document.createElement('div')
+    root.textContent = [
+      productShareLabel(21900, 29691.52),
+      productShareLabel(-1988, -8093.7),
+      productShareLabel(0.3, 100),
+    ].join(' ')
 
     expect(findOldTerms(root)).toEqual([])
   })

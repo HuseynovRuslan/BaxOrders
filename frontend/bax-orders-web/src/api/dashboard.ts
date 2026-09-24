@@ -88,6 +88,8 @@ export interface LocationDashboardRow {
   /** The one that moved the most, in either direction. Null when there is nothing to compare against. */
   primaryCause: CauseCategory | null
   primaryCauseAmount: number | null
+  /** The product that did most of the primary cause (7.1, 7.1a). Null when no product does. */
+  primaryCauseProduct: DashboardCauseProduct | null
   /** False only when somebody owes a price. Internal supply never makes it false. */
   explanationIsComplete: boolean
   unattributedAmount: number
@@ -99,6 +101,19 @@ export interface DashboardCause {
   category: CauseCategory
   amount: number
   variantCount: number
+}
+
+/**
+ * The product behind a card's "Əsas səbəb". Which product, and what its share is a share of, is decided once in
+ * the backend; the card only divides the two figures.
+ */
+export interface DashboardCauseProduct {
+  productVariantId: number
+  productName: string
+  /** Its whole effect, to the cent — the figure its row in the order page's "Əsas dəyişikliklər" shows. */
+  amount: number
+  /** Every product's effect in the same direction, across every cause. Same sign as `amount`, never smaller. */
+  sameDirectionAmount: number
 }
 
 /**

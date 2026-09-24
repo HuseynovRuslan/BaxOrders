@@ -74,6 +74,7 @@ function row(): LocationDashboardRow {
     causes: [{ category: 'QuantityChange', amount: 200, variantCount: 1 }],
     primaryCause: 'QuantityChange',
     primaryCauseAmount: 200,
+    primaryCauseProduct: null,
     explanationIsComplete: true,
     unattributedAmount: 0,
     supplyChangedVariantCount: 0,
@@ -325,6 +326,45 @@ describe('carrying the basis into the order', () => {
     await renderPage('/dashboard?period=2026-09&basis=avg3')
 
     expect(screen.getAllByText('Son 3 ayın ortalamasına görə').length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * The product under a card's "Əsas səbəb" and its share are the chosen basis's (Task 07): another basis is
+ * another comparison, so it can name another product and another share. Nothing is recomputed in the browser —
+ * the new answer is asked for, and shown.
+ */
+describe('the product behind the main cause', () => {
+  it('is asked for again on a new basis, and the card shows the new product and share', async () => {
+    dashboardApi.fetchDashboard.mockImplementation((_period: string, query: { basis: string }) => {
+      const data = dashboard()
+      const location: LocationDashboardRow = {
+        ...row(),
+        primaryCauseProduct: query.basis === 'Previous3MonthAverage'
+          ? { productVariantId: 8, productName: 'Zibil paketi', amount: 150, sameDirectionAmount: 600 }
+          : { productVariantId: 7, productName: 'Əlcək', amount: 120, sameDirectionAmount: 160 },
+      }
+      return Promise.resolve({
+        ...data,
+        summary: { ...data.summary, basis: query.basis },
+        attention: [{ reason: 'LargestIncrease', location }],
+        rows: { ...data.rows, items: [location] },
+      })
+    })
+
+    await renderPage()
+    const cards = () => within(screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' }))
+    expect(cards().getByText(/Əlcək/)).toHaveTextContent('(artımların 75%-i)')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Son 3 ayın ortalaması' }))
+
+    await waitFor(() => expect(dashboardApi.fetchDashboard).toHaveBeenLastCalledWith(
+      '2026-09',
+      expect.objectContaining({ basis: 'Previous3MonthAverage' }),
+      expect.anything(),
+    ))
+    await waitFor(() => expect(cards().getByText(/Zibil paketi/)).toHaveTextContent('(artımların 25%-i)'))
+    expect(cards().queryByText(/Əlcək/)).toBeNull()
   })
 })
 

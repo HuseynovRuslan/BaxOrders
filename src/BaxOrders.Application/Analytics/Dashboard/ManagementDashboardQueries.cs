@@ -116,13 +116,13 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var requestIds = requests.Select(request => request.OrderRequestId).ToArray();
         var lastOrders = await LastOrdersBeforeAsync(currentPeriod, cancellationToken);
         var snapshots = await SnapshotsAsync(requestIds, cancellationToken);
-        var kinds = await KindsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
+        var (kinds, names) = await VariantsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
 
         var byLocation = requests.ToLookup(request => request.LocationId);
         var rows = new List<LocationDashboardRowDto>(locations.Count);
         foreach (var location in locations)
         {
-            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds));
+            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds, names));
         }
 
         rows = [.. rows.OrderByName(row => row.LocationName)];
@@ -149,7 +149,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         IReadOnlyList<DateOnly> baselinePeriods,
         ComparisonSelection selection,
         IReadOnlyDictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
-        IReadOnlyDictionary<long, AnalyticsKind> kinds)
+        IReadOnlyDictionary<long, AnalyticsKind> kinds,
+        IReadOnlyDictionary<long, string> names)
     {
         var all = requests.ToList();
         var current = all.FirstOrDefault(request => request.Period == currentPeriod);
@@ -202,6 +203,13 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var primary = causes.Count == 0
             ? null
             : causes.OrderByDescending(cause => Math.Abs(cause.Amount)).ThenBy(cause => cause.Category).First();
+
+        // The product behind that cause, so the card can name it (7.1, 7.1a). Chosen and summed by the one rule
+        // the order page's list is also sorted by; the browser only divides the two figures.
+        var leader = CauseLeader.Of(decomposition, primary?.Category, primary?.Amount);
+        var primaryProduct = leader is not null && names.TryGetValue(leader.ProductVariantId, out var productName)
+            ? new DashboardCauseProductDto(leader.ProductVariantId, productName, leader.Amount, leader.SameDirectionAmount)
+            : null;
 
         var counts = new StateCounts();
         if (current is not null)
@@ -274,6 +282,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             causes,
             primary?.Category,
             primary?.Amount,
+            primaryProduct,
             // Only a price somebody owes makes an explanation incomplete; internal supply never does.
             decomposition?.ExplanationIsComplete ?? true,
             causes
@@ -429,20 +438,32 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         return rows.ToDictionary(row => row.LocationId);
     }
 
-    /// <summary>Only what decides whether a variant is material or service; the dashboard lists no products.</summary>
-    private async Task<Dictionary<long, AnalyticsKind>> KindsAsync(long[] variantIds, CancellationToken cancellationToken)
+    /// <summary>
+    /// What decides whether a variant is material or service, and its product's name — the dashboard names one
+    /// product per row, the one behind its primary cause. Read in the same query, so naming it costs none.
+    /// </summary>
+    private async Task<(Dictionary<long, AnalyticsKind> Kinds, Dictionary<long, string> Names)> VariantsAsync(
+        long[] variantIds, CancellationToken cancellationToken)
     {
         if (variantIds.Length == 0)
         {
-            return [];
+            return ([], []);
         }
 
         var rows = await db.ProductVariants.AsNoTracking()
             .Where(variant => variantIds.Contains(variant.Id))
-            .Select(variant => new { variant.Id, OrderUnitCode = variant.OrderUnit != null ? variant.OrderUnit.Code : null })
+            .Select(variant => new
+            {
+                variant.Id,
+                OrderUnitCode = variant.OrderUnit != null ? variant.OrderUnit.Code : null,
+                // Product.Name, the same name the order page's "Əsas dəyişikliklər" prints for this variant.
+                ProductName = variant.Product.Name,
+            })
             .ToListAsync(cancellationToken);
 
-        return rows.ToDictionary(row => row.Id, row => AnalyticsUnits.KindOf(row.OrderUnitCode));
+        return (
+            rows.ToDictionary(row => row.Id, row => AnalyticsUnits.KindOf(row.OrderUnitCode)),
+            rows.ToDictionary(row => row.Id, row => row.ProductName));
     }
 
     // ---- shaping ------------------------------------------------------------------------------------

@@ -74,6 +74,7 @@ function row(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRo
     ],
     primaryCause: 'NewOrders',
     primaryCauseAmount: 150,
+    primaryCauseProduct: null,
     explanationIsComplete: true,
     unattributedAmount: 0,
     ...overrides,

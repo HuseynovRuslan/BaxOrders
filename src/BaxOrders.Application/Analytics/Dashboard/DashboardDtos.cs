@@ -52,6 +52,15 @@ public sealed record DashboardAmountDto(
 /// <summary>One share of a location's money difference, from the shared cause decomposition.</summary>
 public sealed record DashboardCauseDto(CauseCategory Category, decimal Amount, int VariantCount);
 
+/// <summary>The product that did most of the primary cause, with the movement in its direction it is a share of.</summary>
+/// <param name="Amount">The product's whole contribution, to the cent: its row in the order page's "Əsas dəyişikliklər".</param>
+/// <param name="SameDirectionAmount">
+/// Every product's contribution in the same direction, across every cause (7.1, 7.1a). The share is
+/// <paramref name="Amount"/> over this, and never passes 100%.
+/// </param>
+public sealed record DashboardCauseProductDto(
+    long ProductVariantId, string ProductName, decimal Amount, decimal SameDirectionAmount);
+
 /// <param name="Location">The whole row, so the section can be drawn without hunting for it in the page.</param>
 public sealed record DashboardAttentionDto(DashboardAttentionReason Reason, LocationDashboardRowDto Location);
 
@@ -92,6 +101,8 @@ public sealed record LocationDashboardRowDto(
     IReadOnlyList<DashboardCauseDto> Causes,
     CauseCategory? PrimaryCause,
     decimal? PrimaryCauseAmount,
+    /// <summary>The product behind the primary cause; null when there is no primary cause or no product moving its way.</summary>
+    DashboardCauseProductDto? PrimaryCauseProduct,
     bool ExplanationIsComplete,
     decimal UnattributedAmount,
     /// <summary>Products this object paid for in one of the two months and had supplied internally in the other.</summary>

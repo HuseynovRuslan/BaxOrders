@@ -108,6 +108,43 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         Assert.Equal(strongest.Amount, row.PrimaryCauseAmount);
     }
 
+    // ---- the product behind the cause (7.1, 7.1a) -----------------------------------------------------
+
+    [PostgresFact]
+    public async Task A_month_of_new_products_names_the_largest_of_them()
+    {
+        await using var db = database.CreateContext();
+        // One product kept as it was, two new: 50 × 20,00 = 1 000,00 and 5 × 30,00 = 150,00.
+        var world = await WorldAsync(db, june: [(10m, 1m)], july: [(10m, 1m), (50m, 20m), (5m, 30m)]);
+
+        var row = await RowAsync(db, world);
+
+        Assert.Equal(CauseCategory.NewOrders, row.PrimaryCause);
+        var product = row.PrimaryCauseProduct!;
+        Assert.Equal(world.Products[1].VariantId, product.ProductVariantId);
+        Assert.Equal(world.Products[1].Name, product.ProductName);
+        Assert.Equal(1000m, product.Amount);
+        // Every rise, and the unchanged product is not one.
+        Assert.Equal(1150m, product.SameDirectionAmount);
+    }
+
+    [PostgresFact]
+    public async Task A_month_that_stopped_ordering_something_names_it()
+    {
+        await using var db = database.CreateContext();
+        // 40 × 30,00 = 1 200,00 and 5 × 20,00 = 100,00 not ordered this month.
+        var world = await WorldAsync(db, june: [(10m, 1m), (40m, 30m), (5m, 20m)], july: [(10m, 1m)]);
+
+        var row = await RowAsync(db, world);
+
+        Assert.Equal(CauseCategory.NoLongerOrdered, row.PrimaryCause);
+        var product = row.PrimaryCauseProduct!;
+        Assert.Equal(world.Products[1].VariantId, product.ProductVariantId);
+        Assert.Equal(world.Products[1].Name, product.ProductName);
+        Assert.Equal(-1200m, product.Amount);
+        Assert.Equal(-1300m, product.SameDirectionAmount);
+    }
+
     // ---- when it cannot name one ----------------------------------------------------------------------
 
     [PostgresFact]
@@ -120,6 +157,7 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
 
         Assert.Null(row.PrimaryCause);
         Assert.Null(row.PrimaryCauseAmount);
+        Assert.Null(row.PrimaryCauseProduct);
         Assert.Empty(row.Causes);
         Assert.Equal(ComparisonAvailability.NoBaselineHistory, row.ComparisonAvailability);
     }
@@ -223,8 +261,8 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         }
 
         // The locations, their requests, each object's last month before this one, the lines of the requests
-        // in the window, and the variant kinds. Five whatever the number of objects: the decomposition and the
-        // partition both run on figures already in memory.
+        // in the window, and the variant kinds and names. Five whatever the number of objects: the decomposition
+        // and the partition both run on figures already in memory.
         Assert.Equal(5, counter.Count);
     }
 
@@ -270,7 +308,9 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         return string.Join('|', items.Select(item => $"{item.Id}:{item.Quantity}:{item.UnitPrice}"));
     }
 
-    private sealed record World(int LocationId, string LocationName, long JulyId);
+    /// <param name="Products">Each line's variant and product name, in the order the test listed the lines.</param>
+    private sealed record World(
+        int LocationId, string LocationName, long JulyId, IReadOnlyList<(long VariantId, string Name)> Products);
 
     /// <summary>One location whose two months are exactly the lines the test names, and nothing else.</summary>
     private static async Task<World> WorldAsync(
@@ -305,7 +345,7 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         db.OrderRequests.AddRange(requests);
         await db.SaveChangesAsync();
 
-        return new World(location.Id, location.Name, julyRequest.Id);
+        return new World(location.Id, location.Name, julyRequest.Id, ProductsOf(variants));
     }
 
     /// <summary>A month that switched from a bought product to one issued from the company's own store.</summary>
@@ -329,8 +369,11 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         db.OrderRequests.AddRange(juneRequest, julyRequest);
         await db.SaveChangesAsync();
 
-        return new World(location.Id, location.Name, julyRequest.Id);
+        return new World(location.Id, location.Name, julyRequest.Id, ProductsOf(variants));
     }
+
+    private static List<(long VariantId, string Name)> ProductsOf(List<ProductVariant> variants) =>
+        [.. variants.Select(variant => (variant.Id, variant.Product.Name))];
 
     private static async Task<(Location Location, List<ProductVariant> Variants)> CatalogueAsync(
         BaxOrdersDbContext db, string tag, int count)
