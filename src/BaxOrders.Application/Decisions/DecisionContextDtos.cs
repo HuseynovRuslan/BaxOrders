@@ -67,6 +67,11 @@ public sealed record DecisionCauseDto(CauseCategory Category, decimal Amount, in
 /// Everything needed to write "2,80 → 4,10 ₼, +46,4%, miqdar 30 → 30, təsiri +39 ₼" is here as numbers. The
 /// sentence is the screen's to write; the arithmetic is not.
 /// </remarks>
+/// <param name="State">
+/// New, no longer ordered, up, down or unchanged — by <see cref="OrderAnalyticsCalculator.StateOf"/>, the rule the
+/// comparison page labels the same product with. <see cref="Category"/> says where its <i>money</i> went, which is
+/// a different question: a new product with a missing price is new here and unattributed there.
+/// </param>
 public sealed record DecisionDriverDto(
     VariantIdentityDto Variant,
     AnalyticsKind AnalyticsKind,
@@ -88,7 +93,22 @@ public sealed record DecisionDriverDto(
     int PriceNotRequiredItemCount,
     bool PriceIsComplete,
     /// <summary>The company paid for this product in one of the two months and supplied it itself in the other.</summary>
-    bool SupplyChanged);
+    bool SupplyChanged,
+    ComparisonState State);
+
+/// <summary>
+/// How many products the comparison is about, counted by the same rule the comparison page counts by, so the two
+/// pages give one number for one question.
+/// </summary>
+/// <param name="ComparedCount">Every product in this order or in the basis window — the union the comparison is
+/// over. The comparison page's <c>TotalVariantCount</c> for the same object, month and basis.</param>
+/// <param name="InCurrentOrderCount">Distinct products in the opened order.</param>
+/// <param name="NewCount">Products whose state is <see cref="ComparisonState.New"/>. Same rule as the comparison page.</param>
+/// <param name="NoLongerOrderedCount">Products whose state is <see cref="ComparisonState.NoLongerOrdered"/>.</param>
+/// <param name="ListedCount">The drivers returned: products whose money or effect moved, whose price is unknown,
+/// or that appeared or disappeared.</param>
+public sealed record DecisionProductCountsDto(
+    int ComparedCount, int InCurrentOrderCount, int NewCount, int NoLongerOrderedCount, int ListedCount);
 
 /// <param name="TotalAmountImpact">The sum of every category, which is the difference against the month before.</param>
 /// <param name="ExplanationIsComplete">
@@ -98,7 +118,10 @@ public sealed record DecisionDriverDto(
 /// <param name="InternalSupplyVariantCount">
 /// Products supplied from the company's own store. Shown as neutral context where it helps; never as a problem.
 /// </param>
-/// <param name="Drivers">Every variant that moved, largest money first.</param>
+/// <param name="Drivers">
+/// Every variant that moved, or that appeared or disappeared even at no money, largest money first.
+/// </param>
+/// <param name="Products">What the product counts on the screen count, each said once.</param>
 public sealed record DecisionDecompositionDto(
     IReadOnlyList<DecisionCauseDto> Categories,
     decimal TotalAmountImpact,
@@ -107,7 +130,8 @@ public sealed record DecisionDecompositionDto(
     int InternalSupplyVariantCount,
     /// <summary>Variants paid for in one of the two months and supplied internally in the other.</summary>
     int SupplyChangedVariantCount,
-    IReadOnlyList<DecisionDriverDto> Drivers);
+    IReadOnlyList<DecisionDriverDto> Drivers,
+    DecisionProductCountsDto Products);
 
 /// <summary>
 /// Everything the first screenful of a decision needs, computed for <b>the version that was opened</b>.

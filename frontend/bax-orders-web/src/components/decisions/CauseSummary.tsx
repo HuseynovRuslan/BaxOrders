@@ -13,7 +13,7 @@ import { warningChipClass } from '../../pricing/labels'
 import {
   costDecreasedLabel,
   costIncreasedLabel,
-  productNoun,
+  fromProductsNoun,
   unexplainedPartNote,
 } from '../../terminology/terms'
 import { causeHints, causeLabels, causeTieOrder, supplyChangedDriverNote } from './labels'
@@ -124,7 +124,8 @@ function CauseRow({
           </InfoHint>
           {/* A product that changed supply form is what this part is made of; the part says so. */}
           {supplyChanged && <span className="text-xs text-slate-500">{supplyChangedDriverNote}</span>}
-          <span className="text-xs text-slate-400">{formatCount(cause.variantCount)} {productNoun}</span>
+          {/* The products whose money is in this part — not a count of new products, so not worded like one. */}
+          <span className="text-xs text-slate-400">{formatCount(cause.variantCount)} {fromProductsNoun}</span>
         </p>
         <p className={`whitespace-nowrap ${isPrimary ? 'text-lg font-semibold' : 'text-sm font-medium'}`}>
           <Amount value={cause.amount} />

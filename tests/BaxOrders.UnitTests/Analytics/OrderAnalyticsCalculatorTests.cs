@@ -342,6 +342,73 @@ public sealed class OrderAnalyticsCalculatorTests
         Assert.Null(noHistory.Baseline.Quantity);
     }
 
+    // ---- the one state rule both pages count by ------------------------------------------------------
+
+    [Theory]
+    [InlineData(5, 0, ComparisonState.New)]
+    [InlineData(0, 5, ComparisonState.NoLongerOrdered)]
+    [InlineData(40, 30, ComparisonState.Increased)]
+    [InlineData(20, 30, ComparisonState.Decreased)]
+    [InlineData(30, 30, ComparisonState.Unchanged)]
+    public void A_material_is_labelled_by_its_two_quantities(int current, int baseline, ComparisonState expected)
+    {
+        Assert.Equal(
+            expected,
+            OrderAnalyticsCalculator.StateOf(AnalyticsKind.QuantityComparable, current, baseline, availableBaselinePeriodCount: 1));
+    }
+
+    [Fact]
+    public void A_service_is_never_new_or_dropped_it_is_not_comparable()
+    {
+        // The comparison page gives a service no quantity, so the order page, asking the same rule, cannot call it new.
+        Assert.Equal(
+            ComparisonState.NotComparable,
+            OrderAnalyticsCalculator.StateOf(AnalyticsKind.AmountOrientedService, null, null, availableBaselinePeriodCount: 1));
+    }
+
+    [Fact]
+    public void Without_a_basis_month_nothing_is_new()
+    {
+        Assert.Equal(
+            ComparisonState.InsufficientHistory,
+            OrderAnalyticsCalculator.StateOf(AnalyticsKind.QuantityComparable, 5m, 0m, availableBaselinePeriodCount: 0));
+    }
+
+    [Fact]
+    public void An_unrounded_average_gets_the_label_the_rounded_one_on_the_screen_gets()
+    {
+        // 3.334 + 3.334 + 3.333 over three months is 3.33366…; the comparison page shows 3.334, level with this month.
+        var unrounded = (3.334m + 3.334m + 3.333m) / 3m;
+        var shown = Compare(
+            AnalyticsKind.QuantityComparable,
+            Snapshot(3.334m),
+            [Snapshot(3.334m), Snapshot(3.334m), Snapshot(3.333m)],
+            available: 3,
+            expected: 3);
+
+        Assert.Equal(ComparisonState.Unchanged, shown.State);
+        Assert.Equal(
+            shown.State,
+            OrderAnalyticsCalculator.StateOf(AnalyticsKind.QuantityComparable, 3.334m, unrounded, availableBaselinePeriodCount: 3));
+    }
+
+    [Fact]
+    public void The_comparison_labels_every_row_with_that_same_rule()
+    {
+        foreach (var (current, baseline) in new (VariantPeriodSnapshot?, VariantPeriodSnapshot?)[]
+        {
+            (Snapshot(5m), null), (null, Snapshot(5m)), (Snapshot(8m), Snapshot(5m)),
+            (Snapshot(3m), Snapshot(5m)), (Snapshot(5m), Snapshot(5m)),
+        })
+        {
+            var result = ComparePreviousMonth(current, baseline);
+
+            Assert.Equal(
+                OrderAnalyticsCalculator.StateOf(result.Kind, result.Current.Quantity, result.Baseline.Quantity, 1),
+                result.State);
+        }
+    }
+
     // ---- identity -----------------------------------------------------------------------------------
 
     [Fact]

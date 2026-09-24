@@ -137,7 +137,7 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
         var primary = comparisons[0];
         var decomposition = primary.Result.Decomposition is null
             ? null
-            : Explain(primary.Result.Decomposition, variants);
+            : Explain(primary.Result.Decomposition, variants, primary.Dto.AvailablePeriodCount, currentSnapshots);
 
         return new OrderDecisionContextDto(
             order.OrderRequestId,
@@ -197,23 +197,42 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
     // ---- the explanation ----------------------------------------------------------------------------
 
     /// <summary>The shared decomposition, dressed with the product names a reader needs.</summary>
+    /// <param name="availablePeriodCount">The primary window's months that have a request — the state rule's divisor.</param>
+    /// <param name="currentSnapshots">The opened order's own products, counted for the screen.</param>
     private static DecisionDecompositionDto Explain(
-        CauseDecompositionResult result, Dictionary<long, VariantRef> variants)
+        CauseDecompositionResult result,
+        Dictionary<long, VariantRef> variants,
+        int availablePeriodCount,
+        Dictionary<long, VariantPeriodSnapshot> currentSnapshots)
     {
         var drivers = new List<DecisionDriverDto>(result.Variants.Count);
+        int compared = 0, added = 0, dropped = 0;
         foreach (var variant in result.Variants)
         {
-            // A variant that moved no money is not a reason for anything. One whose price is unknown is kept
-            // even so: it moved nothing that can be seen, which is precisely what the reader has to be told.
-            if (variant.PriceIsComplete
-                && variant.AmountImpact == 0m
-                && variant.QuantityImpact is null or 0m
-                && variant.PriceImpact is null or 0m)
+            if (!variants.TryGetValue(variant.ProductVariantId, out var identity))
             {
                 continue;
             }
 
-            if (!variants.TryGetValue(variant.ProductVariantId, out var identity))
+            // The comparison page's own rule on the comparison page's own figures: the decomposition's baseline
+            // quantity is the same average month, so the two pages cannot label one product two ways.
+            var state = OrderAnalyticsCalculator.StateOf(
+                variant.Kind, variant.CurrentQuantity, variant.BaselineQuantity, availablePeriodCount);
+
+            compared++;
+            added += state == ComparisonState.New ? 1 : 0;
+            dropped += state == ComparisonState.NoLongerOrdered ? 1 : 0;
+
+            // A variant that moved no money is not a reason for anything. One whose price is unknown is kept
+            // even so: it moved nothing that can be seen, which is precisely what the reader has to be told.
+            // One that appeared or disappeared is kept too — a new material issued from the company's own store
+            // costs nothing and is still a change — or the list could never hold every product the "Yeni
+            // məhsullar" count says is new.
+            if (variant.PriceIsComplete
+                && variant.AmountImpact == 0m
+                && variant.QuantityImpact is null or 0m
+                && variant.PriceImpact is null or 0m
+                && state is not (ComparisonState.New or ComparisonState.NoLongerOrdered))
             {
                 continue;
             }
@@ -238,7 +257,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 variant.MissingRequiredPriceItemCount,
                 variant.PriceNotRequiredItemCount,
                 variant.PriceIsComplete,
-                variant.SupplyChanged));
+                variant.SupplyChanged,
+                state));
         }
 
         return new DecisionDecompositionDto(
@@ -249,7 +269,13 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             result.UnattributedVariantCount,
             result.InternalSupplyVariantCount,
             result.SupplyChangedVariantCount,
-            drivers);
+            drivers,
+            new DecisionProductCountsDto(
+                compared,
+                currentSnapshots.Keys.Count(variants.ContainsKey),
+                added,
+                dropped,
+                drivers.Count));
     }
 
 

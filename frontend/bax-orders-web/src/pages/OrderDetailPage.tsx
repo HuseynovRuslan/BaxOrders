@@ -275,7 +275,11 @@ export function OrderDetailPage() {
               windowPeriods={decision.primary.windowPeriods}
             />
             {decision.decomposition.drivers.length > 0 && (
-              <DriverList drivers={decision.decomposition.drivers} onHistory={setHistory} />
+              <DriverList
+                drivers={decision.decomposition.drivers}
+                products={decision.decomposition.products}
+                onHistory={setHistory}
+              />
             )}
           </div>
         )}
@@ -471,6 +475,15 @@ export function OrderDetailPage() {
           from={monthKey(data.requestPeriod, -11)}
           to={monthKey(data.requestPeriod, 0)}
           driver={history}
+          // The same basis the page compares against (Task 1), with the two quantities its row already shows.
+          quantityRatio={decision
+            ? {
+              basis: decision.primary.basis,
+              windowPeriods: decision.primary.windowPeriods,
+              baseline: history.baselineQuantity,
+              current: history.currentQuantity,
+            }
+            : null}
           onClose={() => setHistory(null)}
         />
       )}

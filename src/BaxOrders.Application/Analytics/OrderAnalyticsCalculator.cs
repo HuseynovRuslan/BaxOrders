@@ -47,7 +47,7 @@ public static class OrderAnalyticsCalculator
 
         var current = CurrentSide(input);
         var baseline = BaselineSide(input);
-        var state = StateOf(input, current.Quantity, baseline.Quantity);
+        var state = StateOf(input.Kind, current.Quantity, baseline.Quantity, input.AvailableBaselinePeriodCount);
         var delta = DeltaOf(state, current, baseline);
 
         return new VariantComparisonResult(
@@ -158,26 +158,46 @@ public static class OrderAnalyticsCalculator
             knownPriceItems, missingRequiredItems, priceNotRequiredItems);
     }
 
-    private static ComparisonState StateOf(VariantComparisonInput input, decimal? current, decimal? baseline)
+    /// <summary>
+    /// Whether a product is new, no longer ordered, up, down or unchanged against its basis — the one definition
+    /// both the comparison page and the order page count products by.
+    /// </summary>
+    /// <remarks>
+    /// There is exactly one of these on purpose. The two pages used to count "new products" by two different
+    /// rules and gave a reader 58 on one and 60 on the other for the same month and basis. Both now call this.
+    /// <para>
+    /// The quantities are compared at the scale the comparison page shows them, so a caller holding an
+    /// unrounded average — as the cause decomposition does — gets the same answer as one holding the rounded
+    /// figure on the screen.
+    /// </para>
+    /// </remarks>
+    /// <param name="currentQuantity">This month's quantity; zero when the product is not on this month's order.</param>
+    /// <param name="baselineQuantity">The basis quantity: an average month over the available months.</param>
+    /// <param name="availableBaselinePeriodCount">Basis months the location actually has a request for.</param>
+    public static ComparisonState StateOf(
+        AnalyticsKind kind, decimal? currentQuantity, decimal? baselineQuantity, int availableBaselinePeriodCount)
     {
         // Nothing to compare against: every variant would otherwise look new, which would be a lie about the
         // location's history rather than a fact about the products.
-        if (input.AvailableBaselinePeriodCount == 0)
+        if (availableBaselinePeriodCount == 0)
         {
             return ComparisonState.InsufficientHistory;
         }
 
-        if (input.Kind != AnalyticsKind.QuantityComparable || current is not { } currentQuantity || baseline is not { } baselineQuantity)
+        if (kind != AnalyticsKind.QuantityComparable || currentQuantity is not { } current || baselineQuantity is not { } baseline)
         {
             return ComparisonState.NotComparable;
         }
 
-        return (currentQuantity, baselineQuantity) switch
+        var now = Math.Round(current, QuantityScale, MidpointRounding.AwayFromZero);
+        var then = Math.Round(baseline, QuantityScale, MidpointRounding.AwayFromZero);
+
+        return (now, then) switch
         {
             ( > 0, 0) => ComparisonState.New,
             (0, > 0) => ComparisonState.NoLongerOrdered,
-            _ when currentQuantity > baselineQuantity => ComparisonState.Increased,
-            _ when currentQuantity < baselineQuantity => ComparisonState.Decreased,
+            _ when now > then => ComparisonState.Increased,
+            _ when now < then => ComparisonState.Decreased,
             _ => ComparisonState.Unchanged,
         };
     }

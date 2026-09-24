@@ -3,18 +3,36 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import type { VariantTrendPoint } from '../../api/analytics'
 import { formatNumber } from '../imports/labels'
 import { formatAnalyticsPeriod } from './labels'
-import { formatTrendValue, metricLabels, trendValueOf, type TrendMetric, type TrendSlot } from './trend'
+import {
+  allWhole,
+  formatTrendValue,
+  metricLabels,
+  monthTickLabel,
+  trendValueOf,
+  valueAxis,
+  type TrendMetric,
+  type TrendSlot,
+} from './trend'
 
 interface TrendChartProps {
   slots: TrendSlot[]
   metric: TrendMetric
 }
 
+/** Beyond this many months the names are tilted, so a year of them fits the window's width without skipping any. */
+const uprightTickLimit = 8
+
 /**
  * The months of one variant at one location.
  * <para>
- * A month the location did not order in is a break in the line, never a zero and never a straight line drawn
- * across it. A month it did order in without this product is a real zero and is drawn as one.
+ * Straight lines from month to month: a monthly figure has no value between two months, and a curve drew one.
+ * A month the location did not order in is a break in the line, never a zero and never a line drawn across it. A
+ * month it did order in without this product is a real zero and is drawn as one.
+ * </para>
+ * <para>
+ * Every month is named on the axis. The value axis starts at zero, ends on a round number above the data so no
+ * line lies on the top edge, and counts in whole numbers when every quantity is whole. The rules are in
+ * `./trend`; this only applies them.
  * </para>
  */
 export function TrendChart({ slots, metric }: TrendChartProps) {
@@ -25,23 +43,43 @@ export function TrendChart({ slots, metric }: TrendChartProps) {
     point: slot.point,
   }))
 
+  const values = data.map((row) => row.value)
+  // Only a quantity is ever forced to whole numbers; a price or an amount keeps its qəpik.
+  const wholeNumbers = metric === 'quantity' && allWhole(values)
+  const axis = valueAxis(values, wholeNumbers)
+  const tilted = slots.length > uprightTickLimit
+  const first = slots[0]?.period
+
   return (
     <div className="h-64 w-full" aria-hidden="true">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} tickMargin={8} stroke="#cbd5e1" />
+          <XAxis
+            dataKey="period"
+            interval={0}
+            tickFormatter={(period: string) => monthTickLabel(period, period === first)}
+            tick={{ fontSize: 11, fill: '#64748b' }}
+            tickMargin={8}
+            stroke="#cbd5e1"
+            angle={tilted ? -35 : 0}
+            textAnchor={tilted ? 'end' : 'middle'}
+            height={tilted ? 56 : 30}
+          />
           <YAxis
             tick={{ fontSize: 11, fill: '#64748b' }}
             width={70}
             stroke="#cbd5e1"
+            domain={axis.domain}
+            ticks={axis.ticks}
+            allowDecimals={!wholeNumbers}
             tickFormatter={(value: number) => formatNumber(value)}
           />
           <Tooltip
             content={(props) => <TrendTooltip active={props.active} payload={props.payload} metric={metric} />}
           />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="value"
             name={metricLabels[metric]}
             stroke="#4f46e5"

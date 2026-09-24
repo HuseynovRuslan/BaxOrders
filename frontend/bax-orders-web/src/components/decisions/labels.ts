@@ -1,6 +1,7 @@
-import type { CauseCategory } from '../../api/decisions'
+import type { CauseCategory, DecisionProductCounts } from '../../api/decisions'
 import { missingPriceShortLabel } from '../../pricing/labels'
-import { newProductsLabel, notOrderedThisMonthLabel } from '../../terminology/terms'
+import { newProductsLabel, notOrderedThisMonthLabel, productNoun } from '../../terminology/terms'
+import { formatCount } from '../analytics/format'
 
 /**
  * What each category is called where money is shown beside it.
@@ -78,13 +79,33 @@ export const causeTieOrder: CauseCategory[] = [
   'InternalSupply',
 ]
 
-export type DriverFilter = 'All' | 'PriceChange' | 'QuantityChange' | 'NewOrders' | 'NoLongerOrdered' | 'MissingPrice'
+/**
+ * The one pill of a product whose quantity and price both moved.
+ *
+ * It used to carry only the larger of its two effects — "Miqdar təsiri" on Zibil paketi, whose +167 ₼ was 160 ₼
+ * of quantity and 7 ₼ of price — so the row read as a quantity change with the price hidden in it. The pill now
+ * names both, neutrally, and the line under the figures gives each its money.
+ */
+export const mixedCauseLabel = 'Miqdar və qiymət'
+
+/** Slate: the pill says which kind of change this is, and a row that moved both ways is neither kind alone. */
+export const mixedCauseToneClass = 'bg-slate-100 text-slate-700 ring-slate-300'
+
+/** The two words of a mixed row's split: "Miqdar +160,00 ₼ · Qiymət +7,00 ₼". */
+export const quantityPartLabel = 'Miqdar'
+export const pricePartLabel = 'Qiymət'
+
+/**
+ * `New` and `NoLongerOrdered` are the product's state — the comparison page's own rule — not where its money
+ * went, so the chip and the comparison page count the same products.
+ */
+export type DriverFilter = 'All' | 'PriceChange' | 'QuantityChange' | 'New' | 'NoLongerOrdered' | 'MissingPrice'
 
 export const driverFilterLabels: Record<DriverFilter, string> = {
   All: 'Hamısı',
   PriceChange: 'Qiymət dəyişən',
   QuantityChange: 'Miqdar dəyişən',
-  NewOrders: newProductsLabel,
+  New: newProductsLabel,
   NoLongerOrdered: notOrderedThisMonthLabel,
   MissingPrice: missingPriceShortLabel,
 }
@@ -93,10 +114,26 @@ export const driverFilterOrder: DriverFilter[] = [
   'All',
   'PriceChange',
   'QuantityChange',
-  'NewOrders',
+  'New',
   'NoLongerOrdered',
   'MissingPrice',
 ]
+
+/**
+ * What "Hamısı" counts, said under the heading.
+ *
+ * "Hamısı 100" on an order of 76 lines read as a mistake. It was not one — the comparison is over this order and
+ * the basis window together, and only the products that changed are listed — but nothing said so.
+ */
+export function driverScopeLine(products: DecisionProductCounts): string {
+  const { inCurrentOrderCount, comparedCount, listedCount } = products
+  const line = `Bu sifarişdə ${formatCount(inCurrentOrderCount)} ${productNoun} var, müqayisə bazası ilə birlikdə `
+    + `${formatCount(comparedCount)}. «Hamısı» onlardan dəyişən ${formatCount(listedCount)} ${productNoun}u sayır.`
+
+  return comparedCount > listedCount
+    ? `${line} ${formatCount(comparedCount - listedCount)} ${productNoun} dəyişməyib.`
+    : line
+}
 
 /** Said on a product the company paid for in one month and supplied itself in the other. */
 export const supplyChangedDriverNote = 'Təchizat forması dəyişib: alınan / şirkətdaxili'

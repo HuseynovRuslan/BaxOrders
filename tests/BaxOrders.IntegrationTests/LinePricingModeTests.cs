@@ -531,8 +531,9 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
         var count = await CountAsync(counted => new OrderAnalyticsQueries(counted).GetTrendAsync(
             world.LocationId, world.VariantId, new TrendQuery(), None));
 
-        // The location, the variant, the months, and the lines of those months.
-        Assert.Equal(4, count);
+        // The location, the variant, the months, the lines of those months, and who supplied them (Task 10's one
+        // extra query). The frequency still adds none.
+        Assert.Equal(5, count);
     }
 
     private static async Task<int> CountAsync(Func<BaxOrdersDbContext, Task> work)

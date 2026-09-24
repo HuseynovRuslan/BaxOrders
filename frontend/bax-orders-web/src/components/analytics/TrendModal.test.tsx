@@ -50,6 +50,7 @@ function point(period: string, overrides: Partial<VariantTrendPoint> = {}): Vari
     knownPriceItemCount: 1,
     missingRequiredPriceItemCount: 0,
     priceNotRequiredItemCount: 0,
+    supplierNames: [],
     ...overrides,
   }
 }
@@ -106,6 +107,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     priceNotRequiredItemCount: 0,
     priceIsComplete: true,
     supplyChanged: false,
+    state: 'Unchanged',
     ...overrides,
   }
 }
@@ -144,11 +146,27 @@ describe('the name of the screen', () => {
 })
 
 describe('the history table', () => {
-  it('is the four figures a manager thinks in', async () => {
+  /** Brief (Task 10): the supplier is shown — a month-by-month column, so a change of supplier is visible. */
+  it('is the figures a manager thinks in, with who supplied each month', async () => {
     await renderModal()
 
     const headers = primary().getAllByRole('columnheader').map((cell) => cell.textContent)
-    expect(headers).toEqual(['Ay', 'Miqdar', 'Qiymət', 'Məbləğ'])
+    expect(headers).toEqual(['Ay', 'Miqdar', 'Qiymət', 'Məbləğ', 'Təchizatçı'])
+  })
+
+  it('names each month s suppliers, and an em dash where the lines name none', async () => {
+    analyticsApi.fetchVariantTrend.mockResolvedValue(trend({
+      points: [
+        point('2026-05-01'),
+        point('2026-07-01', { supplierNames: ['Çinar MMC', 'Zəfər LTD'] }),
+      ],
+    }))
+    await renderModal()
+
+    const july = primary().getByRole('row', { name: /İyul 2026/ })
+    expect(within(july).getByText('Çinar MMC · Zəfər LTD')).toBeInTheDocument()
+    const may = primary().getByRole('row', { name: /May 2026/ })
+    expect(within(may).getAllByRole('cell').at(-1)).toHaveTextContent('—')
   })
 
   /** Which request a month came from answers a different question, from a different job. */
@@ -201,7 +219,11 @@ describe('the history table', () => {
     expect(primary().queryByText('0,00 ₼')).toBeNull()
   })
 
-  it('still warns where a price is genuinely owed', async () => {
+  /**
+   * Brief (Task 10, Task 2): an unpriced line reads "—". The count moves into Task 9's short mark, whose name is
+   * still Task 2's one sentence for it.
+   */
+  it('shows an unpriced month as an em dash with the short mark, still warning where a price is owed', async () => {
     analyticsApi.fetchVariantTrend.mockResolvedValue(trend({
       points: [point('2026-07-01', {
         knownAmount: null,
@@ -212,8 +234,13 @@ describe('the history table', () => {
     }))
     await renderModal()
 
-    // Task 2's one sentence for a count of price warnings, not a second wording of it.
-    expect(primary().getByText('2 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
+    const july = primary().getByRole('row', { name: /İyul 2026/ })
+    const [, price, amount] = within(july).getAllByRole('cell')
+    expect(price).toHaveTextContent('—')
+    const mark = within(price).getByRole('img', { name: '2 sətirdə qiymət yoxdur' })
+    expect(mark).toHaveTextContent('⚠ 2')
+    expect(mark).toHaveClass('text-amber-800')
+    expect(amount).toHaveTextContent('—')
   })
 
   it('shows a real price on an internally supplied product that has one', async () => {
@@ -224,6 +251,80 @@ describe('the history table', () => {
 
     expect(primary().getByText('4,10 ₼')).toBeInTheDocument()
     expect(primary().queryByText('Daxili təminat')).toBeNull()
+  })
+
+  /** Brief, "Mütləq qorunmalı": the technical record stays folded away. */
+  it('keeps the source and version record in a closed section', async () => {
+    await renderModal()
+
+    const summary = screen.getByText('Mənbə və versiya məlumatı')
+    const details = summary.closest('details')
+    expect(details).not.toBeNull()
+    expect(details).not.toHaveAttribute('open')
+  })
+})
+
+describe('who supplies it', () => {
+  it('names the suppliers of the latest month the product was ordered in', async () => {
+    analyticsApi.fetchVariantTrend.mockResolvedValue(trend({
+      points: [
+        point('2026-05-01', { supplierNames: ['Köhnə şirkət'] }),
+        point('2026-07-01', { supplierNames: ['Aqro MMC', 'Bakı Texnika'] }),
+      ],
+    }))
+    await renderModal()
+
+    expect(screen.getByText('Təchizatçı: Aqro MMC · Bakı Texnika')).toBeInTheDocument()
+  })
+
+  /** A month ordered without this product is not the product's latest order; the month that was is named. */
+  it('names the month when the latest order of the product is not the last month shown', async () => {
+    analyticsApi.fetchVariantTrend.mockResolvedValue(trend({
+      from: '2026-07-01',
+      to: '2026-08-01',
+      points: [
+        point('2026-07-01', { supplierNames: ['Aqro MMC'] }),
+        point('2026-08-01', { quantity: 0, itemCount: 0, knownAmount: null, weightedUnitPrice: null, knownPriceItemCount: 0 }),
+      ],
+    }))
+    await renderModal()
+
+    expect(screen.getByText('Təchizatçı (İyul 2026): Aqro MMC')).toBeInTheDocument()
+  })
+
+  it('says so when no line recorded a supplier', async () => {
+    await renderModal()
+
+    expect(screen.getByText('Təchizatçı qeyd olunmayıb')).toBeInTheDocument()
+    expect(screen.queryByText(/^Təchizatçı:/)).toBeNull()
+  })
+})
+
+describe('this month against the basis', () => {
+  /** Brief: "orta 30 ədəd, bu ay 40 — 1.3×", against the basis the reader chose (Task 1). */
+  it('divides the row s own two quantities, in the chosen basis s words', async () => {
+    await renderModal({
+      driver: driver({ baselineQuantity: 30, currentQuantity: 40 }),
+      quantityRatio: { basis: 'Previous3MonthAverage', windowPeriods: ['2026-04', '2026-05', '2026-06'], baseline: 30, current: 40 },
+    })
+
+    const section = within(screen.getByLabelText('Bu ayın müqayisəsi'))
+    expect(section.getByText('Son 3 ayın ortalaması: 30 ədəd · bu ay: 40 ədəd — 1,3×')).toBeInTheDocument()
+  })
+
+  /** Opened from the comparison page there is no driver; the page's own row and basis give the same line. */
+  it('gives the same line when opened without a driver', async () => {
+    await renderModal({
+      quantityRatio: { basis: 'PreviousMonth', windowPeriods: ['2026-06'], baseline: 30, current: 40 },
+    })
+
+    expect(screen.getByText('Keçən ay: 30 ədəd · bu ay: 40 ədəd — 1,3×')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Bu ayın müqayisəsi')).toBeNull()
+  })
+
+  it('offers no ratio for a service, or without a basis', async () => {
+    await renderModal({ isService: true, quantityRatio: { basis: 'PreviousMonth', windowPeriods: ['2026-06'], baseline: 1, current: 2 } })
+    expect(screen.queryByText(/bu ay:/)).toBeNull()
   })
 })
 
@@ -287,7 +388,20 @@ describe('the comparison it was opened from', () => {
     expect(section.textContent).toContain(`84,00${nbsp}₼ → 123,00${nbsp}₼`)
     expect(detail.getByText('Miqdar təsiri')).toBeInTheDocument()
     expect(detail.getByText('Qiymət təsiri')).toBeInTheDocument()
-    expect(detail.getByText('+39,00 ₼')).toHaveClass('text-emerald-700')
+  })
+
+  /** 9.1: a cost that went up is red and one that went down is green — the direction, said in words too. */
+  it('colours each effect by the direction of the cost', async () => {
+    await renderModal({ driver: driver({ amountImpact: 30, quantityImpact: 50, priceImpact: -20 }) })
+
+    const detail = within(screen.getByLabelText('Bu ayın müqayisəsi'))
+    const up = detail.getByText('+50,00 ₼')
+    const down = detail.getByText('−20,00 ₼')
+    expect(up).toHaveClass('text-red-700')
+    expect(down).toHaveClass('text-emerald-700')
+    expect(within(up).getByText(/xərc artıb/)).toHaveClass('sr-only')
+    expect(within(down).getByText(/xərc azalıb/)).toHaveClass('sr-only')
+    expect(screen.getByLabelText('Bu ayın müqayisəsi').innerHTML).not.toMatch(/text-rose-700/)
   })
 
   it('says nothing about a comparison when it was not opened from one', async () => {

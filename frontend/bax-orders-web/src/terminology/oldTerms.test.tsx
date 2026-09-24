@@ -273,6 +273,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     priceNotRequiredItemCount: 0,
     priceIsComplete: true,
     supplyChanged: false,
+    state: 'NoLongerOrdered',
     ...overrides,
   }
 }
@@ -340,6 +341,7 @@ function decisionContext(): OrderDecisionContext {
           baselineUnitPrice: null,
           currentKnownAmount: 2900,
           baselineKnownAmount: null,
+          state: 'New',
         }),
         driver({
           variant: variant({ productVariantId: 23, productName: 'Əlcək', orderUnitCode: 'PAIR', orderUnitName: 'Cüt' }),
@@ -351,8 +353,26 @@ function decisionContext(): OrderDecisionContext {
           baselineUnitPrice: 0.948,
           missingPriceItemCount: 2,
           priceIsComplete: false,
+          state: 'Unchanged',
+        }),
+        // Quantity and price both moved (Task 10), so the split line and its pill are swept too.
+        driver({
+          variant: variant({ productVariantId: 24, productName: 'Şampun qab', orderUnitCode: 'PACK', orderUnitName: 'Paçka' }),
+          category: 'QuantityChange',
+          amountImpact: 167,
+          quantityImpact: 160,
+          priceImpact: 7,
+          currentQuantity: 55,
+          baselineQuantity: 50,
+          currentUnitPrice: 32.1273,
+          baselineUnitPrice: 32,
+          unitPricePercentChange: 0.3978,
+          currentKnownAmount: 1767,
+          baselineKnownAmount: 1600,
+          state: 'Increased',
         }),
       ],
+      products: { comparedCount: 45, inCurrentOrderCount: 40, newCount: 1, noLongerOrderedCount: 1, listedCount: 4 },
     },
   }
 }
@@ -569,6 +589,7 @@ function variantTrend(): VariantTrend {
     knownPriceItemCount: 1,
     missingRequiredPriceItemCount: 0,
     priceNotRequiredItemCount: 0,
+    supplierNames: ['Kənar şirkət'],
   }
 
   return {
@@ -1029,7 +1050,14 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).toHaveTextContent('32,13 ₼')
     expect(container).toHaveTextContent('Yeni məhsullar')
     expect(container).toHaveTextContent('Bu ay yazılmayan məhsullar')
-    expect(container).toHaveTextContent('1 məhsul')
+    // Task 10's words: a part's count, the split of a mixed row, and what "Hamısı" counts.
+    expect(container).toHaveTextContent('1 məhsuldan')
+    expect(container).toHaveTextContent('Miqdar və qiymət')
+    expect(container).toHaveTextContent(/Miqdar \+160,00 ₼.*· Qiymət \+7,00 ₼/)
+    expect(container).toHaveTextContent(
+      'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 4 məhsulu sayır.',
+    )
+    expect(container).not.toHaveTextContent(/yaxşı|pis/i)
     expect(screen.getByRole('columnheader', { name: 'Vahid' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Müqayisə üçün data azdır — bu nə deməkdir?' })).toBeInTheDocument()
   })
@@ -1074,7 +1102,12 @@ describe('no retired word on the manager’s screens', () => {
     expectNoOldTerms(dialog)
     expect(dialog).toHaveTextContent('Məhsul tarixçəsi')
     expect(dialog).toHaveTextContent('71 ədəd')
-    expect(dialog).toHaveTextContent('2 sətirdə qiymət yoxdur')
+    // Task 10: the unpriced month reads "—" and carries the short mark, named in Task 2's sentence.
+    expect(within(dialog).getByRole('img', { name: '2 sətirdə qiymət yoxdur' })).toHaveTextContent('⚠ 2')
+    // Task 10's lines: this month against the chosen basis, and who supplied it.
+    expect(dialog).toHaveTextContent('Son 3 ayın ortalaması: 71 ədəd · bu ay: 0 ədəd — bu ay sifariş olunmayıb')
+    expect(dialog).toHaveTextContent('Təchizatçı: Kənar şirkət')
+    expect(dialog).not.toHaveTextContent(/yaxşı|pis/i)
   })
 
   it('the product history on its own', async () => {
@@ -1128,7 +1161,10 @@ describe('no retired word on the manager’s screens', () => {
     expectNoOldTerms(container)
     expect(container).toHaveTextContent('Qiyməti olan sətirlərin cəmi')
     expect(container).toHaveTextContent('Orta qiymət: 32,13 ₼')
-    expect(container).toHaveTextContent('2 məhsul')
+    // Task 10: each count says what it counts.
+    expect(container).toHaveTextContent('2 məhsul göstərilir')
+    expect(container).toHaveTextContent('Müqayisədə 3 məhsul: bu ay və ya müqayisə bazasında sifariş olunanlar')
+    expect(container).not.toHaveTextContent(/yaxşı|pis/i)
     expect(screen.getByPlaceholderText('Məhsul adı üzrə axtar')).toBeInTheDocument()
 
     // The months the comparison rests on, opened: each is a month and a link, never "— Versiya 2".

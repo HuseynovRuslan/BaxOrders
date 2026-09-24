@@ -180,6 +180,10 @@ public sealed record AnalyticsPeriodsDto(
 /// </param>
 /// <param name="MissingRequiredPriceItemCount">Bought lines nobody has priced.</param>
 /// <param name="PriceNotRequiredItemCount">Internally supplied lines, complete without a purchase price.</param>
+/// <param name="SupplierNames">
+/// Who supplied this product that month: the distinct suppliers on its lines, in Azerbaijani alphabetical order.
+/// Empty when no line names one, and for a month the product was not ordered in.
+/// </param>
 public sealed record VariantTrendPointDto(
     DateOnly Period,
     long OrderRequestId,
@@ -190,7 +194,8 @@ public sealed record VariantTrendPointDto(
     int ItemCount,
     int KnownPriceItemCount,
     int MissingRequiredPriceItemCount,
-    int PriceNotRequiredItemCount);
+    int PriceNotRequiredItemCount,
+    IReadOnlyList<string> SupplierNames);
 
 /// <summary>
 /// How often this location actually orders this product, counted rather than estimated.

@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import type { DecisionDriver } from '../../api/decisions'
+import type { DecisionDriver, DecisionProductCounts } from '../../api/decisions'
+import { DirectionWord } from '../analytics/DirectionWord'
 import {
+  costDirectionToneClass,
   formatCount,
   formatMoney,
   formatMoneyDelta,
   formatPercent,
   formatPrice,
   formatQuantity,
-  signedToneClass,
   unknownValue,
 } from '../analytics/format'
 import { distinguishVariants } from '../analytics/labels'
@@ -18,6 +19,11 @@ import {
   causeToneClass,
   driverFilterLabels,
   driverFilterOrder,
+  driverScopeLine,
+  mixedCauseLabel,
+  mixedCauseToneClass,
+  pricePartLabel,
+  quantityPartLabel,
   supplyChangedDriverNote,
   type DriverFilter,
 } from './labels'
@@ -27,6 +33,8 @@ const initialCount = 6
 
 interface DriverListProps {
   drivers: DecisionDriver[]
+  /** What the counts count, so "Hamısı" can say it rather than leave the reader to guess. */
+  products: DecisionProductCounts
   onHistory: (driver: DecisionDriver) => void
 }
 
@@ -37,7 +45,7 @@ interface DriverListProps {
  * has to take the classification on trust: 2,80 → 4,10 ₼ is checkable, "qiymət artıb" is not. Only a handful
  * are shown at first — the list is a summary of the causes, and the rest are one click away.
  */
-export function DriverList({ drivers, onHistory }: DriverListProps) {
+export function DriverList({ drivers, products, onHistory }: DriverListProps) {
   const [filter, setFilter] = useState<DriverFilter>('All')
   const [expanded, setExpanded] = useState(false)
 
@@ -52,7 +60,10 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white" aria-label="Əsas dəyişikliklər">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
+          <p className="mt-0.5 text-xs text-slate-500">{driverScopeLine(products)}</p>
+        </div>
         <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="Dəyişiklik növü">
           {driverFilterOrder
             .filter((option) => option === 'All' || counts[option] > 0)
@@ -99,9 +110,11 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="font-medium text-slate-900">{driver.variant.productName}</span>
                     <span
-                      className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${causeToneClass[driver.category]}`}
+                      className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                        isMixed(driver) ? mixedCauseToneClass : causeToneClass[driver.category]
+                      }`}
                     >
-                      {causeLabels[driver.category]}
+                      {isMixed(driver) ? mixedCauseLabel : causeLabels[driver.category]}
                     </span>
                   </p>
                   <p className="text-xs text-slate-400">{descriptions[index]}</p>
@@ -109,14 +122,19 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
                 </div>
 
                 {/*
-                  What it did to the money — the second of the two questions this row answers. A product
-                  whose price nobody knows moved an amount nobody can compute, and "0,00 ₼" would claim it
-                  moved nothing at all. An em dash says what is true: unknown.
+                  What it did to the money — the second of the two questions this row answers — in the colour
+                  of the cost's direction (9.1). A product whose money nobody can compute shows an em dash:
+                  "0,00 ₼" would claim it moved nothing at all.
                 */}
-                <p className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold ${signedToneClass(driver.amountImpact)}`}>
-                  {!driver.priceIsComplete && driver.amountImpact === 0
+                <p className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold ${costDirectionToneClass(driver.amountImpact)}`}>
+                  {moneyIsUnknown(driver)
                     ? <span className="text-slate-400">{unknownValue}</span>
-                    : formatMoneyDelta(driver.amountImpact)}
+                    : (
+                      <>
+                        {formatMoneyDelta(driver.amountImpact)}
+                        <DirectionWord value={driver.amountImpact} />
+                      </>
+                    )}
                 </p>
               </button>
             </li>
@@ -144,8 +162,9 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
  *
  * Quantity and price are both written even when one of them did not move, because "20 → 40 · Qiymət 2,00 →
  * 2,00 ₼" is what makes the effect beside it checkable: the reader can see that the money came from the
- * quantity and not from the price. Everything else about the product — baseline amounts, the split of the two
- * effects, the whole history, how often it is ordered — is one click away and deliberately not here.
+ * quantity and not from the price. When both moved, that line cannot say how much each accounts for, so the
+ * split follows it on a line of its own. Everything else about the product — baseline amounts, the whole
+ * history, how often it is ordered — is one click away and deliberately not here.
  */
 function Change({ driver }: { driver: DecisionDriver }) {
   const notes: string[] = []
@@ -188,11 +207,52 @@ function Change({ driver }: { driver: DecisionDriver }) {
   return (
     <>
       {facts.length > 0 && <p className="mt-0.5 text-xs text-slate-600">{facts.join(' · ')}</p>}
+      {isMixed(driver) && <Split driver={driver} />}
       {notes.length > 0 && <p className="mt-0.5 text-xs text-slate-500">{notes.join(' · ')}</p>}
     </>
   )
 }
 
+/** "Miqdar +160,00 ₼ · Qiymət +7,00 ₼" — each part of a mixed row's money, in its own direction's colour (9.1). */
+function Split({ driver }: { driver: DecisionDriver }) {
+  return (
+    <p className="mt-0.5 text-xs text-slate-600">
+      {quantityPartLabel}{' '}
+      <span className={`font-medium ${costDirectionToneClass(driver.quantityImpact)}`}>
+        {formatMoneyDelta(driver.quantityImpact)}
+        <DirectionWord value={driver.quantityImpact} />
+      </span>
+      {' · '}
+      {pricePartLabel}{' '}
+      <span className={`font-medium ${costDirectionToneClass(driver.priceImpact)}`}>
+        {formatMoneyDelta(driver.priceImpact)}
+        <DirectionWord value={driver.priceImpact} />
+      </span>
+    </p>
+  )
+}
+
+/** Both effects are there and both moved: the row is not a quantity change or a price change, but both. */
+function isMixed(driver: DecisionDriver): boolean {
+  return driver.quantityImpact !== null && driver.quantityImpact !== 0
+    && driver.priceImpact !== null && driver.priceImpact !== 0
+}
+
+/**
+ * No money that can be shown: a zero whose price is partly unknown, or a zero with no known amount on either side
+ * — a product listed because it appeared or disappeared, unpriced or supplied from the company's own store.
+ */
+function moneyIsUnknown(driver: DecisionDriver): boolean {
+  return driver.amountImpact === 0
+    && (!driver.priceIsComplete || (driver.currentKnownAmount === null && driver.baselineKnownAmount === null))
+}
+
+/**
+ * Whether a row belongs under a chip. Each chip's count is the number of rows it leaves, so the two can never
+ * disagree. "Yeni məhsullar" and "Bu ay yazılmayan məhsullar" go by the product's state — the comparison page's
+ * rule — rather than by where its money was filed, so both pages count the same products; a new product with a
+ * missing price is therefore under both "Yeni məhsullar" and "Qiymət yoxdur".
+ */
 function matches(driver: DecisionDriver, filter: DriverFilter): boolean {
   switch (filter) {
     case 'All':
@@ -202,10 +262,10 @@ function matches(driver: DecisionDriver, filter: DriverFilter): boolean {
       return driver.priceImpact !== null && driver.priceImpact !== 0
     case 'QuantityChange':
       return driver.quantityImpact !== null && driver.quantityImpact !== 0
-    case 'NewOrders':
-      return driver.category === 'NewOrders'
+    case 'New':
+      return driver.state === 'New'
     case 'NoLongerOrdered':
-      return driver.category === 'NoLongerOrdered'
+      return driver.state === 'NoLongerOrdered'
     case 'MissingPrice':
       return !driver.priceIsComplete
   }

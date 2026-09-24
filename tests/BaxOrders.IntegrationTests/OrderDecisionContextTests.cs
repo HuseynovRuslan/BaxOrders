@@ -203,6 +203,59 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         Assert.Equal(driver.AmountImpact, driver.QuantityImpact + driver.PriceImpact);
     }
 
+    /// <summary>
+    /// The audit's Zibil paketi: 50 → 55 paket and 32,00 → 32,1273 ₼. The row is +167,00 ₼, and the screen can only
+    /// show "Miqdar +160,00 ₼ · Qiymət +7,00 ₼" if both parts arrive, non-zero, and add up to it.
+    /// </summary>
+    [PostgresFact]
+    public async Task A_product_whose_quantity_and_price_both_moved_carries_both_parts()
+    {
+        await using var db = database.CreateContext();
+        var world = await MixedWorldAsync(db);
+
+        var driver = Driver(await ContextAsync(db, world.JulyRequestId), world.VariantId);
+
+        Assert.Equal(167m, driver.AmountImpact);
+        Assert.Equal(160m, driver.QuantityImpact);
+        Assert.Equal(7m, driver.PriceImpact);
+        Assert.Equal(driver.AmountImpact, driver.QuantityImpact + driver.PriceImpact);
+        Assert.Equal(ComparisonState.Increased, driver.State);
+    }
+
+    [PostgresFact]
+    public async Task Every_product_carries_the_state_the_comparison_page_labels_it_with()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var context = await ContextAsync(db, world.JulyRequestId);
+
+        Assert.Equal(ComparisonState.New, Driver(context, world.NewcomerVariantId).State);
+        Assert.Equal(ComparisonState.NoLongerOrdered, Driver(context, world.RetiredVariantId).State);
+        Assert.Equal(ComparisonState.Increased, Driver(context, world.BagVariantId).State);
+        Assert.Equal(ComparisonState.Unchanged, Driver(context, world.NapkinVariantId).State);
+        Assert.Equal(ComparisonState.NotComparable, Driver(context, world.ServiceVariantId).State);
+        // Up by state even though its money is not explained: the state is about quantities, not about money.
+        Assert.Equal(ComparisonState.Increased, Driver(context, world.UnpricedVariantId).State);
+    }
+
+    [PostgresFact]
+    public async Task The_product_counts_say_what_they_count()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var decomposition = (await ContextAsync(db, world.JulyRequestId)).Decomposition!;
+
+        // June and July together hold ten products; July's order has nine; one is new and one is no longer
+        // ordered; the steady one moved nothing, so nine are listed.
+        Assert.Equal(
+            new DecisionProductCountsDto(
+                ComparedCount: 10, InCurrentOrderCount: 9, NewCount: 1, NoLongerOrderedCount: 1, ListedCount: 9),
+            decomposition.Products);
+        Assert.Equal(decomposition.Drivers.Count, decomposition.Products.ListedCount);
+    }
+
     [PostgresFact]
     public async Task A_product_the_month_before_never_ordered_is_new()
     {
@@ -488,6 +541,37 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
             napkinVariant.Id, napkinPackVariant.Id, bagVariant.Id, bothVariant.Id,
             newcomerVariant.Id, retiredVariant.Id, steadyVariant.Id, serviceVariant.Id,
             unpricedVariant.Id, weightedVariant.Id);
+    }
+
+    private sealed record MixedWorld(long JulyRequestId, long VariantId);
+
+    /// <summary>One product whose quantity and price both moved, shaped like the audit's Zibil paketi.</summary>
+    private static async Task<MixedWorld> MixedWorldAsync(BaxOrdersDbContext db)
+    {
+        var tag = Unique();
+
+        var location = new Location(
+            await new PostgresLocationCodeGenerator(db).NextAsync(None), $"Qarışıq obyekt {tag}");
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var packs = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PACK");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Zibil paketi {tag}");
+        await db.SaveChangesAsync();
+
+        var variant = product.AddVariant(null, null, null, packs);
+        await db.SaveChangesAsync();
+
+        var june = new OrderRequest(location, new DateOnly(2026, 6, 1));
+        june.AddItem(variant, 50m, 32m);
+
+        var july = new OrderRequest(location, new DateOnly(2026, 7, 1));
+        july.AddItem(variant, 55m, 32.1273m);
+
+        db.OrderRequests.AddRange(june, july);
+        await db.SaveChangesAsync();
+
+        return new MixedWorld(july.Id, variant.Id);
     }
 
     private sealed record VersionedWorld(long FirstVersionId, long SecondVersionId);

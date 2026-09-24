@@ -255,6 +255,25 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             })
             .ToDictionaryAsync(row => row.OrderRequestId, cancellationToken);
 
+        // Who supplied it, month by month: one query, a handful of rows, and nothing written. A line with no
+        // supplier recorded names nobody rather than an empty name.
+        var supplierRows = await db.OrderRequestItems.AsNoTracking()
+            .Where(item => requestIds.Contains(item.OrderRequestId)
+                && item.ProductVariantId == productVariantId
+                && item.SupplierId != null)
+            .Select(item => new { item.OrderRequestId, SupplierName = item.Supplier!.Name })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var suppliersByRequest = supplierRows
+            .GroupBy(row => row.OrderRequestId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)[.. group
+                    .Select(row => row.SupplierName)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(name => name, AzerbaijaniCollation.Comparer)]);
+
         var points = new List<VariantTrendPointDto>(periods.Count);
         foreach (var period in periods)
         {
@@ -276,7 +295,8 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 found?.ItemCount ?? 0,
                 knownPriceItems,
                 found?.MissingRequiredPriceItemCount ?? 0,
-                found?.PriceNotRequiredItemCount ?? 0));
+                found?.PriceNotRequiredItemCount ?? 0,
+                suppliersByRequest.GetValueOrDefault(period.OrderRequestId) ?? []));
         }
 
         return new VariantTrendDto(

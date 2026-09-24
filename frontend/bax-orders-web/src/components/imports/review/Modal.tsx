@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 interface ModalProps {
   title: string
@@ -11,9 +11,24 @@ interface ModalProps {
   width?: 'default' | 'wide'
 }
 
+/**
+ * The one dialog every screen uses. While it is open the page behind it stays where it is: scrolling the dialog
+ * used to scroll the page too, so a reader who closed the product history found themselves somewhere else.
+ */
 export function Modal({ title, subtitle, onClose, children, footer, width = 'default' }: ModalProps) {
+  useEffect(() => {
+    // What this dialog found, put back as it found it: a dialog opened over another, or straight after one,
+    // must not leave the page locked or unlock the dialog still beneath it.
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4">
+    // overscroll-contain: a scroll that reaches the dialog's end stops there instead of carrying on to the page.
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4">
       <div
         role="dialog"
         aria-modal="true"

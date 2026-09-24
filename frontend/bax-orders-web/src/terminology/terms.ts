@@ -22,6 +22,25 @@ export const notOrderedThisMonthLabel = 'Bu ay yazılmayan məhsullar'
 /** What a row of the comparison is. Was "mövqe". */
 export const productNoun = 'məhsul'
 
+/**
+ * "58 məhsuldan" — how many products a part of the money came from. Beside a "Yeni məhsullar" part, "58 məhsul"
+ * read as "58 new products", which is the state count's question, not this one.
+ */
+export const fromProductsNoun = 'məhsuldan'
+
+/**
+ * What the comparison page's counts are counted out of: this month's products and the basis window's together —
+ * the same number the order page gives as "müqayisə bazası ilə birlikdə".
+ */
+export function comparedProductsLead(count: string): string {
+  return `Müqayisədə ${count} ${productNoun}: bu ay və ya müqayisə bazasında sifariş olunanlar ·`
+}
+
+/** The comparison page's row count: the open tab's rows after its search and filter, not every product compared. */
+export function shownProductsLabel(count: string): string {
+  return `${count} ${productNoun} göstərilir`
+}
+
 /** Money that leaves out the lines nobody has priced. Never called a total of the order. */
 export const pricedLinesTotalLabel = 'Qiyməti olan sətirlərin cəmi'
 

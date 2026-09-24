@@ -1,4 +1,4 @@
-import type { AnalyticsComparisonBasis, AnalyticsKind, VariantIdentity } from './analytics'
+import type { AnalyticsComparisonBasis, AnalyticsKind, ComparisonState, VariantIdentity } from './analytics'
 import { getJson } from './client'
 import type { OrderRequestStatus } from './orders'
 
@@ -69,7 +69,8 @@ export interface DecisionCause {
  * One product behind the difference, with the before and after values that explain it.
  *
  * A product that moved both ways carries both effects, and reaches both of their totals. The `category` is
- * only the one it is filed under — the larger of its two effects.
+ * only the one it is filed under — the larger of its two effects. The `state` is a different question: whether
+ * the product is new, no longer ordered, up or down, by the rule the comparison page labels it with.
  */
 export interface DecisionDriver {
   variant: VariantIdentity
@@ -94,6 +95,22 @@ export interface DecisionDriver {
   priceIsComplete: boolean
   /** The company paid for this product in one of the two months and supplied it itself in the other. */
   supplyChanged: boolean
+  /** New, no longer ordered, up, down… — the comparison page's own label for this product. */
+  state: ComparisonState
+}
+
+/** How many products the comparison is about, counted by the comparison page's rule. */
+export interface DecisionProductCounts {
+  /** Every product in this order or in the basis window — the comparison page's `totalVariantCount`. */
+  comparedCount: number
+  /** Distinct products in the opened order. */
+  inCurrentOrderCount: number
+  /** Products whose state is `New`. */
+  newCount: number
+  /** Products whose state is `NoLongerOrdered`. */
+  noLongerOrderedCount: number
+  /** The drivers listed: every product that moved, whose price is unknown, or that appeared or disappeared. */
+  listedCount: number
 }
 
 export interface DecisionDecomposition {
@@ -108,6 +125,7 @@ export interface DecisionDecomposition {
   supplyChangedVariantCount: number
   /** Largest money first. */
   drivers: DecisionDriver[]
+  products: DecisionProductCounts
 }
 
 export interface OrderDecisionContext {

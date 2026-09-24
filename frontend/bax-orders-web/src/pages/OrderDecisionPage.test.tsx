@@ -83,6 +83,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     priceNotRequiredItemCount: 0,
     priceIsComplete: true,
     supplyChanged: false,
+    state: 'Unchanged',
     ...overrides,
   }
 }
@@ -182,6 +183,7 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
       internalSupplyVariantCount: 0,
       supplyChangedVariantCount: 0,
       drivers: [driver()],
+      products: { comparedCount: 45, inCurrentOrderCount: 40, newCount: 1, noLongerOrderedCount: 0, listedCount: 1 },
     },
     ...overrides,
   }
@@ -339,6 +341,7 @@ function trend(): VariantTrend {
         knownPriceItemCount: 1,
         missingRequiredPriceItemCount: 0,
         priceNotRequiredItemCount: 0,
+        supplierNames: [],
       },
       {
         period: '2026-07-01',
@@ -351,6 +354,7 @@ function trend(): VariantTrend {
         knownPriceItemCount: 1,
         missingRequiredPriceItemCount: 0,
         priceNotRequiredItemCount: 0,
+        supplierNames: ['Cleanfix MMC'],
       },
     ],
   }
@@ -551,6 +555,39 @@ describe('the drivers', () => {
       { from: '2025-08', to: '2026-07' },
       expect.anything(),
     )
+  })
+
+  /** Brief: every count says what it counts. The list gets the backend's counts and says what "Hamısı" is. */
+  it('says what "Hamısı" counts, from the counts the backend sent', async () => {
+    await renderPage()
+
+    const list = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
+    expect(within(list).getByText(
+      'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 1 məhsulu sayır. '
+      + '44 məhsul dəyişməyib.',
+    )).toBeInTheDocument()
+  })
+
+  /** The window compares against the basis the page compares against (Task 1), with the row's own figures. */
+  it('opens the history with this month against the page s own basis, and the supplier', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      primary: comparison({
+        basis: 'Previous3MonthAverage',
+        windowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
+        expectedPeriodCount: 3,
+        availablePeriodCount: 3,
+      }),
+      decomposition: {
+        ...context().decomposition!,
+        drivers: [driver({ baselineQuantity: 30, currentQuantity: 40, quantityImpact: 28, priceImpact: 11 })],
+      },
+    }))
+    await renderPage()
+    await userEvent.click(screen.getByRole('button', { name: /York qatlama salfet/ }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Son 3 ayın ortalaması: 30 ədəd · bu ay: 40 ədəd — 1,3×')).toBeInTheDocument()
+    expect(within(dialog).getByText('Təchizatçı: Cleanfix MMC')).toBeInTheDocument()
   })
 })
 
@@ -939,6 +976,7 @@ describe('internal supply on the decision screen', () => {
         internalSupplyVariantCount: 2,
         supplyChangedVariantCount: 0,
         drivers: [],
+        products: { comparedCount: 40, inCurrentOrderCount: 40, newCount: 0, noLongerOrderedCount: 0, listedCount: 0 },
       },
     }))
     await renderPage()

@@ -2,6 +2,7 @@
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.Suppliers;
 using BaxOrders.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -570,6 +571,47 @@ public sealed class OrderAnalyticsTests(PostgresDatabaseFixture database)
     }
 
     [PostgresFact]
+    public async Task A_trend_month_names_every_supplier_of_the_product_once_in_alphabetical_order()
+    {
+        await using var db = database.CreateContext();
+        var world = await SupplierWorldAsync(db);
+
+        var trend = await Queries(db).GetTrendAsync(
+            world.LocationId, world.VariantId, new TrendQuery(), CancellationToken.None);
+        var july = Assert.Single(trend!.Points, point => point.Period == world.July);
+
+        // Two lines from Zəfər and one from Çinar: each named once, Ç before Z as the Azerbaijani alphabet has it,
+        // and the line with no supplier adds no empty name.
+        Assert.Equal([world.Cinar, world.Zefer], july.SupplierNames);
+    }
+
+    [PostgresFact]
+    public async Task A_trend_month_without_a_supplier_or_without_the_product_names_nobody()
+    {
+        await using var db = database.CreateContext();
+        var world = await SupplierWorldAsync(db);
+
+        var trend = await Queries(db).GetTrendAsync(
+            world.LocationId, world.VariantId, new TrendQuery(), CancellationToken.None);
+
+        // May: the product was ordered with no supplier recorded. June: the object ordered, but not this product.
+        Assert.Empty(Assert.Single(trend!.Points, point => point.Period == world.May).SupplierNames);
+        Assert.Empty(Assert.Single(trend.Points, point => point.Period == world.June).SupplierNames);
+    }
+
+    [PostgresFact]
+    public async Task A_trend_never_names_another_products_supplier()
+    {
+        await using var db = database.CreateContext();
+        var world = await SupplierWorldAsync(db);
+
+        var trend = await Queries(db).GetTrendAsync(
+            world.LocationId, world.VariantId, new TrendQuery(), CancellationToken.None);
+
+        Assert.DoesNotContain(world.Other, trend!.Points.SelectMany(point => point.SupplierNames));
+    }
+
+    [PostgresFact]
     public async Task Unknown_locations_and_variants_answer_with_nothing()
     {
         await using var db = database.CreateContext();
@@ -830,6 +872,60 @@ public sealed class OrderAnalyticsTests(PostgresDatabaseFixture database)
         await db.SaveChangesAsync();
 
         return new VersionedWorld(location.Id, may, june, second.Id, variant.Id);
+    }
+
+    private sealed record SupplierWorld(
+        int LocationId, long VariantId, DateOnly May, DateOnly June, DateOnly July,
+        string Cinar, string Zefer, string Other);
+
+    /// <summary>
+    /// A product bought from two suppliers in July, from nobody named in May, and not at all in June — and a
+    /// second product whose supplier must never appear in the first one's history.
+    /// </summary>
+    private static async Task<SupplierWorld> SupplierWorldAsync(BaxOrdersDbContext db)
+    {
+        var tag = Unique();
+        var (may, june, july) = (new DateOnly(2026, 5, 1), new DateOnly(2026, 6, 1), new DateOnly(2026, 7, 1));
+
+        var location = new Location(
+            await new PostgresLocationCodeGenerator(db).NextAsync(CancellationToken.None), $"Təchizat obyekti {tag}");
+        db.Locations.Add(location);
+
+        var cinar = new Supplier($"Çinar {tag}");
+        var zefer = new Supplier($"Zəfər {tag}");
+        var other = new Supplier($"Başqa şirkət {tag}");
+        db.Suppliers.AddRange(cinar, zefer, other);
+        await db.SaveChangesAsync();
+
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var codes = new PostgresProductCodeGenerator(db);
+        var tractor = await ProductAsync(db, codes, $"Traktor qazonbiçən {tag}");
+        var gloves = await ProductAsync(db, codes, $"Əlcək {tag}");
+        await db.SaveChangesAsync();
+
+        var variant = tractor.AddVariant(null, null, null, pieces);
+        var otherVariant = gloves.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        // Small money on purpose: the dashboard's shortlist is chosen from every object in these shared months, and
+        // a world about suppliers must not become some other test's largest mover.
+        var mayRequest = new OrderRequest(location, may);
+        mayRequest.AddItem(variant, 1m, 2m);
+
+        var juneRequest = new OrderRequest(location, june);
+        juneRequest.AddItem(otherVariant, 10m, 0.5m, other);
+
+        var julyRequest = new OrderRequest(location, july);
+        julyRequest.AddItem(variant, 1m, 2m, zefer);
+        julyRequest.AddItem(variant, 1m, 2m, zefer);
+        julyRequest.AddItem(variant, 1m, 2m, cinar);
+        julyRequest.AddItem(variant, 1m, 2m);
+        julyRequest.AddItem(otherVariant, 10m, 0.5m, other);
+
+        db.OrderRequests.AddRange(mayRequest, juneRequest, julyRequest);
+        await db.SaveChangesAsync();
+
+        return new SupplierWorld(location.Id, variant.Id, may, june, july, cinar.Name, zefer.Name, other.Name);
     }
 
     private sealed record LonelyWorld(int LocationId, DateOnly June);

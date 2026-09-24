@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import type { ComparisonSummary } from '../../api/analytics'
 import { missingPriceCount } from '../../pricing/labels'
+import { comparedProductsLead } from '../../terminology/terms'
 import { WarningNote } from '../WarningNote'
 import { formatNumber } from '../imports/labels'
 import { orderStatusLabels } from '../imports/labels'
@@ -78,7 +79,8 @@ function AmountSummary({ summary }: { summary: ComparisonSummary }) {
 
 /**
  * How many products moved which way, as plain counts — not a row of boxes. A count is a fact about the
- * comparison, not a state to badge; the material table beneath is where each one is actually named.
+ * comparison, not a state to badge; the material table beneath is where each one is actually named. The lead
+ * says what they are counted out of, which is the number the order page gives for the same month and basis.
  */
 function StateOverview({ summary }: { summary: ComparisonSummary }) {
   const counts: Array<{ label: string; value: number }> = [
@@ -94,6 +96,7 @@ function StateOverview({ summary }: { summary: ComparisonSummary }) {
 
   return (
     <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+      <span>{comparedProductsLead(formatNumber(summary.totalVariantCount))}</span>
       {counts.map((count) => (
         <span key={count.label}>
           {count.label}: <span className="font-medium text-slate-900">{formatNumber(count.value)}</span>

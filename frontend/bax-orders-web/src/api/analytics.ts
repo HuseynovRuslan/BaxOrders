@@ -170,6 +170,8 @@ export interface VariantTrendPoint {
   missingRequiredPriceItemCount: number
   /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
   priceNotRequiredItemCount: number
+  /** Who supplied it that month, each named once, alphabetically. Empty when no line names a supplier. */
+  supplierNames: string[]
 }
 
 /**

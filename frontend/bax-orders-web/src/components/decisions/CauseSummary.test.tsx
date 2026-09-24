@@ -32,6 +32,7 @@ function decomposition(overrides: Partial<DecisionDecomposition> = {}): Decision
     internalSupplyVariantCount: 0,
     supplyChangedVariantCount: 0,
     drivers: [],
+    products: { comparedCount: 6, inCurrentOrderCount: 5, newCount: 1, noLongerOrderedCount: 1, listedCount: 5 },
     ...overrides,
   }
 }
@@ -71,6 +72,7 @@ function driver(productName: string, category: DecisionDriver['category'], amoun
     priceNotRequiredItemCount: 0,
     priceIsComplete: category !== 'UnattributedDueToMissingPrice',
     supplyChanged: false,
+    state: 'Unchanged',
   }
 }
 
@@ -148,12 +150,17 @@ describe('the causes', () => {
     expect(screen.getByText('−20,00 ₼')).toBeInTheDocument()
   })
 
-  /** Owner decision 5.1: a row of the comparison is a "məhsul", never a "mövqe". */
-  it('counts products as products', () => {
+  /**
+   * Owner decision 5.1: a row of the comparison is a "məhsul", never a "mövqe". Brief (Task 10): every count says
+   * what it counts — a part's count is the products its money came from, "2 məhsuldan", so beside "Yeni
+   * məhsullar" it no longer reads as a count of new products.
+   */
+  it('counts the products a part s money came from, as products', () => {
     renderSummary(decomposition())
 
-    expect(screen.getByText('2 məhsul')).toBeInTheDocument()
-    expect(screen.getAllByText('1 məhsul')).toHaveLength(3)
+    expect(screen.getByText('2 məhsuldan')).toBeInTheDocument()
+    expect(screen.getAllByText('1 məhsuldan')).toHaveLength(3)
+    expect(screen.queryByText(/^\d+ məhsul$/)).toBeNull()
     expect(screen.queryByText(/mövqe/)).toBeNull()
   })
 
@@ -441,7 +448,8 @@ describe('internal supply', () => {
 
     const row = rowOf('Daxili təminat')
     expect(within(row).getByText('Təchizat forması dəyişib: alınan / şirkətdaxili')).toBeInTheDocument()
-    expect(within(row).getByText('2 məhsul')).toBeInTheDocument()
+    // Task 10: the products this part's money came from.
+    expect(within(row).getByText('2 məhsuldan')).toBeInTheDocument()
     expect(row.querySelector('[class*="amber"]')).toBeNull()
     // Sorted and coloured like any other part.
     expect(rowLabels()[0]).toBe('Daxili təminat')

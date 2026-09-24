@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity } from '../../api/analytics'
-import type { DecisionDriver } from '../../api/decisions'
+import type { DecisionDriver, DecisionProductCounts } from '../../api/decisions'
 import { DriverList } from './DriverList'
 
 /**
@@ -49,6 +49,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     priceNotRequiredItemCount: 0,
     priceIsComplete: true,
     supplyChanged: false,
+    state: 'Unchanged',
     ...overrides,
   }
 }
@@ -65,11 +66,31 @@ const bags = driver({
   currentUnitPrice: 3,
   baselineUnitPrice: 3,
   unitPricePercentChange: 0,
+  state: 'Increased',
 })
 
-function renderList(drivers: DecisionDriver[], onHistory = vi.fn()) {
-  render(<DriverList drivers={drivers} onHistory={onHistory} />)
+/** The counts the backend sends beside the drivers; by default, a list of exactly these drivers. */
+function productsOf(drivers: DecisionDriver[], overrides: Partial<DecisionProductCounts> = {}): DecisionProductCounts {
+  return {
+    comparedCount: drivers.length,
+    inCurrentOrderCount: drivers.length,
+    newCount: drivers.filter((item) => item.state === 'New').length,
+    noLongerOrderedCount: drivers.filter((item) => item.state === 'NoLongerOrdered').length,
+    listedCount: drivers.length,
+    ...overrides,
+  }
+}
+
+function renderList(drivers: DecisionDriver[], onHistory = vi.fn(), products = productsOf(drivers)) {
+  render(<DriverList drivers={drivers} products={products} onHistory={onHistory} />)
   return onHistory
+}
+
+/** What a sighted reader sees: the text without the words said only to a screen reader, spaces collapsed. */
+function visibleText(element: HTMLElement): string {
+  const copy = element.cloneNode(true) as HTMLElement
+  copy.querySelectorAll('.sr-only').forEach((node) => node.remove())
+  return (copy.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
 describe('a row', () => {
@@ -132,11 +153,76 @@ describe('a row', () => {
     expect(screen.queryByText('Miqdar dəyişməsi')).toBeNull()
   })
 
-  it('colours the effect by direction alone', () => {
-    renderList([bags, driver({ amountImpact: -20, priceImpact: -20 })])
+  /**
+   * Owner decision 9.1 (brief acceptance: "Nitroamafoska +870 qırmızı, Yay ayaqqabısı −1,988 yaşıl"): a cost that
+   * went up is red and one that went down is green — its direction, not a verdict, and said in words as well.
+   */
+  it('colours the money by the direction of the cost, and says the direction', () => {
+    renderList([
+      driver({ variant: variant({ productVariantId: 41, productName: 'Nitroamafoska' }), amountImpact: 870, priceImpact: 870 }),
+      driver({ variant: variant({ productVariantId: 42, productName: 'Yay ayaqqabısı' }), amountImpact: -1988, priceImpact: -1988 }),
+    ])
 
-    expect(screen.getByText('+120,00 ₼')).toHaveClass('text-emerald-700')
-    expect(screen.getByText('−20,00 ₼')).toHaveClass('text-rose-700')
+    const up = screen.getByText('+870,00 ₼')
+    const down = screen.getByText('−1.988,00 ₼')
+    expect(up).toHaveClass('text-red-700')
+    expect(down).toHaveClass('text-emerald-700')
+    expect(within(up).getByText(/xərc artıb/)).toHaveClass('sr-only')
+    expect(within(down).getByText(/xərc azalıb/)).toHaveClass('sr-only')
+    expect(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }).innerHTML).not.toMatch(/text-rose-700/)
+  })
+
+  /**
+   * The audit's Zibil paketi (brief acceptance 1): 50 → 55 paket at 32,00 → 32,1273 ₼ is +167,00 ₼, of which 160 ₼
+   * is quantity and 7 ₼ is price. The row said only "Miqdar təsiri"; it now gives each part its money.
+   */
+  it('splits a row whose quantity and price both moved, keeping the compact line as it was', () => {
+    renderList([driver({
+      variant: variant({ productVariantId: 51, productName: 'Zibil paketi', orderUnitCode: 'PACK', orderUnitName: 'Paçka' }),
+      category: 'QuantityChange',
+      amountImpact: 167,
+      quantityImpact: 160,
+      priceImpact: 7,
+      baselineQuantity: 50,
+      currentQuantity: 55,
+      quantityPercentChange: 10,
+      baselineUnitPrice: 32,
+      currentUnitPrice: 32.1273,
+      unitPricePercentChange: 0.3978,
+      state: 'Increased',
+    })])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    // "Mütləq qorunmalı": the compact line in the same form and order.
+    const compact = within(row).getByText(/50 → 55 paket · Qiymət 32,00 ₼ → 32,13 ₼/)
+    const split = compact.nextElementSibling as HTMLElement
+    expect(visibleText(split)).toBe('Miqdar +160,00 ₼ · Qiymət +7,00 ₼')
+    expect(within(split).getByText('+160,00 ₼')).toHaveClass('text-red-700')
+    expect(within(split).getByText('+7,00 ₼')).toHaveClass('text-red-700')
+    expect(within(split).getAllByText(/xərc artıb/)).toHaveLength(2)
+
+    // One neutral pill naming both, never the larger effect alone.
+    expect(within(row).getByText('Miqdar və qiymət')).toHaveClass('bg-slate-100')
+    expect(within(row).queryByText('Miqdar təsiri')).toBeNull()
+    expect(within(row).getByText('+167,00 ₼')).toHaveClass('text-red-700')
+  })
+
+  it('gives each part of a split its own direction', () => {
+    renderList([driver({ amountImpact: 30, quantityImpact: 50, priceImpact: -20, category: 'QuantityChange' })])
+
+    const row = screen.getByRole('button', { name: /York qatlama salfet/ })
+    expect(within(row).getByText('+50,00 ₼')).toHaveClass('text-red-700')
+    expect(within(row).getByText('−20,00 ₼')).toHaveClass('text-emerald-700')
+  })
+
+  it('leaves a row with one effect as it was: one pill, no split', () => {
+    renderList([bags])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    expect(within(row).getByText('Miqdar təsiri')).toBeInTheDocument()
+    expect(within(row).queryByText('Miqdar və qiymət')).toBeNull()
+    expect(within(row).queryByText(/^Miqdar$/)).toBeNull()
+    expect(visibleText(row)).not.toMatch(/Miqdar \+120,00 ₼ · Qiymət/)
   })
 
   /** Both months are ordinary and nothing is missing, which is exactly why it has to be said out loud. */
@@ -206,6 +292,53 @@ describe('a row', () => {
     expect(screen.queryByText('0,00 ₼')).toBeNull()
     expect(screen.getByRole('button', { name: /York qatlama salfet/ })).toHaveTextContent('—')
   })
+
+  /**
+   * Listed because it is new, not because it moved money: a new material from the company's own store has no
+   * known amount on either side. Its money is unknown rather than zero, so it reads "—" too.
+   */
+  it('shows an em dash for a new product that has no known money on either side', () => {
+    renderList([driver({
+      category: 'InternalSupply',
+      amountImpact: 0,
+      quantityImpact: null,
+      priceImpact: null,
+      baselineQuantity: 0,
+      currentQuantity: 4,
+      currentUnitPrice: null,
+      baselineUnitPrice: null,
+      unitPricePercentChange: null,
+      currentKnownAmount: null,
+      baselineKnownAmount: null,
+      priceNotRequiredItemCount: 1,
+      state: 'New',
+    })])
+
+    const row = screen.getByRole('button', { name: /York qatlama salfet/ })
+    expect(row).toHaveTextContent('—')
+    expect(screen.queryByText('0,00 ₼')).toBeNull()
+  })
+})
+
+describe('what "Hamısı" counts', () => {
+  /** Brief: "Hamısı 100" on an order of 76 lines, and nothing said what the 100 was. */
+  it('says how many products the order has, the comparison covers, and the list holds', () => {
+    renderList([driver()], vi.fn(), productsOf([driver()], { inCurrentOrderCount: 76, comparedCount: 100, listedCount: 91 }))
+
+    expect(screen.getByText(
+      'Bu sifarişdə 76 məhsul var, müqayisə bazası ilə birlikdə 100. «Hamısı» onlardan dəyişən 91 məhsulu sayır. '
+      + '9 məhsul dəyişməyib.',
+    )).toBeInTheDocument()
+  })
+
+  it('says nothing about unchanged products when every compared product changed', () => {
+    renderList([driver()], vi.fn(), productsOf([driver()], { inCurrentOrderCount: 1, comparedCount: 1, listedCount: 1 }))
+
+    expect(screen.getByText(
+      'Bu sifarişdə 1 məhsul var, müqayisə bazası ilə birlikdə 1. «Hamısı» onlardan dəyişən 1 məhsulu sayır.',
+    )).toBeInTheDocument()
+    expect(screen.queryByText(/dəyişməyib/)).toBeNull()
+  })
 })
 
 describe('the filters', () => {
@@ -252,8 +385,12 @@ describe('the filters', () => {
   /** Owner decision 5.1: the filter and the badge under it say the same words. */
   it('names new and no-longer-ordered products in the approved words', () => {
     renderList([
-      driver({ variant: variant({ productVariantId: 31, productName: 'Yeni mal' }), category: 'NewOrders' }),
-      driver({ variant: variant({ productVariantId: 32, productName: 'Köhnə mal' }), category: 'NoLongerOrdered' }),
+      driver({ variant: variant({ productVariantId: 31, productName: 'Yeni mal' }), category: 'NewOrders', state: 'New' }),
+      driver({
+        variant: variant({ productVariantId: 32, productName: 'Köhnə mal' }),
+        category: 'NoLongerOrdered',
+        state: 'NoLongerOrdered',
+      }),
     ])
 
     const filters = screen.getByRole('group', { name: 'Dəyişiklik növü' })
@@ -264,6 +401,53 @@ describe('the filters', () => {
     expect(within(screen.getByRole('button', { name: /Köhnə mal/ })).getByText('Bu ay yazılmayan məhsullar'))
       .toBeInTheDocument()
     expect(screen.queryByText(/Yeni sifarişlər|Artıq sifariş olunma|Artıq sifariş olunmur/)).toBeNull()
+  })
+
+  /**
+   * Brief: "Yeni 58" on the order page against "Yeni 60" on the comparison page. The chip now counts and filters
+   * by the product's state — the comparison page's rule — not by where its money was filed, so a new product
+   * whose price is missing is a new product, and is under "Qiymət yoxdur" as well.
+   */
+  it('counts and lists new products by their state, whatever their money was filed under', async () => {
+    const unpricedNew = driver({
+      variant: variant({ productVariantId: 61, productName: 'Yeni qiyməti olmayan mal' }),
+      category: 'UnattributedDueToMissingPrice',
+      missingPriceItemCount: 1,
+      priceIsComplete: false,
+      state: 'New',
+    })
+    const freeNew = driver({
+      variant: variant({ productVariantId: 62, productName: 'Yeni anbar malı' }),
+      category: 'InternalSupply',
+      priceNotRequiredItemCount: 1,
+      state: 'New',
+    })
+    const pricedNew = driver({ variant: variant({ productVariantId: 63, productName: 'Yeni alət' }), category: 'NewOrders', state: 'New' })
+    const dropped = driver({
+      variant: variant({ productVariantId: 64, productName: 'Köhnə alət' }),
+      category: 'NoLongerOrdered',
+      state: 'NoLongerOrdered',
+    })
+    const drivers = [unpricedNew, freeNew, pricedNew, dropped, bags]
+    const products = productsOf(drivers)
+    renderList(drivers, vi.fn(), products)
+
+    const filters = within(screen.getByRole('group', { name: 'Dəyişiklik növü' }))
+    // Each chip's count is the backend's count for the same question, and the number of rows it leaves.
+    expect(filters.getByRole('button', { name: /Yeni məhsullar/ })).toHaveTextContent(`Yeni məhsullar${products.newCount}`)
+    expect(products.newCount).toBe(3)
+    expect(filters.getByRole('button', { name: /Bu ay yazılmayan məhsullar/ }))
+      .toHaveTextContent(`Bu ay yazılmayan məhsullar${products.noLongerOrderedCount}`)
+
+    await userEvent.click(filters.getByRole('button', { name: /Yeni məhsullar/ }))
+    const list = within(screen.getByRole('list'))
+    expect(list.getAllByRole('listitem')).toHaveLength(3)
+    expect(list.getByText('Yeni qiyməti olmayan mal')).toBeInTheDocument()
+    expect(list.getByText('Yeni anbar malı')).toBeInTheDocument()
+    expect(list.queryByText('Zibil paketi')).toBeNull()
+
+    await userEvent.click(filters.getByRole('button', { name: /Qiymət yoxdur/ }))
+    expect(within(screen.getByRole('list')).getByText('Yeni qiyməti olmayan mal')).toBeInTheDocument()
   })
 })
 

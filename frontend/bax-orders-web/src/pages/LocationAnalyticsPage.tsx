@@ -24,7 +24,7 @@ import {
   stateLabels,
 } from '../components/analytics/labels'
 import { formatNumber } from '../components/imports/labels'
-import { productNoun } from '../terminology/terms'
+import { productNoun, shownProductsLabel } from '../terminology/terms'
 
 const pageSize = 50
 
@@ -284,8 +284,9 @@ export function LocationAnalyticsPage() {
               </button>
             )}
 
+            {/* The open tab's rows after its search and filter — not every product compared, which the summary gives. */}
             <span className="ml-auto text-xs text-slate-500">
-              {formatNumber(data?.rows.totalCount ?? 0)} {productNoun}
+              {shownProductsLabel(formatNumber(data?.rows.totalCount ?? 0))}
             </span>
           </div>
         </>
@@ -346,6 +347,15 @@ export function LocationAnalyticsPage() {
           variant={trendRow.variant}
           isService={trendRow.analyticsKind === 'AmountOrientedService'}
           to={period}
+          // The row's own two quantities against this page's basis: the window divides, it averages nothing.
+          quantityRatio={summary?.baselineAvailable
+            ? {
+              basis: summary.basis,
+              windowPeriods: summary.baselineWindowPeriods,
+              baseline: trendRow.baseline.quantity,
+              current: trendRow.current.quantity,
+            }
+            : null}
           onClose={() => setTrendRow(null)}
         />
       )}

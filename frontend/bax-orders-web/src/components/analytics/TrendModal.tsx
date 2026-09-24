@@ -7,12 +7,13 @@ import {
   type VariantTrendPoint,
 } from '../../api/analytics'
 import type { DecisionDriver } from '../../api/decisions'
-import { missingPriceCount } from '../../pricing/labels'
 import { productHistoryLabel } from '../../terminology/terms'
+import { MissingPriceMark } from '../dashboard/MissingPriceMark'
 import { formatNumber, formatOrderUnit } from '../imports/labels'
 import { Modal } from '../imports/review/Modal'
+import { DirectionWord } from './DirectionWord'
 import { InfoHint } from './InfoHint'
-import { formatMoneyDelta, formatPercent, signedToneClass } from './format'
+import { costDirectionToneClass, formatMoneyDelta, formatPercent } from './format'
 import {
   describeVariant,
   formatAnalyticsAmount,
@@ -26,6 +27,9 @@ import {
   frequencySentence,
   metricLabels,
   monthsBetween,
+  quantityRatioLine,
+  supplierLine,
+  type QuantityRatioInput,
   type TrendMetric,
   type TrendSlot,
 } from './trend'
@@ -45,18 +49,33 @@ interface TrendModalProps {
    * figures the driver row deliberately leaves out, which is what makes that row a summary rather than a table.
    */
   driver?: DecisionDriver | null
+  /**
+   * This month's quantity against the basis quantity, as the page that opened the window compares them — its
+   * basis and its row's own two figures. Null or omitted when there is no basis to compare with.
+   */
+  quantityRatio?: QuantityRatioInput | null
   onClose: () => void
 }
 
 /**
  * One product at one object, over time.
  *
- * Read in the order a manager asks: what changed this month, how often the thing is ordered at all, and then
- * the whole history as a chart and as a table. The table is the four figures a manager thinks in — month,
- * quantity, price, amount — and the technical record of which request and which version each month came from
- * is folded away underneath, because it answers a different question from a different job.
+ * Read in the order a manager asks: who supplies it, what changed this month and whether that is an ordinary
+ * month for it, how often the thing is ordered at all, and then the whole history as a chart and as a table. The
+ * table is the figures a manager thinks in — month, quantity, price, amount, supplier — and the technical record of
+ * which request and which version each month came from is folded away underneath, because it answers a different
+ * question from a different job.
  */
-export function TrendModal({ locationId, variant, isService, to, from, driver, onClose }: TrendModalProps) {
+export function TrendModal({
+  locationId,
+  variant,
+  isService,
+  to,
+  from,
+  driver,
+  quantityRatio,
+  onClose,
+}: TrendModalProps) {
   const [trend, setTrend] = useState<VariantTrend | null>(null)
   const [error, setError] = useState<string | null>(null)
   // A service has no quantity to plot, so its trend opens on money.
@@ -89,6 +108,8 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
   const metrics: TrendMetric[] = isService ? ['amount', 'price'] : ['quantity', 'amount', 'price']
   const gaps = slots.filter((slot) => slot.point === null).length
   const unit = formatOrderUnit(variant.orderUnitCode, variant.orderUnitName)
+  // A service has no quantity to divide, so it has no ratio either.
+  const ratio = !isService && quantityRatio ? quantityRatioLine(quantityRatio, unit) : null
 
   return (
     <Modal title={productHistoryLabel} subtitle={`${variant.productName} · ${describeVariant(variant)}`} onClose={onClose} width="wide">
@@ -104,7 +125,11 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
 
       {trend !== null && slots.length > 0 && (
         <div className="space-y-3">
-          {driver && <ComparisonDetail driver={driver} isService={isService} unit={unit} />}
+          <p className="text-sm text-slate-700">{supplierLine(slots)}</p>
+
+          {driver
+            ? <ComparisonDetail driver={driver} isService={isService} unit={unit} ratio={ratio} />
+            : ratio && <p className="text-sm font-medium text-slate-900">{ratio}</p>}
 
           <Frequency frequency={trend.frequency} />
 
@@ -151,7 +176,7 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
           <div className="overflow-x-auto rounded-md border border-slate-200">
             <table className="min-w-full text-left text-xs">
               <caption className="sr-only">
-                {variant.productName} üzrə aylıq miqdar, qiymət və məbləğ
+                {variant.productName} üzrə aylıq miqdar, qiymət, məbləğ və təchizatçı
               </caption>
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
@@ -159,6 +184,7 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
                   <th scope="col" className="px-3 py-1.5 text-right font-medium">Miqdar</th>
                   <th scope="col" className="px-3 py-1.5 text-right font-medium">Qiymət</th>
                   <th scope="col" className="px-3 py-1.5 text-right font-medium">Məbləğ</th>
+                  <th scope="col" className="px-3 py-1.5 font-medium">Təchizatçı</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -167,8 +193,8 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
                     <th scope="row" className="px-3 py-1.5 font-normal">{formatAnalyticsPeriod(slot.period)}</th>
 
                     {slot.point === null ? (
-                      // No request that month at all. Not an order of nothing — three dashes, not three zeros.
-                      <td className="px-3 py-1.5 text-slate-400" colSpan={3}>
+                      // No request that month at all. Not an order of nothing — one note, not four zeros.
+                      <td className="px-3 py-1.5 text-slate-400" colSpan={4}>
                         sifariş yoxdur
                       </td>
                     ) : (
@@ -184,6 +210,9 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
                         <td className="whitespace-nowrap px-3 py-1.5 text-right">
                           {/* Never a fabricated 0 ₼: a month with no purchase price has no amount to show. */}
                           {slot.point.knownAmount === null ? unknownValue : formatAnalyticsAmount(slot.point.knownAmount)}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {slot.point.supplierNames.length === 0 ? unknownValue : slot.point.supplierNames.join(' · ')}
                         </td>
                       </>
                     )}
@@ -230,7 +259,8 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
  *
  * Three different months look alike in the data and must not look alike here: one that was bought and priced,
  * one the company supplied itself — which owes no price and is therefore complete — and one somebody still has
- * to price. Only the last of the three is a gap, and only it is amber.
+ * to price. Only the last of the three is a gap: its price is "—", as an unpriced line is everywhere (Task 2),
+ * and the short amber mark beside it says how many lines owe one, the way the dashboard says it.
  */
 function PriceCell({ point }: { point: VariantTrendPoint }) {
   if (point.weightedUnitPrice !== null) {
@@ -242,7 +272,12 @@ function PriceCell({ point }: { point: VariantTrendPoint }) {
   }
 
   if (point.missingRequiredPriceItemCount > 0) {
-    return <span className="text-amber-800">{missingPriceCount(point.missingRequiredPriceItemCount)}</span>
+    return (
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-slate-400">{unknownValue}</span>
+        <MissingPriceMark count={point.missingRequiredPriceItemCount} explanationIsComplete />
+      </span>
+    )
   }
 
   return <span className="text-slate-400">{unknownValue}</span>
@@ -304,20 +339,24 @@ function describeInterval(frequency: VariantOrderFrequency): string | null {
  * The comparison the product was opened from, in full.
  *
  * This is the other half of progressive disclosure: the driver row says what changed and what it did to the
- * money, and everything it left out is here — both sides of every figure, and the split of the difference into
- * the part quantity accounts for and the part price accounts for.
+ * money, and everything it left out is here — this month's quantity as a multiple of the basis, both sides of
+ * every figure, and the split of the difference into the part quantity accounts for and the part price accounts
+ * for, each in the colour of its cost's direction (9.1).
  */
 function ComparisonDetail({
   driver,
   isService,
   unit,
+  ratio,
 }: {
   driver: DecisionDriver
   isService: boolean
   unit: string
+  ratio: string | null
 }) {
   return (
     <section className="rounded-md border border-slate-200 p-3" aria-label="Bu ayın müqayisəsi">
+      {ratio && <p className="mb-2 text-sm font-medium text-slate-900">{ratio}</p>}
       <div className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
         {!isService && (
           <Pair
@@ -346,16 +385,18 @@ function ComparisonDetail({
           {driver.quantityImpact !== null && (
             <div className="flex items-baseline gap-1.5">
               <dt className="text-slate-500">Miqdar təsiri</dt>
-              <dd className={`font-medium ${signedToneClass(driver.quantityImpact)}`}>
+              <dd className={`font-medium ${costDirectionToneClass(driver.quantityImpact)}`}>
                 {formatMoneyDelta(driver.quantityImpact)}
+                <DirectionWord value={driver.quantityImpact} />
               </dd>
             </div>
           )}
           {driver.priceImpact !== null && (
             <div className="flex items-baseline gap-1.5">
               <dt className="text-slate-500">Qiymət təsiri</dt>
-              <dd className={`font-medium ${signedToneClass(driver.priceImpact)}`}>
+              <dd className={`font-medium ${costDirectionToneClass(driver.priceImpact)}`}>
                 {formatMoneyDelta(driver.priceImpact)}
+                <DirectionWord value={driver.priceImpact} />
               </dd>
             </div>
           )}
