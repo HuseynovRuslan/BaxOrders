@@ -114,11 +114,6 @@ export function futureMonthNote(month: string): string {
   return `${month}: ${futureMonthLabel.toLowerCase()}`
 }
 
-/** "Oktyabr 2026 — gələcək ay" — the narrow layout's line for a month that has not begun. */
-export function futureMonthLine(month: string): string {
-  return `${month} — ${futureMonthLabel.toLowerCase()}`
-}
-
 /** A month far from its location's recent months (owner decision 8.2). A fact to look at, never a verdict. */
 export const unusualMonthLabel = 'Qeyri-adi ay'
 
@@ -138,6 +133,9 @@ export const previousMonthPercentLabel = 'Faiz — əvvəlki aya görə'
 
 /** The name of the legend above the report, for a screen reader. */
 export const reportLegendLabel = 'Cədvəldəki işarələr'
+
+/** The same legend above the report's cards on a phone, where there is no table for it to be the legend of. */
+export const reportCardsLegendLabel = 'Kartlardakı işarələr'
 
 const sharePercentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 0 })
 

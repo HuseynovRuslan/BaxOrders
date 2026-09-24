@@ -593,6 +593,37 @@ describe('the first screen', () => {
     }
   })
 
+  /**
+   * Task 12, the decision it carries from Task 1b: "İstisnalar bloku mobildə başlığın dərhal altındadır". Only the
+   * phone's layout moves it, by CSS order, so the page above — and Task 9's desktop order — stays as it is.
+   */
+  it('puts the exceptions directly under the headline on a phone, before the cards', async () => {
+    await renderPage()
+
+    const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+    const exceptions = screen.getByText('Müqayisədən kənarda qalan obyektlər').closest('section')!
+    const cardsWrapper = cards.parentElement!
+    const exceptionsWrapper = exceptions.parentElement!
+    const container = cardsWrapper.parentElement!
+
+    expect(exceptionsWrapper).toHaveClass('max-lg:order-1')
+    expect(cardsWrapper).toHaveClass('max-lg:order-2')
+    expect(exceptionsWrapper.parentElement).toBe(container)
+    expect(container).toHaveClass('max-lg:flex', 'max-lg:flex-col')
+    // The headline is first in the container, with no order of its own, so it stays first on a phone as well.
+    expect(container.firstElementChild).toHaveTextContent('71.210,29 ₼')
+    expect(container.firstElementChild!.className).not.toMatch(/order-/)
+    // Nothing below 1024 pixels is reordered from 1024 up: every class that moves them is a phone's.
+    for (const element of [container, cardsWrapper, exceptionsWrapper]) {
+      for (const name of element.classList) {
+        expect(name).toMatch(/^max-lg:/)
+      }
+    }
+
+    // In the page itself the cards still come before the exceptions (Task 9).
+    expect(cards.compareDocumentPosition(exceptions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('puts the period and the comparison beside the title, and drops the description', async () => {
     await renderPage()
 

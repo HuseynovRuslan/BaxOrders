@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrderRequestStatus } from '../../api/orders'
 import type { AllowedWorkflowActions, OrderWorkflow, WorkflowDecisionFacts } from '../../api/workflow'
+import { approveLabel, returnLabel } from './labels'
 import { WorkflowPanel } from './WorkflowPanel'
 
 /**
@@ -166,6 +167,57 @@ describe('the buttons come first', () => {
     expect(firstButton).toHaveTextContent('Təsdiqlə')
     // The facts follow the buttons in the document, never the other way round.
     expect(firstButton.compareDocumentPosition(facts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+/**
+ * Task 12. Brief: "Qərar düymələri ekranın altında sabitdir". On a phone the panel follows the analysis, so its
+ * buttons are fixed to the bottom of the screen; from 1024 pixels they are the panel's first row, as before. jsdom
+ * applies no CSS, so this pins the classes that decide it.
+ */
+describe('the buttons on a phone', () => {
+  it('are fixed to the bottom of the screen below 1024 pixels, and back in the panel from there', async () => {
+    const panel = await renderPanel(workflow({ status: 'PendingApproval' }))
+
+    const bar = within(panel).getByRole('button', { name: approveLabel }).parentElement!
+    expect(bar).toHaveClass('fixed', 'inset-x-0', 'bottom-0', 'z-20', 'flex', 'gap-2', 'bg-white', 'border-t')
+    // Under the sidebar (z-30 / z-40), every dialog (z-50) and an open ⓘ note (z-[60]).
+    expect(bar.className).not.toMatch(/\bz-(30|40|50)\b/)
+    // From 1024 pixels, exactly the row it was: in the flow, wrapping, with no border, background or shadow.
+    expect(bar).toHaveClass('lg:static', 'lg:z-auto', 'lg:flex-wrap', 'lg:border-0', 'lg:bg-transparent', 'lg:p-0', 'lg:shadow-none')
+    // Still the panel's first child, where the facts follow it.
+    expect(panel.firstElementChild).toBe(bar)
+  })
+
+  it('holds exactly the Rəhbər’s two buttons, each a comfortable tap, each still opening its dialog', async () => {
+    const user = userEvent.setup()
+    const panel = await renderPanel(workflow({
+      status: 'PendingApproval',
+      allowedActions: { ...nobody, canApprove: true, canReturn: true },
+    }))
+
+    const bar = within(panel).getByRole('button', { name: approveLabel }).parentElement!
+    const buttons = within(bar).getAllByRole('button')
+    expect(buttons.map((button) => button.textContent)).toEqual([approveLabel, returnLabel])
+    expect(approveLabel).toBe('Təsdiqlə')
+    expect(returnLabel).toBe('Düzəliş tələb et')
+    for (const button of buttons) {
+      expect(button).toHaveClass('flex-1', 'py-2.5', 'lg:flex-none', 'lg:py-1.5')
+    }
+
+    await user.click(buttons[0])
+    expect(within(screen.getByRole('dialog')).getAllByRole('button', { name: approveLabel }).length).toBeGreaterThan(0)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'İmtina' }))
+
+    await user.click(buttons[1])
+    expect(within(screen.getByRole('dialog')).getByPlaceholderText('Nəyin düzəldilməli olduğunu yazın')).toBeInTheDocument()
+  })
+
+  it('is not there at all when there is nothing to press', async () => {
+    const panel = await renderPanel(workflow({ status: 'PendingApproval', allowedActions: nobody }))
+
+    expect(panel.querySelector('.fixed')).toBeNull()
+    expect(within(panel).queryAllByRole('button')).toHaveLength(0)
   })
 })
 

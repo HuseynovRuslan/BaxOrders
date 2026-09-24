@@ -173,6 +173,8 @@ export function OrderDetailPage() {
   // and never worked out here.
   const editable = revision?.canEditRevision === true
 
+  const noLinesText = search || hasPrice !== undefined ? 'Axtarışa uyğun sətir tapılmadı.' : 'Bu sifarişdə sətir yoxdur.'
+
   return (
     <>
       <PageHeader
@@ -238,11 +240,12 @@ export function OrderDetailPage() {
         </div>
 
         {/*
-          The decision travels with the reader on a wide screen, and simply follows the amount on a narrow one.
-          It is never taller than the screen, so a long correction panel below cannot push the buttons — the
-          first thing in it — out of sight while the analysis is read.
+          The decision travels with the reader on a wide screen. It is never taller than the screen, so a long
+          correction panel below cannot push the buttons — the first thing in it — out of sight while the analysis
+          is read. On a phone it comes after the analysis — what happened, why, then the decision — and its buttons
+          are fixed to the bottom of the screen instead.
         */}
-        <div className="order-2 space-y-3 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+        <div className="order-3 space-y-3 lg:order-2 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           {data && (
             <WorkflowPanel
               key={reloadToken}
@@ -264,7 +267,7 @@ export function OrderDetailPage() {
         </div>
 
         {decision?.decomposition && (
-          <div className="order-3 space-y-4 lg:col-span-2 lg:col-start-1 lg:row-start-2">
+          <div className="order-2 space-y-4 lg:order-3 lg:col-span-2 lg:col-start-1 lg:row-start-2">
             <CauseSummary
               decomposition={decision.decomposition}
               basis={decision.primary.basis}
@@ -327,7 +330,8 @@ export function OrderDetailPage() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      {/* Ten columns from 1024 pixels; below that, where they would scroll sideways, the same lines as cards. */}
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
             <tr>
@@ -359,7 +363,7 @@ export function OrderDetailPage() {
             {data?.items.items.length === 0 && (
               <tr>
                 <td colSpan={editable ? 11 : 10} className="px-4 py-6 text-center text-slate-500">
-                  {search || hasPrice !== undefined ? 'Axtarışa uyğun sətir tapılmadı.' : 'Bu sifarişdə sətir yoxdur.'}
+                  {noLinesText}
                 </td>
               </tr>
             )}
@@ -375,11 +379,7 @@ export function OrderDetailPage() {
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">{formatQuantity(item.quantity)}</td>
                 <td className="px-3 py-2 text-slate-700">
-                  {item.orderUnitCode ? (
-                    formatOrderUnit(item.orderUnitCode, item.orderUnitName)
-                  ) : (
-                    <span className="text-slate-500">{formatOrderUnit(null)}</span>
-                  )}
+                  <UnitCell item={item} />
                 </td>
                 <td className="px-3 py-2 text-right">
                   {/*
@@ -437,6 +437,30 @@ export function OrderDetailPage() {
         </table>
       </div>
 
+      <ul aria-label="Sətirlər" className="space-y-2 lg:hidden">
+        {state.status === 'loading' && (
+          <li className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm text-slate-500">Yüklənir…</li>
+        )}
+        {data?.items.items.length === 0 && (
+          <li className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm text-slate-500">
+            {noLinesText}
+          </li>
+        )}
+
+        {data?.items.items.map((item, index) => (
+          <LineCard
+            key={item.orderRequestItemId}
+            item={item}
+            number={(data.items.page - 1) * data.items.pageSize + index + 1}
+            detail={details[index]}
+            editable={editable}
+            onSource={() => setSource({ id: item.orderRequestItemId, name: item.productName })}
+            onEdit={() => setDialog({ kind: 'edit', item })}
+            onRemove={() => setDialog({ kind: 'remove', item })}
+          />
+        ))}
+      </ul>
+
       {data && data.items.totalCount > pageSize && (
         <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
           <span>
@@ -464,6 +488,10 @@ export function OrderDetailPage() {
       )}
 
       {revision && <HistoryTabs orderRequestId={id} editHistory={revision.editHistory} reloadToken={reloadToken} />}
+
+      {/* Room at the end on a phone, so the last line and the histories can be scrolled clear of the decision
+          buttons fixed to the bottom of the screen. */}
+      {data && <div aria-hidden="true" className="h-24 lg:hidden" />}
 
       {history && data && (
         <TrendModal
@@ -575,13 +603,103 @@ function PriceCell({ item }: { item: OrderRequestItem }) {
  * another on the same page, which gets back the one detail that tells the two apart.
  */
 function SpecificationCell({ item, detail }: { item: OrderRequestItem; detail: string | null }) {
-  const specification = describeSpecification(item)
+  const specification = specificationText(item, detail)
 
-  if (specification === null && detail === null) {
+  if (specification === null) {
     return <span className="text-slate-400">—</span>
   }
 
-  return <>{[specification, detail].filter((part): part is string => part !== null).join(' · ')}</>
+  return <>{specification}</>
+}
+
+function specificationText(item: OrderRequestItem, detail: string | null): string | null {
+  const parts = [describeSpecification(item), detail].filter((part): part is string => part !== null)
+  return parts.length === 0 ? null : parts.join(' · ')
+}
+
+/** The line's unit in words, or the word for a line that has none. */
+function UnitCell({ item }: { item: OrderRequestItem }) {
+  return item.orderUnitCode
+    ? <>{formatOrderUnit(item.orderUnitCode, item.orderUnitName)}</>
+    : <span className="text-slate-500">{formatOrderUnit(null)}</span>
+}
+
+/**
+ * One line on a phone, where the table's ten columns would scroll sideways. Every fact of the table's row, by the
+ * same cells, in reading order: the product and what it cost; how much of it, at what price; who supplied it and
+ * where it sits in the catalogue; and what can be done with it. Nothing here is kept to one line except the
+ * amounts, so a long name wraps instead of widening the page.
+ */
+function LineCard({ item, number, detail, editable, onSource, onEdit, onRemove }: {
+  item: OrderRequestItem
+  /** The line's place in the whole order, as the table's first column counts it. */
+  number: number
+  detail: string | null
+  editable: boolean
+  onSource: () => void
+  onEdit: () => void
+  onRemove: () => void
+}) {
+  return (
+    <li className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="break-words font-medium text-slate-900">
+            <span className="mr-1.5 text-xs font-normal text-slate-400">{number}</span>
+            {item.productName}
+          </p>
+          {/* The table's dash for no specification is not repeated here: an absent line says the same. */}
+          {specificationText(item, detail) !== null && (
+            <p className="mt-0.5 text-xs text-slate-500">
+              <SpecificationCell item={item} detail={detail} />
+            </p>
+          )}
+        </div>
+        <p className="shrink-0 text-right">
+          {/* Never a zero: no amount was recorded, for either reason. */}
+          {item.lineTotal === null
+            ? <span className="text-slate-400">—</span>
+            : <span className="whitespace-nowrap font-medium text-slate-900">{formatAmount(item.lineTotal)}</span>}
+        </p>
+      </div>
+
+      {/* "12 ədəd × 4,50 ₼", or, with no price, what the missing price means — the table's own words and colours. */}
+      <p className="mt-1 text-sm text-slate-700">
+        {formatQuantity(item.quantity)} <UnitCell item={item} />
+        {item.unitPrice !== null ? ' × ' : ' · '}
+        <PriceCell item={item} />
+      </p>
+
+      <p className="mt-1 text-xs text-slate-500">
+        <SupplierCell item={item} />
+        {item.categoryPath.length > 0 && ` · ${item.categoryPath.join(' › ')}`}
+      </p>
+
+      <div className="mt-2 flex items-center gap-1.5 border-t border-slate-100 pt-2">
+        <button type="button" onClick={onSource} className="text-xs text-slate-500 underline hover:text-slate-800">
+          Mənbəyə bax
+        </button>
+        {editable && (
+          <div className="ml-auto flex gap-1.5">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {editLineLabel}
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+            >
+              {removeLineLabel}
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
+  )
 }
 
 /**

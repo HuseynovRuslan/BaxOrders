@@ -7,6 +7,7 @@ import type { DecisionComparison, DecisionDriver, OrderDecisionContext } from '.
 import type { OrderRequestDetail, OrderRequestItem } from '../api/orders'
 import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
+import { findOldTerms } from '../test/oldTerms'
 import { OrderDetailPage } from './OrderDetailPage'
 
 /**
@@ -905,6 +906,219 @@ describe('the evidence below the decision', () => {
 })
 
 /**
+ * Task 12 on the order page. jsdom applies no CSS, so what a phone shows is tested through the classes that decide
+ * it; the operator's check on a phone covers what the eye must see.
+ */
+describe('the order of the page on a phone: what happened, why, then the decision', () => {
+  it('moves the decision after the analysis below 1024 pixels, and leaves the wide layout as it was', async () => {
+    await renderPage()
+
+    const panel = await screen.findByRole('region', { name: 'Qərar' })
+    const decisionColumn = panel.parentElement!
+    const analysis = screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' }).parentElement!
+    const headlineCell = headline().parentElement!
+
+    expect(headlineCell).toHaveClass('order-1')
+    expect(analysis).toHaveClass('order-2', 'lg:order-3', 'lg:col-start-1', 'lg:row-start-2')
+    expect(decisionColumn).toHaveClass('order-3', 'lg:order-2', 'lg:col-start-3', 'lg:row-start-1', 'lg:sticky')
+    expect(analysis).not.toHaveClass('order-3')
+    expect(decisionColumn).not.toHaveClass('order-2')
+
+    // The page itself is unchanged: the headline, then the decision column, then the analysis, as before.
+    const [first, second, third] = Array.from(headlineCell.parentElement!.children)
+    expect(first).toBe(headlineCell)
+    expect(second).toBe(decisionColumn)
+    expect(third).toBe(analysis)
+  })
+
+  it('keeps the decision buttons at the bottom of a phone screen, the Rəhbər’s two among them', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+
+    const panel = await screen.findByRole('region', { name: 'Qərar' })
+    const approve = await within(panel).findByRole('button', { name: 'Təsdiqlə' })
+    const bar = approve.parentElement!
+    expect(bar).toHaveClass('fixed', 'inset-x-0', 'bottom-0', 'z-20', 'lg:static')
+    expect(within(bar).getAllByRole('button').map((button) => button.textContent)).toEqual(['Təsdiqlə', 'Düzəliş tələb et'])
+
+    await user.click(within(bar).getByRole('button', { name: 'Düzəliş tələb et' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('leaves room at the end so the last lines can be scrolled clear of the buttons', async () => {
+    await renderPage()
+
+    const spacer = document.querySelector('div.h-24[aria-hidden="true"]')!
+    expect(spacer).toHaveClass('lg:hidden')
+  })
+})
+
+/**
+ * Brief: "Sifariş sətirləri telefonda yana sürüşdürmədən oxunur". Below 1024 pixels the table gives way to a card
+ * per line, with every fact of its row.
+ */
+describe('the lines on a phone', () => {
+  const nbsp = String.fromCharCode(0xa0)
+
+  function line(overrides: Partial<OrderRequestItem>): OrderRequestItem {
+    return { ...item(), ...overrides }
+  }
+
+  function serveLines(lines: OrderRequestItem[]) {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: { items: lines, page: 1, pageSize: 50, totalCount: lines.length },
+    } as never))
+  }
+
+  function cards(): HTMLElement {
+    return screen.getByRole('list', { name: 'Sətirlər' })
+  }
+
+  function card(productName: string): HTMLElement {
+    return within(cards()).getByText(productName).closest('li')!
+  }
+
+  it('shows a priced line whole: number, product, specification, quantity × price, total, supplier, category', async () => {
+    serveLines([line({
+      productName: 'Distillə su',
+      specificationValue: '5',
+      specificationUnitCode: 'L',
+      specificationUnitName: 'Litr',
+      quantity: 30,
+      unitPrice: 4.1,
+      lineTotal: 123,
+      supplierName: 'Cleanfix MMC',
+      categoryPath: ['Təsərrüfat', 'Təmizlik'],
+    })])
+    await renderPage()
+
+    const priced = card('Distillə su')
+    expect(within(priced).getByText('1')).toHaveClass('text-xs', 'text-slate-400')
+    expect(within(priced).getByText('Distillə su').className).toContain('break-words')
+    expect(within(priced).getByText('5 litr')).toBeInTheDocument()
+    expect(priced).toHaveTextContent('30 ədəd × 4,10 ₼')
+    // The price keeps its ₼ by a no-break space (Task 5), so a narrow card cannot split them.
+    expect(priced.textContent).toContain(`× 4,10${nbsp}₼`)
+    expect(within(priced).getByText('123,00 ₼')).toHaveClass('whitespace-nowrap')
+    expect(priced).toHaveTextContent('Cleanfix MMC · Təsərrüfat › Təmizlik')
+    expect(within(priced).getByRole('button', { name: 'Mənbəyə bax' })).toBeInTheDocument()
+    // Read-only here: the server did not allow editing.
+    expect(within(priced).queryByRole('button', { name: 'Redaktə et' })).toBeNull()
+  })
+
+  it('says an internally supplied line in slate, with its explanation, and no total', async () => {
+    serveLines([line({
+      productName: 'Qum',
+      unitPrice: null,
+      lineTotal: null,
+      supplierName: null,
+      pricingMode: 'InternalFreeSupply',
+      sourceSupplierName: 'Azpetrol baza',
+    })])
+    await renderPage()
+
+    const internal = card('Qum')
+    const words = within(internal).getByText('Daxili təminat')
+    expect(words.closest('span')).toHaveClass('text-slate-500')
+    expect(words.closest('span')).not.toHaveClass('text-amber-800')
+    expect(within(internal).getByRole('button', { name: 'Daxili təminat nədir?' })).toBeInTheDocument()
+    expect(internal).toHaveTextContent('30 ədəd · Daxili təminat')
+    expect(within(internal).getByText('Daxili: Azpetrol baza')).toBeInTheDocument()
+    expect(within(internal).getByText('—')).toHaveClass('text-slate-400')
+    expect(within(internal).queryByText('Qiymət yoxdur')).toBeNull()
+    expect(within(internal).queryByText('0,00 ₼')).toBeNull()
+  })
+
+  it('says an owed price in amber, once', async () => {
+    serveLines([line({ productName: 'Əlcək', unitPrice: null, lineTotal: null, pricingMode: 'PriceRequired' })])
+    await renderPage()
+
+    const owed = card('Əlcək')
+    expect(within(owed).getByText('Qiymət yoxdur')).toHaveClass('text-amber-800')
+    expect(owed).not.toHaveTextContent(/Qiymət\s+Qiymət/)
+    expect(within(owed).getByText('Məlum deyil')).toBeInTheDocument()
+  })
+
+  it('says a line nobody has classified in amber, with its explanation', async () => {
+    serveLines([line({ productName: 'Gübrə', unitPrice: null, lineTotal: null, pricingMode: 'Unresolved' })])
+    await renderPage()
+
+    const unclassified = card('Gübrə')
+    expect(within(unclassified).getByText('Qiymət yoxdur').closest('span')).toHaveClass('text-amber-800')
+    expect(within(unclassified).getByRole('button', { name: 'Təsnif edilməyib nə deməkdir?' })).toBeInTheDocument()
+  })
+
+  it('does not repeat the table’s dash for a line with no specification', async () => {
+    serveLines([line({ productName: 'York qatlama salfet' })])
+    await renderPage()
+
+    const plain = card('York qatlama salfet')
+    // The only dash-free card: no specification line at all, and a total that is there.
+    expect(within(plain).queryByText('—')).toBeNull()
+  })
+
+  it('numbers the cards as the table numbers its rows, across pages', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: { items: [line({ orderRequestItemId: 1, productName: 'Bel' }), line({ orderRequestItemId: 2, productName: 'Vedrə' })], page: 2, pageSize: 50, totalCount: 52 },
+    } as never))
+    await renderPage()
+
+    expect(within(card('Bel')).getByText('51')).toBeInTheDocument()
+    expect(within(card('Vedrə')).getByText('52')).toBeInTheDocument()
+  })
+
+  it('opens the source drawer from a card', async () => {
+    const user = userEvent.setup()
+    ordersApi.fetchOrderItemSource.mockResolvedValue({
+      orderRequestItemId: 501,
+      orderRequestId: 105,
+      version: 2,
+      origin: 'ManuallyAdded',
+      lineage: [{ orderRequestItemId: 501, orderRequestId: 105, version: 2, status: 'Draft', isImported: false }],
+      source: null,
+    })
+    await renderPage()
+
+    await user.click(within(cards()).getByRole('button', { name: 'Mənbəyə bax' }))
+
+    expect(await screen.findByText('Əl ilə əlavə edilib — Excel mənbəsi yoxdur.')).toBeInTheDocument()
+    expect(ordersApi.fetchOrderItemSource).toHaveBeenCalledWith(501, expect.anything())
+  })
+
+  it('says there are no lines, and says it is loading, in the table’s words', async () => {
+    serveLines([])
+    await renderPage()
+    expect(within(cards()).getByText('Bu sifarişdə sətir yoxdur.')).toBeInTheDocument()
+  })
+
+  it('says it is loading while the lines are on their way', async () => {
+    ordersApi.fetchOrder.mockReturnValue(new Promise(() => {}))
+    await renderPage()
+    expect(within(cards()).getByText('Yüklənir…')).toBeInTheDocument()
+  })
+
+  it('hands the table to wide screens only, and forces no width of its own', async () => {
+    serveLines([
+      line({ orderRequestItemId: 1, productName: 'Columbus 80 BM 100 Şotka üçün çox uzun bir məhsul adı', categoryPath: ['Təsərrüfat', 'Təmizlik'] }),
+      line({ orderRequestItemId: 2, productName: 'Qum', unitPrice: null, lineTotal: null, pricingMode: 'InternalFreeSupply' }),
+    ])
+    await renderPage()
+
+    const wrapper = document.querySelector('table')!.parentElement!
+    expect(wrapper).toHaveClass('hidden', 'lg:block', 'overflow-x-auto')
+    expect(cards()).toHaveClass('lg:hidden')
+
+    expect(cards().querySelector('[class*="min-w-["]')).toBeNull()
+    // Only amounts are kept to one line; a name, a supplier or a category wraps.
+    for (const element of cards().querySelectorAll('.whitespace-nowrap')) {
+      expect(element.textContent).toMatch(/₼$/)
+    }
+
+    expect(findOldTerms(cards())).toEqual([])
+  })
+})
+
+/**
  * Task 05b: the page speaks the manager's language. The month in the header instead of "Versiya 2"; under a
  * product's name no product code and no model; a specification only when it says what it measures.
  */
@@ -1026,7 +1240,8 @@ describe('what the manager does not have to decode', () => {
     })
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Mənbəyə bax' }))
+    // In the table: below 1024 pixels the same line is also a card (Task 12), with its own "Mənbəyə bax".
+    await user.click(linesTable().getByRole('button', { name: 'Mənbəyə bax' }))
     const drawer = await screen.findByRole('dialog')
 
     expect(await within(drawer).findByText('Sətrin keçdiyi versiyalar')).toBeInTheDocument()

@@ -220,6 +220,19 @@ async function renderPage() {
   await waitFor(() => expect(revisionsApi.fetchRevision).toHaveBeenCalled())
 }
 
+/**
+ * The lines' table. Below 1024 pixels the same lines are cards beside it (Task 12: "Sifariş sətirləri telefonda
+ * yana sürüşdürmədən oxunur"), so a line's buttons are on the page twice and are looked for in the table here.
+ */
+function linesTable() {
+  return within(screen.getByRole('columnheader', { name: 'Məhsul' }).closest('table')!)
+}
+
+/** The same lines as cards, for a phone. */
+function lineCards() {
+  return within(screen.getByRole('list', { name: 'Sətirlər' }))
+}
+
 // ---- creating a correction -------------------------------------------------------------------------
 
 describe('a returned order', () => {
@@ -416,8 +429,8 @@ describe('what the screen offers', () => {
   it('offers editing only where the server allows it', async () => {
     await renderPage()
 
-    expect(screen.getByRole('button', { name: 'Redaktə et' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sil' })).toBeInTheDocument()
+    expect(linesTable().getByRole('button', { name: 'Redaktə et' })).toBeInTheDocument()
+    expect(linesTable().getByRole('button', { name: 'Sil' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sətir əlavə et' })).toBeInTheDocument()
   })
 
@@ -454,7 +467,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
     const quantity = within(dialog).getByLabelText('Miqdar')
     await user.clear(quantity)
@@ -471,7 +484,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
     await user.click(within(dialog).getByRole('checkbox', { name: /Qiymət yoxdur/ }))
     await user.click(within(dialog).getByRole('button', { name: 'Yadda saxla' }))
@@ -487,7 +500,7 @@ describe('editing a line', () => {
     ordersApi.fetchOrder.mockResolvedValue(detail({ items: { items: [item({ unitPrice: null, lineTotal: null })] } as never }))
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
     await user.click(within(dialog).getByRole('checkbox', { name: /Qiymət yoxdur/ }))
     await user.type(within(dialog).getByLabelText('Qiymət'), '4.5')
@@ -504,7 +517,7 @@ describe('editing a line', () => {
     ordersApi.fetchOrder.mockResolvedValue(detail({ items: { items: [item({ supplierId: 7, supplierName: 'Anbar' })] } as never }))
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Məlum deyil' }))
     await user.click(within(dialog).getByRole('button', { name: 'Yadda saxla' }))
@@ -519,7 +532,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
     const quantity = within(dialog).getByLabelText('Miqdar')
     await user.clear(quantity)
@@ -534,7 +547,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
 
     expect(within(dialog).getByText(/Məhsul dəyişdirilmir/)).toBeInTheDocument()
@@ -547,7 +560,7 @@ describe('editing a line', () => {
     await renderPage()
     const before = ordersApi.fetchOrder.mock.calls.length
 
-    await user.click(screen.getByRole('button', { name: 'Redaktə et' }))
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
     const quantity = within(dialog).getByLabelText('Miqdar')
     await user.clear(quantity)
@@ -607,7 +620,7 @@ describe('removing a line', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Sil' }))
+    await user.click(linesTable().getByRole('button', { name: 'Sil' }))
     const dialog = screen.getByRole('dialog')
 
     expect(within(dialog).getByText(/yalnız cari, təsdiqlənməmiş versiyadan silinəcək/)).toBeInTheDocument()
@@ -619,10 +632,46 @@ describe('removing a line', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Sil' }))
+    await user.click(linesTable().getByRole('button', { name: 'Sil' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sil' }))
 
     await waitFor(() => expect(revisionsApi.removeOrderItem).toHaveBeenCalledWith(105, 501, '00FF01'))
+  })
+})
+
+/** Task 12: on a phone the lines are cards, and a card's buttons are the table's — the same dialogs, the same calls. */
+describe('a line on a phone', () => {
+  it('edits and removes from the card through the same dialogs', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+
+    await user.click(lineCards().getByRole('button', { name: 'Redaktə et' }))
+    const edit = screen.getByRole('dialog')
+    expect(within(edit).getByText(/Məhsul dəyişdirilmir/)).toBeInTheDocument()
+    const quantity = within(edit).getByLabelText('Miqdar')
+    await user.clear(quantity)
+    await user.type(quantity, '12.5')
+    await user.click(within(edit).getByRole('button', { name: 'Yadda saxla' }))
+    await waitFor(() => expect(revisionsApi.editOrderItem).toHaveBeenCalledWith(105, 501, {
+      rowVersion: '00FF01',
+      quantity: { value: 12.5 },
+    }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    await user.click(lineCards().getByRole('button', { name: 'Sil' }))
+    const remove = screen.getByRole('dialog')
+    expect(within(remove).getByText(/yalnız cari, təsdiqlənməmiş versiyadan silinəcək/)).toBeInTheDocument()
+    await user.click(within(remove).getByRole('button', { name: 'Sil' }))
+    await waitFor(() => expect(revisionsApi.removeOrderItem).toHaveBeenCalledWith(105, 501, '00FF01'))
+  })
+
+  it('offers neither when the server says this person may not edit', async () => {
+    revisionsApi.fetchRevision.mockResolvedValue(revision({ canEditRevision: false }))
+    await renderPage()
+
+    expect(lineCards().getByRole('button', { name: 'Mənbəyə bax' })).toBeInTheDocument()
+    expect(lineCards().queryByRole('button', { name: 'Redaktə et' })).toBeNull()
+    expect(lineCards().queryByRole('button', { name: 'Sil' })).toBeNull()
   })
 })
 
@@ -795,7 +844,7 @@ describe('where a line came from', () => {
     ordersApi.fetchOrderItemSource.mockResolvedValue(provenance())
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Mənbəyə bax' }))
+    await user.click(linesTable().getByRole('button', { name: 'Mənbəyə bax' }))
 
     const chain = (await screen.findByText('Sətrin keçdiyi versiyalar')).closest('div')!
     const steps = within(chain).getAllByRole('listitem')
@@ -817,7 +866,7 @@ describe('where a line came from', () => {
     }))
     await renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'Mənbəyə bax' }))
+    await user.click(linesTable().getByRole('button', { name: 'Mənbəyə bax' }))
 
     expect(await screen.findByText('Əl ilə əlavə edilib — Excel mənbəsi yoxdur.')).toBeInTheDocument()
     expect(screen.queryByText('Sətrin keçdiyi versiyalar')).toBeNull()

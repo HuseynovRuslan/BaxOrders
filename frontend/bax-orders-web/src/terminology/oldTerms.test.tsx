@@ -978,6 +978,10 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).not.toHaveTextContent(/yaxşı|pis/i)
     expect(screen.getByRole('columnheader', { name: 'Vahid' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Müqayisə üçün data azdır — bu nə deməkdir?' })).toBeInTheDocument()
+    // Task 12: the same lines as cards for a phone, swept on their own as well as with the page.
+    const lineCards = screen.getByRole('list', { name: 'Sətirlər' })
+    expect(within(lineCards).getAllByRole('listitem').length).toBeGreaterThan(0)
+    expectNoOldTerms(lineCards)
 
     // Task 11b's lines — what the comparison page used to say — opened and swept on the page that says them now:
     // the missing month, the window's months, the both-sides sentence, the state counts and the steady products.
@@ -1115,6 +1119,15 @@ describe('no retired word on the manager’s screens', () => {
       expect(container).toHaveTextContent('Gələcək ay')
       expect(container).toHaveTextContent('Sistemdə hələ sifarişi yoxdur')
       expect(screen.getAllByTitle('Dekabr 2026: gələcək ay').length).toBeGreaterThan(0)
+
+      // Task 12: the phone's view of the year — a card per object and the company's months — on its own.
+      const phoneView = screen.getByRole('list', { name: 'Kartlardakı işarələr' }).parentElement!
+      expectNoOldTerms(phoneView)
+      expect(phoneView).toHaveTextContent('İl cəmi')
+      expect(phoneView).toHaveTextContent('Qeyri-adi ay')
+      expect(phoneView).toHaveTextContent('Sistemdə hələ sifarişi yoxdur')
+      expect(within(phoneView).getByRole('region', { name: 'Cəmi' })).toBeInTheDocument()
+      expect(within(phoneView).getByLabelText('Fəvvarələr meydanı · Dekabr 2026: gələcək ay')).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
     }

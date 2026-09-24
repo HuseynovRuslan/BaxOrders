@@ -7,7 +7,7 @@ import { PageHeader } from '../components/PageHeader'
 import { amountIncompleteLabel, missingPriceShortLabel } from '../pricing/labels'
 import { SummaryMetric } from '../components/SummaryMetric'
 import { formatCount, formatMoney } from '../components/analytics/format'
-import { MonthlyReportMonthList, MonthlyReportTable, shortMonths } from '../components/reports/MonthlyReportTable'
+import { MonthlyReportTable, MonthlyReportYearList } from '../components/reports/MonthlyReportTable'
 
 type State =
   | { status: 'loading' }
@@ -27,7 +27,6 @@ export function MonthlyReportPage() {
 
   const year = Number(params.get('year')) || undefined
   const search = params.get('search') ?? ''
-  const month = Math.min(12, Math.max(1, Number(params.get('month')) || new Date().getMonth() + 1))
 
   // The key discards a stale answer; it never skips the request. Guarding the fetch itself would deadlock
   // under StrictMode, whose second pass would see the key already set and never ask for anything.
@@ -109,22 +108,6 @@ export function MonthlyReportPage() {
           />
         </form>
 
-        {/* Below the panorama width one month is read at a time; the choice belongs beside the other controls. */}
-        <label className="flex items-center gap-2 text-sm text-slate-600 lg:hidden">
-          <span>Ay</span>
-          <select
-            value={String(month)}
-            onChange={(event) => update({ month: event.target.value })}
-            className="rounded-md border border-slate-200 px-2.5 py-1.5 text-sm"
-          >
-            {shortMonths.map((label, index) => (
-              <option key={label} value={String(index + 1)}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-
         {data && data.filteredLocationCount !== data.locationCount && (
           <p className="ml-auto text-xs text-slate-500">
             {formatCount(data.filteredLocationCount)} / {formatCount(data.locationCount)} obyekt
@@ -157,7 +140,7 @@ export function MonthlyReportPage() {
       {data && data.rows.length > 0 && (
         <>
           <MonthlyReportTable report={data} />
-          <MonthlyReportMonthList rows={data.rows} month={month} />
+          <MonthlyReportYearList report={data} />
         </>
       )}
     </>

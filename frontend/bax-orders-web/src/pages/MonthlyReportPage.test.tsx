@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MonthlyReport, MonthlyReportCell, MonthlyReportMonth, MonthlyReportRow } from '../api/reports'
+import { findOldTerms } from '../test/oldTerms'
 import { MonthlyReportPage } from './MonthlyReportPage'
 
 /**
@@ -245,30 +246,246 @@ describe('the controls', () => {
   })
 })
 
+/**
+ * The phone (Task 12). Brief: "Mobil aylıq hesabatda obyektin il üzrə gedişatı görünür". The narrow layout used to
+ * show the objects of one month chosen with an "Ay" select, and an object's year could not be seen at all; now it
+ * is a card per object with all twelve months. jsdom applies no CSS, so these are scoped to the part that shows
+ * below 1024 pixels.
+ */
 describe('the phone', () => {
-  it('is a month of locations rather than a squeezed twelve-column table', async () => {
-    await renderPage('/dashboard/monthly?month=3')
+  afterEach(() => vi.useRealTimers())
 
-    const month = screen.getByRole('combobox', { name: /Ay/ })
-    expect(month).toHaveValue('3')
+  /** The part of the page that shows below 1024 pixels: the legend, the objects' cards, the company's months. */
+  function phoneView(): HTMLElement {
+    return screen.getByRole('list', { name: 'Kartlardakı işarələr' }).parentElement!
+  }
 
-    // The narrow layout lists the locations of the one chosen month, each linking to its own order. It gives way
-    // to the twelve-month table from 1024 pixels, as the month picker does.
-    expect(month.closest('label')!.className).toContain('lg:hidden')
-    const list = document.querySelector('.lg\\:hidden ul')!
-    expect(within(list as HTMLElement).getByRole('link', { name: /Fəvvarələr meydanı/ })).toHaveAttribute(
-      'href',
-      '/orders/103',
-    )
+  function card(locationName: string): HTMLElement {
+    return within(phoneView()).getByRole('link', { name: locationName }).closest('li')!
+  }
+
+  /** The twelve months under a card's strip, a quarter to a row. */
+  function monthGrid(scope: HTMLElement): HTMLElement[] {
+    return [...scope.querySelector('ul.grid-cols-3')!.children] as HTMLElement[]
+  }
+
+  function strip(scope: HTMLElement): HTMLElement[] {
+    return [...scope.querySelector('.grid-cols-12')!.children] as HTMLElement[]
+  }
+
+  const threeObjects = () => report({
+    rows: [
+      row({ locationId: 1, locationName: 'Bayıl yolu' }),
+      row({ locationId: 21, locationName: 'Fəvvarələr meydanı' }),
+      row({ locationId: 3, locationName: 'Heydər Əliyev' }),
+    ],
   })
 
-  it('gathers the locations with no order for that month into one quiet line', async () => {
+  it('shows every month at once, so there is no month to choose', async () => {
+    // An old link that chose a month still opens the report.
+    await renderPage('/dashboard/monthly?month=3')
+
+    expect(screen.queryByRole('combobox', { name: /Ay/ })).toBeNull()
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(phoneView()).toHaveClass('lg:hidden')
+    expect(monthGrid(card('Fəvvarələr meydanı'))).toHaveLength(12)
+  })
+
+  it('gives every object a card, in the report’s order, with its twelve months January first', async () => {
+    serving(threeObjects())
+    await renderPage()
+
+    const cards = [...phoneView().children[1].children] as HTMLElement[]
+    expect(cards.map((item) => within(item).getAllByRole('link')[0].textContent)).toEqual([
+      'Bayıl yolu', 'Fəvvarələr meydanı', 'Heydər Əliyev',
+    ])
+
+    for (const item of cards) {
+      expect(monthGrid(item).map((month) => month.firstElementChild!.textContent)).toEqual([
+        'Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn', 'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek',
+      ])
+    }
+
+    // The name opens the object, as the table's does.
+    expect(within(card('Bayıl yolu')).getByRole('link', { name: 'Bayıl yolu' })).toHaveAttribute('href', '/locations/1')
+  })
+
+  it('opens a month’s order without a basis, and says what the table’s cell says', async () => {
+    await renderPage()
+
+    const january = within(card('Fəvvarələr meydanı')).getByRole('link', { name: /Yanvar 2026/ })
+    expect(january).toHaveAttribute('href', '/orders/101')
+    expect(january.getAttribute('href')).not.toContain('basis')
+    const amount = within(january).getByText('1.001,00 ₼')
+    // Kept to its ₼ by a no-break space (Task 5), and on one line.
+    expect(amount.textContent).toBe(`1.001,00${nbsp}₼`)
+    expect(amount.className).toContain('whitespace-nowrap')
+    expect(amount.className).toContain('tabular-nums')
+
+    // One definition of what a month says: the same accessible name as the table's cell.
+    const inTable = within(table()).getByRole('link', { name: /Yanvar 2026/ })
+    expect(january.getAttribute('aria-label')).toBe(inTable.getAttribute('aria-label'))
+    expect(january.getAttribute('aria-label')).toMatch(/^Fəvvarələr meydanı · Yanvar 2026 · /)
+  })
+
+  it('tints an unusual month by the direction its cost moved, both ways (8.2, 9.1)', async () => {
+    serving(report({
+      rows: [row({
+        months: [
+          ...Array.from({ length: 5 }, (_, index) => cell(index + 1)),
+          cell(6, { knownAmount: 36010.19, isUnusual: true, recentAverageKnownAmount: 14458.58, recentAveragePercent: 149.06 }),
+          cell(7, { knownAmount: 400, isUnusual: true, recentAverageKnownAmount: 1000, recentAveragePercent: -60 }),
+          ...Array.from({ length: 5 }, (_, index) => cell(index + 8)),
+        ],
+      })],
+    }))
+    await renderPage()
+
+    const phone = card('Fəvvarələr meydanı')
+    const june = within(phone).getByRole('link', { name: /İyun 2026/ })
+    expect(june.className).toContain('bg-red-50')
+    expect(within(june).getByText('36.010,19 ₼').className).toContain('font-semibold')
+
+    const july = within(phone).getByRole('link', { name: /İyul 2026/ })
+    expect(july.className).toContain('bg-emerald-50')
+
+    const august = within(phone).getByRole('link', { name: /Avqust 2026/ })
+    expect(august.className).not.toMatch(/bg-red-50|bg-emerald-50/)
+
+    // The same direction on the strip; the ordinary months stay grey.
+    const bars = strip(phone)
+    expect(bars[5]).toHaveClass('bg-red-500')
+    expect(bars[6]).toHaveClass('bg-emerald-500')
+    expect(bars[7]).toHaveClass('bg-slate-300')
+  })
+
+  it('marks the lines nobody priced, beside the change', async () => {
+    serving(report({
+      rows: [row({
+        months: [
+          cell(1, { missingPriceItemCount: 2, amountIsComplete: false, deltaPercent: 12.5 }),
+          ...Array.from({ length: 11 }, (_, index) => cell(index + 2)),
+        ],
+      })],
+    }))
+    await renderPage()
+
+    const january = within(card('Fəvvarələr meydanı')).getByRole('link', { name: /Yanvar 2026/ })
+    expect(within(january).getByText('⚠ 2')).toBeInTheDocument()
+    expect(within(january).getByText('+12,5%')).toHaveClass('text-red-700')
+    expect(january).toHaveAccessibleName(expect.stringContaining('2 sətirdə qiymət yoxdur') as unknown as string)
+  })
+
+  it('draws a past month with no order as a dash, never a zero', async () => {
     serving(report({
       rows: [row({ months: [noRequest(1), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))] })],
     }))
-    await renderPage('/dashboard/monthly?month=1')
+    await renderPage()
 
-    expect(screen.getByText('1 obyektin bu ay üçün sifarişi yoxdur')).toBeInTheDocument()
+    const phone = card('Fəvvarələr meydanı')
+    const january = within(phone).getByLabelText('Fəvvarələr meydanı · Yanvar 2026 · sifariş yoxdur')
+    expect(january).toHaveTextContent('—')
+    expect(january).toHaveClass('text-slate-300')
+    expect(within(phone).queryByRole('link', { name: /Yanvar 2026/ })).toBeNull()
+    expect(within(phone).queryByText('0,00 ₼')).toBeNull()
+    // And its slot on the strip is empty.
+    expect(strip(phone)[0].getAttribute('style')).toBeNull()
+  })
+
+  it('says the year’s total, and draws the year as twelve bars against its largest month', async () => {
+    await renderPage()
+
+    const phone = card('Fəvvarələr meydanı')
+    expect(within(phone).getByText('İl cəmi')).toBeInTheDocument()
+    expect(within(phone).getByText('12.066,00 ₼')).toHaveClass('whitespace-nowrap')
+
+    const bars = strip(phone)
+    expect(bars).toHaveLength(12)
+    expect(bars[0].parentElement).toHaveAttribute('aria-hidden', 'true')
+    // December, 1.012,00 ₼, is the largest; January, 1.001,00 ₼, is drawn against it.
+    expect(bars[11].style.height).toBe('100%')
+    expect(bars[0].style.height).toBe(`${(1001 / 1012) * 100}%`)
+    expect(bars[0].style.minHeight).toBe('2px')
+  })
+
+  it('says an object that has never ordered in one line, with no months', async () => {
+    serving(report({
+      rows: [
+        row(),
+        row({
+          locationId: 27,
+          locationName: 'Çadır',
+          knownAmount: null,
+          hasAnyRequest: false,
+          months: Array.from({ length: 12 }, (_, index) => noRequest(index + 1)),
+        }),
+      ],
+    }))
+    await renderPage()
+
+    const chadir = card('Çadır')
+    expect(within(chadir).getByText('Sistemdə hələ sifarişi yoxdur')).toHaveClass('text-slate-500')
+    expect(chadir.querySelector('ul')).toBeNull()
+    expect(chadir.querySelector('.grid-cols-12')).toBeNull()
+    expect(within(chadir).queryAllByLabelText(/sifariş yoxdur/)).toHaveLength(0)
+  })
+
+  it('closes the list with the company’s months: amounts only, no percentage (8.1)', async () => {
+    serving(report({
+      months: [
+        companyMonth(1, { locationsWithRequest: 0, knownAmount: null }),
+        ...auditMonths.slice(1, 8),
+        { ...auditMonths[8], missingPriceItemCount: 3, amountIsComplete: false },
+        ...auditMonths.slice(9),
+      ],
+      knownAmount: 431670.91,
+    }))
+    today(new Date(2026, 8, 24))
+    await renderPage()
+
+    const totals = within(phoneView()).getByRole('region', { name: 'Cəmi' })
+    expect(phoneView().lastElementChild).toBe(totals)
+
+    const months = monthGrid(totals)
+    expect(months).toHaveLength(12)
+    expect(months.map((month) => month.firstElementChild!.textContent)).toEqual([
+      'Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn', 'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek',
+    ])
+    expect(totals.textContent).not.toContain('%')
+    expect(totals.querySelector('.text-red-700, .text-emerald-700')).toBeNull()
+
+    expect(within(months[0]).getByTitle('Yanvar 2026: sifariş yoxdur')).toHaveTextContent('—')
+    expect(within(months[1]).getByText('25.652,22 ₼')).toBeInTheDocument()
+    expect(within(months[8]).getByText('⚠ 3')).toBeInTheDocument()
+    expect(within(months[9]).getByLabelText('Oktyabr 2026: gələcək ay')).toBeInTheDocument()
+    expect(within(totals).getByText('İl cəmi')).toBeInTheDocument()
+    expect(within(totals).getByText('431.670,91 ₼')).toBeInTheDocument()
+  })
+
+  it('says the company’s months are the whole company’s while a search narrows the cards', async () => {
+    serving(report({ filteredLocationCount: 1, locationCount: 26 }))
+    await renderPage('/dashboard/monthly?search=meydan')
+
+    expect(within(phoneView()).getByRole('region', { name: 'Cəmi — bütün obyektlər' })).toBeInTheDocument()
+  })
+
+  it('explains the marks above the cards, as the table’s legend does above the table', async () => {
+    await renderPage()
+
+    const legend = within(phoneView()).getByRole('list', { name: 'Kartlardakı işarələr' })
+    expect(phoneView().firstElementChild).toBe(legend)
+    for (const word of ['Təsdiq gözləyir', 'Təsdiqlənib', 'Düzəliş tələb olunur', 'Qiymət yoxdur', 'Qeyri-adi ay', 'Gələcək ay']) {
+      expect(within(legend).getByText(word)).toBeInTheDocument()
+    }
+  })
+
+  it('is lists and grids, not a table, and uses no retired word', async () => {
+    serving(threeObjects())
+    await renderPage()
+
+    expect(phoneView().querySelector('table')).toBeNull()
+    expect(phoneView().querySelector('[class*="min-w-["]')).toBeNull()
+    expect(findOldTerms(phoneView())).toEqual([])
   })
 })
 
@@ -606,13 +823,23 @@ describe('months that have not begun', () => {
     }
   })
 
-  it('says so on the narrow layout too, instead of listing who did not order', async () => {
+  it('says so on the phone too, by the same hatch, and never that nothing was ordered', async () => {
     today(new Date(2026, 8, 24))
     serving(report({ rows: [withFutureGap()] }))
-    await renderPage('/dashboard/monthly?month=10')
+    await renderPage()
 
-    expect(screen.getByText('Oktyabr 2026 — gələcək ay')).toBeInTheDocument()
-    expect(screen.queryByText(/obyektin bu ay üçün sifarişi yoxdur/)).toBeNull()
+    const phone = screen.getByRole('list', { name: 'Kartlardakı işarələr' }).parentElement!
+    const october = within(phone).getByLabelText('Fəvvarələr meydanı · Oktyabr 2026: gələcək ay')
+    expect(october.textContent).toBe('')
+    expect(october.className).toContain('bg-[image:repeating-linear-gradient')
+    expect(within(phone).queryByLabelText(/Oktyabr 2026 · sifariş yoxdur/)).toBeNull()
+    expect(within(phone).queryByLabelText(/Dekabr 2026 · sifariş yoxdur/)).toBeNull()
+    // An order entered ahead of time is an ordinary month here as well.
+    expect(within(phone).getByRole('link', { name: /Noyabr 2026/ })).toHaveAttribute('href', '/orders/111')
+    // Its slot on the strip is the same hatch; a past month with no order is an empty slot.
+    const bars = [...phone.querySelector('.grid-cols-12')!.children] as HTMLElement[]
+    expect(bars[9].className).toContain('bg-[image:repeating-linear-gradient')
+    expect(bars[0].className).not.toContain('bg-[image:')
   })
 })
 

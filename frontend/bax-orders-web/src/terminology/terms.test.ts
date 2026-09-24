@@ -5,7 +5,6 @@ import {
   costDirectionSentence,
   costUnchangedLabel,
   futureMonthLabel,
-  futureMonthLine,
   futureMonthNote,
   locativeSuffix,
   monthlyTotalsAllLocationsLabel,
@@ -140,7 +139,6 @@ describe('the monthly report', () => {
   it('calls a month that has not begun a future month, never one without an order', () => {
     expect(futureMonthLabel).toBe('Gələcək ay')
     expect(futureMonthNote('Oktyabr 2026')).toBe('Oktyabr 2026: gələcək ay')
-    expect(futureMonthLine('Oktyabr 2026')).toBe('Oktyabr 2026 — gələcək ay')
     expect(futureMonthNote('Oktyabr 2026')).not.toContain('sifariş yoxdur')
   })
 
@@ -157,7 +155,6 @@ describe('the monthly report', () => {
       monthlyTotalsRowLabel,
       monthlyTotalsAllLocationsLabel,
       futureMonthNote('Oktyabr 2026'),
-      futureMonthLine('Oktyabr 2026'),
       unusualMonthNote(formatMoney(14458.58), formatPercent(-60)),
       unusualMonthHint,
       previousMonthPercentLabel,

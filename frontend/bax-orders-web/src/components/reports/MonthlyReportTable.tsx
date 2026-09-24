@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { OrderRequestStatus } from '../../api/orders'
 import type { MonthlyReport, MonthlyReportCell, MonthlyReportMonth, MonthlyReportRow } from '../../api/reports'
 import {
+  costDirectionBarClass,
   costDirectionTintClass,
   costDirectionToneClass,
   formatCount,
@@ -19,11 +20,11 @@ import {
   costDecreasedLabel,
   costIncreasedLabel,
   futureMonthLabel,
-  futureMonthLine,
   futureMonthNote,
   monthlyTotalsAllLocationsLabel,
   monthlyTotalsRowLabel,
   previousMonthPercentLabel,
+  reportCardsLegendLabel,
   reportLegendLabel,
   unusualMonthHint,
   unusualMonthLabel,
@@ -45,6 +46,11 @@ export const shortMonths = [
  */
 const futureMonthClass =
   'bg-slate-50 bg-[image:repeating-linear-gradient(135deg,transparent_0_5px,var(--color-slate-200)_5px_6px)]'
+
+/** The report's twelve months, January first, in the `yyyy-MM` form the cells' periods start with. */
+function reportPeriods(year: number): string[] {
+  return shortMonths.map((_, index) => `${year}-${String(index + 1).padStart(2, '0')}`)
+}
 
 /** The states a cell marks with a dot. The undecided one is every row's normal and is left unmarked. */
 const markedStatuses: OrderRequestStatus[] = ['PendingApproval', 'Approved', 'ReturnedForCorrection']
@@ -70,7 +76,7 @@ interface MonthlyReportTableProps {
  * marked. The legend above says once what the marks are, so nobody needs a mouse to learn them.
  */
 export function MonthlyReportTable({ report, today = new Date() }: MonthlyReportTableProps) {
-  const periods = shortMonths.map((_, index) => `${report.year}-${String(index + 1).padStart(2, '0')}`)
+  const periods = reportPeriods(report.year)
   const future = periods.map((period) => isFutureMonth(period, today))
   const searchActive = report.filteredLocationCount !== report.locationCount
 
@@ -375,10 +381,10 @@ function MonthTotal({ month, future }: { month: MonthlyReportMonth; future: bool
  * What the marks in the grid mean, on the screen rather than only on hover: the status dots, the unpriced lines,
  * the percentage and its two colours, the unusual month and the month that has not begun.
  */
-function Legend() {
+function Legend({ label = reportLegendLabel }: { label?: string }) {
   return (
     <ul
-      aria-label={reportLegendLabel}
+      aria-label={label}
       className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600"
     >
       {markedStatuses.map((status) => (
@@ -417,79 +423,131 @@ function Legend() {
 }
 
 /**
- * The same year on a narrow screen. Twelve columns do not survive below a laptop's width, so the month is chosen
- * once and the locations are read down it — a different shape for the same question, rather than the panorama
- * squeezed until its numbers collide. Its structure is Task 12's.
+ * The same year on a phone: a card for each object, with the whole of its year in it.
+ *
+ * Twelve columns do not survive below a laptop's width, and reading one chosen month at a time hid the very thing
+ * the report is for — how an object's year went. So each card shows the year twice: as a strip of twelve bars, for
+ * its shape at a glance, and as a grid of three months to a row, a quarter each, for its figures. A month in the
+ * grid says exactly what its cell in the table says, by the same code, and opens the same order. The company's
+ * months close the list, as the totals row closes the table, and the legend opens it, as it opens the table.
  */
-export function MonthlyReportMonthList({
-  rows,
-  month,
-  today = new Date(),
-}: {
-  rows: MonthlyReportRow[]
-  month: number
-  today?: Date
-}) {
-  const ordered = rows.filter((row) => row.months[month - 1].orderRequestId !== null)
-  const quiet = rows.filter((row) => row.months[month - 1].orderRequestId === null)
-  const period = rows[0]?.months[month - 1].period
-  const future = period !== undefined && isFutureMonth(period, today)
+export function MonthlyReportYearList({ report, today = new Date() }: MonthlyReportTableProps) {
+  const future = reportPeriods(report.year).map((period) => isFutureMonth(period, today))
+  const searchActive = report.filteredLocationCount !== report.locationCount
+  const totalsLabel = searchActive ? monthlyTotalsAllLocationsLabel : monthlyTotalsRowLabel
 
   return (
     <div className="lg:hidden">
+      <Legend label={reportCardsLegendLabel} />
+
       <ul className="space-y-2">
-        {ordered.map((row) => {
-          const cell = row.months[month - 1]
-          return (
-            <li key={row.locationId} className="rounded-lg border border-slate-200 bg-white">
-              <Link
-                to={`/orders/${cell.orderRequestId}`}
-                className="flex items-start justify-between gap-3 p-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{row.locationName}</p>
-                  {cell.status && (
-                    <span
-                      className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${workflowStatusClass[cell.status]}`}
-                    >
-                      {workflowStatusLabels[cell.status]}
-                    </span>
-                  )}
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="whitespace-nowrap font-semibold text-slate-900">{formatMoney(cell.knownAmount)}</p>
-                  {/* There is room here, so the narrow layout says it in words. */}
-                  {cell.amountIsComplete ? (
-                    cell.deltaAmount !== null && (
-                      <p className="whitespace-nowrap text-xs text-slate-400">{formatMoneyDelta(cell.deltaAmount)}</p>
-                    )
-                  ) : (
-                    <p className="whitespace-nowrap text-xs text-amber-800">
-                      {missingPriceCount(cell.missingPriceItemCount)}
-                    </p>
-                  )}
-                </div>
-              </Link>
-            </li>
-          )
-        })}
+        {report.rows.map((row) => (
+          <LocationCard key={row.locationId} row={row} future={future} />
+        ))}
       </ul>
 
-      {quiet.length > 0 && period !== undefined && (
-        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          {future ? (
-            // A month that has not begun has nobody missing from it.
-            <p className="text-xs font-medium text-slate-600">{futureMonthLine(formatMonth(period))}</p>
-          ) : (
-            <>
-              <p className="text-xs font-medium text-slate-600">
-                {formatCount(quiet.length)} obyektin bu ay üçün sifarişi yoxdur
-              </p>
-              <p className="mt-1 text-xs text-slate-500">{quiet.map((row) => row.locationName).join(', ')}</p>
-            </>
-          )}
+      {/* The company's month under the objects' (owner decision 8.1): the amount and nothing about how it moved. */}
+      <section aria-label={totalsLabel} className="mt-3 rounded-lg border border-slate-300 bg-slate-100 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-semibold text-slate-900">{totalsLabel}</h2>
+          <YearTotal amount={report.knownAmount} />
         </div>
+
+        <ul className="mt-2 grid grid-cols-3 gap-1 text-xs">
+          {report.months.map((month, index) => (
+            <li key={month.month} className="min-w-0">
+              <MonthName index={index} future={future[index]} />
+              <div className="px-1 py-1 text-right font-semibold">
+                <MonthTotal month={month} future={future[index]} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  )
+}
+
+function LocationCard({ row, future }: { row: MonthlyReportRow; future: boolean[] }) {
+  return (
+    <li className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        {/* The full name, wrapped rather than cut (Task 3), opening the object as the table's name does. */}
+        <Link
+          to={`/locations/${row.locationId}`}
+          className="min-w-0 break-words font-medium leading-snug text-slate-900 hover:underline"
+        >
+          {row.locationName}
+        </Link>
+        <YearTotal amount={row.knownAmount} />
+      </div>
+
+      {row.hasAnyRequest ? (
+        <>
+          <YearStrip row={row} future={future} />
+          <ul className="mt-2 grid grid-cols-3 gap-1 text-xs">
+            {row.months.map((cell, index) => (
+              <li key={cell.month} className="min-w-0">
+                <MonthName index={index} future={future[index]} />
+                <div className="text-right">
+                  <Cell cell={cell} locationName={row.locationName} future={future[index]} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        // As in the table: one fact about the object, in the dashboard's words, rather than twelve empty months.
+        <p className="mt-2 text-sm text-slate-500">{portfolioGroupLabels.NoHistory}</p>
       )}
+    </li>
+  )
+}
+
+function YearTotal({ amount }: { amount: number | null }) {
+  return (
+    <p className="shrink-0 text-right">
+      <span className="block text-[11px] text-slate-500">{yearTotalLabel}</span>
+      <span className="block whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatMoney(amount)}</span>
+    </p>
+  )
+}
+
+/** A month's short name above its figure, quietened for a month that has not begun, as the table's header is. */
+function MonthName({ index, future }: { index: number; future: boolean }) {
+  return (
+    <span className={`block px-1 text-[11px] font-medium ${future ? 'text-slate-400' : 'text-slate-500'}`}>
+      {shortMonths[index]}
+    </span>
+  )
+}
+
+/**
+ * The shape of the year before its figures: a bar a month, as tall as its amount against the object's largest
+ * month. Grey, because an amount is a sum and not a direction; only an unusual month takes the colour of the way
+ * its cost moved (9.1), as its cell is tinted. The grid under it says every figure, so a screen reader skips this.
+ */
+function YearStrip({ row, future }: { row: MonthlyReportRow; future: boolean[] }) {
+  const amounts = row.months.map((cell) => (cell.orderRequestId === null ? 0 : Math.max(0, cell.knownAmount ?? 0)))
+  const largest = Math.max(...amounts)
+
+  return (
+    <div aria-hidden="true" className="mt-3 grid h-10 grid-cols-12 items-end gap-0.5 border-b border-slate-200">
+      {row.months.map((cell, index) => {
+        if (cell.orderRequestId === null) {
+          return <span key={cell.month} className={future[index] ? `h-full rounded-t-sm ${futureMonthClass}` : 'h-full'} />
+        }
+
+        const amount = amounts[index]
+        return (
+          <span
+            key={cell.month}
+            className={`rounded-t-sm ${cell.isUnusual ? costDirectionBarClass(cell.recentAveragePercent) : 'bg-slate-300'}`}
+            // A display ratio only; no figure is derived from it or printed.
+            style={{ height: `${largest > 0 ? (amount / largest) * 100 : 0}%`, minHeight: amount > 0 ? 2 : undefined }}
+          />
+        )
+      })}
     </div>
   )
 }

@@ -105,13 +105,18 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4" aria-label="Qərar">
+      {/*
+        On a phone the panel comes after the analysis, so the buttons are fixed to the bottom of the screen and
+        stay in reach while "Niyə dəyişib?" is read. From 1024 pixels they are the first thing in the panel, which
+        itself stays in view beside the analysis.
+      */}
       {hasActions && (
-        <div className="flex flex-wrap gap-2">
+        <div className="fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t border-slate-200 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(15,23,42,0.08)] lg:static lg:z-auto lg:flex-wrap lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
           {allowed.canSubmit && (
             <button
               type="button"
               onClick={() => setDialog('submit')}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              className="flex-1 rounded-md bg-slate-900 px-3 py-2.5 text-sm font-medium text-white hover:bg-slate-800 lg:flex-none lg:py-1.5"
             >
               {workflow.status === 'ReturnedForCorrection' ? resubmitLabel : submitLabel}
             </button>
@@ -120,7 +125,7 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
             <button
               type="button"
               onClick={() => setDialog('approve')}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              className="flex-1 rounded-md bg-slate-900 px-3 py-2.5 text-sm font-medium text-white hover:bg-slate-800 lg:flex-none lg:py-1.5"
             >
               {approveLabel}
             </button>
@@ -129,7 +134,7 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
             <button
               type="button"
               onClick={() => setDialog('return')}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:flex-none lg:py-1.5"
             >
               {returnLabel}
             </button>

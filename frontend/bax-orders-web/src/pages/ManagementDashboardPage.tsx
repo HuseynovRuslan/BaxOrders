@@ -283,12 +283,23 @@ export function ManagementDashboardPage() {
 
       {data && (
         <div aria-busy={dashboard.loading}>
-          <DashboardHeadline summary={data.summary} onShowMissingPrices={showMissingPrices} />
+          {/*
+            On a phone the exceptions come directly under the headline (Task 1b's decision), then the cards. The
+            page keeps its order and only the phone's layout moves them, so from 1024 pixels the cards stay
+            straight under the month, on the first screen (Task 9), and Back still finds the card it left from.
+          */}
+          <div className="max-lg:flex max-lg:flex-col">
+            <DashboardHeadline summary={data.summary} onShowMissingPrices={showMissingPrices} />
 
-          {/* Which objects to read, and why — straight under the month, on the first screen. */}
-          <AttentionSection attention={data.attention} summary={data.summary} selection={shownSelection} />
+            {/* Which objects to read, and why — straight under the month, on the first screen. */}
+            <div className="max-lg:order-2">
+              <AttentionSection attention={data.attention} summary={data.summary} selection={shownSelection} />
+            </div>
 
-          <DashboardExceptions summary={data.summary} selection={shownSelection} />
+            <div className="max-lg:order-1">
+              <DashboardExceptions summary={data.summary} selection={shownSelection} />
+            </div>
+          </div>
 
           <h2 ref={tableHeading} className="mb-2 scroll-mt-20 text-sm font-semibold text-slate-900">Bütün obyektlər</h2>
 

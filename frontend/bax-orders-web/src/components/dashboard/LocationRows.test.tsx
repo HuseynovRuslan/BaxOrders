@@ -430,6 +430,26 @@ describe('a phone', () => {
     expect(within(cards).getByText(/Yeni məhsullar/)).toBeInTheDocument()
     expect(within(cards).getByRole('link', { name: /Detallara bax/ })).toBeInTheDocument()
   })
+
+  /** Task 12, the decision it carries from Task 1: "Mobil kartlar da bazanı sifariş səhifəsinə ötürür". */
+  it('carries the basis into the order from a card, as the table does', () => {
+    const { container } = renderRows([row({ currentRequestId: 105 })])
+    const cards = container.querySelector('ul.lg\\:hidden') as HTMLElement
+
+    expect(within(cards).getByRole('link', { name: /Detallara bax/ })).toHaveAttribute('href', '/orders/105?basis=avg3')
+  })
+
+  it('carries it into the object from a card when there is no order this month to open', () => {
+    const { container } = renderRows([row({
+      hasCurrentRequest: false,
+      currentRequestId: null,
+      primaryCause: null,
+      primaryCauseAmount: null,
+    })])
+    const cards = container.querySelector('ul.lg\\:hidden') as HTMLElement
+
+    expect(within(cards).getByRole('link', { name: /Detallara bax/ })).toHaveAttribute('href', '/locations/21?basis=avg3')
+  })
 })
 
 /**
