@@ -4,13 +4,13 @@ import { BasisPicker } from '../analytics/BasisPicker'
 import { InfoHint } from '../analytics/InfoHint'
 import {
   basisHints,
+  costDirectionToneClass,
   describeBasis,
   describeBasisWithRange,
   formatMoney,
   formatMoneyDelta,
   formatMonth,
   formatPercent,
-  signedToneClass,
   unknownValue,
 } from '../analytics/format'
 import {
@@ -87,15 +87,23 @@ export function DecisionHeadline({ context, selection, onSelect, priorMonths }: 
 
           {primary.available ? (
             <>
-              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="whitespace-nowrap text-sm text-slate-700">
-                  {formatMoney(primary.baselineKnownAmount)}
+              {/*
+                Each figure says what it is. A bare amount beside a large coloured one left the reader to work out
+                which was the basis; the difference is coloured by the direction of the cost (9.1).
+              */}
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <p className="flex items-baseline gap-1.5 whitespace-nowrap">
+                  <span className="text-xs text-slate-500">Baza</span>
+                  <span className="text-sm text-slate-700">{formatMoney(primary.baselineKnownAmount)}</span>
                 </p>
-                <p className={`whitespace-nowrap text-lg font-semibold ${signedToneClass(primary.deltaAmount)}`}>
-                  {formatMoneyDelta(primary.deltaAmount)}
-                </p>
-                <p className={`whitespace-nowrap text-sm ${signedToneClass(primary.deltaAmount)}`}>
-                  {formatPercent(primary.deltaPercent)}
+                <p className="flex items-baseline gap-1.5 whitespace-nowrap">
+                  <span className="text-xs text-slate-500">Fərq</span>
+                  <span className={`text-lg font-semibold ${costDirectionToneClass(primary.deltaAmount)}`}>
+                    {formatMoneyDelta(primary.deltaAmount)}
+                  </span>
+                  <span className={`text-sm ${costDirectionToneClass(primary.deltaAmount)}`}>
+                    {formatPercent(primary.deltaPercent)}
+                  </span>
                 </p>
               </div>
               <Coverage comparison={primary} />
@@ -160,7 +168,7 @@ function Secondary({
             className="rounded hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-900"
           >
             {formatMoney(comparison.baselineKnownAmount)}
-            <span className={`ml-1.5 ${signedToneClass(comparison.deltaAmount)}`}>
+            <span className={`ml-1.5 ${costDirectionToneClass(comparison.deltaAmount)}`}>
               {formatMoneyDelta(comparison.deltaAmount)}
             </span>
             {comparison.availablePeriodCount < comparison.expectedPeriodCount && (

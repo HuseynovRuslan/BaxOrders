@@ -3,6 +3,8 @@ import { formatAmount } from '../imports/labels'
 import {
   amountHeading,
   basisLabels,
+  costDirectionBarClass,
+  costDirectionToneClass,
   describeBasis,
   describeDirection,
   formatDelta,
@@ -227,5 +229,24 @@ describe('the colour of a signed number', () => {
     expect(signedToneClass(-1)).toBe('text-rose-700')
     expect(signedToneClass(0)).toBe('text-slate-600')
     expect(signedToneClass(null)).toBe('text-slate-600')
+  })
+})
+
+/** Owner decision 9.1: the direction of the cost — up red, down green — and never a verdict. */
+describe('the colour of a cost that moved', () => {
+  it('is red when the cost went up, green when it went down, slate when it did not move or is unknown', () => {
+    expect(costDirectionToneClass(8093.7)).toBe('text-red-700')
+    expect(costDirectionToneClass(-8093.7)).toBe('text-emerald-700')
+    expect(costDirectionToneClass(0)).toBe('text-slate-600')
+    expect(costDirectionToneClass(null)).toBe('text-slate-600')
+    expect(costDirectionToneClass(undefined)).toBe('text-slate-600')
+  })
+
+  it('fills a bar by the same rule', () => {
+    expect(costDirectionBarClass(0.01)).toBe('bg-red-500')
+    expect(costDirectionBarClass(-0.01)).toBe('bg-emerald-500')
+    expect(costDirectionBarClass(0)).toBe('bg-slate-300')
+    expect(costDirectionBarClass(null)).toBe('bg-slate-300')
+    expect(costDirectionBarClass(undefined)).toBe('bg-slate-300')
   })
 })

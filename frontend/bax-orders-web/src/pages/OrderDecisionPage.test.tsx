@@ -402,6 +402,61 @@ describe('the first screenful', () => {
     expect(within(headline()).getByText('+14,29%')).toBeInTheDocument()
   })
 
+  /** The audit: "17.583,62 ₼" beside a large coloured figure, and nothing said which one was the basis. */
+  it('says which figure is the basis and which the difference', async () => {
+    await renderPage()
+
+    const basisLabel = within(headline()).getByText('Baza')
+    expect(basisLabel.nextElementSibling).toHaveTextContent('4.200,00 ₼')
+
+    const differenceLabel = within(headline()).getByText('Fərq')
+    const [amount, percent] = Array.from(differenceLabel.parentElement!.children).slice(1)
+    expect(amount).toHaveTextContent('+600,00 ₼')
+    expect(percent).toHaveTextContent('+14,29%')
+  })
+
+  /** Owner decision 9.1: the direction of the cost — up red, down green — never green for "more". */
+  it('colours a rise in cost red', async () => {
+    await renderPage()
+
+    expect(within(headline()).getByText('+600,00 ₼')).toHaveClass('text-red-700')
+    expect(within(headline()).getByText('+14,29%')).toHaveClass('text-red-700')
+    // The small bases beside it follow the same rule.
+    const beside = within(within(headline()).getByLabelText('Digər müqayisə bazaları'))
+    expect(beside.getByText('+800,00 ₼')).toHaveClass('text-red-700')
+    expect(headline().querySelector('[class*="text-emerald"]')).toBeNull()
+  })
+
+  it('colours a fall in cost green', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      primary: comparison({ baselineKnownAmount: 5400, deltaAmount: -600, deltaPercent: -11.1111 }),
+      secondary: [comparison({ basis: 'Previous3MonthAverage', baselineKnownAmount: 5000, deltaAmount: -200, deltaPercent: -4 })],
+    }))
+    await renderPage()
+
+    expect(within(headline()).getByText('−600,00 ₼')).toHaveClass('text-emerald-700')
+    expect(within(headline()).getByText('−11,11%')).toHaveClass('text-emerald-700')
+    expect(within(within(headline()).getByLabelText('Digər müqayisə bazaları')).getByText('−200,00 ₼'))
+      .toHaveClass('text-emerald-700')
+    expect(headline().querySelector('[class*="text-rose"], [class*="text-red"]')).toBeNull()
+  })
+
+  it('explains the change against the basis the reader chose', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      primary: comparison({
+        basis: 'Previous3MonthAverage',
+        windowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
+        expectedPeriodCount: 3,
+        availablePeriodCount: 3,
+      }),
+    }))
+    await renderPage()
+
+    const causes = within(screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' }))
+    expect(causes.getByText('Son 3 ayın ortalamasına görə')).toBeInTheDocument()
+    expect(causes.queryByText(/Keçən aya görə/)).toBeNull()
+  })
+
   it('keeps the other bases as quiet context beside it', async () => {
     await renderPage()
 

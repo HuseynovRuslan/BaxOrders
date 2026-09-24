@@ -269,7 +269,11 @@ export function OrderDetailPage() {
 
         {decision?.decomposition && (
           <div className="order-3 space-y-4 lg:col-span-2 lg:col-start-1 lg:row-start-2">
-            <CauseSummary decomposition={decision.decomposition} />
+            <CauseSummary
+              decomposition={decision.decomposition}
+              basis={decision.primary.basis}
+              windowPeriods={decision.primary.windowPeriods}
+            />
             {decision.decomposition.drivers.length > 0 && (
               <DriverList drivers={decision.decomposition.drivers} onHistory={setHistory} />
             )}

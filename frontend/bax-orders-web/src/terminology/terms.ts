@@ -43,6 +43,37 @@ export const allPriorMonthsLabel = 'Bütün dövrün ortalaması'
  */
 export const incompleteExplanationNote = 'Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.'
 
+/** How many product names the unexplained-part sentence names before it counts the rest. */
+const unexplainedNamedProductLimit = 3
+
+/**
+ * The order page's warning, said only when part of the difference really is unexplained: how much, and which
+ * products it sits on. `amount` arrives already formatted ("−18,96 ₼"); `names` in the order the reader meets
+ * them, largest money first. A name repeated across variants is one product to the reader and is named once.
+ *
+ * The amount comes in formatted because `components/analytics/format` already reads its words from this file;
+ * importing the formatter back here would make the two modules load each other.
+ */
+export function unexplainedPartNote(amount: string, names: readonly string[]): string {
+  const distinct = Array.from(new Set(names))
+  if (distinct.length === 0) {
+    // Never "…: ." — the API names the products, but a sentence with an empty list is worse than a shorter one.
+    return `Dəyişikliyin ${amount} hissəsi izah edilə bilmir, çünki bəzi sətirlərdə qiymət yoxdur.`
+  }
+
+  const named = distinct.slice(0, unexplainedNamedProductLimit).join(', ')
+  const rest = distinct.length - unexplainedNamedProductLimit
+  const tail = rest > 0 ? ` və daha ${rest} ${productNoun}` : ''
+  return `Dəyişikliyin ${amount} hissəsi izah edilə bilmir, çünki bu məhsulların bəzi sətirlərində qiymət yoxdur: ${named}${tail}.`
+}
+
+/**
+ * Owner decision 9.1 in words: the direction of a cost, said beside the colour that shows it so the colour is
+ * never the only carrier — and never "yaxşı" or "pis".
+ */
+export const costIncreasedLabel = 'xərc artıb'
+export const costDecreasedLabel = 'xərc azalıb'
+
 /**
  * The versions of one month's order, in business words rather than "Versiya N" (Task 05b). A version made to
  * correct a returned order is the "düzəldilmiş sifariş", the one it was made from the "əvvəlki sifariş", and the

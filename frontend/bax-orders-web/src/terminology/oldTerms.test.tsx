@@ -968,6 +968,37 @@ describe('no retired word on the manager’s screens', () => {
     expect(screen.getByRole('button', { name: 'Müqayisə üçün data azdır — bu nə deməkdir?' })).toBeInTheDocument()
   })
 
+  /** Task 06: the order page's warning names the products it is about — swept in its longest form. */
+  it('the order page, with part of the change unexplained on several products', async () => {
+    const context = decisionContext()
+    decisionsApi.fetchDecisionContext.mockResolvedValue({
+      ...context,
+      decomposition: {
+        ...context.decomposition!,
+        unattributedVariantCount: 4,
+        drivers: [
+          ...context.decomposition!.drivers,
+          ...['Sabun', 'Distillə su', 'Gübrə'].map((productName, index) => driver({
+            variant: variant({ productVariantId: 30 + index, productName }),
+            category: 'UnattributedDueToMissingPrice',
+            amountImpact: 0,
+            missingPriceItemCount: 1,
+            priceIsComplete: false,
+          })),
+        ],
+      },
+    })
+
+    const { container } = renderAt('/orders/105', '/orders/:orderRequestId', <OrderDetailPage />)
+    const causes = await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
+
+    expect(causes).toHaveTextContent(
+      'Dəyişikliyin −18,96 ₼ hissəsi izah edilə bilmir, çünki bu məhsulların bəzi sətirlərində qiymət yoxdur: '
+        + 'Əlcək, Sabun, Distillə su və daha 1 məhsul.',
+    )
+    expectNoOldTerms(container)
+  })
+
   it('the product history, opened from the order page', async () => {
     renderAt('/orders/105', '/orders/:orderRequestId', <OrderDetailPage />)
     await userEvent.click(await screen.findByRole('button', { name: /Zibil paketi/ }))

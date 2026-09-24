@@ -60,6 +60,24 @@ export const causeOrder: CauseCategory[] = [
   'UnattributedDueToMissingPrice',
 ]
 
+/**
+ * How two causes of the same size are ordered — the dashboard's order, not `causeOrder`.
+ *
+ * The dashboard card picks its "Əsas səbəb" in `ManagementDashboardQueries` as the largest cause, ties broken by
+ * the backend's `CauseCategory` value, which puts "Qiymət yoxdur" before "Daxili təminat". The order page sorts
+ * its parts by size and breaks ties the same way, so its first part and the card's "Əsas səbəb" are always the
+ * same cause for the same order and basis.
+ */
+export const causeTieOrder: CauseCategory[] = [
+  'NewOrders',
+  'QuantityChange',
+  'PriceChange',
+  'NoLongerOrdered',
+  'Services',
+  'UnattributedDueToMissingPrice',
+  'InternalSupply',
+]
+
 export type DriverFilter = 'All' | 'PriceChange' | 'QuantityChange' | 'NewOrders' | 'NoLongerOrdered' | 'MissingPrice'
 
 export const driverFilterLabels: Record<DriverFilter, string> = {
