@@ -9,6 +9,7 @@ import { PageHeader } from '../components/PageHeader'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
 import { InfoHint } from '../components/analytics/InfoHint'
+import { describeSpecification, distinguishingDetails } from '../components/analytics/labels'
 import {
   classifyLine,
   internalSupplierLabel,
@@ -34,9 +35,9 @@ import { RevisionPanel } from '../components/orders/revision/RevisionPanel'
 import { addLineLabel, editLineLabel, removeLineLabel, staleDataMessage } from '../components/orders/revision/labels'
 import { WorkflowPanel } from '../components/workflow/WorkflowPanel'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
+import { latestOrderLinkLabel } from '../terminology/terms'
 import {
   formatAmount,
-  formatItemSpecification,
   formatNumber,
   formatOrderUnit,
   formatPeriod,
@@ -172,6 +173,7 @@ export function OrderDetailPage() {
 
   const data = state.status === 'success' ? state.data : null
   const totalPages = data ? Math.max(1, Math.ceil(data.items.totalCount / pageSize)) : 1
+  const details = distinguishingDetails(data?.items.items ?? [])
 
   // Whether the lines may be changed is the server's answer and nothing else: not the status, not the role,
   // and never worked out here.
@@ -181,7 +183,7 @@ export function OrderDetailPage() {
     <>
       <PageHeader
         title={data?.locationName ?? 'Sifariş'}
-        description={data ? `${formatPeriod(data.requestPeriod)} · Versiya ${data.version}` : undefined}
+        description={data ? formatPeriod(data.requestPeriod) : undefined}
         actions={
           data && (
             <>
@@ -257,9 +259,9 @@ export function OrderDetailPage() {
           {revision && <RevisionPanel revision={revision} onChanged={reload} />}
           {decision && !decision.isLatestVersion && decision.latestOrderRequestId !== null && (
             <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" role="status">
-              Bu, bu ayın ən son versiyası deyil. Rəqəmlər açdığınız versiyaya aiddir.{' '}
+              Bu ay üçün bu obyektin daha yeni sifarişi var. Rəqəmlər açdığınız sifarişə aiddir.{' '}
               <Link to={`/orders/${decision.latestOrderRequestId}`} className="font-medium underline">
-                Versiya {decision.latestVersion}-ə bax
+                {latestOrderLinkLabel}
               </Link>
             </p>
           )}
@@ -289,7 +291,7 @@ export function OrderDetailPage() {
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Məhsul adı, kodu və ya model…"
+            placeholder="Məhsul adı…"
             className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-72"
           />
         </form>
@@ -361,11 +363,9 @@ export function OrderDetailPage() {
                 <td className="px-3 py-2 text-xs text-slate-400">{(data.items.page - 1) * data.items.pageSize + index + 1}</td>
                 <td className="px-3 py-2">
                   <p className="font-medium text-slate-900">{item.productName}</p>
-                  <p className="text-xs text-slate-500">{item.productCode}</p>
                 </td>
                 <td className="px-3 py-2 text-slate-700">
-                  {formatItemSpecification(item) ?? <span className="text-slate-400">—</span>}
-                  {item.modelCode && <p className="text-xs text-slate-500">model {item.modelCode}</p>}
+                  <SpecificationCell item={item} detail={details[index]} />
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">{formatQuantity(item.quantity)}</td>
                 <td className="px-3 py-2 text-slate-700">
@@ -550,6 +550,23 @@ function PriceCell({ item }: { item: OrderRequestItem }) {
   }
 
   return <span className={lineToneClass(state)}>{missingPriceLabel}</span>
+}
+
+/**
+ * The specification a manager can read — "5 litr", "28 diş" — or a dash.
+ *
+ * A bare number and a model code mean nothing to the person deciding, so they are not shown; the "Mənbəyə bax"
+ * drawer still has every one of them. The single exception is a line that would otherwise read exactly like
+ * another on the same page, which gets back the one detail that tells the two apart.
+ */
+function SpecificationCell({ item, detail }: { item: OrderRequestItem; detail: string | null }) {
+  const specification = describeSpecification(item)
+
+  if (specification === null && detail === null) {
+    return <span className="text-slate-400">—</span>
+  }
+
+  return <>{[specification, detail].filter((part): part is string => part !== null).join(' · ')}</>
 }
 
 /**

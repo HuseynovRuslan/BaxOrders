@@ -130,11 +130,14 @@ describe('what each state offers', () => {
     expect(screen.queryByRole('button', { name: /Təsdiqə göndər/ })).toBeNull()
   })
 
-  it('asks a returned request to be sent again, and says a correction is a new version', async () => {
-    await renderPanel(workflow({ status: 'ReturnedForCorrection' }))
+  it('asks a returned request to be sent again, and says a correction is a corrected order', async () => {
+    const panel = await renderPanel(workflow({ status: 'ReturnedForCorrection' }))
 
     expect(screen.getByRole('button', { name: 'Yenidən təsdiqə göndər' })).toBeInTheDocument()
-    expect(screen.getByText(/yeni versiya yaradılır/)).toBeInTheDocument()
+    expect(screen.getByText(
+      'Bu sifariş üçün düzəliş tələb olunur. Düzəliş bu sifarişdə aparılmır: düzəldilmiş sifariş yaradılır.',
+    )).toBeInTheDocument()
+    expect(panel).not.toHaveTextContent(/versiya/i)
   })
 })
 
@@ -359,7 +362,7 @@ describe('a correction the reader worked on', () => {
       allowedActions: { ...nobody, blockedByOwnContribution: true },
     }))
 
-    expect(screen.getByText(/Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz/)).toBeInTheDocument()
+    expect(screen.getByText('Bu sifarişdə düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.')).toBeInTheDocument()
     expect(screen.queryByText(/Özünüzün təsdiqə göndərdiyiniz/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Düzəliş tələb et' })).toBeNull()

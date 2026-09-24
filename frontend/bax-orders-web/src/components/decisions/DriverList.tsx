@@ -10,7 +10,7 @@ import {
   signedToneClass,
   unknownValue,
 } from '../analytics/format'
-import { formatVariantLine } from '../analytics/labels'
+import { distinguishVariants } from '../analytics/labels'
 import { internalSupplyLabel, missingPriceCount } from '../../pricing/labels'
 import { formatOrderUnit } from '../imports/labels'
 import {
@@ -47,6 +47,7 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
 
   const filtered = drivers.filter((driver) => matches(driver, filter))
   const shown = expanded ? filtered : filtered.slice(0, initialCount)
+  const descriptions = distinguishVariants(shown.map((driver) => driver.variant))
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white" aria-label="Əsas dəyişikliklər">
@@ -83,7 +84,7 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
         <p className="p-4 text-sm text-slate-500">Bu növ üzrə dəyişiklik yoxdur.</p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {shown.map((driver) => (
+          {shown.map((driver, index) => (
             <li key={driver.variant.productVariantId}>
               {/*
                 The whole row opens the product, not just its name: the name was a small target for the one
@@ -103,7 +104,7 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
                       {causeLabels[driver.category]}
                     </span>
                   </p>
-                  <p className="text-xs text-slate-400">{formatVariantLine(driver.variant)}</p>
+                  <p className="text-xs text-slate-400">{descriptions[index]}</p>
                   <Change driver={driver} />
                 </div>
 

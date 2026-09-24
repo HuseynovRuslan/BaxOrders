@@ -103,7 +103,7 @@ export function MonthlyReportPage() {
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Obyekt adı və ya kodu…"
+            placeholder="Obyekt adı…"
             aria-label="Obyekt axtar"
             className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-64"
           />

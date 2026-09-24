@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,13 @@ import type {
 import type { ApprovalInbox, ApprovalInboxRow } from '../api/approvals'
 import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
 import type { DecisionDriver, OrderDecisionContext } from '../api/decisions'
-import type { LocationOrderHistory, OrderRequestDetail, OrderRequestItem } from '../api/orders'
+import type {
+  LocationOrderHistory,
+  LocationOrderList,
+  LocationOrderSummary,
+  OrderRequestDetail,
+  OrderRequestItem,
+} from '../api/orders'
 import type { MonthlyReport, MonthlyReportCell } from '../api/reports'
 import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
@@ -22,6 +28,7 @@ import { TrendModal } from '../components/analytics/TrendModal'
 import { ApprovalInboxPage } from '../pages/ApprovalInboxPage'
 import { LocationAnalyticsPage } from '../pages/LocationAnalyticsPage'
 import { LocationDetailPage } from '../pages/LocationDetailPage'
+import { LocationsPage } from '../pages/LocationsPage'
 import { ManagementDashboardPage } from '../pages/ManagementDashboardPage'
 import { MonthlyReportPage } from '../pages/MonthlyReportPage'
 import { OrderDetailPage } from '../pages/OrderDetailPage'
@@ -40,6 +47,7 @@ const ordersApi = vi.hoisted(() => ({
   fetchOrder: vi.fn(),
   fetchOrderItemSource: vi.fn(),
   fetchLocationHistory: vi.fn(),
+  fetchLocationOrders: vi.fn(),
 }))
 const revisionsApi = vi.hoisted(() => ({ fetchRevision: vi.fn() }))
 const workflowApi = vi.hoisted(() => ({ fetchWorkflow: vi.fn() }))
@@ -90,18 +98,24 @@ vi.mock('../components/analytics/TrendChart', () => ({ TrendChart: () => <div da
 
 // ---- fixtures ----------------------------------------------------------------------------------------
 
-/** "Zibil paketi" at Fəvvarələr: sold by the piece, and priced to four decimals in the workbook. */
+/** A specification value with neither a unit nor a descriptor — "2.8" under Rosmarinus in the audit. */
+const bareSpecification = { specificationValue: '2.8', specificationUnitCode: null, specificationUnitName: null }
+
+/**
+ * "Zibil paketi" at Fəvvarələr: sold by the piece, and priced to four decimals in the workbook. It carries the
+ * audit's model code, which no manager's screen may show.
+ */
 function variant(overrides: Partial<VariantIdentity> = {}): VariantIdentity {
   return {
     productVariantId: 21,
     productId: 11,
-    productCode: 'PRD-000011',
+    productCode: 'PRD-000110',
     productName: 'Zibil paketi',
     specificationValue: '120',
     specificationUnitCode: 'L',
     specificationUnitName: 'Litr',
     specificationDescriptor: null,
-    modelCode: null,
+    modelCode: 'M-101-S-2',
     orderUnitCode: 'PCS',
     orderUnitName: 'Ədəd',
     ...overrides,
@@ -123,11 +137,11 @@ function amount(overrides: Partial<DashboardAmount> = {}): DashboardAmount {
 function dashboardRow(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRow {
   return {
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     hasCurrentRequest: true,
     currentRequestId: 105,
-    currentVersion: 1,
+    currentVersion: 2,
     currentStatus: 'PendingApproval',
     current: amount(),
     currentPriceCoverage: 'Partial',
@@ -260,14 +274,14 @@ function decisionContext(): OrderDecisionContext {
   return {
     orderRequestId: 105,
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     requestPeriod: '2026-07-01',
-    version: 1,
+    version: 2,
     status: 'PendingApproval',
     isLatestVersion: true,
     latestOrderRequestId: 105,
-    latestVersion: 1,
+    latestVersion: 2,
     current: {
       knownAmount: 4800,
       itemCount: 40,
@@ -309,7 +323,8 @@ function decisionContext(): OrderDecisionContext {
       drivers: [
         driver(),
         driver({
-          variant: variant({ productVariantId: 22, productName: 'Rosmarinus', orderUnitCode: 'BAG', orderUnitName: 'Kisə' }),
+          // The audit's "2.8" under Rosmarinus: a specification value with no unit.
+          variant: variant({ productVariantId: 22, productName: 'Rosmarinus', ...bareSpecification, orderUnitCode: 'BAG', orderUnitName: 'Kisə' }),
           category: 'NewOrders',
           amountImpact: 2900,
           currentQuantity: 10,
@@ -339,14 +354,14 @@ function orderItem(overrides: Partial<OrderRequestItem> = {}): OrderRequestItem 
   return {
     orderRequestItemId: 501,
     productId: 11,
-    productCode: 'PRD-000011',
+    productCode: 'PRD-000110',
     productName: 'Zibil paketi',
     productVariantId: 21,
     specificationValue: '120',
     specificationUnitCode: 'L',
     specificationUnitName: 'Litr',
     specificationDescriptor: null,
-    modelCode: null,
+    modelCode: 'M-101-S-2',
     orderUnitCode: 'PACK',
     orderUnitName: 'Paçka',
     quantity: 30,
@@ -368,16 +383,17 @@ function orderDetail(overrides: Partial<OrderRequestDetail> = {}): OrderRequestD
     orderItem(),
     orderItem({ orderRequestItemId: 502, orderUnitCode: 'ROLL', orderUnitName: 'Top (rulon)', unitPrice: null, lineTotal: null }),
     orderItem({ orderRequestItemId: 503, orderUnitCode: 'KG', orderUnitName: 'Kiloqram', specificationUnitCode: 'M2' }),
+    orderItem({ orderRequestItemId: 504, productName: 'Rosmarinus', ...bareSpecification, modelCode: null }),
   ]
 
   return {
     orderRequestId: 105,
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     requestPeriod: '2026-07-01',
     requestDate: null,
-    version: 1,
+    version: 2,
     status: 'PendingApproval',
     createdAtUtc: '2026-09-22T10:00:00Z',
     sourceImportBatchId: null,
@@ -398,13 +414,13 @@ function orderDetail(overrides: Partial<OrderRequestDetail> = {}): OrderRequestD
   }
 }
 
-function orderRevision(): OrderRevision {
+function orderRevision(overrides: Partial<OrderRevision> = {}): OrderRevision {
   return {
     orderRequestId: 105,
     locationId: 21,
     locationName: 'Fəvvarələr meydanı',
     requestPeriod: '2026-07-01',
-    version: 1,
+    version: 2,
     status: 'PendingApproval',
     isRevision: false,
     revisedFrom: null,
@@ -418,7 +434,58 @@ function orderRevision(): OrderRevision {
     knownAmountTotal: 4800,
     amountIsComplete: false,
     editHistory: [],
+    ...overrides,
   }
+}
+
+/**
+ * Version 2 of July: made from the returned version 1, itself returned, and corrected again as version 3 — every
+ * link the correction panel can show, with a correction history naming a product that carries a code.
+ */
+function correctionRevision(): OrderRevision {
+  const link = {
+    createdByUserId: 'aaaa',
+    createdByDisplayName: 'Test Koordinator',
+    createdAtUtc: '2026-09-21T10:00:00Z',
+  }
+
+  return orderRevision({
+    status: 'ReturnedForCorrection',
+    isRevision: true,
+    revisedFrom: { orderRequestId: 103, version: 1, status: 'ReturnedForCorrection', ...link },
+    revisedInto: { orderRequestId: 107, version: 3, status: 'Draft', ...link },
+    isLatestVersion: false,
+    editHistory: [
+      {
+        id: 1,
+        action: 'RevisionCreated',
+        orderRequestItemId: null,
+        productVariantId: null,
+        productCode: null,
+        productName: null,
+        field: null,
+        oldValue: null,
+        newValue: null,
+        actorUserId: 'aaaa',
+        actorDisplayName: 'Test Koordinator',
+        occurredAtUtc: '2026-09-21T10:00:00Z',
+      },
+      {
+        id: 2,
+        action: 'ItemQuantityChanged',
+        orderRequestItemId: 501,
+        productVariantId: 21,
+        productCode: 'PRD-000110',
+        productName: 'Zibil paketi',
+        field: 'Quantity',
+        oldValue: 30,
+        newValue: 20,
+        actorUserId: 'aaaa',
+        actorDisplayName: 'Test Koordinator',
+        occurredAtUtc: '2026-09-21T10:05:00Z',
+      },
+    ],
+  })
 }
 
 function orderWorkflow(): OrderWorkflow {
@@ -427,7 +494,7 @@ function orderWorkflow(): OrderWorkflow {
     locationId: 21,
     locationName: 'Fəvvarələr meydanı',
     requestPeriod: '2026-07-01',
-    version: 1,
+    version: 2,
     status: 'PendingApproval',
     allowedActions: {
       canSubmit: false,
@@ -487,7 +554,7 @@ function orderWorkflow(): OrderWorkflow {
 function variantTrend(): VariantTrend {
   const point = {
     orderRequestId: 104,
-    version: 1,
+    version: 2,
     quantity: 71,
     knownAmount: 2281.04,
     weightedUnitPrice: 32.1273,
@@ -499,7 +566,7 @@ function variantTrend(): VariantTrend {
 
   return {
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     variant: variant(),
     analyticsKind: 'QuantityComparable',
@@ -535,7 +602,7 @@ function locationHistory(): LocationOrderHistory {
   const entry = {
     orderRequestId: 105,
     requestPeriod: '2026-07-01',
-    version: 1,
+    version: 2,
     requestDate: null,
     status: 'PendingApproval' as const,
     itemCount: 40,
@@ -547,7 +614,7 @@ function locationHistory(): LocationOrderHistory {
 
   return {
     locationId: 22,
-    code: 'LOC-000022',
+    code: 'LOC-000043',
     name: 'Nərimanov heykəli',
     isActive: true,
     orderRequestCount: 2,
@@ -559,10 +626,15 @@ function locationHistory(): LocationOrderHistory {
     missingPriceItemCount: 1,
     years: [2026],
     requests: {
-      items: [entry, { ...entry, orderRequestId: 104, requestPeriod: '2026-06-01', knownAmountTotal: 4200 }],
+      // July twice — the order and the one it replaced — so the page has to tell them apart without a number.
+      items: [
+        entry,
+        { ...entry, orderRequestId: 103, version: 1, status: 'ReturnedForCorrection' as const },
+        { ...entry, orderRequestId: 104, requestPeriod: '2026-06-01', knownAmountTotal: 4200 },
+      ],
       page: 1,
       pageSize: 24,
-      totalCount: 2,
+      totalCount: 3,
     },
   }
 }
@@ -608,7 +680,7 @@ function comparisonRow(overrides: Partial<VariantComparison> = {}): VariantCompa
 function comparisonSummary(): ComparisonSummary {
   return {
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     currentPeriod: '2026-07-01',
     basis: 'Previous3MonthAverage',
@@ -616,12 +688,15 @@ function comparisonSummary(): ComparisonSummary {
     customEnd: null,
     baselineWindowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
     currentRequestId: 105,
-    currentVersion: 1,
+    currentVersion: 2,
     currentStatus: 'PendingApproval',
     expectedBaselinePeriodCount: 3,
     availableBaselinePeriodCount: 2,
     missingBaselinePeriods: ['2026-04-01'],
-    baselinePeriods: [],
+    baselinePeriods: [
+      { period: '2026-05-01', orderRequestId: 103, version: 2, status: 'Approved' },
+      { period: '2026-06-01', orderRequestId: 104, version: 2, status: 'Approved' },
+    ],
     baselineAvailable: true,
     currentItemCount: 40,
     baselineAverageItemCount: 38,
@@ -654,7 +729,10 @@ function locationComparison(kind: string): LocationComparison {
       analyticsKind: 'AmountOrientedService',
       state: 'NotComparable',
     })]
-    : [comparisonRow(), comparisonRow({ variant: variant({ productVariantId: 22, productName: 'Rosmarinus' }), state: 'New' })]
+    : [
+      comparisonRow(),
+      comparisonRow({ variant: variant({ productVariantId: 22, productName: 'Rosmarinus', ...bareSpecification }), state: 'New' }),
+    ]
 
   return { summary: comparisonSummary(), rows: { items: rows, page: 1, pageSize: 50, totalCount: rows.length } }
 }
@@ -664,7 +742,7 @@ function reportCell(month: number, overrides: Partial<MonthlyReportCell> = {}): 
     month,
     period: `2026-${String(month).padStart(2, '0')}-01`,
     orderRequestId: 100 + month,
-    version: 1,
+    version: 2,
     status: 'Draft',
     knownAmount: 1000.25 + month,
     itemCount: 10,
@@ -684,7 +762,7 @@ function monthlyReport(): MonthlyReport {
     availableYears: [2026],
     rows: [{
       locationId: 21,
-      locationCode: 'LOC-000017',
+      locationCode: 'LOC-000043',
       locationName: 'Fəvvarələr meydanı',
       isActive: true,
       requestCount: 12,
@@ -714,10 +792,10 @@ function inboxRow(overrides: Partial<ApprovalInboxRow> = {}): ApprovalInboxRow {
   return {
     orderRequestId: 105,
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     requestPeriod: '2026-07-01',
-    version: 1,
+    version: 2,
     submittedAtUtc: '2026-09-22T10:32:00Z',
     submittedByUserId: 'bbbb',
     submittedByDisplayName: 'Test Koordinator',
@@ -738,18 +816,75 @@ function inboxRow(overrides: Partial<ApprovalInboxRow> = {}): ApprovalInboxRow {
 }
 
 function inbox(): ApprovalInbox {
-  const rows = [inboxRow(), inboxRow({ orderRequestId: 106, locationName: 'Nərimanov heykəli', missingPriceItemCount: 0, amountIsComplete: true })]
+  const rows = [
+    inboxRow(),
+    inboxRow({ orderRequestId: 106, locationName: 'Nərimanov heykəli', missingPriceItemCount: 0, amountIsComplete: true }),
+    // A corrected order: version 2, made from version 1.
+    inboxRow({
+      orderRequestId: 107,
+      locationName: 'Bakı Konqres Mərkəzi',
+      isRevision: true,
+      sourceVersion: 1,
+      sourceOrderRequestId: 103,
+      blockedByOwnContribution: true,
+      canApprove: false,
+      canReturn: false,
+    }),
+  ]
   return {
     summary: {
-      pendingCount: 2,
+      pendingCount: 3,
       actionableByCurrentUserCount: 2,
-      blockedForCurrentUserCount: 0,
-      missingPriceRequestCount: 1,
-      missingPriceItemCount: 2,
-      revisionCount: 0,
+      blockedForCurrentUserCount: 1,
+      missingPriceRequestCount: 2,
+      missingPriceItemCount: 4,
+      revisionCount: 1,
     },
-    filteredCount: 2,
-    rows: { items: rows, page: 1, pageSize: 25, totalCount: 2 },
+    filteredCount: 3,
+    rows: { items: rows, page: 1, pageSize: 25, totalCount: 3 },
+  }
+}
+
+/** The objects list, one object with an order and one without, both with their codes in the data. */
+function locationOrders(): LocationOrderList {
+  const location: LocationOrderSummary = {
+    locationId: 21,
+    code: 'LOC-000043',
+    name: 'Fəvvarələr meydanı',
+    isActive: true,
+    orderRequestCount: 2,
+    distinctPeriodCount: 2,
+    earliestPeriod: '2026-06-01',
+    latestPeriod: '2026-07-01',
+    latestRequestId: 105,
+    latestRequestVersion: 2,
+    latestRequestStatus: 'PendingApproval',
+    totalItemCount: 80,
+    knownAmountTotal: 9000,
+    missingPriceItemCount: 2,
+    latestKnownAmount: 4800,
+    latestItemCount: 40,
+    latestMissingPriceItemCount: 2,
+    latestPriceNotRequiredItemCount: 0,
+    latestAmountIsComplete: false,
+    previousPeriod: '2026-06-01',
+    previousKnownAmount: 4200,
+    knownAmountDelta: 600,
+    knownAmountPercentChange: 14.2857,
+  }
+
+  return {
+    locations: {
+      items: [location, { ...location, locationId: 22, code: 'LOC-000044', name: 'Nərimanov heykəli', isActive: false }],
+      page: 1,
+      pageSize: 25,
+      totalCount: 2,
+    },
+    locationCount: 27,
+    locationsWithOrders: 2,
+    orderRequestCount: 4,
+    earliestPeriod: '2026-06-01',
+    latestPeriod: '2026-07-01',
   }
 }
 
@@ -764,17 +899,18 @@ beforeEach(() => {
   ordersApi.fetchOrder.mockReset().mockResolvedValue(orderDetail())
   ordersApi.fetchOrderItemSource.mockReset()
   ordersApi.fetchLocationHistory.mockReset().mockResolvedValue(locationHistory())
+  ordersApi.fetchLocationOrders.mockReset().mockResolvedValue(locationOrders())
   revisionsApi.fetchRevision.mockReset().mockResolvedValue(orderRevision())
   workflowApi.fetchWorkflow.mockReset().mockResolvedValue(orderWorkflow())
   decisionsApi.fetchDecisionContext.mockReset().mockResolvedValue(decisionContext())
   analyticsApi.fetchVariantTrend.mockReset().mockResolvedValue(variantTrend())
   analyticsApi.fetchAnalyticsPeriods.mockReset().mockResolvedValue({
     locationId: 21,
-    locationCode: 'LOC-000017',
+    locationCode: 'LOC-000043',
     locationName: 'Fəvvarələr meydanı',
     periods: [
-      { period: '2026-07-01', orderRequestId: 105, version: 1, status: 'PendingApproval', itemCount: 40 },
-      { period: '2026-06-01', orderRequestId: 104, version: 1, status: 'Approved', itemCount: 38 },
+      { period: '2026-07-01', orderRequestId: 105, version: 2, status: 'PendingApproval', itemCount: 40 },
+      { period: '2026-06-01', orderRequestId: 104, version: 2, status: 'Approved', itemCount: 38 },
     ],
   })
   analyticsApi.fetchComparison.mockReset().mockImplementation(
@@ -852,6 +988,24 @@ describe('no retired word on the manager’s screens', () => {
     await screen.findAllByRole('table')
 
     expectNoOldTerms(dialog)
+    // The subtitle keeps the useful specification and nothing else.
+    expect(dialog).toHaveAccessibleName('Məhsul tarixçəsi — Zibil paketi · 120 litr · ədəd')
+    // The folded technical record is kept, versions and all (brief) — the sweep leaves it alone on purpose.
+    const folded = dialog.querySelector('details')!
+    expect(folded).toHaveTextContent('Mənbə və versiya məlumatı')
+    expect(within(folded).getByRole('columnheader', { name: 'Versiya' })).toBeInTheDocument()
+  })
+
+  it('the objects list', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/locations']}>
+        <LocationsPage />
+      </MemoryRouter>,
+    )
+    await screen.findByRole('link', { name: 'Nərimanov heykəli' })
+
+    expectNoOldTerms(container)
+    expect(screen.getByPlaceholderText('Obyekt adı…')).toBeInTheDocument()
   })
 
   it('the object page', async () => {
@@ -862,6 +1016,8 @@ describe('no retired word on the manager’s screens', () => {
     // The same sentence in the header strip and in the table (5.3).
     expect(screen.getAllByText('1 sətirdə qiymət yoxdur').length).toBeGreaterThanOrEqual(2)
     expect(container).toHaveTextContent('Qiyməti olan sətirlərin cəmi')
+    // July's two orders are told apart in words, not by "Versiya 1" and "Versiya 2".
+    expect(screen.getAllByText('Əvvəlki sifariş — sonradan yenilənib')).toHaveLength(1)
   })
 
   it('the object comparison page, materials and services', async () => {
@@ -876,6 +1032,12 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).toHaveTextContent('Qiyməti olan sətirlərin cəmi')
     expect(container).toHaveTextContent('Orta qiymət: 32,13 ₼')
     expect(container).toHaveTextContent('2 məhsul')
+    expect(screen.getByPlaceholderText('Məhsul adı üzrə axtar')).toBeInTheDocument()
+
+    // The months the comparison rests on, opened: each is a month and a link, never "— Versiya 2".
+    await userEvent.click(screen.getByRole('button', { name: 'Müqayisəyə daxil olan dövrlər' }))
+    expect(container).toHaveTextContent('May 2026 · Sifarişə bax')
+    expectNoOldTerms(container)
 
     await userEvent.click(screen.getByRole('tab', { name: /Xidmətlər/ }))
     await screen.findAllByText('Ayaqyolu pulu')
@@ -905,6 +1067,46 @@ describe('no retired word on the manager’s screens', () => {
     expectNoOldTerms(container)
     expect(container).toHaveTextContent('Qiyməti olmayan sətiri olan sifarişlər')
     expect(container).toHaveTextContent('2 sətirdə qiymət yoxdur')
+    // The corrected order is called that, in the row and in the filter.
+    expect(screen.getAllByText('Düzəldilmiş sifariş').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Bu sifarişdə düzəliş etdiyiniz üçün qərar verə bilməzsiniz.').length).toBeGreaterThan(0)
+    expect(screen.getByRole('option', { name: 'Düzəldilmiş sifariş' })).toBeInTheDocument()
+  })
+
+  it('the order page of a correction, with the correction panel and both histories', async () => {
+    revisionsApi.fetchRevision.mockResolvedValue(correctionRevision())
+    ordersApi.fetchOrder.mockResolvedValue(orderDetail({
+      status: 'ReturnedForCorrection',
+      isRevision: true,
+      sourceOrderRequestId: 103,
+      sourceVersion: 1,
+      hasRevision: true,
+      revisionOrderRequestId: 107,
+      revisionVersion: 3,
+    }))
+    decisionsApi.fetchDecisionContext.mockResolvedValue({
+      ...decisionContext(),
+      status: 'ReturnedForCorrection',
+      isLatestVersion: false,
+      latestOrderRequestId: 107,
+      latestVersion: 3,
+    })
+    workflowApi.fetchWorkflow.mockResolvedValue({ ...orderWorkflow(), status: 'ReturnedForCorrection' })
+
+    const { container } = renderAt('/orders/105', '/orders/:orderRequestId', <OrderDetailPage />)
+    await screen.findByText('Düzəldilmiş sifariş yaradıldı')
+    await screen.findByRole('link', { name: 'Ən son sifarişə bax' })
+    await screen.findByText(/düzəldilmiş sifariş yaradılır/)
+
+    expectNoOldTerms(container)
+    expect(screen.getByText('Düzəldilmiş sifariş')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Əvvəlki sifarişə bax' })).toHaveAttribute('href', '/orders/103')
+    expect(screen.getByRole('link', { name: 'Düzəldilmiş sifarişə bax' })).toHaveAttribute('href', '/orders/107')
+    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/107')
+
+    await userEvent.click(screen.getByRole('tab', { name: /Təsdiq prosesi/ }))
+    await screen.findByText('Düzəliş tələb olundu')
+    expectNoOldTerms(container)
   })
 })
 
@@ -917,6 +1119,7 @@ describe('the sweep itself', () => {
       <p>Çəkili orta qiymət · Tarixçə natamam · Natamam tarixçə · Son 9 mövcud aydan 3-də · Trend</p>
       <p>Qiyməti olmayanlar · Qiymət məlumatı çatışmır · Qiymət məlumatı natamamdır · 3 qiymətsiz sətir</p>
       <p>1 məhsulun qiyməti yoxdur · Düzəlişə qaytarıldı · Server işləyir · Ö/v · 71 → 0 PCS · 32,1273 ₼</p>
+      <p>LOC-000043 · PRD-000110 · model M-101-S-2 · Rosmarinus 2.8 · İyul 2026 · Versiya 2 · Sətir sayı</p>
       <button>Bütün dövr</button>
     `
 
@@ -942,8 +1145,25 @@ describe('the sweep itself', () => {
       'unit code',
       'four-decimal price',
       'ordinary space before ₼',
+      'object code',
+      'product code',
+      'model code (brief)',
+      'bare specification (brief)',
+      'Versiya',
+      'Sətir sayı',
       'a button reading "Bütün dövr"',
     ])
+  })
+
+  it('finds a technical word in an aria-label, a title or a placeholder too', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <a title="Fəvvarələr meydanı · LOC-000043">Fəvvarələr meydanı</a>
+      <button aria-label="Versiya 2-ə bax">→</button>
+      <input placeholder="Məhsul adı, kodu və ya model… PRD-000110" />
+    `
+
+    expect(findOldTerms(root)).toEqual(['object code', 'product code', 'Versiya'])
   })
 
   it('does not mistake the new words for the old ones', () => {
@@ -952,11 +1172,36 @@ describe('the sweep itself', () => {
     const root = document.createElement('div')
     root.innerHTML = `
       <p>Yeni məhsullar · Bu ay yazılmayan məhsullar · 3 məhsul · Qiyməti olan sətirlərin cəmi · Orta qiymət</p>
-      <p>Müqayisə üçün data azdır · Son 9 ayın 3-də sifariş edilib · Məhsul tarixçəsi · LOC-000017</p>
+      <p>Müqayisə üçün data azdır · Son 9 ayın 3-də sifariş edilib · Məhsul tarixçəsi</p>
       <p>71 → 0 ədəd · 32,13${nbsp}₼ · 431.670,91${nbsp}₼ · Düzəliş tələb olundu · 2 sətirdə qiymət yoxdur</p>
+      <p>Düzəldilmiş sifariş · Əvvəlki sifarişə bax · Ən son sifarişə bax · Əvvəlki sifariş — sonradan yenilənib</p>
+      <p>5 litr · ədəd · 50 kq · 28 diş · 2,80${nbsp}₼ · 12.800,00${nbsp}₼ · 22.09.2026 · Səhifə 1 / 2 · 60 sətir</p>
       <button>Bütün dövrün ortalaması</button>
     `
 
     expect(findOldTerms(root)).toEqual([])
+  })
+
+  /** The owner kept these two (brief); the sweep reads past them and nothing else. */
+  it('leaves the folded source section and the "Mənbəyə bax" drawer alone', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <details><summary>Mənbə və versiya məlumatı</summary><table><tr><th>Sətir</th><th>Versiya</th></tr></table></details>
+      <div role="dialog" aria-label="Mənbə — Yay ayaqqabısı">
+        <h2>Mənbə</h2><p>Sətrin keçdiyi versiyalar · Versiya 1 · Model M-101-S-2</p>
+      </div>
+    `
+
+    expect(findOldTerms(root)).toEqual([])
+  })
+
+  it('does not leave out a section only because it is folded or a dialog', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <details><summary>Ətraflı</summary><p>Versiya 2</p></details>
+      <div role="dialog" aria-label="Məhsul tarixçəsi — Zibil paketi · PRD-000110"><h2>Məhsul tarixçəsi</h2></div>
+    `
+
+    expect(findOldTerms(root)).toEqual(['product code', 'Versiya'])
   })
 })

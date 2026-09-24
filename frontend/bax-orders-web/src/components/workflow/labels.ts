@@ -136,7 +136,7 @@ export const selfApprovalBlockedNote =
  * submitter rule because it is a different reason, and somebody reading it needs to know which one applies.
  */
 export const ownContributionBlockedNote =
-  'Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.'
+  'Bu sifarişdə düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.'
 
 export function missingPriceWarning(count: number): string {
   return `${missingPriceCount(count)}. Təsdiq edilən məbləğ tam deyil.`

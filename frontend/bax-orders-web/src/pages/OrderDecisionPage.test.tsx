@@ -585,7 +585,11 @@ describe('an older version', () => {
     await renderPage()
 
     expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Versiya 2-ə bax/ })).toHaveAttribute('href', '/orders/106')
+    // In business words (Task 05b): the newer order of the month, not "Versiya 2".
+    expect(screen.getByText(/Bu ay üçün bu obyektin daha yeni sifarişi var\. Rəqəmlər açdığınız sifarişə aiddir\./))
+      .toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/106')
+    expect(document.body).not.toHaveTextContent(/versiya/i)
   })
 })
 
@@ -595,6 +599,137 @@ describe('the evidence below the decision', () => {
 
     expect(screen.getByText('Sətirlər')).toBeInTheDocument()
     expect(within(document.querySelector('table')!).getByText('York qatlama salfet')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Task 05b: the page speaks the manager's language. The month in the header instead of "Versiya 2"; under a
+ * product's name no product code and no model; a specification only when it says what it measures.
+ */
+describe('what the manager does not have to decode', () => {
+  function line(overrides: Partial<OrderRequestItem>): OrderRequestItem {
+    return { ...item(), productCode: 'PRD-000110', ...overrides }
+  }
+
+  function linesTable() {
+    return within(document.querySelector('table')!)
+  }
+
+  /** The "Spesifikasiya" cell of the row naming this product. */
+  function specificationOf(row: HTMLElement): string {
+    return row.querySelectorAll('td')[2].textContent ?? ''
+  }
+
+  it('heads the page with the object and the month alone', async () => {
+    await renderPage()
+
+    const heading = screen.getByRole('heading', { name: 'Fəvvarələr meydanı' })
+    expect(heading.nextElementSibling).toHaveTextContent(/^İyul 2026$/)
+    expect(document.body).not.toHaveTextContent(/versiya/i)
+    expect(document.body).not.toHaveTextContent('LOC-000021')
+  })
+
+  it('names each line without a product code or a model, and keeps the specification that means something', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: {
+        items: [
+          line({ orderRequestItemId: 1, productName: 'Rosmarinus', specificationValue: '2.8' }),
+          line({ orderRequestItemId: 2, productName: 'Yay ayaqqabısı', modelCode: 'M-101-S-2', orderUnitCode: 'PAIR', orderUnitName: 'Cüt' }),
+          line({ orderRequestItemId: 3, productName: 'Distillə su', specificationValue: '5', specificationUnitCode: 'L', specificationUnitName: 'Litr' }),
+          line({ orderRequestItemId: 4, productName: 'Gübrə', specificationValue: '50', specificationUnitCode: 'KG', specificationUnitName: 'Kiloqram', orderUnitCode: 'BAG', orderUnitName: 'Kisə' }),
+          line({ orderRequestItemId: 5, productName: 'Mişar', specificationValue: '28', specificationDescriptor: 'diş' }),
+        ],
+      } as never,
+    }))
+    await renderPage()
+
+    const rows = linesTable().getAllByRole('row').slice(1)
+    expect(specificationOf(rows[0])).toBe('—')
+    expect(specificationOf(rows[1])).toBe('—')
+    expect(specificationOf(rows[2])).toBe('5 litr')
+    expect(specificationOf(rows[3])).toBe('50 kq')
+    expect(specificationOf(rows[4])).toBe('28 diş')
+
+    const table = document.querySelector('table')!
+    expect(table).not.toHaveTextContent('PRD-')
+    expect(table).not.toHaveTextContent('M-101-S-2')
+    expect(table).not.toHaveTextContent('2.8')
+    expect(table).not.toHaveTextContent(/model/i)
+  })
+
+  it('gives back the hidden detail only to two lines that would otherwise read the same', async () => {
+    const columbus = {
+      productName: 'Columbus 80 BM 100 Şotka',
+      specificationValue: '80',
+      specificationUnitCode: 'CM',
+      specificationUnitName: 'Santimetr',
+    }
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: {
+        items: [
+          line({ orderRequestItemId: 1, ...columbus, modelCode: '20078331' }),
+          line({ orderRequestItemId: 2, ...columbus, modelCode: '20078332' }),
+          line({ orderRequestItemId: 3, productName: 'Yay ayaqqabısı', modelCode: 'M-101-S-2' }),
+        ],
+      } as never,
+    }))
+    await renderPage()
+
+    const rows = linesTable().getAllByRole('row').slice(1)
+    expect(specificationOf(rows[0])).toBe('80 sm · 20078331')
+    expect(specificationOf(rows[1])).toBe('80 sm · 20078332')
+    // Unique on the page, so its model stays hidden.
+    expect(specificationOf(rows[2])).toBe('—')
+  })
+
+  it('asks for a product name in the search, not a code', async () => {
+    await renderPage()
+
+    expect(screen.getByPlaceholderText('Məhsul adı…')).toBeInTheDocument()
+  })
+
+  it('keeps every technical detail, versions included, one click away in "Mənbəyə bax"', async () => {
+    const user = userEvent.setup()
+    ordersApi.fetchOrderItemSource.mockResolvedValue({
+      orderRequestItemId: 501,
+      orderRequestId: 105,
+      version: 2,
+      origin: 'Imported',
+      lineage: [
+        { orderRequestItemId: 501, orderRequestId: 105, version: 2, status: 'Draft', isImported: false },
+        { orderRequestItemId: 401, orderRequestId: 104, version: 1, status: 'ReturnedForCorrection', isImported: true },
+      ],
+      source: {
+        orderRequestItemId: 401,
+        orderRequestId: 104,
+        materializedAtUtc: '2026-09-22T09:00:00Z',
+        importBatchId: 7,
+        importFileName: 'sifarisler.xlsx',
+        importStatus: 'Imported',
+        importRowId: 70,
+        sheetName: 'Əsas',
+        rowNumber: 4,
+        isExcluded: false,
+        originalLineTotal: '123',
+        calculatedLineTotal: 123,
+        fields: [{
+          column: 'Model',
+          sourceValue: 'M-101-S-2',
+          effectiveValue: 'M-101-S-2',
+          isCorrected: false,
+          isIntentionallyEmpty: false,
+          canonicalValue: null,
+        }],
+      },
+    })
+    await renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Mənbəyə bax' }))
+    const drawer = await screen.findByRole('dialog')
+
+    expect(await within(drawer).findByText('Sətrin keçdiyi versiyalar')).toBeInTheDocument()
+    expect(drawer).toHaveTextContent('Versiya 1')
+    expect(within(drawer).getAllByText('M-101-S-2').length).toBeGreaterThan(0)
   })
 })
 

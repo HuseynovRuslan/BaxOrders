@@ -193,7 +193,7 @@ export function LocationAnalyticsPage() {
           >
             {available.map((item) => (
               <option key={item.orderRequestId} value={item.period.slice(0, 7)}>
-                {formatAnalyticsPeriod(item.period)} ({formatNumber(item.itemCount)} sətir)
+                {formatAnalyticsPeriod(item.period)}
               </option>
             ))}
           </select>
@@ -245,13 +245,13 @@ export function LocationAnalyticsPage() {
                 update({ search: searchInput.trim() })
               }}
             >
-              <label className="sr-only" htmlFor="analytics-search">Məhsul, kod və ya model üzrə axtar</label>
+              <label className="sr-only" htmlFor="analytics-search">Məhsul adı üzrə axtar</label>
               <input
                 id="analytics-search"
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Məhsul, kod və ya model üzrə axtar"
+                placeholder="Məhsul adı üzrə axtar"
                 className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-80"
               />
             </form>

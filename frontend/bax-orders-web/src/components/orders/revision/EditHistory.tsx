@@ -16,7 +16,7 @@ import {
  */
 export function EditHistory({ entries }: { entries: OrderEditEvent[] }) {
   if (entries.length === 0) {
-    return <p className="py-4 text-sm text-slate-500">Bu versiyada hələ düzəliş edilməyib.</p>
+    return <p className="py-4 text-sm text-slate-500">Bu sifarişdə hələ düzəliş edilməyib.</p>
   }
 
   return (
@@ -32,12 +32,7 @@ export function EditHistory({ entries }: { entries: OrderEditEvent[] }) {
               {editActionLabels[entry.action]}
             </span>
             <div className="min-w-0">
-              {entry.productName && (
-                <p className="text-slate-900">
-                  {entry.productName}
-                  {entry.productCode && <span className="ml-2 text-xs text-slate-500">{entry.productCode}</span>}
-                </p>
-              )}
+              {entry.productName && <p className="text-slate-900">{entry.productName}</p>}
               {change && <p className="text-sm text-slate-700">{change}</p>}
               <p className="text-xs text-slate-500">
                 {entry.actorDisplayName} · {formatEditMoment(entry.occurredAtUtc)}

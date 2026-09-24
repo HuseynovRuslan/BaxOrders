@@ -1,10 +1,11 @@
 import { TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { fetchLocationHistory, type LocationOrderHistory } from '../api/orders'
+import { fetchLocationHistory, type LocationOrderHistory, type LocationOrderHistoryEntry } from '../api/orders'
 import { LocationTrend } from '../components/locations/LocationTrend'
 import { PageHeader } from '../components/PageHeader'
 import { missingPriceCount, missingPriceShortLabel } from '../pricing/labels'
+import { supersededOrderNote } from '../terminology/terms'
 import { StatusBadge } from '../components/StatusBadge'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
@@ -58,12 +59,13 @@ export function LocationDetailPage() {
 
   const data = state.status === 'success' ? state.data : null
   const totalPages = data ? Math.max(1, Math.ceil(data.requests.totalCount / pageSize)) : 1
+  const superseded = supersededRequests(data?.requests.items ?? [])
 
   return (
     <>
       <PageHeader
         title={data?.name ?? 'Obyekt'}
-        description={data ? `${data.code}${data.isActive ? '' : ' · deaktiv'}` : undefined}
+        description={data && !data.isActive ? 'Deaktiv' : undefined}
         actions={
           <>
             {data && data.orderRequestCount > 0 && (
@@ -92,7 +94,6 @@ export function LocationDetailPage() {
         <dl className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
           <Fact label="Dövrlər" value={formatNumber(data.distinctPeriodCount)} />
           <Fact label="Sifarişlər" value={formatNumber(data.orderRequestCount)} />
-          <Fact label="Sətirlər" value={formatNumber(data.totalItemCount)} />
           <Fact label={knownAmountLabel} value={formatAmount(data.knownAmountTotal)} />
           {data.missingPriceItemCount > 0 && (
             <Fact label={missingPriceShortLabel} value={formatNumber(data.missingPriceItemCount)} warn />
@@ -155,8 +156,6 @@ export function LocationDetailPage() {
           <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
             <tr>
               <th className="px-4 py-3">Dövr</th>
-              <th className="px-4 py-3">Versiya</th>
-              <th className="px-4 py-3 text-right">Sətir sayı</th>
               {/* The unpriced products are said beside the money they affect, not counted in a column of their own. */}
               <th className="px-4 py-3 text-right">Məbləğ</th>
               <th className="px-4 py-3">Status</th>
@@ -166,14 +165,14 @@ export function LocationDetailPage() {
           <tbody className="divide-y divide-slate-100">
             {state.status === 'loading' && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
                   Yüklənir…
                 </td>
               </tr>
             )}
             {data?.requests.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
                   {year || month ? 'Seçilmiş dövrdə sifariş yoxdur.' : 'Bu obyektin hələ sifarişi yoxdur.'}
                 </td>
               </tr>
@@ -185,9 +184,10 @@ export function LocationDetailPage() {
                   <Link to={`/orders/${request.orderRequestId}`} className="font-medium text-slate-900 hover:underline">
                     {formatPeriod(request.requestPeriod)}
                   </Link>
+                  {superseded.has(request.orderRequestId) && (
+                    <p className="text-xs text-slate-500">{supersededOrderNote}</p>
+                  )}
                 </td>
-                <td className="px-4 py-2.5 text-slate-700">Versiya {request.version}</td>
-                <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(request.itemCount)}</td>
                 <td className="px-4 py-2.5 text-right">
                   <p className="whitespace-nowrap text-slate-900">{formatAmount(request.knownAmountTotal)}</p>
                   {request.missingPriceItemCount > 0 && (
@@ -254,6 +254,25 @@ export function LocationDetailPage() {
       )}
     </>
   )
+}
+
+/**
+ * The requests on this page that a later request of the same month replaced.
+ *
+ * A month can hold more than one request — a correction, or a second import — and with no version number on the
+ * screen the rows would read alike. The newest of each month is shown as it is; every older one says so. Rows of
+ * one month split across two pages are an accepted edge: the history is newest first, so the newest comes first.
+ */
+function supersededRequests(entries: LocationOrderHistoryEntry[]): Set<number> {
+  const newest = new Map<string, number>()
+  for (const entry of entries) {
+    const month = entry.requestPeriod.slice(0, 7)
+    newest.set(month, Math.max(newest.get(month) ?? entry.version, entry.version))
+  }
+
+  return new Set(entries
+    .filter((entry) => entry.version < (newest.get(entry.requestPeriod.slice(0, 7)) ?? entry.version))
+    .map((entry) => entry.orderRequestId))
 }
 
 /** One of the record's own counts, said once and quietly — these describe the file, not the object. */

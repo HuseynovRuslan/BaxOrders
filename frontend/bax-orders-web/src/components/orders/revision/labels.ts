@@ -3,7 +3,7 @@ import { formatAmount, formatQuantity, noPriceLabel, unknownSupplierLabel } from
 
 export const createRevisionLabel = 'Düzəliş versiyası yarat'
 export const createNextRevisionLabel = 'Yeni düzəliş versiyası yarat'
-export const openRevisionLabel = 'Düzəliş versiyasına bax'
+export const openRevisionLabel = 'Düzəldilmiş sifarişə bax'
 
 /** Said before anything is created, because "correct" could be read as "change what was reviewed". */
 export const createRevisionExplanation =
@@ -21,7 +21,7 @@ export const removeLineExplanation =
 export const staleDataMessage = 'Məlumat bu vaxt ərzində dəyişib. Səhifə yeniləndi.'
 
 export const ownContributionBlockedNote =
-  'Bu versiyada düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.'
+  'Bu sifarişdə düzəliş etdiyiniz üçün onu özünüz təsdiqləyə bilməzsiniz.'
 
 export const manualItemSourceNote = 'Əl ilə əlavə edilib — Excel mənbəsi yoxdur.'
 
@@ -36,7 +36,7 @@ export const revisionErrors = {
 } as const
 
 export const editActionLabels: Record<OrderEditAction, string> = {
-  RevisionCreated: 'Versiya yaradıldı',
+  RevisionCreated: 'Düzəldilmiş sifariş yaradıldı',
   ItemQuantityChanged: 'Miqdar dəyişdirildi',
   ItemPriceChanged: 'Qiymət dəyişdirildi',
   ItemSupplierChanged: 'Təchizatçı dəyişdirildi',

@@ -44,6 +44,23 @@ export const allPriorMonthsLabel = 'Bütün dövrün ortalaması'
 export const incompleteExplanationNote = 'Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur.'
 
 /**
+ * The versions of one month's order, in business words rather than "Versiya N" (Task 05b). A version made to
+ * correct a returned order is the "düzəldilmiş sifariş", the one it was made from the "əvvəlki sifariş", and the
+ * newest of the month the "ən son sifariş". Version numbers stay only in the two technical places the owner kept:
+ * the product history's folded "Mənbə və versiya məlumatı" and the "Mənbəyə bax" drawer.
+ */
+export const correctedOrderLabel = 'Düzəldilmiş sifariş'
+
+/** The link from a correction back to the order it was made from. */
+export const previousOrderLinkLabel = 'Əvvəlki sifarişə bax'
+
+/** The link from an older order of a month to the newest one. */
+export const latestOrderLinkLabel = 'Ən son sifarişə bax'
+
+/** Under an older order of a month on the object page, where a later one of the same month replaced it. */
+export const supersededOrderNote = 'Əvvəlki sifariş — sonradan yenilənib'
+
+/**
  * The locative ending follows the vowel of the last number word that is pronounced: 3 "üç" → 3-də, 6 "altı" →
  * 6-da, 40 "qırx" → 40-da, 100 "yüz" → 100-də.
  */

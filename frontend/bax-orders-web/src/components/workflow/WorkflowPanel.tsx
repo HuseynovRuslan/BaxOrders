@@ -157,7 +157,7 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
 
       {workflow.status === 'ReturnedForCorrection' && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-          Bu sifariş üçün düzəliş tələb olunur. Düzəliş bu versiyada aparılmır: yeni versiya yaradılır.
+          Bu sifariş üçün düzəliş tələb olunur. Düzəliş bu sifarişdə aparılmır: düzəldilmiş sifariş yaradılır.
         </p>
       )}
 

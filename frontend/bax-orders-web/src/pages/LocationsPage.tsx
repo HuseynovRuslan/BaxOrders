@@ -93,7 +93,7 @@ export function LocationsPage() {
           type="search"
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Obyekt adı və ya kodu…"
+          placeholder="Obyekt adı…"
           className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-72"
         />
       </form>
@@ -148,8 +148,6 @@ export function LocationsPage() {
                   <Link to={`/locations/${location.locationId}`} className="font-medium text-slate-900 hover:underline">
                     {location.name}
                   </Link>
-                  {/* The code identifies the object; it is not what anybody reads the row for. */}
-                  <p className="text-xs text-slate-400">{location.code}</p>
                 </th>
 
                 <td className="whitespace-nowrap px-4 py-2.5 text-slate-700">

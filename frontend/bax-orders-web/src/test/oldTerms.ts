@@ -1,8 +1,9 @@
 /**
  * Test-only: the words the manager's screens no longer say, and one check that looks for all of them.
  *
- * Kept in one exported list so a later task that retires more words (Task 05b: codes, "Versiya", "Sətir sayı")
- * adds them here rather than writing a second sweep.
+ * Kept in one exported list so a later task that retires more words adds them here rather than writing a second
+ * sweep. Task 05a filled it with the old terms; Task 05b added the technical identifiers — codes, "Versiya",
+ * "Sətir sayı".
  */
 
 export interface OldTerm {
@@ -38,15 +39,41 @@ export const oldTerms: OldTerm[] = [
   // Money (5.5): a price to four decimals, and ₼ after a space it could be broken from.
   { name: 'four-decimal price', pattern: /,\d{3,4}\s?₼/ },
   { name: 'ordinary space before ₼', pattern: / ₼/ },
+  // Task 05b: technical identifiers. Object and product codes, in the shape the catalogue gives them.
+  { name: 'object code', pattern: /LOC-\d/ },
+  { name: 'product code', pattern: /PRD-\d/ },
+  // The codes the brief found under a product name: two model codes and a bare specification value. A number
+  // written for a reader uses a decimal comma, so "2.8" on its own is only ever the raw value.
+  { name: 'model code (brief)', pattern: /M-101-S-2|20078331/ },
+  { name: 'bare specification (brief)', pattern: /(?<![\d.,])2\.8(?!\d)/ },
+  { name: 'Versiya', pattern: /versiya/i },
+  { name: 'Sətir sayı', pattern: /Sətir sayı/i },
 ]
+
+/**
+ * The two places the owner kept the technical record in (brief): the product history's folded "Mənbə və versiya
+ * məlumatı", and the "Mənbəyə bax" drawer. They are left out of the sweep — they and nothing else.
+ */
+function isKeptTechnicalSection(element: Element): boolean {
+  if (element.tagName === 'DETAILS') {
+    return element.querySelector('summary')?.textContent?.trim() === 'Mənbə və versiya məlumatı'
+  }
+
+  return element.getAttribute('role') === 'dialog' && element.querySelector('h2')?.textContent?.trim() === 'Mənbə'
+}
 
 /** Everything a reader can meet on the screen: its text, and what it says to a screen reader or on hover. */
 export function readableText(root: HTMLElement): string {
-  const attributes = Array.from(root.querySelectorAll('[aria-label], [title], [placeholder]'))
+  const copy = root.cloneNode(true) as HTMLElement
+  Array.from(copy.querySelectorAll('details, [role="dialog"]'))
+    .filter(isKeptTechnicalSection)
+    .forEach((element) => element.remove())
+
+  const attributes = Array.from(copy.querySelectorAll('[aria-label], [title], [placeholder]'))
     .flatMap((element) => ['aria-label', 'title', 'placeholder'].map((name) => element.getAttribute(name)))
     .filter((value): value is string => value !== null)
 
-  return [root.textContent ?? '', ...attributes].join('\n')
+  return [copy.textContent ?? '', ...attributes].join('\n')
 }
 
 /** The old words found on a screen, by name. Empty when the screen is clean. */

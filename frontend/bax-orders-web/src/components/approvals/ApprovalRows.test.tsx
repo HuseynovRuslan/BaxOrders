@@ -202,7 +202,7 @@ describe('a row blocked by the reader’s own contribution to the correction', (
   it('says so with the exact wording, not the self-submission one', () => {
     const { table } = renderRows([row({ canApprove: false, canReturn: false, blockedByOwnContribution: true })])
 
-    expect(screen.getAllByText('Bu versiyada düzəliş etdiyiniz üçün qərar verə bilməzsiniz.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Bu sifarişdə düzəliş etdiyiniz üçün qərar verə bilməzsiniz.').length).toBeGreaterThan(0)
     expect(screen.queryByText('Öz göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz.')).toBeNull()
     expect(table.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
   })
@@ -237,11 +237,26 @@ describe('an original submission versus a revision', () => {
     expect(screen.getAllByText('İlkin').length).toBeGreaterThan(0)
   })
 
-  it('marks a revision compactly and links back to the version it corrects', () => {
+  it('marks a revision as a corrected order and links back to the order it corrects, with no version number', () => {
     const { table } = renderRows([row({ isRevision: true, version: 2, sourceVersion: 1, sourceOrderRequestId: 90 })])
 
-    expect(screen.getAllByText(/Düzəliş/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/V1 düzəlişi/).length).toBeGreaterThan(0)
-    expect(table.getByRole('link', { name: /Düzəliş/ })).toHaveAttribute('href', '/orders/90')
+    expect(table.getByText('Düzəldilmiş sifariş')).toBeInTheDocument()
+    expect(table.getByRole('link', { name: 'Düzəldilmiş sifariş' })).toHaveAttribute('href', '/orders/90')
+    expect(screen.queryByText(/V1/)).toBeNull()
+  })
+})
+
+describe('what the row says about the object and the version (Task 05b)', () => {
+  it('names the object and the month, and neither the object code nor a version, in the table and the cards', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ApprovalRows rows={[row({ version: 2, isRevision: true, sourceVersion: 1, sourceOrderRequestId: 90 })]} onChanged={vi.fn()} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('columnheader', { name: 'Dövr' })).toBeInTheDocument()
+    expect(screen.getAllByText('İyul 2026')).toHaveLength(2)
+    expect(container).not.toHaveTextContent('LOC-000017')
+    expect(container).not.toHaveTextContent(/versiya/i)
   })
 })

@@ -14,10 +14,10 @@ import { Modal } from '../imports/review/Modal'
 import { InfoHint } from './InfoHint'
 import { formatMoneyDelta, formatPercent, signedToneClass } from './format'
 import {
+  describeVariant,
   formatAnalyticsAmount,
   formatAnalyticsPeriod,
   formatPrice,
-  formatVariantLine,
   internalSupplyLabel,
   unknownValue,
   weightedPriceHint,
@@ -91,7 +91,7 @@ export function TrendModal({ locationId, variant, isService, to, from, driver, o
   const unit = formatOrderUnit(variant.orderUnitCode, variant.orderUnitName)
 
   return (
-    <Modal title={productHistoryLabel} subtitle={`${variant.productName} · ${formatVariantLine(variant)}`} onClose={onClose} width="wide">
+    <Modal title={productHistoryLabel} subtitle={`${variant.productName} · ${describeVariant(variant)}`} onClose={onClose} width="wide">
       {trend === null && error === null && <p className="py-8 text-center text-sm text-slate-500">Yüklənir…</p>}
 
       {error !== null && (

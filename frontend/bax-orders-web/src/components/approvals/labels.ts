@@ -1,4 +1,5 @@
 import { missingPriceCount, missingPriceShortLabel } from '../../pricing/labels'
+import { correctedOrderLabel } from '../../terminology/terms'
 import type {
   ApprovalActionability,
   ApprovalInboxSort,
@@ -32,7 +33,7 @@ export function isPriceCoverage(value: string | null): value is ApprovalPriceCov
 export const revisionFilterLabels: Record<ApprovalRevisionFilter, string> = {
   All: 'Hamısı',
   Original: 'İlkin',
-  Revision: 'Düzəliş versiyası',
+  Revision: correctedOrderLabel,
 }
 
 export const revisionFilterOrder: ApprovalRevisionFilter[] = ['All', 'Original', 'Revision']
@@ -68,8 +69,8 @@ export function isSort(value: string | null): value is ApprovalInboxSort {
  */
 export const selfApprovalBlockedRowNote = 'Öz göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz.'
 
-/** Said on a row this person may not decide because they worked on this version's correction. */
-export const ownContributionBlockedRowNote = 'Bu versiyada düzəliş etdiyiniz üçün qərar verə bilməzsiniz.'
+/** Said on a row this person may not decide because they worked on this order's correction. */
+export const ownContributionBlockedRowNote = 'Bu sifarişdə düzəliş etdiyiniz üçün qərar verə bilməzsiniz.'
 
 /** Task 2's one sentence for a count of price warnings, on the row it belongs to. */
 export function missingPriceRowNote(count: number): string {
@@ -77,4 +78,4 @@ export function missingPriceRowNote(count: number): string {
 }
 
 export const originalLabel = 'İlkin'
-export const revisionLabel = 'Düzəliş'
+export const revisionLabel = correctedOrderLabel

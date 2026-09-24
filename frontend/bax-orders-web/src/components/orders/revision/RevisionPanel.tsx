@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ApiError } from '../../../api/client'
 import { createRevision, type OrderRevision } from '../../../api/revisions'
-import { orderStatusLabels } from '../../imports/labels'
+import { correctedOrderLabel, previousOrderLinkLabel } from '../../../terminology/terms'
 import { Modal } from '../../imports/review/Modal'
 import {
   createNextRevisionLabel,
@@ -19,7 +19,8 @@ interface RevisionPanelProps {
 }
 
 /**
- * Where this version sits among the versions of its month, and the one action that creates another.
+ * Where this order sits among the orders of its month — the one it corrects, the one that corrects it — and the
+ * one action that creates a correction.
  * <para>
  * Nothing here decides who may do what: `canCreateRevision` is the server's answer, and the endpoint checks it
  * again. The links are always shown, whoever is reading — the history of a month is not a permission.
@@ -38,65 +39,56 @@ export function RevisionPanel({ revision, onChanged }: RevisionPanelProps) {
 
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-      {/* Unmistakable: this is not the reviewed version, it is the draft being corrected. */}
+      {/*
+        Unmistakable: this is not the reviewed order, it is the one being corrected. Said in business words —
+        the version numbers stay in the "Mənbəyə bax" drawer — and the status only once, in the page header.
+      */}
       {revision.isRevision && previous && (
         <div className="mb-3 flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2">
           <GitBranch className="size-4 shrink-0 text-sky-700" aria-hidden="true" />
           <div>
-            <p className="text-sm font-semibold text-sky-900">Düzəliş versiyası</p>
-            <p className="text-xs text-sky-800">Versiya {revision.version} · Versiya {previous.version} əsasında</p>
+            <p className="text-sm font-semibold text-sky-900">{correctedOrderLabel}</p>
+            <p className="text-xs text-sky-800">Düzəliş tələbindən sonra əvvəlki sifarişdən yaradılıb</p>
           </div>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-900">
-          <GitBranch className="size-4 text-slate-400" aria-hidden="true" />
-          Versiya {revision.version}
-          <span className="font-normal text-slate-500">· {orderStatusLabels[revision.status] ?? revision.status}</span>
-        </span>
-
+      <div className="flex flex-wrap items-center gap-2">
         {previous && (
-          <span className="text-sm text-slate-600">Versiya {previous.version} əsasında yaradılıb</span>
+          <Link
+            to={`/orders/${previous.orderRequestId}`}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
+            {previousOrderLinkLabel}
+          </Link>
         )}
 
-        <span className="ml-auto flex flex-wrap items-center gap-2">
-          {previous && (
-            <Link
-              to={`/orders/${previous.orderRequestId}`}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
-              Əvvəlki versiyaya bax
-            </Link>
-          )}
+        {next && (
+          <Link
+            to={`/orders/${next.orderRequestId}`}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            {openRevisionLabel}
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        )}
 
-          {next && (
-            <Link
-              to={`/orders/${next.orderRequestId}`}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              {openRevisionLabel}
-              <ArrowRight className="size-3.5" aria-hidden="true" />
-            </Link>
-          )}
-
-          {/* Offered only where the server says so, and never next to a link to a correction that exists. */}
-          {revision.canCreateRevision && next === null && (
-            <button
-              type="button"
-              onClick={() => setAsking(true)}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              {revision.isRevision ? createNextRevisionLabel : createRevisionLabel}
-            </button>
-          )}
-        </span>
+        {/* Offered only where the server says so, and never next to a link to a correction that exists. */}
+        {revision.canCreateRevision && next === null && (
+          <button
+            type="button"
+            onClick={() => setAsking(true)}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            {revision.isRevision ? createNextRevisionLabel : createRevisionLabel}
+          </button>
+        )}
       </div>
 
       {previous && (
         <p className="mt-3 text-xs text-slate-500">
-          Versiya {previous.version} baxılmış versiyadır və dəyişdirilmir. Düzəlişlər bu versiyada aparılır.
+          Əvvəlki sifariş dəyişdirilmir. Düzəlişlər bu sifarişdə aparılır.
         </p>
       )}
 

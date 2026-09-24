@@ -5,6 +5,7 @@ import {
   coverageBadgeClass,
   coverageLabels,
   describeBasis,
+  distinguishVariants,
   formatAnalyticsAmount,
   formatAnalyticsPeriod,
   formatAnalyticsQuantity,
@@ -12,7 +13,6 @@ import {
   formatDelta,
   formatPercent,
   formatPrice,
-  formatVariantLine,
   internalSupplyLabel,
   stateBadgeClass,
   stateBadgeLabels,
@@ -50,6 +50,8 @@ function BaselineHeading({ summary }: { summary: ComparisonSummary }) {
  * qualify, rather than two more columns competing with the comparison itself.
  */
 export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
+  const descriptions = distinguishVariants(rows.map((row) => row.variant))
+
   return (
     <>
       <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
@@ -73,9 +75,9 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <tr key={row.variant.productVariantId} className="hover:bg-slate-50">
-                <td className="px-4 py-2.5"><Product row={row} /></td>
+                <td className="px-4 py-2.5"><Product row={row} description={descriptions[index]} /></td>
                 <td className="px-3 py-2.5 text-right">
                   <p className="font-medium text-slate-900">{formatAnalyticsQuantity(row.current.quantity)}</p>
                   <p className="text-xs text-slate-500">{formatAnalyticsAmount(row.current.knownAmount)}</p>
@@ -97,10 +99,10 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
       </div>
 
       <ul className="space-y-2 lg:hidden">
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <li key={row.variant.productVariantId} className="rounded-lg border border-slate-200 bg-white p-3">
             <div className="flex items-start justify-between gap-2">
-              <Product row={row} />
+              <Product row={row} description={descriptions[index]} />
               <StateBadge row={row} />
             </div>
 
@@ -130,6 +132,8 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
  * money is the comparison.
  */
 export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
+  const descriptions = distinguishVariants(rows.map((row) => row.variant))
+
   return (
     <>
       <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
@@ -152,9 +156,9 @@ export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <tr key={row.variant.productVariantId} className="hover:bg-slate-50">
-                <td className="px-4 py-2.5"><Product row={row} /></td>
+                <td className="px-4 py-2.5"><Product row={row} description={descriptions[index]} /></td>
                 <td className="px-3 py-2.5 text-right font-medium text-slate-900">
                   {formatAnalyticsAmount(row.current.knownAmount)}
                 </td>
@@ -174,9 +178,9 @@ export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
       </div>
 
       <ul className="space-y-2 lg:hidden">
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <li key={row.variant.productVariantId} className="rounded-lg border border-slate-200 bg-white p-3">
-            <Product row={row} />
+            <Product row={row} description={descriptions[index]} />
             <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
               <Figure label={formatAnalyticsPeriod(summary.currentPeriod)} value={formatAnalyticsAmount(row.current.knownAmount)} strong />
               <Figure label={describeBasis(summary.basis, summary.baselineWindowPeriods)} value={formatAnalyticsAmount(row.baseline.knownAmount)} />
@@ -194,11 +198,12 @@ export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
   )
 }
 
-function Product({ row }: { row: VariantComparison }) {
+/** The product's name, and under it what the manager needs to tell it apart — never a code for its own sake. */
+function Product({ row, description }: { row: VariantComparison; description: string }) {
   return (
     <div className="min-w-0">
       <p className="font-medium text-slate-900">{row.variant.productName}</p>
-      <p className="text-xs text-slate-500">{formatVariantLine(row.variant)}</p>
+      <p className="text-xs text-slate-500">{description}</p>
     </div>
   )
 }

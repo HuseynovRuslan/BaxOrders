@@ -185,6 +185,17 @@ describe('the columns the list no longer carries', () => {
     expect(within(table).queryByText('Son dövr')).toBeNull()
   })
 
+  /** Task 05b: the object is named, not coded, and the search does not ask for a code. */
+  it('names each object without its code, and searches by name', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows())
+    await renderPage()
+
+    await screen.findByText('1.520,40 ₼')
+    expect(screen.getByRole('link', { name: 'Fəvvarələr meydanı' })).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('LOC-000021')
+    expect(screen.getByPlaceholderText('Obyekt adı…')).toBeInTheDocument()
+  })
+
   it('shows the latest order as a month, and its status beside it', async () => {
     ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
       latestPeriod: '2026-09-01',

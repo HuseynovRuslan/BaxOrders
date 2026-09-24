@@ -86,14 +86,12 @@ function TrendTooltip({ active, payload, metric }: TooltipShape) {
       ) : (
         <dl className="mt-1 space-y-0.5 text-slate-600">
           <Row label={metricLabels[metric]} value={formatTrendValue(row.value, metric)} />
-          <Row label="Sətir" value={formatNumber(row.point.itemCount)} />
           {row.point.missingRequiredPriceItemCount > 0 && (
             <Row label={missingPriceShortLabel} value={formatNumber(row.point.missingRequiredPriceItemCount)} warn />
           )}
           {row.point.priceNotRequiredItemCount > 0 && (
             <Row label={internalSupplyShortLabel} value={formatNumber(row.point.priceNotRequiredItemCount)} />
           )}
-          <Row label="Versiya" value={String(row.point.version)} />
         </dl>
       )}
     </div>

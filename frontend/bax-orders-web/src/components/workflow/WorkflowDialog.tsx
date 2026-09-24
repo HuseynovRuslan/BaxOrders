@@ -104,7 +104,6 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
           <Fact label="Obyekt" value={workflow.locationName} />
           <Fact label="Dövr" value={formatMonth(workflow.requestPeriod)} />
           {submission && <Fact label={decisionFactLabels.submission} value={submission} />}
-          <Fact label="Sətir sayı" value={String(workflow.itemCount)} />
           <Fact
             label={workflow.amountIsComplete ? 'Məbləğ' : pricedLinesTotalLabel}
             value={formatMoney(workflow.knownAmountTotal)}

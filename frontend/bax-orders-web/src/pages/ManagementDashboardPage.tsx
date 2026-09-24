@@ -232,13 +232,13 @@ export function ManagementDashboardPage() {
         <div className="mb-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <form onSubmit={(event) => { event.preventDefault(); update({ search: searchInput.trim() }) }}>
-              <label className="sr-only" htmlFor="dashboard-search">Obyekt adı və ya kodu üzrə axtar</label>
+              <label className="sr-only" htmlFor="dashboard-search">Obyekt adı üzrə axtar</label>
               <input
                 id="dashboard-search"
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Obyekt adı və ya kodu üzrə axtar"
+                placeholder="Obyekt adı üzrə axtar"
                 className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-72"
               />
             </form>

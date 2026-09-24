@@ -102,9 +102,17 @@ describe('what is being decided', () => {
   it('keeps the other facts it always showed', () => {
     const { dialog } = renderDialog('approve')
 
-    for (const label of ['Obyekt', 'Dövr', 'Sətir sayı', 'Məbləğ']) {
+    for (const label of ['Obyekt', 'Dövr', 'Məbləğ']) {
       expect(within(dialog).getByText(label)).toBeInTheDocument()
     }
+  })
+
+  /** Task 05b: a line count is not something the manager decides by, so the dialog no longer states one. */
+  it('states no line count', () => {
+    const { dialog } = renderDialog('approve')
+
+    expect(within(dialog).queryByText('Sətir sayı')).toBeNull()
+    expect(dialog).not.toHaveTextContent(/Sətir sayı/)
   })
 
   /** Owner decision 5.1: an amount that leaves out unpriced lines is named as exactly that. */

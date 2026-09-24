@@ -83,7 +83,6 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
               <tr key={row.locationId} className="hover:bg-slate-50">
                 <th scope="row" className="px-4 py-2.5 text-left font-normal">
                   <p className="font-medium text-slate-900">{row.locationName}</p>
-                  <p className="text-xs text-slate-400">{row.locationCode}</p>
                 </th>
 
                 <td className="px-3 py-2.5 text-right">
@@ -183,7 +182,6 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-medium text-slate-900">{row.locationName}</p>
-                <p className="text-xs text-slate-400">{row.locationCode}</p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="whitespace-nowrap text-base font-semibold text-slate-900">

@@ -96,7 +96,7 @@ export function MonthlyReportTable({ rows }: MonthlyReportTableProps) {
                   <Link
                     to={`/locations/${row.locationId}`}
                     className="block truncate font-medium text-slate-900 hover:underline"
-                    title={`${row.locationName} · ${row.locationCode}`}
+                    title={row.locationName}
                   >
                     {row.locationName}
                   </Link>
@@ -255,7 +255,6 @@ export function MonthlyReportMonthList({
               >
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">{row.locationName}</p>
-                  <p className="text-xs text-slate-400">{row.locationCode}</p>
                   {cell.status && (
                     <span
                       className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${workflowStatusClass[cell.status]}`}

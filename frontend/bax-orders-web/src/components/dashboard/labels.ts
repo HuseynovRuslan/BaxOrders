@@ -52,22 +52,9 @@ export function isPriceCoverage(value: string | null): value is PriceCoverageSta
 }
 
 /**
- * The sorts offered on the screen. Every one is a plain fact about the row, and the default is the object's
- * name, which asserts nothing about it.
+ * The sorts the dashboard accepts in its URL. Every one is a plain fact about the row, and the default is the
+ * object's name, which asserts nothing about it. None of them is offered by name on the screen.
  */
-export const sortLabels: Record<DashboardSort, string> = {
-  LocationName: 'Obyekt adı',
-  CurrentKnownAmount: 'Cari məbləğ',
-  KnownAmountDelta: 'Məbləğ fərqi',
-  KnownAmountPercentChange: 'Dəyişmə %',
-  MissingPriceItemCount: missingPriceShortLabel,
-  CurrentItemCount: 'Sətir sayı',
-  NewVariantCount: 'Yeni məhsullar',
-  IncreasedVariantCount: 'Artan məhsullar',
-  DecreasedVariantCount: 'Azalan məhsullar',
-  HistoryCoverage: 'Tarixçə',
-}
-
 export const sortOrder: DashboardSort[] = [
   'LocationName',
   'CurrentKnownAmount',
@@ -82,7 +69,7 @@ export const sortOrder: DashboardSort[] = [
 ]
 
 export function isSort(value: string | null): value is DashboardSort {
-  return value !== null && value in sortLabels
+  return value !== null && (sortOrder as string[]).includes(value)
 }
 
 /**

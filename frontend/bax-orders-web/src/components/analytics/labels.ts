@@ -130,8 +130,9 @@ export function formatAnalyticsPeriod(period: string): string {
 }
 
 /**
- * The variant under its product name: "120 sm · ədəd", "28 diş · ədəd", "Vahidsiz". Technical values never
- * reach the screen — no variant key, no null, no empty code, and no unit code where a unit word exists.
+ * The variant with every identifying field, model code and bare specification included: "120 sm · M-101 · ədəd".
+ * Kept for screens where those codes are the thing being worked on; the manager's screens use describeVariant.
+ * No variant key, no null, no empty code, and no unit code where a unit word exists.
  */
 export function formatVariantLine(variant: VariantIdentity): string {
   const specification = variant.specificationValue?.trim()
@@ -144,6 +145,67 @@ export function formatVariantLine(variant: VariantIdentity): string {
   ]
 
   return parts.filter((part): part is string => Boolean(part)).join(' · ')
+}
+
+/** The parts of a variant the manager's screens describe it by. An order line carries the same fields. */
+export type VariantDescription = Pick<
+  VariantIdentity,
+  | 'specificationValue'
+  | 'specificationUnitCode'
+  | 'specificationUnitName'
+  | 'specificationDescriptor'
+  | 'modelCode'
+  | 'orderUnitCode'
+  | 'orderUnitName'
+>
+
+/**
+ * The specification when it says what it measures: "5 litr", "50 kq", "28 diş". A value with neither a unit nor
+ * a descriptor ("2.8") says nothing to a manager, and is not shown.
+ */
+export function describeSpecification(variant: VariantDescription): string | null {
+  const value = variant.specificationValue?.trim()
+  const suffix = variant.specificationDescriptor?.trim()
+    || unitWord(variant.specificationUnitCode, variant.specificationUnitName)
+  return value && suffix ? `${value} ${suffix}` : null
+}
+
+/** "5 litr · ədəd", "28 diş · ədəd", "ədəd", "Vahidsiz" — no product code, no model code, no bare number. */
+export function describeVariant(variant: VariantDescription): string {
+  const unit = unitWord(variant.orderUnitCode, variant.orderUnitName) ?? unitlessOrderUnitLabel
+  return [describeSpecification(variant), unit].filter((part): part is string => Boolean(part)).join(' · ')
+}
+
+/** What describeVariant leaves out: the model code if there is one, else a specification value with no unit. */
+function hiddenDetail(variant: VariantDescription): string | null {
+  return variant.modelCode?.trim()
+    || (describeSpecification(variant) === null ? variant.specificationValue?.trim() : null)
+    || null
+}
+
+/**
+ * For each row of one rendered list, the detail that tells it apart, or null.
+ *
+ * Hiding the model code can make two rows read identically — the same product name over the same description.
+ * Those rows, and only those, get back what was hidden; every other row shows no code at all.
+ */
+export function distinguishingDetails(rows: Array<VariantDescription & { productName: string }>): Array<string | null> {
+  const keys = rows.map((row) => JSON.stringify([row.productName, describeVariant(row)]))
+  const counts = new Map<string, number>()
+  for (const key of keys) {
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+
+  return rows.map((row, index) => ((counts.get(keys[index]) ?? 0) > 1 ? hiddenDetail(row) : null))
+}
+
+/** The line under each product name in one list: describeVariant, and the distinguishing detail where needed. */
+export function distinguishVariants(rows: Array<VariantDescription & { productName: string }>): string[] {
+  const details = distinguishingDetails(rows)
+  return rows.map((row, index) => {
+    const detail = details[index]
+    return detail ? `${describeVariant(row)} · ${detail}` : describeVariant(row)
+  })
 }
 
 /** "2 / 3 ay mövcuddur" — coverage is stated plainly, never hidden in a tooltip. */

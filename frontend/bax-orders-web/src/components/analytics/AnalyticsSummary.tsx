@@ -125,9 +125,7 @@ function BaselineCoverage({ summary }: { summary: ComparisonSummary }) {
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-        <span>
-          Versiya {summary.currentVersion} · {orderStatusLabels[summary.currentStatus] ?? summary.currentStatus}
-        </span>
+        <span>{orderStatusLabels[summary.currentStatus] ?? summary.currentStatus}</span>
         <Link to={`/orders/${summary.currentRequestId}`} className="text-slate-600 underline hover:text-slate-900">
           Sifarişə bax
         </Link>
@@ -149,7 +147,7 @@ function BaselineCoverage({ summary }: { summary: ComparisonSummary }) {
         <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-700">
           {summary.baselinePeriods.map((period) => (
             <li key={period.orderRequestId}>
-              {formatAnalyticsPeriod(period.period)} — Versiya {period.version}
+              {formatAnalyticsPeriod(period.period)}
               {' · '}
               <Link to={`/orders/${period.orderRequestId}`} className="underline hover:text-slate-900">
                 Sifarişə bax

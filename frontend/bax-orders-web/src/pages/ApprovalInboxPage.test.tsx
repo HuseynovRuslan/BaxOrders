@@ -95,7 +95,7 @@ describe('an empty queue', () => {
 
     expect(screen.queryByRole('group', { name: 'Növbənin xülasəsi' })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Qərar vermə imkanına görə süz' })).toBeNull()
-    expect(screen.queryByLabelText('Obyekt adı və ya kodu üzrə axtar')).toBeNull()
+    expect(screen.queryByLabelText('Obyekt adı üzrə axtar')).toBeNull()
   })
 })
 
@@ -106,7 +106,7 @@ describe('a queue that has requests in it', () => {
 
     expect(screen.getByRole('group', { name: 'Növbənin xülasəsi' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Qərar vermə imkanına görə süz' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Obyekt adı və ya kodu üzrə axtar')).toBeInTheDocument()
+    expect(screen.getByLabelText('Obyekt adı üzrə axtar')).toBeInTheDocument()
     expect(screen.queryByText('Təsdiq gözləyən sifariş yoxdur.')).toBeNull()
   })
 })

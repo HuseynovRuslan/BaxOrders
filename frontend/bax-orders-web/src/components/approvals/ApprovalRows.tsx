@@ -4,6 +4,7 @@ import type { ApprovalInboxRow } from '../../api/approvals'
 import { ApiError } from '../../api/client'
 import { approveOrder, fetchWorkflow, returnForCorrection, type OrderWorkflow } from '../../api/workflow'
 import { formatMonth, formatMoney } from '../analytics/format'
+import { previousOrderLinkLabel } from '../../terminology/terms'
 import { WorkflowDialog, type WorkflowDialogKind } from '../workflow/WorkflowDialog'
 import { approveLabel, formatWorkflowMoment, missingAuthorityNote, returnLabel, workflowErrors } from '../workflow/labels'
 import {
@@ -96,7 +97,7 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
           <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
             <tr>
               <th scope="col" className="px-4 py-3">Obyekt</th>
-              <th scope="col" className="px-3 py-3">Dövr / Versiya</th>
+              <th scope="col" className="px-3 py-3">Dövr</th>
               <th scope="col" className="px-3 py-3">Göndərən</th>
               <th scope="col" className="px-3 py-3 text-right">Məbləğ</th>
               <th scope="col" className="px-3 py-3">Status / İcazə</th>
@@ -108,10 +109,9 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
               <tr key={row.orderRequestId} className="hover:bg-slate-50">
                 <th scope="row" className="px-4 py-2.5 text-left font-normal">
                   <p className="font-medium text-slate-900">{row.locationName}</p>
-                  <p className="text-xs text-slate-500">{row.locationCode}</p>
                 </th>
                 <td className="px-3 py-2.5 text-slate-700">
-                  <p>{formatMonth(row.requestPeriod)} · Versiya {row.version}</p>
+                  <p>{formatMonth(row.requestPeriod)}</p>
                   <RevisionBadge row={row} />
                 </td>
                 <td className="px-3 py-2.5 text-slate-700">
@@ -135,9 +135,7 @@ export function ApprovalRows({ rows, onChanged }: ApprovalRowsProps) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-medium text-slate-900">{row.locationName}</p>
-                <p className="text-xs text-slate-500">
-                  {row.locationCode} · {formatMonth(row.requestPeriod)} · Versiya {row.version}
-                </p>
+                <p className="text-xs text-slate-500">{formatMonth(row.requestPeriod)}</p>
               </div>
               <RevisionBadge row={row} />
             </div>
@@ -190,6 +188,10 @@ function Amount({ row }: { row: ApprovalInboxRow }) {
   )
 }
 
+/**
+ * Whether the row is a first submission or a corrected order. A corrected order links to the order it was made
+ * from; which version number either of them carries is not the manager's business and is not shown.
+ */
 function RevisionBadge({ row }: { row: ApprovalInboxRow }) {
   if (!row.isRevision) {
     return (
@@ -202,12 +204,15 @@ function RevisionBadge({ row }: { row: ApprovalInboxRow }) {
   const badge = (
     <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-900 ring-1 ring-inset ring-sky-200">
       {revisionLabel}
-      {row.sourceVersion !== null && <span className="ml-1 font-normal opacity-80">· V{row.sourceVersion} düzəlişi</span>}
     </span>
   )
 
   return row.sourceOrderRequestId !== null
-    ? <Link to={`/orders/${row.sourceOrderRequestId}`} className="hover:opacity-80">{badge}</Link>
+    ? (
+      <Link to={`/orders/${row.sourceOrderRequestId}`} title={previousOrderLinkLabel} className="hover:opacity-80">
+        {badge}
+      </Link>
+    )
     : badge
 }
 

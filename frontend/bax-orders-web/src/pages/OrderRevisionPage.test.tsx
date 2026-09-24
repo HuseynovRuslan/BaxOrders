@@ -300,7 +300,7 @@ describe('a returned order', () => {
     }))
     await renderPage()
 
-    expect(screen.getByRole('link', { name: /Düzəliş versiyasına bax/ })).toHaveAttribute('href', '/orders/900')
+    expect(screen.getByRole('link', { name: 'Düzəldilmiş sifarişə bax' })).toHaveAttribute('href', '/orders/900')
     expect(screen.queryByRole('button', { name: /Düzəliş versiyası yarat/ })).toBeNull()
   })
 
@@ -320,7 +320,7 @@ describe('a returned order', () => {
 // ---- version context -------------------------------------------------------------------------------
 
 describe('where this version sits', () => {
-  it('names the version it was made from and links both ways', async () => {
+  it('names the order it was made from in business words and links both ways', async () => {
     revisionsApi.fetchRevision.mockResolvedValue(revision({
       revisedInto: {
         orderRequestId: 900,
@@ -333,16 +333,22 @@ describe('where this version sits', () => {
     }))
     await renderPage()
 
-    expect(screen.getByText('Versiya 1 əsasında yaradılıb')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Əvvəlki versiyaya bax/ })).toHaveAttribute('href', '/orders/104')
-    expect(screen.getByRole('link', { name: /Düzəliş versiyasına bax/ })).toHaveAttribute('href', '/orders/900')
+    // Task 05b: "Versiya 1 əsasında yaradılıb" is gone — the banner says where the order came from.
+    expect(screen.getByText('Düzəliş tələbindən sonra əvvəlki sifarişdən yaradılıb')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Əvvəlki sifarişə bax' })).toHaveAttribute('href', '/orders/104')
+    expect(screen.getByRole('link', { name: 'Düzəldilmiş sifarişə bax' })).toHaveAttribute('href', '/orders/900')
   })
 
-  it('shows an unmistakable banner while looking at a correction, naming both versions at once', async () => {
+  it('shows an unmistakable banner while looking at a correction, in business words and without a number', async () => {
     await renderPage()
 
-    expect(screen.getByText('Düzəliş versiyası')).toBeInTheDocument()
-    expect(screen.getByText('Versiya 2 · Versiya 1 əsasında')).toBeInTheDocument()
+    expect(screen.getByText('Düzəldilmiş sifariş')).toBeInTheDocument()
+    expect(screen.getByText('Düzəliş tələbindən sonra əvvəlki sifarişdən yaradılıb')).toBeInTheDocument()
+    expect(screen.getByText('Əvvəlki sifariş dəyişdirilmir. Düzəlişlər bu sifarişdə aparılır.')).toBeInTheDocument()
+    // Neither the version numbers nor a second copy of the status: the status is in the page header (04a).
+    const panel = screen.getByText('Düzəldilmiş sifariş').closest('section')!
+    expect(panel).not.toHaveTextContent(/versiya/i)
+    expect(panel).not.toHaveTextContent('Təsdiqlənməyib')
   })
 
   it('shows no such banner for a request that never was a correction', async () => {
@@ -356,18 +362,22 @@ describe('where this version sits', () => {
     }))
     await renderPage()
 
-    expect(screen.queryByText('Düzəliş versiyası')).toBeNull()
+    expect(screen.queryByText('Düzəldilmiş sifariş')).toBeNull()
+    // The Coordinator's action keeps its own words until Task 14 decides what each role sees.
+    expect(screen.getByRole('button', { name: 'Düzəliş versiyası yarat' })).toBeInTheDocument()
   })
 })
 
 // ---- header and summary -----------------------------------------------------------------------------
 
 describe('the header and the summary', () => {
-  it('leads with the object, then the period and version, with the status told apart as its own badge', async () => {
+  it('leads with the object, then the period alone, with the status told apart as its own badge', async () => {
     await renderPage()
 
     expect(screen.getByRole('heading', { name: 'Fəvvarələr meydanı' })).toBeInTheDocument()
-    expect(screen.getByText('İyul 2026 · Versiya 2')).toBeInTheDocument()
+    // The month alone (Task 05b): "Versiya 2" is not the manager's business.
+    expect(screen.getByText('İyul 2026')).toBeInTheDocument()
+    expect(screen.queryByText(/Versiya 2/)).toBeNull()
     // "Təsdiqlənməyib" is the status; it also labels the workflow panel's own badge, so there are two.
     expect(screen.getAllByText('Təsdiqlənməyib').length).toBeGreaterThan(0)
   })
@@ -696,12 +706,25 @@ describe('the histories', () => {
     revisionsApi.fetchRevision.mockResolvedValue(revision({ editHistory: edits }))
     await renderPage()
 
-    expect(await screen.findByText('Versiya yaradıldı')).toBeInTheDocument()
+    expect(await screen.findByText('Düzəldilmiş sifariş yaradıldı')).toBeInTheDocument()
     expect(screen.getByText('Miqdar: 10 → 12,5')).toBeInTheDocument()
     expect(screen.getByText('Qiymət: Qiymət yoxdur → 4,50 ₼')).toBeInTheDocument()
     expect(screen.getByText('Təchizatçı: Anbar → Qala baza')).toBeInTheDocument()
     expect(screen.getByText('Sətir silindi')).toBeInTheDocument()
     expect(screen.getAllByText(/Test Koordinator/).length).toBeGreaterThan(0)
+    // The product is named, never coded (Task 05b).
+    const history = screen.getByRole('tabpanel')
+    expect(within(history).getAllByText('Vedrə')).toHaveLength(2)
+    expect(history).not.toHaveTextContent(/PRD-/)
+  })
+
+  it('says an untouched correction in business words', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+
+    await user.click(screen.getByRole('tab', { name: /Düzəliş tarixçəsi/ }))
+
+    expect(await screen.findByText('Bu sifarişdə hələ düzəliş edilməyib.')).toBeInTheDocument()
   })
 
   it('keeps the two histories apart', async () => {
