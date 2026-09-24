@@ -136,6 +136,30 @@ public sealed class HistoricalApprovalTests(PostgresDatabaseFixture database)
         Assert.False(entry.MissingPricesAcknowledged);
     }
 
+    /// <summary>
+    /// 4.1: the decision panel says "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil." and
+    /// nothing else. The facts behind it say only that — no submitter, no approver, no moment, and in
+    /// particular not the "Sistem" the carried-over event is written under.
+    /// </summary>
+    [PostgresFact]
+    public async Task Its_decision_facts_say_it_was_carried_in_and_name_nobody()
+    {
+        await using var db = database.CreateContext();
+        var world = await HistoricalWorldAsync(db);
+
+        var facts = (await WorkflowAsync(db, world.OrderId)).DecisionFacts;
+
+        Assert.True(facts.IsHistoricalImport);
+        Assert.Equal(0, facts.SubmissionNumber);
+        Assert.Null(facts.SubmittedByDisplayName);
+        Assert.Null(facts.SubmittedAtUtc);
+        Assert.Null(facts.PreviousReturn);
+        Assert.Null(facts.Decision);
+
+        var json = JsonSerializer.Serialize(facts, Wire);
+        Assert.DoesNotContain("Sistem", json, StringComparison.Ordinal);
+    }
+
     // ---- 4. the approval queue leaves it alone ---------------------------------------------------------
 
     [PostgresFact]

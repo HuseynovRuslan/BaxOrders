@@ -100,9 +100,10 @@ public sealed class RoleWorkflowEndToEndTests(PostgresDatabaseFixture database) 
     [PostgresFact]
     public async Task An_administrator_cannot_approve_what_they_submitted_themselves()
     {
-        // An administrator may both submit and decide, which is exactly why this has to be proved on one.
+        // An administrator may submit, and — since 4.3 — may not decide at all: not their own submission and
+        // not anybody else's. A Rəhbər decides it.
         var first = await AccountAsync(BaxOrdersRoles.Admin, "Sınaq administratoru A");
-        var second = await AccountAsync(BaxOrdersRoles.Admin, "Sınaq administratoru B");
+        var rehber = await AccountAsync(BaxOrdersRoles.Manager, "Sınaq rəhbəri B");
         var request = await SyntheticRequestAsync();
 
         using var firstSession = AuthenticatedApi.Anonymous(factory);
@@ -113,31 +114,32 @@ public sealed class RoleWorkflowEndToEndTests(PostgresDatabaseFixture database) 
         var offered = await ReadWorkflowAsync(firstSession, request);
         Assert.False(offered.AllowedActions.CanApprove);
         Assert.False(offered.AllowedActions.CanReturn);
-        Assert.True(offered.AllowedActions.BlockedBySelfApproval);
+        Assert.True(offered.AllowedActions.BlockedByMissingAuthority);
+        Assert.False(offered.AllowedActions.BlockedBySelfApproval);
 
         var ownApproval = await AuthenticatedApi.PostAsync(firstSession, $"/api/v1/orders/{request}/workflow/approve", new { });
         var ownReturn = await AuthenticatedApi.PostAsync(firstSession, $"/api/v1/orders/{request}/workflow/return",
             new { reason = "Özüm göndərmişəm" });
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownApproval.StatusCode);
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownReturn.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, ownApproval.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, ownReturn.StatusCode);
 
         await using var afterRefusal = database.CreateContext();
         Assert.Equal(OrderRequestStatus.PendingApproval,
             (await afterRefusal.OrderRequests.SingleAsync(item => item.Id == request)).Status);
         Assert.Single(await EventsAsync(afterRefusal, request));
 
-        // Somebody else may.
-        using var secondSession = AuthenticatedApi.Anonymous(factory);
-        await AuthenticatedApi.SignInAsync(secondSession, second.UserName, second.Password);
-        var approved = await SendAsync(secondSession, $"/api/v1/orders/{request}/workflow/approve", new { });
+        // A Rəhbər may.
+        using var rehberSession = AuthenticatedApi.Anonymous(factory);
+        await AuthenticatedApi.SignInAsync(rehberSession, rehber.UserName, rehber.Password);
+        var approved = await SendAsync(rehberSession, $"/api/v1/orders/{request}/workflow/approve", new { });
 
         Assert.Equal(OrderRequestStatus.Approved, approved.Status);
 
         await using var db = database.CreateContext();
         var approval = (await EventsAsync(db, request)).Last();
-        Assert.Equal(second.Id, approval.ActorUserId);
-        Assert.Equal("Sınaq administratoru B", approval.ActorDisplayName);
+        Assert.Equal(rehber.Id, approval.ActorUserId);
+        Assert.Equal("Sınaq rəhbəri B", approval.ActorDisplayName);
     }
 
     // ---- 59: returned, corrected, submitted again, approved ------------------------------------------

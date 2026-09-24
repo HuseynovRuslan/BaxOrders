@@ -15,6 +15,10 @@ namespace BaxOrders.Infrastructure.Identity;
 /// </remarks>
 public sealed class IdentityUserDirectory(UserManager<ApplicationUser> users) : IUserDirectory
 {
+    /// <summary>Said when the change would leave nobody who can approve an order.</summary>
+    public const string LastApproverMessage =
+        "Bu, təsdiq səlahiyyəti olan yeganə aktiv istifadəçidir. Əvvəlcə başqa bir Rəhbər təyin edin.";
+
     public async Task<IReadOnlyList<UserDto>> ListAsync(CancellationToken cancellationToken)
     {
         var all = await users.Users.AsNoTracking().OrderBy(user => user.UserName).ToListAsync(cancellationToken);
@@ -87,6 +91,12 @@ public sealed class IdentityUserDirectory(UserManager<ApplicationUser> users) : 
             return (null, null);
         }
 
+        // Checked before anything is changed, so a refusal leaves the account exactly as it was.
+        if (await WouldLeaveNobodyToApproveAsync(user, command))
+        {
+            return (null, Failed(LastApproverMessage));
+        }
+
         if (command.DisplayName is { } displayName)
         {
             var trimmed = displayName.Trim();
@@ -138,6 +148,36 @@ public sealed class IdentityUserDirectory(UserManager<ApplicationUser> users) : 
         }
 
         return (await DescribeAsync(user), null);
+    }
+
+    public Task<int> CountActiveApproversAsync(CancellationToken cancellationToken) =>
+        ActiveApprovers.CountAsync(users);
+
+    /// <summary>
+    /// True when this change would take the last active approver away: disabling them, or giving them a role
+    /// without approval authority.
+    /// </summary>
+    private async Task<bool> WouldLeaveNobodyToApproveAsync(ApplicationUser user, UpdateUserCommand command)
+    {
+        if (!user.IsActive)
+        {
+            return false;
+        }
+
+        var currentRoles = await users.GetRolesAsync(user);
+        if (!currentRoles.Any(ApprovalAuthority.IsHeldBy))
+        {
+            return false;
+        }
+
+        var disabling = command.IsActive is false;
+        var losingAuthority = command.Role is { } role && !ApprovalAuthority.IsHeldBy(role);
+        if (!disabling && !losingAuthority)
+        {
+            return false;
+        }
+
+        return await ActiveApprovers.CountAsync(users) <= 1;
     }
 
     public async Task<IdentityFailure?> ResetPasswordAsync(

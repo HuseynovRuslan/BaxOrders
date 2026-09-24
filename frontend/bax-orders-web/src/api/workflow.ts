@@ -25,6 +25,38 @@ export interface AllowedWorkflowActions {
   blockedBySelfApproval: boolean
   /** Likewise, but the reason is that they worked on this correction — edited a line, added or removed one. */
   blockedByOwnContribution: boolean
+  /**
+   * The state would allow a decision, and this person sees the approval queue without holding approval
+   * authority — an administrator. Reported before the other two reasons.
+   */
+  blockedByMissingAuthority: boolean
+}
+
+/** One recorded moment the decision panel shows: who, when and — for a correction request — why. */
+export interface WorkflowDecisionEvent {
+  action: OrderWorkflowAction
+  /** The name as it read when it happened. A snapshot from the event, never looked up again. */
+  actorDisplayName: string
+  occurredAtUtc: string
+  /** What the correction request said. Null for an approval. */
+  reason: string | null
+}
+
+/**
+ * What an approver needs before deciding, read by the server off the recorded events only. Where there is no
+ * event there is no value: nothing here is ever a placeholder name or date.
+ */
+export interface WorkflowDecisionFacts {
+  /** Carried in from Excel as already approved; every other field is then empty (4.1). */
+  isHistoricalImport: boolean
+  /** Which time this is being sent, along the correction chain. Zero when this request has not been sent. */
+  submissionNumber: number
+  submittedByDisplayName: string | null
+  submittedAtUtc: string | null
+  /** The most recent correction request before the current cycle. */
+  previousReturn: WorkflowDecisionEvent | null
+  /** The approval, or the correction request, that closed the current cycle. */
+  decision: WorkflowDecisionEvent | null
 }
 
 export interface WorkflowEvent {
@@ -69,6 +101,7 @@ export interface OrderWorkflow {
   requiresMissingPriceAcknowledgement: boolean
   /** Oldest first. */
   history: WorkflowEvent[]
+  decisionFacts: WorkflowDecisionFacts
 }
 
 /**

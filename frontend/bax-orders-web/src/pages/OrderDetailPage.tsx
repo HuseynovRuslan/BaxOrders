@@ -242,8 +242,12 @@ export function OrderDetailPage() {
           )}
         </div>
 
-        {/* The decision travels with the reader on a wide screen, and simply follows the amount on a narrow one. */}
-        <div className="order-2 space-y-3 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-4">
+        {/*
+          The decision travels with the reader on a wide screen, and simply follows the amount on a narrow one.
+          It is never taller than the screen, so a long correction panel below cannot push the buttons — the
+          first thing in it — out of sight while the analysis is read.
+        */}
+        <div className="order-2 space-y-3 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           {data && (
             <WorkflowPanel
               key={reloadToken}

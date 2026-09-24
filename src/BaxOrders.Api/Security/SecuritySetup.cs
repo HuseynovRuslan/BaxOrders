@@ -90,8 +90,15 @@ internal static class SecuritySetup
                 policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
             .AddPolicy(BaxOrdersPolicies.CanSubmitOrders, policy =>
                 policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
+            // Built from the one definition of approval authority rather than from a list of roles here, so the
+            // endpoint, the service and the screens cannot disagree about who may decide.
             .AddPolicy(BaxOrdersPolicies.CanDecideOrders, policy =>
-                policy.RequireRole(BaxOrdersRoles.Manager, BaxOrdersRoles.Admin))
+                policy.RequireAssertion(context =>
+                    BaxOrdersRoles.All.Any(role => ApprovalAuthority.IsHeldBy(role) && context.User.IsInRole(role))))
+            // Looking at the queue is not deciding on it: an administrator keeps the page, read-only.
+            .AddPolicy(BaxOrdersPolicies.CanViewApprovals, policy =>
+                policy.RequireAssertion(context =>
+                    BaxOrdersRoles.All.Any(role => ApprovalAuthority.MayViewQueue(role) && context.User.IsInRole(role))))
             // Correcting a returned order is putting an order together again, so it belongs with submitting —
             // not with deciding, which is why this is its own policy rather than a reuse of CanDecideOrders.
             .AddPolicy(BaxOrdersPolicies.CanReviseOrders, policy =>

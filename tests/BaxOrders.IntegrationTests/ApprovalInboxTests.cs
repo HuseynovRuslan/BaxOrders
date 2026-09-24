@@ -67,18 +67,20 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
     public async Task The_submitter_sees_their_own_request_blocked_and_says_why()
     {
         var tag = Tag();
-        var admin = await UserAsync(BaxOrdersRoles.Admin, "Sınaq administratoru");
+        // Somebody who sent it and has since become a Rəhbər — the only way an approver is ever the submitter.
+        var person = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru, sonra rəhbər");
 
         var requestId = await NewRequestAsync(tag);
-        await WorkflowAs(admin, service => service.SubmitAsync(requestId, new SubmitForApprovalCommand(), None));
+        await WorkflowAs(person, service => service.SubmitAsync(requestId, new SubmitForApprovalCommand(), None));
 
-        var inbox = await InboxAs(admin, new ApprovalInboxQuery(Search: tag));
+        var inbox = await InboxAs(person.As(BaxOrdersRoles.Manager), new ApprovalInboxQuery(Search: tag));
         var row = Assert.Single(inbox.Rows.Items);
 
         Assert.False(row.CanApprove);
         Assert.False(row.CanReturn);
         Assert.True(row.BlockedBySelfApproval);
         Assert.False(row.BlockedByOwnContribution);
+        Assert.False(row.BlockedByMissingAuthority);
         // The row is still shown, never hidden: the manager understands why nothing is offered.
         Assert.Equal(requestId, row.OrderRequestId);
     }
@@ -106,12 +108,20 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
 
         await WorkflowAs(coordinator, service => service.SubmitAsync(v2, new SubmitForApprovalCommand(), None));
 
-        var editorsView = await InboxAs(editingAdmin, new ApprovalInboxQuery(Search: tag));
+        // As the administrator they are, the missing authority is what they are told — it comes first (4.3).
+        var adminsView = Assert.Single((await InboxAs(editingAdmin, new ApprovalInboxQuery(Search: tag))).Rows.Items);
+        Assert.False(adminsView.CanApprove);
+        Assert.True(adminsView.BlockedByMissingAuthority);
+        Assert.False(adminsView.BlockedByOwnContribution);
+
+        // The same person made a Rəhbər is blocked by what they did to the correction.
+        var editorsView = await InboxAs(editingAdmin.As(BaxOrdersRoles.Manager), new ApprovalInboxQuery(Search: tag));
         var editorsRow = Assert.Single(editorsView.Rows.Items);
         Assert.False(editorsRow.CanApprove);
         Assert.False(editorsRow.CanReturn);
         Assert.False(editorsRow.BlockedBySelfApproval);
         Assert.True(editorsRow.BlockedByOwnContribution);
+        Assert.False(editorsRow.BlockedByMissingAuthority);
 
         var freshView = await InboxAs(freshManager, new ApprovalInboxQuery(Search: tag));
         var freshRow = Assert.Single(freshView.Rows.Items);
@@ -119,6 +129,7 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
         Assert.True(freshRow.CanReturn);
         Assert.False(freshRow.BlockedBySelfApproval);
         Assert.False(freshRow.BlockedByOwnContribution);
+        Assert.False(freshRow.BlockedByMissingAuthority);
     }
 
     [PostgresFact]
@@ -140,22 +151,34 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
     }
 
     [PostgresFact]
-    public async Task An_administrator_obeys_the_same_self_submission_block_as_a_manager()
+    public async Task An_administrator_sees_every_waiting_request_and_may_decide_none_of_them()
     {
+        // 4.3: an administrator holds no approval authority — neither on their own submission nor on anybody
+        // else's — and still sees the whole queue, with the reason on every row.
         var tag = Tag();
         var admin = await UserAsync(BaxOrdersRoles.Admin, "Sınaq administratoru A");
         var otherAdmin = await UserAsync(BaxOrdersRoles.Admin, "Sınaq administratoru B");
+        var coordinator = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru");
 
-        var requestId = await NewRequestAsync(tag);
-        await WorkflowAs(admin, service => service.SubmitAsync(requestId, new SubmitForApprovalCommand(), None));
+        var ownId = await NewRequestAsync(tag + "-own");
+        await WorkflowAs(admin, service => service.SubmitAsync(ownId, new SubmitForApprovalCommand(), None));
+        var othersId = await NewRequestAsync(tag + "-other");
+        await WorkflowAs(coordinator, service => service.SubmitAsync(othersId, new SubmitForApprovalCommand(), None));
 
-        var ownView = Assert.Single((await InboxAs(admin, new ApprovalInboxQuery(Search: tag))).Rows.Items);
-        Assert.False(ownView.CanApprove);
-        Assert.True(ownView.BlockedBySelfApproval);
+        foreach (var reader in new[] { admin, otherAdmin })
+        {
+            var rows = (await InboxAs(reader, new ApprovalInboxQuery(Search: tag))).Rows.Items;
 
-        var otherView = Assert.Single((await InboxAs(otherAdmin, new ApprovalInboxQuery(Search: tag))).Rows.Items);
-        Assert.True(otherView.CanApprove);
-        Assert.False(otherView.BlockedBySelfApproval);
+            Assert.Equal([ownId, othersId], rows.Select(row => row.OrderRequestId).Order());
+            Assert.All(rows, row =>
+            {
+                Assert.False(row.CanApprove);
+                Assert.False(row.CanReturn);
+                Assert.True(row.BlockedByMissingAuthority);
+                Assert.False(row.BlockedBySelfApproval);
+                Assert.False(row.BlockedByOwnContribution);
+            });
+        }
     }
 
     // ---- what each row reports --------------------------------------------------------------------------
@@ -315,22 +338,45 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
     public async Task The_actionability_filter_splits_what_can_be_decided_from_what_is_blocked()
     {
         var tag = Tag();
-        var admin = await UserAsync(BaxOrdersRoles.Admin, "Sınaq administratoru");
+        // A Rəhbər who once sent an order themselves, when they were a coordinator.
+        var person = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru, sonra rəhbər");
         var coordinator = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru");
+        var rehber = person.As(BaxOrdersRoles.Manager);
 
         var ownId = await NewRequestAsync(tag + "-own");
-        await WorkflowAs(admin, service => service.SubmitAsync(ownId, new SubmitForApprovalCommand(), None));
+        await WorkflowAs(person, service => service.SubmitAsync(ownId, new SubmitForApprovalCommand(), None));
 
         var othersId = await NewRequestAsync(tag + "-other");
         await WorkflowAs(coordinator, service => service.SubmitAsync(othersId, new SubmitForApprovalCommand(), None));
 
-        var canDecide = await InboxAs(admin, new ApprovalInboxQuery(Search: tag, Actionability: ApprovalActionability.CanDecide));
+        var canDecide = await InboxAs(rehber, new ApprovalInboxQuery(Search: tag, Actionability: ApprovalActionability.CanDecide));
         Assert.Contains(canDecide.Rows.Items, item => item.OrderRequestId == othersId);
         Assert.DoesNotContain(canDecide.Rows.Items, item => item.OrderRequestId == ownId);
 
-        var blocked = await InboxAs(admin, new ApprovalInboxQuery(Search: tag, Actionability: ApprovalActionability.BlockedForMe));
+        var blocked = await InboxAs(rehber, new ApprovalInboxQuery(Search: tag, Actionability: ApprovalActionability.BlockedForMe));
         Assert.Contains(blocked.Rows.Items, item => item.OrderRequestId == ownId);
         Assert.DoesNotContain(blocked.Rows.Items, item => item.OrderRequestId == othersId);
+    }
+
+    [PostgresFact]
+    public async Task For_an_administrator_everything_is_blocked_and_nothing_is_decidable()
+    {
+        var tag = Tag();
+        var admin = await UserAsync(BaxOrdersRoles.Admin, "Sınaq administratoru");
+        var coordinator = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru");
+
+        var requestId = await NewRequestAsync(tag);
+        await WorkflowAs(coordinator, service => service.SubmitAsync(requestId, new SubmitForApprovalCommand(), None));
+
+        Assert.Empty((await InboxAs(admin, new ApprovalInboxQuery(Search: tag, Actionability: ApprovalActionability.CanDecide))).Rows.Items);
+        Assert.Contains(
+            (await InboxAs(admin, new ApprovalInboxQuery(Search: tag, Actionability: ApprovalActionability.BlockedForMe))).Rows.Items,
+            item => item.OrderRequestId == requestId);
+
+        // The summary counts it as blocked for them too: the missing authority is part of "blocked for me".
+        var summary = (await InboxAs(admin, new ApprovalInboxQuery())).Summary;
+        Assert.Equal(0, summary.ActionableByCurrentUserCount);
+        Assert.Equal(summary.PendingCount, summary.BlockedForCurrentUserCount);
     }
 
     [PostgresFact]
@@ -501,7 +547,9 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
     public async Task The_summary_counts_the_whole_queue_not_the_page_and_not_the_filtered_view()
     {
         var tag = Tag();
-        var admin = await UserAsync(BaxOrdersRoles.Admin, "Sınaq administratoru");
+        // The reader: a Rəhbər who once sent an order themselves, as a coordinator.
+        var person = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru, sonra rəhbər");
+        var reader = person.As(BaxOrdersRoles.Manager);
         var coordinator = await UserAsync(BaxOrdersRoles.Coordinator, "Sınaq koordinatoru");
         var manager = await UserAsync(BaxOrdersRoles.Manager, "Sınaq rəhbəri");
 
@@ -509,14 +557,14 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
         // any of this test's own rows exist.
         var before = (await InboxAs(manager, new ApprovalInboxQuery(PageSize: 1))).Summary;
 
-        // Two ordinary, decidable requests; one the admin submitted (blocked for the admin only); one with a
+        // Two ordinary, decidable requests; one the reader submitted (blocked for the reader only); one with a
         // missing price; one a revision.
         var ordinary1 = await NewRequestAsync(tag + "-1", unitPrice: 2m);
         var ordinary2 = await NewRequestAsync(tag + "-2", unitPrice: null);
         var ownId = await NewRequestAsync(tag + "-own");
         await WorkflowAs(coordinator, service => service.SubmitAsync(ordinary1, new SubmitForApprovalCommand(), None));
         await WorkflowAs(coordinator, service => service.SubmitAsync(ordinary2, new SubmitForApprovalCommand(), None));
-        await WorkflowAs(admin, service => service.SubmitAsync(ownId, new SubmitForApprovalCommand(), None));
+        await WorkflowAs(person, service => service.SubmitAsync(ownId, new SubmitForApprovalCommand(), None));
 
         var v1 = await NewRequestAsync(tag + "-rev");
         await WorkflowAs(coordinator, service => service.SubmitAsync(v1, new SubmitForApprovalCommand(), None));
@@ -524,9 +572,9 @@ public sealed class ApprovalInboxTests(PostgresDatabaseFixture database)
         var created = await RevisingAs(coordinator, service => service.CreateAsync(v1, None));
         await WorkflowAs(coordinator, service => service.SubmitAsync(created.OrderRequestId, new SubmitForApprovalCommand(), None));
 
-        // Read as the admin, who is blocked on exactly one of these four new rows.
-        var afterFullPage = (await InboxAs(admin, new ApprovalInboxQuery(PageSize: 1))).Summary;
-        var afterFiltered = (await InboxAs(admin, new ApprovalInboxQuery(Search: $"heç-uyğun-gəlmir-{tag}"))).Summary;
+        // Read as the reader, who is blocked on exactly one of these four new rows.
+        var afterFullPage = (await InboxAs(reader, new ApprovalInboxQuery(PageSize: 1))).Summary;
+        var afterFiltered = (await InboxAs(reader, new ApprovalInboxQuery(Search: $"heç-uyğun-gəlmir-{tag}"))).Summary;
 
         Assert.Equal(4, afterFullPage.PendingCount - before.PendingCount);
         Assert.Equal(3, afterFullPage.ActionableByCurrentUserCount - before.ActionableByCurrentUserCount);

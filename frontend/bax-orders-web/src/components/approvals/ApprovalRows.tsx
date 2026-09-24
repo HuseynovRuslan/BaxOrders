@@ -5,7 +5,7 @@ import { ApiError } from '../../api/client'
 import { approveOrder, fetchWorkflow, returnForCorrection, type OrderWorkflow } from '../../api/workflow'
 import { formatCount, formatMonth, formatMoney } from '../analytics/format'
 import { WorkflowDialog, type WorkflowDialogKind } from '../workflow/WorkflowDialog'
-import { approveLabel, formatWorkflowMoment, returnLabel, workflowErrors } from '../workflow/labels'
+import { approveLabel, formatWorkflowMoment, missingAuthorityNote, returnLabel, workflowErrors } from '../workflow/labels'
 import {
   knownAmountRowLabel,
   missingPriceRowNote,
@@ -211,6 +211,13 @@ function RevisionBadge({ row }: { row: ApprovalInboxRow }) {
 }
 
 function Status({ row }: { row: ApprovalInboxRow }) {
+  // No approval authority comes first: it is the reason for every row, whoever sent it.
+  if (row.blockedByMissingAuthority) {
+    return (
+      <p className="text-xs text-slate-600" role="status">{missingAuthorityNote}</p>
+    )
+  }
+
   if (row.blockedBySelfApproval) {
     return (
       <p className="text-xs text-slate-600" role="status">{selfApprovalBlockedRowNote}</p>

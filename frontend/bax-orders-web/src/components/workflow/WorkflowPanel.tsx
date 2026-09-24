@@ -1,28 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   approveOrder,
   fetchWorkflow,
   returnForCorrection,
   submitForApproval,
   type OrderWorkflow,
+  type WorkflowDecisionEvent,
+  type WorkflowDecisionFacts,
 } from '../../api/workflow'
-import { formatCount, formatMoney, unknownValue } from '../analytics/format'
+import { systemActorLabel } from '../../auth/labels'
+import { formatCount, formatMoney } from '../analytics/format'
 import { WorkflowDialog, type WorkflowDialogKind } from './WorkflowDialog'
 import { WorkflowHistory } from './WorkflowHistory'
 import {
   approveLabel,
+  decisionFactLabels,
   formatWorkflowMoment,
+  historicalImportNote,
+  missingAuthorityNote,
   missingPriceNote,
-  momentsNotRecordedNote,
   notSubmittedYetNote,
   ownContributionBlockedNote,
   resubmitLabel,
   returnLabel,
   selfApprovalBlockedNote,
+  submissionCountLabel,
   submitLabel,
-  workflowStatusClass,
-  workflowStatusLabels,
-  workflowStatusSign,
 } from './labels'
 
 interface WorkflowPanelProps {
@@ -33,12 +36,17 @@ interface WorkflowPanelProps {
 }
 
 /**
- * Where a request stands, what may be done to it now, and everything that has been done to it.
+ * The decision: what may be done to a request now, and what the person deciding needs to know first.
+ * <para>
+ * The buttons come first, so nobody has to look for them. Then, at most one reason why none is offered, and
+ * then the facts — who sent it, when, which time, what the last correction request said, who decided. The
+ * status is not repeated here: the page header says it once.
+ * </para>
  * <para>
  * Which buttons appear is the server's answer, not this component's opinion: the state, the signed-in
- * person's role and whether this is their own submission all fold into <c>allowedActions</c>, and the
- * endpoint checks the same rules again when the action is taken. Nothing here edits an order: a returned
- * request is put right by creating its correction version, which the revision panel offers.
+ * person's approval authority and whether this is their own submission all fold into <c>allowedActions</c>,
+ * and the endpoint checks the same rules again when the action is taken. The facts are the server's too, read
+ * off the recorded events; nothing here fills a gap with a name or a date.
  * </para>
  */
 export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = true }: WorkflowPanelProps) {
@@ -85,25 +93,21 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
   }
 
   const { allowedActions: allowed } = workflow
+  const hasActions = allowed.canSubmit || allowed.canApprove || allowed.canReturn
 
-  // A request that has genuinely not been sent yet, as opposed to one whose moments were never recorded.
-  const waitingToBeSent = workflow.status === 'Draft' || workflow.status === 'ReturnedForCorrection'
+  // One reason at most, in the order the server reports them: no authority at all comes first.
+  const blockedNote = allowed.blockedByMissingAuthority
+    ? missingAuthorityNote
+    : allowed.blockedBySelfApproval
+      ? selfApprovalBlockedNote
+      : allowed.blockedByOwnContribution
+        ? ownContributionBlockedNote
+        : null
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium ring-1 ring-inset ${workflowStatusClass[workflow.status]}`}
-        >
-          <span aria-hidden="true">{workflowStatusSign[workflow.status]}</span>
-          {workflowStatusLabels[workflow.status]}
-        </span>
-
-        {workflow.missingPriceItemCount > 0 && (
-          <span className="text-xs text-amber-800">{missingPriceNote(workflow.missingPriceItemCount)}</span>
-        )}
-
-        <span className="ml-auto flex flex-wrap gap-2">
+    <section className="rounded-lg border border-slate-200 bg-white p-4" aria-label="Qərar">
+      {hasActions && (
+        <div className="flex flex-wrap gap-2">
           {allowed.canSubmit && (
             <button
               type="button"
@@ -131,20 +135,30 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
               {returnLabel}
             </button>
           )}
-        </span>
+        </div>
+      )}
+
+      {blockedNote && (
+        <p
+          className={`${hasActions ? 'mt-3 ' : ''}rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700`}
+          role="status"
+        >
+          {blockedNote}
+        </p>
+      )}
+
+      <div className={hasActions || blockedNote ? 'mt-3' : undefined}>
+        <DecisionFacts workflow={workflow} />
       </div>
 
-      {allowed.blockedBySelfApproval && (
-        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700" role="status">
-          {selfApprovalBlockedNote}
-        </p>
+      {workflow.missingPriceItemCount > 0 && (
+        <p className="mt-3 text-xs text-amber-800">{missingPriceNote(workflow.missingPriceItemCount)}</p>
       )}
 
-      {allowed.blockedByOwnContribution && (
-        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700" role="status">
-          {ownContributionBlockedNote}
-        </p>
-      )}
+      <p className="mt-1 text-xs text-slate-500">
+        {workflow.amountIsComplete ? 'Məbləğ' : 'Məlum qiymətlər üzrə məbləğ'}:{' '}
+        {formatMoney(workflow.knownAmountTotal)} · {formatCount(workflow.itemCount)} sətir
+      </p>
 
       {workflow.status === 'ReturnedForCorrection' && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
@@ -161,23 +175,6 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
         </div>
       )}
 
-      <p className="mt-3 text-xs text-slate-500">
-        {workflow.amountIsComplete ? 'Məbləğ' : 'Məlum qiymətlər üzrə məbləğ'}:{' '}
-        {formatMoney(workflow.knownAmountTotal)} · {formatCount(workflow.itemCount)} sətir
-        {workflow.submittedAtUtc && <> · Təqdim: {formatWorkflowMoment(workflow.submittedAtUtc)}</>}
-        {workflow.approvedAtUtc && <> · Təsdiq: {formatWorkflowMoment(workflow.approvedAtUtc)}</>}
-        {/*
-          Two different silences. A request nobody has sent has no moments because nothing has happened to it
-          yet. One carried in from before this system has none because its real approval was never recorded —
-          and calling that one "hələ təqdim olunmayıb" would contradict the Təsdiqlənib badge above it.
-        */}
-        {!workflow.submittedAtUtc && !workflow.approvedAtUtc && (
-          waitingToBeSent
-            ? <> · {notSubmittedYetNote} {unknownValue}</>
-            : <> · {momentsNotRecordedNote}</>
-        )}
-      </p>
-
       {dialog && (
         <WorkflowDialog
           kind={dialog}
@@ -188,4 +185,84 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
       )}
     </section>
   )
+}
+
+/**
+ * Who sent it, when, which time, the last correction request, and who decided — whatever of that was
+ * recorded, and nothing that was not.
+ */
+function DecisionFacts({ workflow }: { workflow: OrderWorkflow }) {
+  const facts = workflow.decisionFacts
+
+  // 4.1: an order carried in from Excel says exactly this, and nothing about who sent or approved it.
+  if (facts.isHistoricalImport) {
+    return <p className="text-sm text-slate-700">{historicalImportNote}</p>
+  }
+
+  const decision = facts.decision
+  const decided =
+    decision?.action === 'Approved' ? (
+      <>
+        <Fact label={decisionFactLabels.approvedBy}>{actorName(decision)}</Fact>
+        <Fact label={decisionFactLabels.approvedAt}>{formatWorkflowMoment(decision.occurredAtUtc)}</Fact>
+      </>
+    ) : decision?.action === 'ReturnedForCorrection' ? (
+      <>
+        <Fact label={decisionFactLabels.returnedBy}>{actorName(decision)}</Fact>
+        <Fact label={decisionFactLabels.returnedAt}>{formatWorkflowMoment(decision.occurredAtUtc)}</Fact>
+        <Fact label={decisionFactLabels.reason}>{decision.reason}</Fact>
+      </>
+    ) : null
+
+  return (
+    <dl className="space-y-1.5 text-xs">
+      {decided}
+      {decided && facts.submissionNumber > 0 && <div className="border-t border-slate-100" aria-hidden="true" />}
+      <SubmissionFacts facts={facts} />
+    </dl>
+  )
+}
+
+function SubmissionFacts({ facts }: { facts: WorkflowDecisionFacts }) {
+  const previous = facts.previousReturn
+
+  return (
+    <>
+      {facts.submissionNumber === 0 ? (
+        <Fact label={decisionFactLabels.submission}>{notSubmittedYetNote}</Fact>
+      ) : (
+        <>
+          <Fact label={decisionFactLabels.submittedBy}>{facts.submittedByDisplayName || systemActorLabel}</Fact>
+          {facts.submittedAtUtc && (
+            <Fact label={decisionFactLabels.submittedAt}>{formatWorkflowMoment(facts.submittedAtUtc)}</Fact>
+          )}
+          <Fact label={decisionFactLabels.submission}>
+            {submissionCountLabel(facts.submissionNumber, previous !== null)}
+          </Fact>
+        </>
+      )}
+      {previous && (
+        <Fact label={decisionFactLabels.previousReturn}>
+          <span className="block">{previous.reason}</span>
+          <span className="block text-slate-500">
+            {actorName(previous)} · {formatWorkflowMoment(previous.occurredAtUtc)}
+          </span>
+        </Fact>
+      )}
+    </>
+  )
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[8.5rem_1fr] gap-2">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="min-w-0 break-words text-slate-900">{children}</dd>
+    </div>
+  )
+}
+
+/** The name as it was recorded; an event with nobody behind it is the system's. */
+function actorName(event: WorkflowDecisionEvent): string {
+  return event.actorDisplayName || systemActorLabel
 }

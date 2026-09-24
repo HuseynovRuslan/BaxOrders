@@ -12,6 +12,11 @@ public sealed record UserDto(
 
 /// <summary>Who is signed in, as the browser is told.</summary>
 /// <param name="IsAuthenticated">False for an anonymous caller; everything else is then null.</param>
+/// <param name="CanDecideOrders">Whether they hold approval authority. Only the Rəhbər role does.</param>
+/// <param name="CanViewApprovals">
+/// Whether they may open the queue of orders waiting for a decision — wider than deciding: an administrator
+/// sees the queue without the authority to act on it.
+/// </param>
 public sealed record CurrentUserDto(
     bool IsAuthenticated,
     Guid? UserId,
@@ -22,7 +27,12 @@ public sealed record CurrentUserDto(
     bool CanSubmitOrders,
     bool CanDecideOrders,
     bool CanManageUsers,
-    bool CanManageCatalog);
+    bool CanManageCatalog,
+    bool CanViewApprovals);
+
+/// <summary>Whether anybody can approve an order right now.</summary>
+/// <param name="ActiveApproverCount">Active users whose role holds approval authority. Zero means nobody can approve.</param>
+public sealed record ApprovalAuthorityStatusDto(int ActiveApproverCount);
 
 public sealed record CreateUserCommand(string UserName, string DisplayName, string Role, string Password);
 

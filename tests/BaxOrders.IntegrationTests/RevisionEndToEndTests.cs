@@ -247,10 +247,14 @@ public sealed class RevisionEndToEndTests(PostgresDatabaseFixture database) : IA
         await ExpectAsync(HttpStatusCode.OK,
             AuthenticatedApi.PostAsync(world.Coordinator.Client, $"/api/v1/orders/{v2}/workflow/submit", new { }));
 
-        // The screen would not offer it, and the endpoint refuses it anyway.
+        // The screen would not offer it, and the endpoint refuses it anyway. Over HTTP only an administrator
+        // (or a coordinator) can edit a correction, and since 4.3 an administrator decides nothing: the missing
+        // authority is the reason given, and the policy refuses with 403 before any business rule is reached.
+        // The own-contribution rule itself is proved for a Rəhbər at the service and in the domain.
         var offered = await WorkflowAsync(editingAdmin.Client, v2);
         Assert.False(offered.AllowedActions.CanApprove);
-        Assert.True(offered.AllowedActions.BlockedByOwnContribution);
+        Assert.True(offered.AllowedActions.BlockedByMissingAuthority);
+        Assert.False(offered.AllowedActions.BlockedByOwnContribution);
         Assert.False(offered.AllowedActions.BlockedBySelfApproval);
 
         var ownApproval = await AuthenticatedApi.PostAsync(editingAdmin.Client,
@@ -258,9 +262,8 @@ public sealed class RevisionEndToEndTests(PostgresDatabaseFixture database) : IA
         var ownReturn = await AuthenticatedApi.PostAsync(editingAdmin.Client,
             $"/api/v1/orders/{v2}/workflow/return", new { reason = "Yenidən bax" });
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownApproval.StatusCode);
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownReturn.StatusCode);
-        Assert.Contains("OwnContributionNotApprovable", await ownApproval.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Forbidden, ownApproval.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, ownReturn.StatusCode);
 
         // Somebody who touched nothing still decides.
         var free = await WorkflowAsync(freshManager.Client, v2);
@@ -280,9 +283,12 @@ public sealed class RevisionEndToEndTests(PostgresDatabaseFixture database) : IA
 
         await ExpectAsync(HttpStatusCode.OK, AuthenticatedApi.PostAsync(admin.Client, $"/api/v1/orders/{v2}/workflow/submit", new { }));
 
+        // 4.3: refused for holding no approval authority, which is reported before the self-submission.
         var ownApproval = await AuthenticatedApi.PostAsync(admin.Client, $"/api/v1/orders/{v2}/workflow/approve", new { acknowledgeMissingPrices = true });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownApproval.StatusCode);
-        Assert.True((await WorkflowAsync(admin.Client, v2)).AllowedActions.BlockedBySelfApproval);
+        Assert.Equal(HttpStatusCode.Forbidden, ownApproval.StatusCode);
+        var offered = (await WorkflowAsync(admin.Client, v2)).AllowedActions;
+        Assert.True(offered.BlockedByMissingAuthority);
+        Assert.False(offered.BlockedBySelfApproval);
     }
 
     // ---- the contract --------------------------------------------------------------------------------

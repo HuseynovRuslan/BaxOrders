@@ -167,6 +167,7 @@ function emptyWorkflow(): OrderWorkflow {
       canReturn: false,
       blockedBySelfApproval: false,
       blockedByOwnContribution: false,
+      blockedByMissingAuthority: false,
     },
     submittedByUserId: null,
     submittedAtUtc: null,
@@ -179,6 +180,14 @@ function emptyWorkflow(): OrderWorkflow {
     amountIsComplete: true,
     requiresMissingPriceAcknowledgement: false,
     history: [],
+    decisionFacts: {
+      isHistoricalImport: false,
+      submissionNumber: 0,
+      submittedByDisplayName: null,
+      submittedAtUtc: null,
+      previousReturn: null,
+      decision: null,
+    },
   }
 }
 

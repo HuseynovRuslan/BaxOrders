@@ -537,7 +537,12 @@ public sealed class OrderRevisionTests(PostgresDatabaseFixture database)
 
         await WorkflowAs(admin, service => service.SubmitAsync(v2, new SubmitForApprovalCommand(), None));
 
-        await Assert.ThrowsAsync<SelfApprovalNotAllowedException>(() => WorkflowAs(admin, service =>
+        // 4.3: as an administrator they hold no approval authority at all, and the service refuses that first.
+        await Assert.ThrowsAsync<ForbiddenException>(() => WorkflowAs(admin, service =>
+            service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
+
+        // Made a Rəhbər, they would hold it — and it is their own submission that stops them then.
+        await Assert.ThrowsAsync<SelfApprovalNotAllowedException>(() => WorkflowAs(admin.As(BaxOrdersRoles.Manager), service =>
             service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
     }
 
@@ -553,14 +558,22 @@ public sealed class OrderRevisionTests(PostgresDatabaseFixture database)
         await EditAsync(admin, v2, await LineAsync(v2, quantity: 10m), new(null, Quantity: new(11m)));
         await WorkflowAs(world.Coordinator, service => service.SubmitAsync(v2, new SubmitForApprovalCommand(), None));
 
-        // The administrator edited it, so deciding on it is no longer a second pair of eyes.
-        await Assert.ThrowsAsync<OwnContributionNotApprovableException>(() => WorkflowAs(admin, service =>
+        // The administrator edited it, so deciding on it is no longer a second pair of eyes — shown on the same
+        // person made a Rəhbər, because as an administrator they hold no approval authority at all (4.3).
+        var editorAsRehber = admin.As(BaxOrdersRoles.Manager);
+        await Assert.ThrowsAsync<OwnContributionNotApprovableException>(() => WorkflowAs(editorAsRehber, service =>
             service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
-        await Assert.ThrowsAsync<OwnContributionNotApprovableException>(() => WorkflowAs(admin, service =>
+        await Assert.ThrowsAsync<OwnContributionNotApprovableException>(() => WorkflowAs(editorAsRehber, service =>
             service.ReturnAsync(v2, new ReturnForCorrectionCommand("Fikrimi dəyişdim"), None)));
 
-        var blocked = (await WorkflowAs(admin, service => service.GetAsync(v2, None)))!;
+        var blocked = (await WorkflowAs(editorAsRehber, service => service.GetAsync(v2, None)))!;
         Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, false, true), blocked.AllowedActions);
+
+        // As the administrator they are, they are refused for the missing authority, and told so.
+        await Assert.ThrowsAsync<ForbiddenException>(() => WorkflowAs(admin, service =>
+            service.ApproveAsync(v2, new ApproveOrderCommand(AcknowledgeMissingPrices: true), None)));
+        var asAdmin = (await WorkflowAs(admin, service => service.GetAsync(v2, None)))!;
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, BlockedByMissingAuthority: true), asAdmin.AllowedActions);
 
         // The coordinator who created and submitted it is offered nothing, and is told no reason: a
         // coordinator never decides, so there is no decision for either rule to be blocking.

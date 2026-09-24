@@ -270,40 +270,81 @@ public sealed class OrderWorkflowTests
 
     [Theory]
     // A draft: whoever may submit, may send it. A manager has nothing to do with it yet.
-    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Coordinator, true, false, false)]
-    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Manager, false, false, false)]
-    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Admin, true, false, false)]
-    // Waiting: the decision is the manager's, and the coordinator who sent it has no say.
-    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Coordinator, false, false, false)]
-    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Manager, false, true, true)]
-    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Admin, false, true, true)]
+    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Coordinator, true, false, false, false)]
+    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Manager, false, false, false, false)]
+    [InlineData(OrderRequestStatus.Draft, BaxOrdersRoles.Admin, true, false, false, false)]
+    // Waiting: the decision is the Rəhbər's alone. An administrator holds no approval authority either (4.3),
+    // and — seeing the queue — is told that is why nothing is offered. A coordinator was never expected to
+    // decide, and is told nothing.
+    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Coordinator, false, false, false, false)]
+    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Manager, false, true, true, false)]
+    [InlineData(OrderRequestStatus.PendingApproval, BaxOrdersRoles.Admin, false, false, false, true)]
     // Returned: back with whoever submits.
-    [InlineData(OrderRequestStatus.ReturnedForCorrection, BaxOrdersRoles.Coordinator, true, false, false)]
-    [InlineData(OrderRequestStatus.ReturnedForCorrection, BaxOrdersRoles.Manager, false, false, false)]
+    [InlineData(OrderRequestStatus.ReturnedForCorrection, BaxOrdersRoles.Coordinator, true, false, false, false)]
+    [InlineData(OrderRequestStatus.ReturnedForCorrection, BaxOrdersRoles.Manager, false, false, false, false)]
     // Approved: nothing, for anybody.
-    [InlineData(OrderRequestStatus.Approved, BaxOrdersRoles.Admin, false, false, false)]
+    [InlineData(OrderRequestStatus.Approved, BaxOrdersRoles.Admin, false, false, false, false)]
+    [InlineData(OrderRequestStatus.Approved, BaxOrdersRoles.Manager, false, false, false, false)]
     public void What_a_role_may_do_in_a_state(
-        OrderRequestStatus status, string role, bool submit, bool approve, bool @return)
+        OrderRequestStatus status, string role, bool submit, bool approve, bool @return, bool missingAuthority)
     {
         var somebodyElse = Guid.NewGuid();
         var allowed = AllowedWorkflowActionsDto.For(status, somebodyElse, User(role, Guid.NewGuid()));
 
         Assert.Equal((submit, approve, @return), (allowed.CanSubmit, allowed.CanApprove, allowed.CanReturn));
+        Assert.Equal(missingAuthority, allowed.BlockedByMissingAuthority);
         Assert.False(allowed.BlockedBySelfApproval);
+        Assert.False(allowed.BlockedByOwnContribution);
     }
 
-    [Theory]
-    [InlineData(BaxOrdersRoles.Manager)]
-    [InlineData(BaxOrdersRoles.Admin)]
-    public void Nobody_may_decide_on_what_they_submitted_themselves(string role)
+    [Fact]
+    public void A_manager_may_not_decide_on_what_they_submitted_themselves()
     {
-        // The role says yes and the state says yes; being the submitter is what stops it.
+        // The authority says yes and the state says yes; being the submitter is what stops it.
         var me = Guid.NewGuid();
-        var allowed = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, me, User(role, me));
+        var allowed = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, me, User(BaxOrdersRoles.Manager, me));
 
         Assert.False(allowed.CanApprove);
         Assert.False(allowed.CanReturn);
         Assert.True(allowed.BlockedBySelfApproval);
+        Assert.False(allowed.BlockedByMissingAuthority);
+    }
+
+    [Fact]
+    public void A_manager_may_not_decide_on_a_correction_they_worked_on()
+    {
+        var allowed = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, Guid.NewGuid(), User(BaxOrdersRoles.Manager, Guid.NewGuid()), contributedEdits: true);
+
+        Assert.False(allowed.CanApprove);
+        Assert.True(allowed.BlockedByOwnContribution);
+        Assert.False(allowed.BlockedByMissingAuthority);
+    }
+
+    [Fact]
+    public void Missing_authority_is_the_reason_given_before_self_approval_and_own_contribution()
+    {
+        // An administrator who may approve nothing is told that — not that it happens to be their own
+        // submission, or a correction they edited. The other two reasons only matter to somebody who holds the
+        // authority.
+        var me = Guid.NewGuid();
+        var allowed = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, me, User(BaxOrdersRoles.Admin, me), contributedEdits: true);
+
+        Assert.Equal((false, false), (allowed.CanApprove, allowed.CanReturn));
+        Assert.True(allowed.BlockedByMissingAuthority);
+        Assert.False(allowed.BlockedBySelfApproval);
+        Assert.False(allowed.BlockedByOwnContribution);
+    }
+
+    [Fact]
+    public void A_coordinator_is_offered_no_decision_and_told_no_reason_even_on_their_own_submission()
+    {
+        var me = Guid.NewGuid();
+        var allowed = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, me, User(BaxOrdersRoles.Coordinator, me), contributedEdits: true);
+
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false), allowed);
     }
 
     [Fact]
@@ -312,6 +353,38 @@ public sealed class OrderWorkflowTests
         var allowed = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, null, User(null, null));
 
         Assert.Equal((false, false, false), (allowed.CanSubmit, allowed.CanApprove, allowed.CanReturn));
+        Assert.False(allowed.BlockedByMissingAuthority);
+    }
+
+    // ---- who holds approval authority ----------------------------------------------------------------
+
+    [Fact]
+    public void Only_the_manager_role_holds_approval_authority()
+    {
+        Assert.True(ApprovalAuthority.IsHeldBy(BaxOrdersRoles.Manager));
+    }
+
+    [Theory]
+    [InlineData(BaxOrdersRoles.Admin)]
+    [InlineData(BaxOrdersRoles.Coordinator)]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("manager")]
+    [InlineData("SuperUser")]
+    public void No_other_role_holds_approval_authority_an_administrator_included(string? role)
+    {
+        // 4.3: being an administrator does not make somebody an approver.
+        Assert.False(ApprovalAuthority.IsHeldBy(role));
+    }
+
+    [Theory]
+    [InlineData(BaxOrdersRoles.Manager, true)]
+    [InlineData(BaxOrdersRoles.Admin, true)]
+    [InlineData(BaxOrdersRoles.Coordinator, false)]
+    [InlineData(null, false)]
+    public void The_approval_queue_is_seen_by_the_approver_and_by_an_administrator(string? role, bool mayView)
+    {
+        Assert.Equal(mayView, ApprovalAuthority.MayViewQueue(role));
     }
 
     private static ICurrentUserContext User(string? role, Guid? userId) => new StubUser(role, userId);

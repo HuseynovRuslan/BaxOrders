@@ -37,9 +37,11 @@ function person(role: BaxOrdersRole, overrides: Partial<CurrentUser> = {}): Curr
     role,
     canManageImports: role !== 'Manager',
     canSubmitOrders: role !== 'Manager',
-    canDecideOrders: role !== 'Coordinator',
+    // Only the Rəhbər holds approval authority (4.3); an administrator sees the queue without it.
+    canDecideOrders: role === 'Manager',
     canManageUsers: role === 'Admin',
     canManageCatalog: role !== 'Manager',
+    canViewApprovals: role !== 'Coordinator',
     ...overrides,
   }
 }
@@ -55,6 +57,7 @@ const anonymous: CurrentUser = {
   canDecideOrders: false,
   canManageUsers: false,
   canManageCatalog: false,
+  canViewApprovals: false,
 }
 
 beforeEach(() => {
@@ -87,7 +90,7 @@ function renderApp(initialPath = '/orders') {
             <Route element={<RequirePermission permission="canManageUsers" />}>
               <Route path="/admin/users" element={<h1>İstifadəçilər</h1>} />
             </Route>
-            <Route element={<RequirePermission permission="canDecideOrders" />}>
+            <Route element={<RequirePermission permission="canViewApprovals" />}>
               <Route path="/approvals" element={<h1>Təsdiq gözləyənlər</h1>} />
             </Route>
           </Route>
@@ -190,6 +193,13 @@ describe('the guard in front of the operational screens', () => {
 
   it('opens the approval inbox for an administrator too', async () => {
     authApi.fetchCurrentUser.mockResolvedValue(person('Admin'))
+    renderApp('/approvals')
+
+    expect(await screen.findByRole('heading', { name: 'Təsdiq gözləyənlər' })).toBeInTheDocument()
+  })
+
+  it('opens it on seeing the queue, not on deciding: an administrator without approval authority still gets it', async () => {
+    authApi.fetchCurrentUser.mockResolvedValue(person('Admin', { canDecideOrders: false, canViewApprovals: true }))
     renderApp('/approvals')
 
     expect(await screen.findByRole('heading', { name: 'Təsdiq gözləyənlər' })).toBeInTheDocument()
@@ -307,8 +317,8 @@ describe('the navigation', () => {
     expect(screen.getByRole('link', { name: /Təsdiq gözləyənlər/ })).toBeInTheDocument()
   })
 
-  it('offers the approval inbox to an administrator', async () => {
-    await renderSidebar(person('Admin'))
+  it('offers the approval inbox to an administrator, who sees it without approval authority', async () => {
+    await renderSidebar(person('Admin', { canDecideOrders: false, canViewApprovals: true }))
     expect(screen.getByRole('link', { name: /Təsdiq gözləyənlər/ })).toBeInTheDocument()
   })
 

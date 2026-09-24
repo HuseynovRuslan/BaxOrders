@@ -42,8 +42,9 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         var history = await HistoryAsync(orderRequestId, cancellationToken);
         var correction = await CorrectionOfAsync(orderRequestId, cancellationToken);
         var contributed = await ContributedAsync(orderRequestId, cancellationToken);
+        var facts = await DecisionFactsAsync(request, history, cancellationToken);
 
-        return Describe(request, totals, history, superseded: correction is not null, contributedEdits: contributed);
+        return Describe(request, totals, history, facts, superseded: correction is not null, contributedEdits: contributed);
     }
 
     public Task<OrderWorkflowDto> SubmitAsync(
@@ -61,6 +62,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         long orderRequestId, ApproveOrderCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        EnsureApprovalAuthority();
 
         return TransitionAsync(
             orderRequestId,
@@ -73,6 +75,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         long orderRequestId, ReturnForCorrectionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        EnsureApprovalAuthority();
 
         return TransitionAsync(
             orderRequestId,
@@ -82,6 +85,19 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
 
     /// <summary>The person acting, from the session and from nowhere else.</summary>
     private WorkflowActor Actor() => CurrentActor.Of(currentUser, "You must be signed in to act on an order.");
+
+    /// <summary>
+    /// Deciding needs approval authority, whoever calls this. The endpoint policy asks the same question, but
+    /// a service reached from anywhere else has to refuse on its own — and does so before it reads anything.
+    /// </summary>
+    private void EnsureApprovalAuthority()
+    {
+        if (!ApprovalAuthority.IsHeldBy(currentUser.Role))
+        {
+            throw new ForbiddenException(
+                "Only a user whose role holds approval authority (Rəhbər) may approve an order or ask for its correction.");
+        }
+    }
 
     private async Task<OrderWorkflowDto> TransitionAsync(
         long orderRequestId, Action<OrderRequest> transition, CancellationToken cancellationToken)
@@ -130,8 +146,41 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
         var totals = await TotalsAsync(orderRequestId, cancellationToken);
         var history = await HistoryAsync(orderRequestId, cancellationToken);
         var contributed = await ContributedAsync(orderRequestId, cancellationToken);
+        var facts = await DecisionFactsAsync(request, history, cancellationToken);
 
-        return Describe(request, totals, history, superseded: false, contributedEdits: contributed);
+        return Describe(request, totals, history, facts, superseded: false, contributedEdits: contributed);
+    }
+
+    /// <summary>
+    /// The decision facts of one request, from its own events and those of every version it corrects.
+    /// </summary>
+    /// <remarks>
+    /// Two queries whatever the length of the chain: the revision links of this location's month, walked in
+    /// memory, and the events of the earlier versions together. Only a revision link makes a version part of
+    /// the chain — a new version made by a second import is not a correction, and starts its own count.
+    /// </remarks>
+    private async Task<WorkflowDecisionFactsDto> DecisionFactsAsync(
+        OrderRequest request, IReadOnlyList<WorkflowEventDto> history, CancellationToken cancellationToken)
+    {
+        var links = await db.OrderRequestRevisions.AsNoTracking()
+            .Where(revision => revision.RevisionOrderRequest.LocationId == request.LocationId
+                && revision.RevisionOrderRequest.RequestPeriod == request.RequestPeriod)
+            .Select(revision => new { revision.RevisionOrderRequestId, revision.SourceOrderRequestId })
+            .ToDictionaryAsync(revision => revision.RevisionOrderRequestId, revision => revision.SourceOrderRequestId, cancellationToken);
+
+        var earlier = new List<long>();
+        for (var current = request.Id; links.TryGetValue(current, out var source) && !earlier.Contains(source); current = source)
+        {
+            earlier.Add(source);
+        }
+
+        List<WorkflowEventDto> earlierHistory = earlier.Count == 0
+            ? []
+            : await EventsOf(db.OrderRequestWorkflowEvents.AsNoTracking()
+                    .Where(workflowEvent => earlier.Contains(workflowEvent.OrderRequestId)))
+                .ToListAsync(cancellationToken);
+
+        return WorkflowDecisionFactsDto.Compute(request.Status, history, earlierHistory);
     }
 
     /// <summary>Whether the signed-in person appears in this request's edit history.</summary>
@@ -177,8 +226,13 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
     }
 
     private async Task<List<WorkflowEventDto>> HistoryAsync(long orderRequestId, CancellationToken cancellationToken) =>
-        await db.OrderRequestWorkflowEvents.AsNoTracking()
-            .Where(workflowEvent => workflowEvent.OrderRequestId == orderRequestId)
+        await EventsOf(db.OrderRequestWorkflowEvents.AsNoTracking()
+                .Where(workflowEvent => workflowEvent.OrderRequestId == orderRequestId))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>Oldest first, so it reads as the story of the request.</summary>
+    private static IQueryable<WorkflowEventDto> EventsOf(IQueryable<OrderRequestWorkflowEvent> events) =>
+        events
             .OrderBy(workflowEvent => workflowEvent.OccurredAtUtc)
             .ThenBy(workflowEvent => workflowEvent.Id)
             .Select(workflowEvent => new WorkflowEventDto(
@@ -191,13 +245,13 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
                 workflowEvent.Comment,
                 workflowEvent.MissingPriceItemCount,
                 workflowEvent.MissingPricesAcknowledged,
-                workflowEvent.OccurredAtUtc))
-            .ToListAsync(cancellationToken);
+                workflowEvent.OccurredAtUtc));
 
     private OrderWorkflowDto Describe(
         OrderRequest request,
         WorkflowTotals totals,
         IReadOnlyList<WorkflowEventDto> history,
+        WorkflowDecisionFactsDto facts,
         bool superseded,
         bool contributedEdits) =>
         new(request.Id,
@@ -219,7 +273,8 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             // Complete means nothing is owed, not that every line carries a price.
             totals.MissingRequiredPriceItemCount == 0,
             totals.MissingRequiredPriceItemCount > 0,
-            history);
+            history,
+            facts);
 
     /// <param name="MissingRequiredPriceItemCount">Lines somebody owes a price for — the approval question.</param>
     /// <param name="PriceNotRequiredItemCount">Lines issued from the company's own store, complete as they are.</param>

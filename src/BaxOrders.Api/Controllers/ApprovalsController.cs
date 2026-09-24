@@ -10,10 +10,14 @@ namespace BaxOrders.Api.Controllers;
 /// Every permanent request waiting for a decision. Read-only — the actions themselves are the existing
 /// workflow endpoints, and this page only says which of them apply to which request.
 /// </summary>
+/// <remarks>
+/// Open to whoever may look at the queue, which is wider than whoever may decide: an administrator sees it
+/// and is told, row by row, that the decision is not theirs.
+/// </remarks>
 [ApiController]
 [Route(ApiRoutes.V1 + "/approvals")]
 [Produces("application/json")]
-[Authorize(Policy = BaxOrdersPolicies.CanDecideOrders)]
+[Authorize(Policy = BaxOrdersPolicies.CanViewApprovals)]
 public sealed class ApprovalsController(ApprovalInboxQueries queries) : ControllerBase
 {
     /// <summary>The queue of requests pending approval, searched, filtered, sorted and paged.</summary>

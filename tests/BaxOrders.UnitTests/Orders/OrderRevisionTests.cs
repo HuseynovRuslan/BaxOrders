@@ -571,10 +571,15 @@ public sealed class OrderRevisionTests
         Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, false, true), edited);
 
         // Somebody who both submitted and edited reads the submitter reason: only one is shown, and that one
-        // is the one that was true first.
+        // is the one that was true first. (The same person as a Rəhbər: an administrator holds no approval
+        // authority since 4.3, and is told that instead.)
         var both = AllowedWorkflowActionsDto.For(
-            OrderRequestStatus.PendingApproval, admin.UserId, admin, contributedEdits: true);
+            OrderRequestStatus.PendingApproval, manager.UserId, manager, contributedEdits: true);
         Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, true, false), both);
+
+        var adminBoth = AllowedWorkflowActionsDto.For(
+            OrderRequestStatus.PendingApproval, admin.UserId, admin, contributedEdits: true);
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, BlockedByMissingAuthority: true), adminBoth);
 
         var free = AllowedWorkflowActionsDto.For(OrderRequestStatus.PendingApproval, null, manager);
         Assert.Equal(new AllowedWorkflowActionsDto(false, true, true), free);

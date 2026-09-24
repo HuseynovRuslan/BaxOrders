@@ -25,6 +25,12 @@ public sealed class AdminUsersController(IUserDirectory directory, ILogger<Admin
     public Task<IReadOnlyList<UserDto>> List(CancellationToken cancellationToken) =>
         directory.ListAsync(cancellationToken);
 
+    /// <summary>Whether anybody can approve an order right now. Read-only.</summary>
+    [HttpGet("approval-authority")]
+    [ProducesResponseType<ApprovalAuthorityStatusDto>(StatusCodes.Status200OK)]
+    public async Task<ApprovalAuthorityStatusDto> ApprovalAuthorityStatus(CancellationToken cancellationToken) =>
+        new(await directory.CountActiveApproversAsync(cancellationToken));
+
     /// <response code="422">The name is taken, the role is unknown, or the password fails the rules.</response>
     [HttpPost]
     [ProducesResponseType<UserDto>(StatusCodes.Status200OK)]
@@ -44,6 +50,10 @@ public sealed class AdminUsersController(IUserDirectory directory, ILogger<Admin
     }
 
     /// <summary>Changes the display name, the role or whether the account is active. Not the password.</summary>
+    /// <remarks>
+    /// Refused, changing nothing, when it would disable the last active approver or move them to a role
+    /// without approval authority.
+    /// </remarks>
     /// <response code="404">No such user.</response>
     /// <response code="422">The role is unknown, or the change was refused.</response>
     [HttpPatch("{userId:guid}")]

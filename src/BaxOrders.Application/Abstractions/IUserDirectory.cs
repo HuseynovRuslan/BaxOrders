@@ -22,8 +22,15 @@ public interface IUserDirectory
         CreateUserCommand command, CancellationToken cancellationToken);
 
     /// <returns>The updated user, or the reasons it could not be updated. Null user with null failure means it does not exist.</returns>
+    /// <remarks>
+    /// Refuses, changing nothing, to disable or to move out of its role the last active user who holds approval
+    /// authority: that would leave a period in which nobody can approve an order.
+    /// </remarks>
     Task<(UserDto? User, IdentityFailure? Failure)> UpdateAsync(
         Guid userId, UpdateUserCommand command, CancellationToken cancellationToken);
+
+    /// <summary>How many active users hold a role with approval authority. Zero means nobody can approve.</summary>
+    Task<int> CountActiveApproversAsync(CancellationToken cancellationToken);
 
     /// <summary>Sets a new password through the framework's own rules; the hash is never written directly.</summary>
     Task<IdentityFailure?> ResetPasswordAsync(Guid userId, string newPassword, CancellationToken cancellationToken);

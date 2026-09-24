@@ -44,6 +44,7 @@ function row(overrides: Partial<ApprovalInboxRow> = {}): ApprovalInboxRow {
     canReturn: true,
     blockedBySelfApproval: false,
     blockedByOwnContribution: false,
+    blockedByMissingAuthority: false,
     ...overrides,
   }
 }
@@ -54,6 +55,7 @@ const nobody: AllowedWorkflowActions = {
   canReturn: true,
   blockedBySelfApproval: false,
   blockedByOwnContribution: false,
+  blockedByMissingAuthority: false,
 }
 
 function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
@@ -76,6 +78,14 @@ function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
     amountIsComplete: true,
     requiresMissingPriceAcknowledgement: false,
     history: [],
+    decisionFacts: {
+      isHistoricalImport: false,
+      submissionNumber: 1,
+      submittedByDisplayName: 'Test Koordinator',
+      submittedAtUtc: '2026-09-22T10:32:00Z',
+      previousReturn: null,
+      decision: null,
+    },
     ...overrides,
   }
 }
@@ -104,11 +114,11 @@ function renderRows(rows: ApprovalInboxRow[], onChanged = vi.fn()) {
 }
 
 describe('a row this person may decide', () => {
-  it('offers to approve, to return, and to open the order', () => {
+  it('offers to approve, to ask for a correction, and to open the order', () => {
     const { table } = renderRows([row()])
 
     expect(table.getByRole('button', { name: 'Təsdiqlə' })).toBeInTheDocument()
-    expect(table.getByRole('button', { name: 'Düzəlişə qaytar' })).toBeInTheDocument()
+    expect(table.getByRole('button', { name: 'Düzəliş tələb et' })).toBeInTheDocument()
     expect(table.getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/105')
   })
 
@@ -130,15 +140,15 @@ describe('a row this person may decide', () => {
     expect(dialog).not.toBeInTheDocument()
   })
 
-  it('will not return a request without a reason, exactly as the order page requires', async () => {
+  it('will not ask for a correction without a reason, exactly as the order page requires', async () => {
     const user = userEvent.setup()
     workflowApi.fetchWorkflow.mockResolvedValue(workflow())
     const { table } = renderRows([row()])
 
-    await user.click(table.getByRole('button', { name: 'Düzəlişə qaytar' }))
+    await user.click(table.getByRole('button', { name: 'Düzəliş tələb et' }))
     const dialog = await screen.findByRole('dialog')
 
-    expect(within(dialog).getByRole('button', { name: 'Düzəlişə qaytar' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Düzəliş tələb et' })).toBeDisabled()
   })
 
   it('reads the queue again and says why, when somebody else decided first', async () => {
@@ -166,8 +176,25 @@ describe('a row blocked by self-submission', () => {
 
     expect(screen.getAllByText('Öz göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz.').length).toBeGreaterThan(0)
     expect(table.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
-    expect(table.queryByRole('button', { name: 'Düzəlişə qaytar' })).toBeNull()
+    expect(table.queryByRole('button', { name: 'Düzəliş tələb et' })).toBeNull()
     expect(table.getByRole('link', { name: 'Sifarişə bax' })).toBeInTheDocument()
+  })
+})
+
+describe('a row read by somebody without approval authority', () => {
+  it('says the decision is the Rəhbər’s, offers no decision, and still opens the order', () => {
+    const { table } = renderRows([row({ canApprove: false, canReturn: false, blockedByMissingAuthority: true })])
+
+    expect(table.getByText('Təsdiq səlahiyyətiniz yoxdur. Qərarı Rəhbər rolu olan istifadəçi verir.')).toBeInTheDocument()
+    expect(table.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+    expect(table.queryByRole('button', { name: 'Düzəliş tələb et' })).toBeNull()
+    expect(table.getByRole('link', { name: 'Sifarişə bax' })).toBeInTheDocument()
+  })
+
+  it('gives that reason, not the self-submission one, when both would apply', () => {
+    renderRows([row({ canApprove: false, canReturn: false, blockedByMissingAuthority: true, blockedBySelfApproval: true })])
+
+    expect(screen.queryByText('Öz göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz.')).toBeNull()
   })
 })
 

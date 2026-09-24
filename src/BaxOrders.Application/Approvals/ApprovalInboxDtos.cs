@@ -6,10 +6,10 @@ namespace BaxOrders.Application.Approvals;
 /// Whether a request can be decided by the person reading the inbox, or is only shown to them.
 /// </summary>
 /// <remarks>
-/// A Manager or Admin sees every waiting request, including one they may not decide on themselves — they
-/// submitted it, or they worked on its correction. <see cref="CanDecide"/> and <see cref="BlockedForMe"/>
-/// read off exactly the same <c>CanApprove</c> flag the workflow endpoint computes; nothing here is a second
-/// opinion about who may act.
+/// A Manager or Admin sees every waiting request, including one they may not decide on — they hold no approval
+/// authority, they submitted it, or they worked on its correction. <see cref="CanDecide"/> and
+/// <see cref="BlockedForMe"/> read off exactly the same <c>CanApprove</c> flag the workflow endpoint computes;
+/// nothing here is a second opinion about who may act.
 /// </remarks>
 public enum ApprovalActionability
 {
@@ -77,6 +77,7 @@ public sealed record ApprovalInboxQuery(
 /// </param>
 /// <param name="BlockedBySelfApproval">True when the only thing stopping a decision is that they submitted it themselves.</param>
 /// <param name="BlockedByOwnContribution">True when the only thing stopping a decision is that they worked on this correction.</param>
+/// <param name="BlockedByMissingAuthority">True when they hold no approval authority. Reported before the other two reasons.</param>
 public sealed record ApprovalInboxRowDto(
     long OrderRequestId,
     int LocationId,
@@ -97,7 +98,8 @@ public sealed record ApprovalInboxRowDto(
     bool CanApprove,
     bool CanReturn,
     bool BlockedBySelfApproval,
-    bool BlockedByOwnContribution);
+    bool BlockedByOwnContribution,
+    bool BlockedByMissingAuthority);
 
 /// <summary>
 /// The whole inbox, whatever search or filter the caller applied.

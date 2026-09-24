@@ -163,11 +163,12 @@ public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
 
-        // An administrator, who may do both — and still not both to the same request.
-        var admin = await TestCurrentUser.AdminAsync(db, "Admin");
-        var service = Service(db, admin);
+        // Somebody who sent it and has since become a Rəhbər: they hold the authority, and still may not use
+        // it on their own submission. (An administrator could once do both; since 4.3 they may not decide at all.)
+        var person = await TestCurrentUser.CoordinatorAsync(db, "Göndərən");
+        await Service(db, person).SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
-        await service.SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
+        var service = Service(db, person.As(BaxOrdersRoles.Manager));
 
         await Assert.ThrowsAsync<SelfApprovalNotAllowedException>(() => service.ApproveAsync(
             world.RequestId, new ApproveOrderCommand(), CancellationToken.None));
@@ -201,7 +202,7 @@ public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
         var world = await WorldAsync(db);
 
         var first = await TestCurrentUser.CoordinatorAsync(db, "Birinci");
-        var second = await TestCurrentUser.AdminAsync(db, "İkinci");
+        var second = await TestCurrentUser.CoordinatorAsync(db, "İkinci");
 
         await Service(db, first).SubmitAsync(
             world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
@@ -210,9 +211,10 @@ public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
         await Service(db, second).SubmitAsync(
             world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
-        // The first submitter is no longer the current one, so they may now decide; the second may not.
+        // The first submitter is no longer the current one, so they may now decide; the second may not —
+        // both asked as a Rəhbər, the only role that decides at all.
         await Assert.ThrowsAsync<SelfApprovalNotAllowedException>(() =>
-            Service(db, second).ApproveAsync(
+            Service(db, second.As(BaxOrdersRoles.Manager)).ApproveAsync(
                 world.RequestId, new ApproveOrderCommand(), CancellationToken.None));
 
         var state = await Service(db, first.As(BaxOrdersRoles.Manager))
@@ -248,17 +250,33 @@ public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
 
-        var admin = await TestCurrentUser.AdminAsync(db, "Admin");
-        var service = Service(db, admin);
-        await service.SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
+        var person = await TestCurrentUser.CoordinatorAsync(db, "Göndərən");
+        await Service(db, person).SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
 
-        var state = await service.GetAsync(world.RequestId, CancellationToken.None);
+        var state = await Service(db, person.As(BaxOrdersRoles.Manager)).GetAsync(world.RequestId, CancellationToken.None);
 
         Assert.False(state!.AllowedActions.CanApprove);
         Assert.False(state.AllowedActions.CanReturn);
 
         // Not "you have the wrong role": the screen can say which of the two it is.
         Assert.True(state.AllowedActions.BlockedBySelfApproval);
+        Assert.False(state.AllowedActions.BlockedByMissingAuthority);
+    }
+
+    [PostgresFact]
+    public async Task An_administrator_who_submitted_is_told_they_hold_no_approval_authority()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var admin = await TestCurrentUser.AdminAsync(db, "Admin");
+        var service = Service(db, admin);
+        await service.SubmitAsync(world.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
+
+        var state = await service.GetAsync(world.RequestId, CancellationToken.None);
+
+        // 4.3: the missing authority is the reason, and it is given before the fact that it is their own.
+        Assert.Equal(new AllowedWorkflowActionsDto(false, false, false, BlockedByMissingAuthority: true), state!.AllowedActions);
     }
 
     [PostgresFact]
@@ -372,6 +390,10 @@ public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
         await using var check = database.CreateContext();
         Assert.Equal(OrderRequestStatus.PendingApproval,
             (await check.OrderRequests.SingleAsync(request => request.Id == world.RequestId)).Status);
+
+        // 4.2: nothing was written either — the only event is the submission.
+        Assert.Equal(OrderWorkflowAction.SubmittedForApproval, Assert.Single(await check.OrderRequestWorkflowEvents
+            .Where(item => item.OrderRequestId == world.RequestId).ToListAsync()).Action);
     }
 
     [PostgresFact]

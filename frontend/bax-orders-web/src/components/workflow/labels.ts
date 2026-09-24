@@ -48,7 +48,8 @@ export const workflowActionClass: Record<OrderWorkflowAction, string> = {
 export const submitLabel = 'Təsdiqə göndər'
 export const resubmitLabel = 'Yenidən təsdiqə göndər'
 export const approveLabel = 'Təsdiqlə'
-export const returnLabel = 'Düzəlişə qaytar'
+/** The action's name in the brief: the button, the dialog's title and its confirm button all read this. */
+export const returnLabel = 'Düzəliş tələb et'
 
 export const acknowledgeMissingPricesLabel = 'Qiyməti olmayan sətirlərin mövcud olduğunu bilirəm.'
 
@@ -58,13 +59,69 @@ export const acknowledgeMissingPricesLabel = 'Qiyməti olmayan sətirlərin möv
 export const notSubmittedYetNote = 'Hələ təqdim olunmayıb'
 
 /**
- * Said of an order approved before this system existed.
+ * Said of an order carried in from Excel as already approved (owner decision 4.1), exactly and alone.
  *
- * Its approval happened at some real moment nobody recorded, so there is no date to show and none is made up.
- * What must not be said is "hələ təqdim olunmayıb": the order was approved, and calling it unsent would
- * contradict the state badge beside it.
+ * Its approval happened at some real moment nobody recorded, so no sender, no approver and no date is shown,
+ * and none is made up. What must not be said is "hələ təqdim olunmayıb": the order was approved.
  */
-export const momentsNotRecordedNote = 'Təqdim və təsdiq tarixi sistemdə qeyd olunmayıb'
+export const historicalImportNote = 'Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.'
+
+/** The facts the decision panel lists, in business language. */
+export const decisionFactLabels = {
+  submittedBy: 'Göndərən',
+  submittedAt: 'Göndərilib',
+  submission: 'Göndəriş',
+  previousReturn: 'Əvvəlki düzəliş səbəbi',
+  returnedBy: 'Düzəliş tələb edən',
+  returnedAt: 'Tarix',
+  reason: 'Səbəb',
+  approvedBy: 'Təsdiqləyən',
+  approvedAt: 'Təsdiq tarixi',
+} as const
+
+/** The first five sendings have their own words; after that the number carries the ordinal. */
+const submissionWords = ['İlk', 'İkinci', 'Üçüncü', 'Dördüncü', 'Beşinci']
+
+/**
+ * The ordinal suffix follows the vowel of the last number word that is pronounced: 6 "altı" → 6-cı, 9
+ * "doqquz" → 9-cu, 40 "qırx" → 40-cı, 100 "yüz" → 100-cü.
+ */
+const unitSuffixes = ['', 'ci', 'ci', 'cü', 'cü', 'ci', 'cı', 'ci', 'ci', 'cu']
+const tensSuffixes = ['', 'cu', 'ci', 'cu', 'cı', 'ci', 'cı', 'ci', 'ci', 'cı']
+
+function ordinalSuffix(value: number): string {
+  if (value % 10 !== 0) return unitSuffixes[value % 10]
+  if (value % 100 !== 0) return tensSuffixes[(value % 100) / 10]
+  // Yüz (100), min (1 000), milyon (1 000 000).
+  if (value % 1000 !== 0) return 'cü'
+  if (value % 1_000_000 !== 0) return 'ci'
+  return 'cu'
+}
+
+/**
+ * Which time an order is being sent, in business language rather than a version number: "İlk göndəriş",
+ * "İkinci göndəriş · düzəliş tələbindən sonra", "6-cı göndəriş".
+ *
+ * @param afterCorrectionRequest Whether a request for correction came before this sending.
+ */
+export function submissionCountLabel(submissionNumber: number, afterCorrectionRequest: boolean): string {
+  const count = Math.trunc(submissionNumber)
+  if (count < 1) {
+    return notSubmittedYetNote
+  }
+
+  const words = count <= submissionWords.length
+    ? `${submissionWords[count - 1]} göndəriş`
+    : `${count}-${ordinalSuffix(count)} göndəriş`
+
+  return count >= 2 && afterCorrectionRequest ? `${words} · düzəliş tələbindən sonra` : words
+}
+
+/**
+ * Said where the state would allow a decision and the reader sees the queue without approval authority — an
+ * administrator (owner decision 4.3). Reported before the other two reasons.
+ */
+export const missingAuthorityNote = 'Təsdiq səlahiyyətiniz yoxdur. Qərarı Rəhbər rolu olan istifadəçi verir.'
 
 /**
  * Said where the state and the role would both allow a decision and the only thing in the way is that this
@@ -91,7 +148,7 @@ export function missingPriceNote(count: number): string {
 /** Read by the operator, not by a developer: the server's own message is shown when it has one. */
 export const workflowErrors = {
   alreadyApproved: 'Bu sifariş artıq təsdiqlənib.',
-  reasonRequired: 'Düzəlişə qaytarmaq üçün səbəb yazılmalıdır.',
+  reasonRequired: 'Düzəliş tələb etmək üçün səbəb yazılmalıdır.',
   acknowledgementRequired: 'Qiyməti olmayan sətirləri təsdiqlədiyinizi qeyd edin.',
   forbidden: 'Bu əməliyyat üçün icazəniz yoxdur.',
   conflict: 'Bu sifariş siz işləyərkən başqası tərəfindən dəyişdirilib. Səhifəni yeniləyib yenidən cəhd edin.',

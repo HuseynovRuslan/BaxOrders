@@ -35,6 +35,8 @@ export interface ApprovalInboxRow {
   blockedBySelfApproval: boolean
   /** Likewise, but because this person worked on this version's correction — edited, added or removed a line. */
   blockedByOwnContribution: boolean
+  /** They see the queue without holding approval authority — an administrator. Reported before the other two. */
+  blockedByMissingAuthority: boolean
 }
 
 export interface ApprovalInboxSummary {

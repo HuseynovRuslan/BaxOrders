@@ -44,9 +44,11 @@ function person(role: BaxOrdersRole): CurrentUser {
     role,
     canManageImports: role !== 'Manager',
     canSubmitOrders: role !== 'Manager',
-    canDecideOrders: role !== 'Coordinator',
+    // Only the Rəhbər holds approval authority (4.3); an administrator sees the queue without it.
+    canDecideOrders: role === 'Manager',
     canManageUsers: role === 'Admin',
     canManageCatalog: role !== 'Manager',
+    canViewApprovals: role !== 'Coordinator',
   }
 }
 

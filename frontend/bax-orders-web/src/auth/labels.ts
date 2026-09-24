@@ -11,9 +11,13 @@ export const roleOrder: BaxOrdersRole[] = ['Coordinator', 'Manager', 'Admin']
 /** What each role is for, shown where somebody has to choose one for a colleague. */
 export const roleDescriptions: Record<BaxOrdersRole, string> = {
   Coordinator: 'Excel idxalını aparır və sifarişləri təsdiqə göndərir.',
-  Manager: 'Sifarişləri təsdiqləyir və ya düzəlişə qaytarır.',
-  Admin: 'Hər ikisini edir, həmçinin istifadəçiləri idarə edir.',
+  Manager: 'Sifarişləri təsdiqləyir və ya düzəliş tələb edir. Təsdiq səlahiyyəti bu roldadır.',
+  Admin: 'Excel idxalını aparır, sifarişləri təsdiqə göndərir və istifadəçiləri idarə edir. Təsdiq səlahiyyəti yoxdur.',
 }
+
+/** Shown on the users page whenever nobody active holds approval authority. */
+export const noApproverWarning =
+  'Təsdiq səlahiyyəti olan aktiv istifadəçi yoxdur. Sifarişləri heç kim təsdiqləyə bilmir. Rəhbər rolu ilə istifadəçi yaradın.'
 
 export const authErrors = {
   badCredentials: 'İstifadəçi adı və ya şifrə yanlışdır.',

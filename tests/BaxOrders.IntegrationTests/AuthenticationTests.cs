@@ -217,7 +217,7 @@ public sealed class AuthenticationTests(PostgresDatabaseFixture database) : IAsy
     }
 
     [PostgresFact]
-    public async Task An_administrator_may_do_both_and_manage_users()
+    public async Task An_administrator_may_submit_and_manage_users_but_not_decide()
     {
         var account = await CreateUserAsync(BaxOrdersRoles.Admin);
         using var client = Anonymous();
@@ -226,8 +226,34 @@ public sealed class AuthenticationTests(PostgresDatabaseFixture database) : IAsy
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/admin/users")).StatusCode);
         Assert.NotEqual(HttpStatusCode.Forbidden,
             (await PostAsync(client, "/api/v1/orders/999999/workflow/submit", new { })).StatusCode);
-        Assert.NotEqual(HttpStatusCode.Forbidden,
+
+        // 4.3: being an administrator does not grant approval authority.
+        Assert.Equal(HttpStatusCode.Forbidden,
             (await PostAsync(client, "/api/v1/orders/999999/workflow/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await PostAsync(client, "/api/v1/orders/999999/workflow/return", new { reason = "yox" })).StatusCode);
+    }
+
+    [PostgresFact]
+    public async Task Me_says_who_may_decide_and_who_may_look_at_the_approval_queue()
+    {
+        var expected = new Dictionary<string, (bool Decide, bool View)>
+        {
+            [BaxOrdersRoles.Manager] = (true, true),
+            [BaxOrdersRoles.Admin] = (false, true),
+            [BaxOrdersRoles.Coordinator] = (false, false),
+        };
+
+        foreach (var (role, flags) in expected)
+        {
+            var account = await CreateUserAsync(role);
+            using var client = Anonymous();
+            var signedIn = await SignInAsync(client, account.UserName, account.Password);
+            var me = (await (await client.GetAsync("/api/v1/auth/me")).Content.ReadFromJsonAsync<CurrentUserDto>())!;
+
+            Assert.Equal(flags, (signedIn.CanDecideOrders, signedIn.CanViewApprovals));
+            Assert.Equal(flags, (me.CanDecideOrders, me.CanViewApprovals));
+        }
     }
 
     [PostgresFact]

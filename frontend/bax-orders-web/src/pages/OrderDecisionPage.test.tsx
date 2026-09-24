@@ -282,6 +282,7 @@ function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
       canReturn: true,
       blockedBySelfApproval: false,
       blockedByOwnContribution: false,
+      blockedByMissingAuthority: false,
     },
     submittedByUserId: 'bbbb',
     submittedAtUtc: '2026-09-22T10:00:00Z',
@@ -294,6 +295,14 @@ function workflow(overrides: Partial<OrderWorkflow> = {}): OrderWorkflow {
     amountIsComplete: true,
     requiresMissingPriceAcknowledgement: false,
     history: [],
+    decisionFacts: {
+      isHistoricalImport: false,
+      submissionNumber: 1,
+      submittedByDisplayName: 'Test Koordinator',
+      submittedAtUtc: '2026-09-22T10:00:00Z',
+      previousReturn: null,
+      decision: null,
+    },
     ...overrides,
   }
 }
@@ -494,12 +503,69 @@ describe('the decision', () => {
         canReturn: false,
         blockedBySelfApproval: true,
         blockedByOwnContribution: false,
+        blockedByMissingAuthority: false,
       },
     }))
     await renderPage()
 
     expect(await screen.findByText(/Özünüzün təsdiqə göndərdiyiniz sifarişi təsdiqləyə bilməzsiniz/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+  })
+
+  it('puts the decision first in the column beside the analysis, which stays on screen and never outgrows it', async () => {
+    await renderPage()
+
+    const panel = await screen.findByRole('region', { name: 'Qərar' })
+    const column = panel.parentElement!
+
+    // The decision panel comes before the correction panel and any note, and its buttons come first in it.
+    expect(column.firstElementChild).toBe(panel)
+    expect(within(panel).getAllByRole('button')[0]).toHaveTextContent('Təsdiqlə')
+    expect(within(panel).getByRole('button', { name: 'Düzəliş tələb et' })).toBeInTheDocument()
+
+    // Sticky on a wide screen, as before — and capped to the viewport, scrolling inside itself.
+    expect(column).toHaveClass('lg:sticky', 'lg:top-4', 'lg:max-h-[calc(100vh-2rem)]', 'lg:overflow-y-auto')
+  })
+
+  it('shows the status once, in the header, and not again beside the decision', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({ status: 'PendingApproval' }) as never)
+    await renderPage()
+
+    const panel = await screen.findByRole('region', { name: 'Qərar' })
+
+    expect(screen.getAllByText('Təsdiq gözləyir')).toHaveLength(1)
+    expect(within(panel).queryByText('Təsdiq gözləyir')).toBeNull()
+  })
+
+  it('shows who approved and when, once approved — and still the status only once', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({ status: 'Approved' }) as never)
+    workflowApi.fetchWorkflow.mockResolvedValue(workflow({
+      status: 'Approved',
+      allowedActions: {
+        canSubmit: false,
+        canApprove: false,
+        canReturn: false,
+        blockedBySelfApproval: false,
+        blockedByOwnContribution: false,
+        blockedByMissingAuthority: false,
+      },
+      decisionFacts: {
+        isHistoricalImport: false,
+        submissionNumber: 1,
+        submittedByDisplayName: 'Test Koordinator',
+        submittedAtUtc: '2026-09-22T10:00:00Z',
+        previousReturn: null,
+        decision: { action: 'Approved', actorDisplayName: 'Test Rəhbər', occurredAtUtc: '2026-09-23T09:30:00Z', reason: null },
+      },
+    }))
+    await renderPage()
+
+    const panel = await screen.findByRole('region', { name: 'Qərar' })
+
+    expect(within(panel).getByText('Təsdiqləyən')).toBeInTheDocument()
+    expect(within(panel).getByText('Test Rəhbər')).toBeInTheDocument()
+    expect(screen.getAllByText('Təsdiqlənib')).toHaveLength(1)
+    expect(within(panel).queryByText('Təsdiqlənib')).toBeNull()
   })
 })
 
@@ -709,6 +775,15 @@ describe('an order carried in as already approved', () => {
         canReturn: false,
         blockedBySelfApproval: false,
         blockedByOwnContribution: false,
+        blockedByMissingAuthority: false,
+      },
+      decisionFacts: {
+        isHistoricalImport: true,
+        submissionNumber: 0,
+        submittedByDisplayName: null,
+        submittedAtUtc: null,
+        previousReturn: null,
+        decision: null,
       },
       history: [{
         id: 1,
@@ -747,5 +822,16 @@ describe('an order carried in as already approved', () => {
     expect(screen.queryByText(/Təqdim: /)).toBeNull()
     expect(screen.queryByText(/Təsdiq: /)).toBeNull()
     expect(screen.queryByText(/Hələ təqdim olunmayıb/)).toBeNull()
+  })
+
+  it('says in the decision panel exactly that it came from Excel and that no approval was recorded (4.1)', async () => {
+    await renderPage()
+
+    const panel = await screen.findByRole('region', { name: 'Qərar' })
+
+    expect(within(panel).getByText('Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.')).toBeInTheDocument()
+    expect(within(panel).queryByText('Göndərən')).toBeNull()
+    expect(within(panel).queryByText('Təsdiqləyən')).toBeNull()
+    expect(within(panel).queryByText(/Sistem/)).toBeNull()
   })
 })

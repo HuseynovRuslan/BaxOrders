@@ -21,12 +21,18 @@ namespace BaxOrders.Application.Orders.Workflow;
 /// line, added or removed one, or created the correction. Reported separately from
 /// <paramref name="BlockedBySelfApproval"/> because the two are different reasons and the screen says which.
 /// </param>
+/// <param name="BlockedByMissingAuthority">
+/// True when the state would allow a decision and this person sees the approval queue but does not hold
+/// approval authority — an administrator. Reported before the other two reasons: somebody who may not approve
+/// anything is told that, not that it happens to be their own submission.
+/// </param>
 public sealed record AllowedWorkflowActionsDto(
     bool CanSubmit,
     bool CanApprove,
     bool CanReturn,
     bool BlockedBySelfApproval = false,
-    bool BlockedByOwnContribution = false)
+    bool BlockedByOwnContribution = false,
+    bool BlockedByMissingAuthority = false)
 {
     /// <summary>What the workflow state allows, before anything is known about who is asking.</summary>
     public static AllowedWorkflowActionsDto ForState(OrderRequestStatus status) => status switch
@@ -64,7 +70,7 @@ public sealed record AllowedWorkflowActionsDto(
 
         var role = currentUser.Role;
         var maySubmit = role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin;
-        var mayDecide = role is BaxOrdersRoles.Manager or BaxOrdersRoles.Admin;
+        var mayDecide = ApprovalAuthority.IsHeldBy(role);
 
         // Approving your own work is not a second pair of eyes, whatever role you hold — whether you authored
         // it by submitting it or by editing what it says.
@@ -78,8 +84,121 @@ public sealed record AllowedWorkflowActionsDto(
             state.CanReturn && mayDecide && !ownSubmission && !contributedEdits,
             BlockedBySelfApproval: wouldDecide && ownSubmission,
             // Only the reason that is actually left: somebody who both submitted and edited reads the first.
-            BlockedByOwnContribution: wouldDecide && !ownSubmission && contributedEdits);
+            BlockedByOwnContribution: wouldDecide && !ownSubmission && contributedEdits,
+            // Not holding the authority at all comes first: the other two only matter to somebody who has it.
+            // Said to whoever looks at the approval queue without it; a coordinator was never expected to decide,
+            // and is not told why they do not.
+            BlockedByMissingAuthority: state.CanApprove && !mayDecide && ApprovalAuthority.MayViewQueue(role));
     }
+}
+
+/// <summary>
+/// One recorded moment the decision panel shows: who, when and — for a correction request — why.
+/// </summary>
+/// <param name="ActorDisplayName">The name as it read when it happened. A snapshot from the event, never looked up again.</param>
+/// <param name="Reason">What the correction request said. Null for an approval.</param>
+public sealed record WorkflowDecisionEventDto(
+    OrderWorkflowAction Action,
+    string ActorDisplayName,
+    DateTime OccurredAtUtc,
+    string? Reason);
+
+/// <summary>
+/// What an approver needs to know before deciding: who sent it, when, which time it is being sent, what the
+/// last correction request said, and — once decided — who decided and when.
+/// </summary>
+/// <remarks>
+/// Every field comes from a recorded workflow event. Where there is no event there is no value: nothing here
+/// is ever filled with a placeholder name or date.
+/// </remarks>
+/// <param name="IsHistoricalImport">
+/// Carried in from Excel as already approved, and never sent through this application. Every other field is
+/// then empty: who sent it and who approved it were never recorded, and are not invented.
+/// </param>
+/// <param name="SubmissionNumber">
+/// Which time this is being sent, counted along the correction chain up to and including the current cycle.
+/// Zero when this request has not been sent.
+/// </param>
+/// <param name="SubmittedByDisplayName">Who sent the current cycle. Null when this request has not been sent.</param>
+/// <param name="PreviousReturn">The most recent correction request before the current cycle, when there is one.</param>
+/// <param name="Decision">The approval or the correction request that closed the current cycle, when there is one.</param>
+public sealed record WorkflowDecisionFactsDto(
+    bool IsHistoricalImport,
+    int SubmissionNumber,
+    string? SubmittedByDisplayName,
+    DateTime? SubmittedAtUtc,
+    WorkflowDecisionEventDto? PreviousReturn,
+    WorkflowDecisionEventDto? Decision)
+{
+    public static WorkflowDecisionFactsDto HistoricalImport { get; } = new(true, 0, null, null, null, null);
+
+    /// <summary>
+    /// Reads the facts off the recorded events of one request and of the versions it corrects.
+    /// </summary>
+    /// <param name="status">Where the request stands now.</param>
+    /// <param name="ownHistory">This request's own events, oldest first.</param>
+    /// <param name="earlierVersionsHistory">
+    /// The events of every request this one corrects, followed back through the revision links to the first,
+    /// oldest first. Empty for a request that corrects nothing — including a new version made by a second
+    /// import, which starts its own count.
+    /// </param>
+    public static WorkflowDecisionFactsDto Compute(
+        OrderRequestStatus status,
+        IReadOnlyList<WorkflowEventDto> ownHistory,
+        IReadOnlyList<WorkflowEventDto> earlierVersionsHistory)
+    {
+        ArgumentNullException.ThrowIfNull(ownHistory);
+        ArgumentNullException.ThrowIfNull(earlierVersionsHistory);
+
+        // The versions of a chain follow one another: a correction is made only after its source was handed
+        // back, and the source takes no action after that. So the chain reads in order as earlier, then own.
+        List<WorkflowEventDto> chain = [.. earlierVersionsHistory, .. ownHistory];
+
+        var everSubmitted = chain.Any(entry => entry.Action == OrderWorkflowAction.SubmittedForApproval);
+        if (!everSubmitted && ownHistory.Any(entry => entry.Action == OrderWorkflowAction.ImportedAsApproved))
+        {
+            return HistoricalImport;
+        }
+
+        var currentSubmission = ownHistory.LastOrDefault(entry => entry.Action == OrderWorkflowAction.SubmittedForApproval);
+
+        // For a request not yet sent, everything in the chain happened before it would be; for one that has
+        // been, only what came before its current cycle is "previous".
+        var beforeCurrentCycle = currentSubmission is null
+            ? chain
+            : chain.TakeWhile(entry => !ReferenceEquals(entry, currentSubmission)).ToList();
+
+        var previousReturn = beforeCurrentCycle.LastOrDefault(entry => entry.Action == OrderWorkflowAction.ReturnedForCorrection);
+
+        var decisionAction = status switch
+        {
+            OrderRequestStatus.Approved => OrderWorkflowAction.Approved,
+            OrderRequestStatus.ReturnedForCorrection => OrderWorkflowAction.ReturnedForCorrection,
+            _ => (OrderWorkflowAction?)null,
+        };
+
+        var decision = decisionAction is { } action
+            ? ownHistory.LastOrDefault(entry => entry.Action == action)
+            : null;
+
+        return new WorkflowDecisionFactsDto(
+            IsHistoricalImport: false,
+            SubmissionNumber: currentSubmission is null
+                ? 0
+                : beforeCurrentCycle.Count(entry => entry.Action == OrderWorkflowAction.SubmittedForApproval) + 1,
+            currentSubmission?.ActorDisplayName,
+            currentSubmission?.OccurredAtUtc,
+            Describe(previousReturn),
+            Describe(decision));
+    }
+
+    private static WorkflowDecisionEventDto? Describe(WorkflowEventDto? entry) => entry is null
+        ? null
+        : new WorkflowDecisionEventDto(
+            entry.Action,
+            entry.ActorDisplayName,
+            entry.OccurredAtUtc,
+            entry.Action == OrderWorkflowAction.ReturnedForCorrection ? entry.Comment : null);
 }
 
 /// <param name="ActorUserId">The signed-in user who acted, or null for an action recorded before sign-in existed.</param>
@@ -112,6 +231,7 @@ public sealed record WorkflowEventDto(
 /// Who put the request into its current approval cycle. Null for one nobody has submitted — including every
 /// request imported before sign-in existed.
 /// </param>
+/// <param name="DecisionFacts">What the decision panel says about who sent it and who decided, from the recorded events only.</param>
 public sealed record OrderWorkflowDto(
     long OrderRequestId,
     int LocationId,
@@ -130,7 +250,8 @@ public sealed record OrderWorkflowDto(
     decimal? KnownAmountTotal,
     bool AmountIsComplete,
     bool RequiresMissingPriceAcknowledgement,
-    IReadOnlyList<WorkflowEventDto> History);
+    IReadOnlyList<WorkflowEventDto> History,
+    WorkflowDecisionFactsDto DecisionFacts);
 
 /// <remarks>
 /// No actor. Who is doing this comes from the authenticated session, so a browser cannot claim to be someone

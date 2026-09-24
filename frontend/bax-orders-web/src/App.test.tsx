@@ -30,6 +30,7 @@ const currentUser: CurrentUser = {
   canDecideOrders: false,
   canManageUsers: false,
   canManageCatalog: true,
+  canViewApprovals: false,
 }
 
 beforeEach(() => {

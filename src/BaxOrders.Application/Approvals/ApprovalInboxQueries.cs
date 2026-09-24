@@ -12,7 +12,8 @@ using Microsoft.EntityFrameworkCore;
 namespace BaxOrders.Application.Approvals;
 
 /// <summary>
-/// Every permanent request waiting for a decision, for the person who may make one.
+/// Every permanent request waiting for a decision, for the people who may look at the queue — the approver,
+/// and an administrator who sees it without the authority to decide.
 /// </summary>
 /// <remarks>
 /// This is not the workflow endpoint called once per row: every request pending approval is fetched together,
@@ -114,7 +115,8 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
                 allowed.CanApprove,
                 allowed.CanReturn,
                 allowed.BlockedBySelfApproval,
-                allowed.BlockedByOwnContribution);
+                allowed.BlockedByOwnContribution,
+                allowed.BlockedByMissingAuthority);
         }).ToList();
 
         // The summary describes the complete queue, before search or filters narrow it — the same convention

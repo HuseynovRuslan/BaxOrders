@@ -32,8 +32,9 @@ export function App() {
           {/* The year in one place: the panel answers "this month", this answers "the year so far". */}
           <Route path="dashboard/monthly" element={<MonthlyReportPage />} />
 
-          {/* A coordinator's own submissions are not theirs to decide, so this queue is not offered to them. */}
-          <Route element={<RequirePermission permission="canDecideOrders" />}>
+          {/* A coordinator's own submissions are not theirs to decide, so this queue is not offered to them. An
+              administrator sees it, and is told on every row that the decision is the Rəhbər's. */}
+          <Route element={<RequirePermission permission="canViewApprovals" />}>
             <Route path="approvals" element={<ApprovalInboxPage />} />
           </Route>
 

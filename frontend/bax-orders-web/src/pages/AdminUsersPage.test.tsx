@@ -16,6 +16,7 @@ const authApi = vi.hoisted(() => ({
   primeCsrf: vi.fn(),
   fetchCurrentUser: vi.fn(),
   fetchUsers: vi.fn(),
+  fetchApprovalAuthority: vi.fn(),
   createUser: vi.fn(),
   updateUser: vi.fn(),
   resetUserPassword: vi.fn(),
@@ -34,9 +35,11 @@ const admin: CurrentUser = {
   role: 'Admin',
   canManageImports: true,
   canSubmitOrders: true,
-  canDecideOrders: true,
+  // 4.3: an administrator holds no approval authority, and sees the queue without it.
+  canDecideOrders: false,
   canManageUsers: true,
   canManageCatalog: true,
+  canViewApprovals: true,
 }
 
 function appUser(overrides: Partial<AppUser> = {}): AppUser {
@@ -56,6 +59,7 @@ beforeEach(() => {
   authApi.primeCsrf.mockReset().mockResolvedValue(undefined)
   authApi.fetchCurrentUser.mockReset().mockResolvedValue(admin)
   authApi.fetchUsers.mockReset().mockResolvedValue([appUser()])
+  authApi.fetchApprovalAuthority.mockReset().mockResolvedValue({ activeApproverCount: 1 })
   authApi.createUser.mockReset()
   authApi.updateUser.mockReset().mockResolvedValue(appUser())
   authApi.resetUserPassword.mockReset().mockResolvedValue(undefined)
@@ -224,5 +228,50 @@ describe('editing somebody', () => {
       'bbbbbbbb-0000-4000-8000-000000000002',
       { isActive: false },
     ))
+  })
+
+  it('shows the server’s refusal to disable the last Rəhbər', async () => {
+    const user = userEvent.setup()
+    const refusal = 'Bu, təsdiq səlahiyyəti olan yeganə aktiv istifadəçidir. Əvvəlcə başqa bir Rəhbər təyin edin.'
+    authApi.updateUser.mockRejectedValue(new ApiError(400, refusal))
+    await renderPage([appUser({ userName: 'test.rehber', displayName: 'Test Rəhbər', role: 'Manager' })])
+
+    await user.click(await screen.findByRole('button', { name: 'Deaktiv et' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(refusal)
+  })
+})
+
+describe('who can approve', () => {
+  const warning =
+    'Təsdiq səlahiyyəti olan aktiv istifadəçi yoxdur. Sifarişləri heç kim təsdiqləyə bilmir. Rəhbər rolu ilə istifadəçi yaradın.'
+
+  it('warns at the top when nobody active holds approval authority', async () => {
+    authApi.fetchApprovalAuthority.mockResolvedValue({ activeApproverCount: 0 })
+    await renderPage()
+
+    expect(await screen.findByText(warning)).toBeInTheDocument()
+  })
+
+  it('says nothing of the kind while somebody can approve', async () => {
+    authApi.fetchApprovalAuthority.mockResolvedValue({ activeApproverCount: 2 })
+    await renderPage()
+
+    await screen.findByText('test.koordinator')
+    expect(screen.queryByText(warning)).toBeNull()
+  })
+
+  it('describes each role truthfully where one is chosen: the authority is the Rəhbər’s, not the administrator’s', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+
+    await user.click(screen.getByRole('button', { name: /Yeni istifadəçi/ }))
+    const dialog = within(screen.getByRole('dialog'))
+
+    expect(dialog.getByText('Sifarişləri təsdiqləyir və ya düzəliş tələb edir. Təsdiq səlahiyyəti bu roldadır.')).toBeInTheDocument()
+    expect(dialog.getByText(
+      'Excel idxalını aparır, sifarişləri təsdiqə göndərir və istifadəçiləri idarə edir. Təsdiq səlahiyyəti yoxdur.',
+    )).toBeInTheDocument()
+    expect(dialog.getByText('Excel idxalını aparır və sifarişləri təsdiqə göndərir.')).toBeInTheDocument()
   })
 })

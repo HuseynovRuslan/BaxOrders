@@ -11,9 +11,18 @@ export interface CurrentUser {
   role: BaxOrdersRole | null
   canManageImports: boolean
   canSubmitOrders: boolean
+  /** Holds approval authority. Only the Rəhbər role does; an administrator does not. */
   canDecideOrders: boolean
   canManageUsers: boolean
   canManageCatalog: boolean
+  /** May open "Təsdiq gözləyənlər": the Rəhbər, and an administrator, who sees it without deciding. */
+  canViewApprovals: boolean
+}
+
+/** Whether anybody can approve an order right now. */
+export interface ApprovalAuthorityStatus {
+  /** Active users whose role holds approval authority. Zero means nobody can approve. */
+  activeApproverCount: number
 }
 
 export interface AppUser {
@@ -50,6 +59,7 @@ export const anonymousUser: CurrentUser = {
   canDecideOrders: false,
   canManageUsers: false,
   canManageCatalog: false,
+  canViewApprovals: false,
 }
 
 /**
@@ -85,6 +95,10 @@ export async function changeOwnPassword(
 
 export function fetchUsers(signal?: AbortSignal): Promise<AppUser[]> {
   return getJson<AppUser[]>('/api/v1/admin/users', signal)
+}
+
+export function fetchApprovalAuthority(signal?: AbortSignal): Promise<ApprovalAuthorityStatus> {
+  return getJson<ApprovalAuthorityStatus>('/api/v1/admin/users/approval-authority', signal)
 }
 
 export function createUser(command: CreateUserCommand, signal?: AbortSignal): Promise<AppUser> {

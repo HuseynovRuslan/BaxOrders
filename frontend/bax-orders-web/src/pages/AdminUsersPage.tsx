@@ -2,6 +2,7 @@ import { KeyRound, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
   createUser,
+  fetchApprovalAuthority,
   fetchUsers,
   resetUserPassword,
   updateUser,
@@ -13,7 +14,7 @@ import { PageHeader } from '../components/PageHeader'
 import { Modal } from '../components/imports/review/Modal'
 import { formatMonth } from '../components/analytics/format'
 import { useAuth } from '../auth/AuthProvider'
-import { authErrors, roleDescriptions, roleLabels, roleOrder } from '../auth/labels'
+import { authErrors, noApproverWarning, roleDescriptions, roleLabels, roleOrder } from '../auth/labels'
 
 type Dialog =
   | { kind: 'create' }
@@ -25,16 +26,23 @@ type Dialog =
  * </summary>
  * There is no delete: a workflow event names the person who caused it, for as long as the record is kept.
  * An account that should stop working is deactivated, which ends its sessions without touching its history.
+ * <para>
+ * Whenever nobody active holds approval authority, the page says so at the top: no order can be approved until
+ * somebody is given the Rəhbər role. The server refuses to take the last approver away, and shows why.
+ * </para>
  */
 export function AdminUsersPage() {
   const { user: me } = useAuth()
   const [users, setUsers] = useState<AppUser[] | null>(null)
+  const [approverCount, setApproverCount] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<Dialog | null>(null)
 
   async function reload() {
     try {
-      setUsers(await fetchUsers())
+      const [list, authority] = await Promise.all([fetchUsers(), fetchApprovalAuthority()])
+      setUsers(list)
+      setApproverCount(authority.activeApproverCount)
       setError(null)
     } catch (problem: unknown) {
       setError(problem instanceof ApiError ? problem.message : authErrors.unknown)
@@ -46,8 +54,13 @@ export function AdminUsersPage() {
   }, [])
 
   async function toggleActive(person: AppUser) {
-    await updateUser(person.id, { isActive: !person.isActive })
-    await reload()
+    try {
+      await updateUser(person.id, { isActive: !person.isActive })
+      await reload()
+    } catch (problem: unknown) {
+      // The server's own refusal — the last approver cannot be disabled — is what the administrator reads.
+      setError(problem instanceof ApiError ? problem.message : authErrors.unknown)
+    }
   }
 
   return (
@@ -66,6 +79,12 @@ export function AdminUsersPage() {
           </button>
         }
       />
+
+      {approverCount === 0 && (
+        <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-medium text-amber-900" role="alert">
+          {noApproverWarning}
+        </p>
+      )}
 
       {error && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">

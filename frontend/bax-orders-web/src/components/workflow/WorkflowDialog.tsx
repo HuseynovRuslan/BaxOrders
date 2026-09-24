@@ -8,9 +8,11 @@ import { Modal } from '../imports/review/Modal'
 import {
   acknowledgeMissingPricesLabel,
   approveLabel,
+  decisionFactLabels,
   missingPriceNote,
   missingPriceWarning,
   returnLabel,
+  submissionCountLabel,
   submitLabel,
   workflowErrors,
 } from './labels'
@@ -32,8 +34,8 @@ const titles: Record<WorkflowDialogKind, string> = {
 
 /**
  * The one place a workflow action is taken. It shows what is about to be acted on before it is acted on —
- * which month, which version, how many lines and how much money — because approving an order is a decision
- * about those things and not about a button.
+ * which month, which time it has been sent, how many lines and how much money — because approving an order is
+ * a decision about those things and not about a button.
  * <para>
  * Nobody says who they are here. The signed-in session answers that, and the server records it.
  * </para>
@@ -47,6 +49,13 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
   const missing = workflow.missingPriceItemCount
   const needsAcknowledgement = kind === 'approve' && workflow.requiresMissingPriceAcknowledgement
   const reasonRequired = kind === 'return'
+
+  // Which time it was sent, in words, where it has been sent: that is what a decision is about. A request
+  // about to be sent has no count of its own yet.
+  const facts = workflow.decisionFacts
+  const submission = facts.submissionNumber > 0
+    ? submissionCountLabel(facts.submissionNumber, facts.previousReturn !== null)
+    : null
 
   const reasonMissing = reasonRequired && comment.trim().length === 0
   const blocked = reasonMissing || (needsAcknowledgement && !acknowledge)
@@ -66,7 +75,7 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
   return (
     <Modal
       title={titles[kind]}
-      subtitle={`${workflow.locationName} · ${formatMonth(workflow.requestPeriod)} · Versiya ${workflow.version}`}
+      subtitle={[workflow.locationName, formatMonth(workflow.requestPeriod), submission].filter(Boolean).join(' · ')}
       onClose={onClose}
       footer={
         <>
@@ -93,7 +102,7 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
           <Fact label="Obyekt" value={workflow.locationName} />
           <Fact label="Dövr" value={formatMonth(workflow.requestPeriod)} />
-          <Fact label="Versiya" value={String(workflow.version)} />
+          {submission && <Fact label={decisionFactLabels.submission} value={submission} />}
           <Fact label="Sətir sayı" value={String(workflow.itemCount)} />
           <Fact
             label={workflow.amountIsComplete ? 'Məbləğ' : 'Məlum qiymətlər üzrə məbləğ'}

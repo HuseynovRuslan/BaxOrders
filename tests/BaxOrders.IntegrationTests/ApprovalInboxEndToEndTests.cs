@@ -76,6 +76,7 @@ public sealed class ApprovalInboxEndToEndTests(PostgresDatabaseFixture database)
         await AuthenticatedApi.SignInAsync(managerSession, manager.UserName, manager.Password);
         Assert.Equal(HttpStatusCode.OK, (await managerSession.GetAsync("/api/v1/approvals/inbox")).StatusCode);
 
+        // Seeing the queue does not need approval authority; deciding on anything in it does.
         using var adminSession = AuthenticatedApi.Anonymous(factory);
         await AuthenticatedApi.SignInAsync(adminSession, admin.UserName, admin.Password);
         Assert.Equal(HttpStatusCode.OK, (await adminSession.GetAsync("/api/v1/approvals/inbox")).StatusCode);
@@ -153,10 +154,10 @@ public sealed class ApprovalInboxEndToEndTests(PostgresDatabaseFixture database)
         Assert.Empty((await InboxAsync(managerSession, tag)).Rows.Items);
     }
 
-    // ---- scenario C: a self-submission is blocked, a colleague decides --------------------------------
+    // ---- scenario C: an administrator's own submission, which only a Rəhbər decides -------------------
 
     [PostgresFact]
-    public async Task Scenario_C_an_administrators_own_submission_is_blocked_for_them_but_another_manager_can_decide_it()
+    public async Task Scenario_C_an_administrator_sees_their_submission_without_authority_and_a_manager_decides_it()
     {
         var tag = Tag();
         var admin = await AccountAsync(BaxOrdersRoles.Admin, "Sınaq administratoru");
@@ -171,19 +172,22 @@ public sealed class ApprovalInboxEndToEndTests(PostgresDatabaseFixture database)
         await ExpectAsync(HttpStatusCode.OK,
             AuthenticatedApi.PostAsync(adminSession, $"/api/v1/orders/{request}/workflow/submit", new { }));
 
+        // 4.3: the administrator holds no approval authority, and that — not the self-submission — is the reason.
         var ownRow = Assert.Single((await InboxAsync(adminSession, tag)).Rows.Items);
         Assert.False(ownRow.CanApprove);
         Assert.False(ownRow.CanReturn);
-        Assert.True(ownRow.BlockedBySelfApproval);
+        Assert.True(ownRow.BlockedByMissingAuthority);
+        Assert.False(ownRow.BlockedBySelfApproval);
         Assert.False(ownRow.BlockedByOwnContribution);
 
         var othersRow = Assert.Single((await InboxAsync(managerSession, tag)).Rows.Items);
         Assert.True(othersRow.CanApprove);
         Assert.False(othersRow.BlockedBySelfApproval);
+        Assert.False(othersRow.BlockedByMissingAuthority);
 
-        // The server refuses the admin's own attempt exactly as the existing workflow endpoint always has.
+        // The endpoint policy refuses the administrator before any business rule is reached.
         var ownAttempt = await AuthenticatedApi.PostAsync(adminSession, $"/api/v1/orders/{request}/workflow/approve", new { });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, ownAttempt.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, ownAttempt.StatusCode);
 
         await ExpectAsync(HttpStatusCode.OK,
             AuthenticatedApi.PostAsync(managerSession, $"/api/v1/orders/{request}/workflow/approve", new { }));
@@ -231,12 +235,18 @@ public sealed class ApprovalInboxEndToEndTests(PostgresDatabaseFixture database)
         await ExpectAsync(HttpStatusCode.OK,
             AuthenticatedApi.PostAsync(coordinatorSession, $"/api/v1/orders/{v2}/workflow/submit", new { }));
 
+        // Over HTTP the editor is necessarily an administrator, and since 4.3 an administrator decides nothing:
+        // that is the reason reported first. The own-contribution block for somebody who does hold the
+        // authority is proved at the service (OrderRevisionTests, ApprovalInboxTests) and in the domain.
         var editorsRow = Assert.Single((await InboxAsync(editingAdminSession, tag)).Rows.Items);
         Assert.False(editorsRow.CanApprove);
         Assert.False(editorsRow.CanReturn);
         Assert.False(editorsRow.BlockedBySelfApproval);
-        Assert.True(editorsRow.BlockedByOwnContribution);
+        Assert.True(editorsRow.BlockedByMissingAuthority);
+        Assert.False(editorsRow.BlockedByOwnContribution);
         Assert.True(editorsRow.IsRevision);
+        Assert.Equal(HttpStatusCode.Forbidden, (await AuthenticatedApi.PostAsync(editingAdminSession,
+            $"/api/v1/orders/{v2}/workflow/approve", new { })).StatusCode);
 
         var freshRow = Assert.Single((await InboxAsync(freshManagerSession, tag)).Rows.Items);
         Assert.True(freshRow.CanApprove);

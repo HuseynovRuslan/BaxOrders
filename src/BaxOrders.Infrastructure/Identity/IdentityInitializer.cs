@@ -32,6 +32,11 @@ public sealed class BootstrapAdminOptions
 /// deployment supplies. No real person is written into source control, and once anybody exists this does
 /// nothing at all — so it cannot quietly re-create an account somebody disabled on purpose.
 /// </para>
+/// <para>
+/// The first administrator gets the administrator role and nothing more: no approval authority. When nobody
+/// active holds that authority, this says so in the log — and does nothing else about it. Who may approve is
+/// a person's decision, never something startup grants.
+/// </para>
 /// </remarks>
 public sealed class IdentityInitializer(
     RoleManager<IdentityRole<Guid>> roles,
@@ -51,6 +56,23 @@ public sealed class IdentityInitializer(
             }
         }
 
+        await CreateFirstAdministratorAsync(bootstrap, cancellationToken);
+        await WarnIfNobodyCanApproveAsync();
+    }
+
+    private async Task WarnIfNobodyCanApproveAsync()
+    {
+        if (await ActiveApprovers.CountAsync(users) == 0)
+        {
+            logger.LogWarning(
+                "No active user holds approval authority, so no order can be approved. "
+                + "Create a user with the role {Role} (\"Rəhbər\") on the users page.",
+                BaxOrdersRoles.Manager);
+        }
+    }
+
+    private async Task CreateFirstAdministratorAsync(BootstrapAdminOptions bootstrap, CancellationToken cancellationToken)
+    {
         if (await users.Users.AnyAsync(cancellationToken))
         {
             return;

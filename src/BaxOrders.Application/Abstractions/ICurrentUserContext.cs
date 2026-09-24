@@ -33,15 +33,41 @@ public static class BaxOrdersRoles
     /// <summary>Runs the imports and sends orders for approval. Cannot decide on them.</summary>
     public const string Coordinator = "Coordinator";
 
-    /// <summary>Decides on orders: approves or hands them back. Does not submit them.</summary>
+    /// <summary>
+    /// Rəhbər on screen. Decides on orders: approves them or asks for a correction. Does not submit them. The
+    /// one role that holds approval authority — see <see cref="ApprovalAuthority"/>.
+    /// </summary>
     public const string Manager = "Manager";
 
-    /// <summary>Everything the other two do, plus managing users — but still not deciding on their own submissions.</summary>
+    /// <summary>
+    /// Runs the imports, sends orders for approval, corrects them and manages users. Sees the approval queue,
+    /// but holds no approval authority: being an administrator does not make somebody an approver.
+    /// </summary>
     public const string Admin = "Admin";
 
     public static readonly IReadOnlyList<string> All = [Coordinator, Manager, Admin];
 
     public static bool IsKnown(string? role) => role is not null && All.Contains(role);
+}
+
+/// <summary>
+/// Who may approve an order or ask for its correction. The one answer to that question: the endpoint policy,
+/// the service, the actions a screen is offered and <c>/auth/me</c> all ask this and nothing else.
+/// </summary>
+/// <remarks>
+/// Authority belongs to a role, not to a person, and only the Rəhbər role (stored as <see cref="BaxOrdersRoles.Manager"/>)
+/// holds it. An administrator does not get it by being an administrator. Giving it to another role later is a
+/// change to this one line.
+/// </remarks>
+public static class ApprovalAuthority
+{
+    public static bool IsHeldBy(string? role) => role is BaxOrdersRoles.Manager;
+
+    /// <summary>
+    /// Who may look at the queue of orders waiting for a decision: whoever holds the authority, and an
+    /// administrator, who sees it without the authority to act on it.
+    /// </summary>
+    public static bool MayViewQueue(string? role) => IsHeldBy(role) || role is BaxOrdersRoles.Admin;
 }
 
 /// <summary>
@@ -56,8 +82,14 @@ public static class BaxOrdersPolicies
     /// <summary>Sending an order for approval. Coordinator or Admin.</summary>
     public const string CanSubmitOrders = nameof(CanSubmitOrders);
 
-    /// <summary>Approving an order or handing it back. Manager or Admin.</summary>
+    /// <summary>Approving an order or asking for its correction. Only a role holding <see cref="ApprovalAuthority"/>.</summary>
     public const string CanDecideOrders = nameof(CanDecideOrders);
+
+    /// <summary>
+    /// Reading the queue of orders waiting for a decision. Manager or Admin: an administrator keeps seeing the
+    /// queue, without the authority to decide on anything in it.
+    /// </summary>
+    public const string CanViewApprovals = nameof(CanViewApprovals);
 
     /// <summary>
     /// Making the correction version of a returned order, and editing it while it is a draft. Coordinator or
