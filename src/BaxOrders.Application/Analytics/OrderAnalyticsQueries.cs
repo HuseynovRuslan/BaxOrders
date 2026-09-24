@@ -1,4 +1,5 @@
-﻿using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Common;
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Normalization;
@@ -268,7 +269,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 period.Version,
                 // The location ordered this month; that this variant is absent from it means zero, not unknown.
                 variant.Kind == AnalyticsKind.QuantityComparable ? quantity : null,
-                knownPriceItems == 0 ? null : found!.PricedAmount,
+                knownPriceItems == 0 ? null : Money.RoundCents(found!.PricedAmount),
                 pricedQuantity > 0
                     ? Math.Round(found!.PricedAmount / pricedQuantity, OrderAnalyticsCalculator.MoneyScale, MidpointRounding.AwayFromZero)
                     : null,

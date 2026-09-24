@@ -1,5 +1,6 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
+using BaxOrders.Application.Common;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Domain.Suppliers;
@@ -226,7 +227,9 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         var found = totals.GetValueOrDefault(request.OrderRequestId) ?? RequestTotals.Empty;
 
         // A request whose every line is unpriced has unknown money, not zero money.
-        return found.KnownPriceItemCount == 0 ? null : found.PricedAmount;
+        // To the cent here, where it is computed, so a cell minus the cell before it is the difference the
+        // row prints between them — and so the year total is the cells added up.
+        return found.KnownPriceItemCount == 0 ? null : Money.RoundCents(found.PricedAmount);
     }
 
     private static List<MonthlyReportMonthDto> Months(int year, List<MonthlyReportRowDto> rows)

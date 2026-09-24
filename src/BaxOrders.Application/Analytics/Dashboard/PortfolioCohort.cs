@@ -1,3 +1,5 @@
+using BaxOrders.Application.Common;
+
 namespace BaxOrders.Application.Analytics.Dashboard;
 
 /// <summary>
@@ -94,31 +96,30 @@ public sealed record DashboardPartitionDto(
 /// month. Reading an old month must not be coloured by what happened after it.
 /// </para>
 /// <para>
-/// <b>Rounded per object, then summed — every column of it.</b> Each object's money is rounded to the cent
-/// before it is added up, because the cent is what its table row shows, and that is done to all three columns:
-/// the month, the baseline and the difference. Summing unrounded figures and rounding once at the end is
-/// arithmetically purer and produces a headline the reader cannot reproduce from the rows in front of them,
-/// which is worse.
-/// </para>
-/// <para>
-/// It leaves one wrinkle, and it is the deliberate half of the trade. An object's own difference is computed
-/// from its own two <i>unrounded</i> sides, so rounding it can land a qəpik away from the difference of its
-/// two rounded sides. Summed over a couple of dozen objects that reaches four qəpik on the worst basis this
-/// company has. The consequence is that the headline's difference is not always exactly its compared amount
-/// minus its baseline — but every column of the table does add up to the figure above it, which is the
-/// arithmetic somebody actually checks.
+/// <b>Summed from cents, so every column adds up.</b> Each object arrives already rounded to the cent — see
+/// <see cref="Money.RoundCents(decimal)"/> for why that happens where the figure is computed rather than
+/// where it is printed — and its difference is its own two cent figures subtracted. Adding the column up
+/// therefore gives the headline, and subtracting the headline's two figures gives its difference. Both
+/// identities hold exactly, on every basis, with no qəpik left over anywhere.
 /// </para>
 /// </remarks>
 public static class PortfolioCohort
 {
     /// <summary>Money is shown to the cent, so money is added up to the cent.</summary>
-    public const int MoneyScale = 2;
+    public const int MoneyScale = Common.Money.CentScale;
 
-    /// <summary>The same rounding the screen does, so the sum of the rows is the headline.</summary>
-    public static decimal Money(decimal value) => Math.Round(value, MoneyScale, MidpointRounding.AwayFromZero);
+    /// <summary>
+    /// The shared rounding, under the name this file has always used for it.
+    /// </summary>
+    /// <remarks>
+    /// Amounts reaching here are already cents, so this is a guard rather than a step: it exists so that a
+    /// figure arriving from somewhere that has not been through <see cref="Money.RoundCents(decimal)"/> yet
+    /// cannot put a qəpik into a total.
+    /// </remarks>
+    public static decimal Money(decimal value) => Common.Money.RoundCents(value);
 
     /// <inheritdoc cref="Money(decimal)"/>
-    public static decimal? Money(decimal? value) => value is null ? null : Money(value.Value);
+    public static decimal? Money(decimal? value) => Common.Money.RoundCents(value);
 
     /// <summary>The rule itself, with nothing else in the way of reading it.</summary>
     /// <param name="hasCurrentRequest">Whether the object has a request for the selected month.</param>

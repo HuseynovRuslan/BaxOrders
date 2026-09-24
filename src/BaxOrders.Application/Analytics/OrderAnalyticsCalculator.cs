@@ -1,3 +1,4 @@
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Analytics;
@@ -24,7 +25,14 @@ public static class OrderAnalyticsCalculator
     /// <summary>Quantities keep the precision the domain stores them with.</summary>
     public const int QuantityScale = OrderRequestItem.QuantityScale;
 
-    /// <summary>Prices and money keep the precision the domain stores prices with.</summary>
+    /// <summary>
+    /// The precision a <b>unit price</b> keeps: the one the domain stores prices with.
+    /// </summary>
+    /// <remarks>
+    /// A price is not a total. It is multiplied by a quantity before anybody adds it up, so cutting it to the
+    /// cent here would lose real information about what the company pays. Amounts are a different matter and
+    /// go through <see cref="Money.RoundCents(decimal)"/> — see there for why they are rounded at the source.
+    /// </remarks>
     public const int MoneyScale = OrderRequestItem.UnitPriceScale;
 
     /// <summary>
@@ -67,7 +75,9 @@ public static class OrderAnalyticsCalculator
             // A service's quantity is not a comparable figure, so it is not offered as one.
             input.Kind == AnalyticsKind.QuantityComparable ? quantity : null,
             snapshot?.ItemCount ?? 0,
-            knownPriceItems == 0 ? null : pricedAmount,
+            // Rounded here, where it is computed, so the difference below is a subtraction of two figures the
+            // screen actually shows rather than of two it does not.
+            knownPriceItems == 0 ? null : Money.RoundCents(pricedAmount),
             WeightedPrice(pricedAmount, pricedQuantity),
             CoverageOf(quantity, pricedQuantity, knownPriceItems, missingRequired, priceNotRequired));
     }
@@ -98,7 +108,7 @@ public static class OrderAnalyticsCalculator
             averageQuantity = Math.Round(quantity / available, QuantityScale, MidpointRounding.AwayFromZero);
             averageAmount = knownPriceItems == 0
                 ? null
-                : Math.Round(pricedAmount / available, MoneyScale, MidpointRounding.AwayFromZero);
+                : Money.RoundCents(pricedAmount / available);
         }
 
         return new ComparisonSide(
@@ -223,19 +233,31 @@ public static class OrderAnalyticsCalculator
     }
 
     /// <summary>The money of one period. Null when nothing in it has a price — unknown is never zero.</summary>
+    /// <remarks>
+    /// To the cent, because the cent is the only precision this figure is ever read at, and because every
+    /// difference and total derived from it has to reconcile with what is printed.
+    /// </remarks>
     public static decimal? KnownAmount(AmountTotals totals) =>
-        totals.KnownPriceItemCount == 0 ? null : totals.PricedAmount;
+        totals.KnownPriceItemCount == 0 ? null : Money.RoundCents(totals.PricedAmount);
 
     /// <summary>
     /// The money of an average baseline month: the priced amounts of the available months divided by how many
     /// of them there are. One month is compared with an average month, never with a three-month total.
     /// </summary>
+    /// <remarks>
+    /// Rounded to the cent in one step, never to some intermediate scale first: rounding twice can land a
+    /// qəpik away from rounding once, and this is the figure the screen subtracts from.
+    /// </remarks>
     public static decimal? AverageKnownAmount(AmountTotals totals, int availablePeriodCount) =>
         availablePeriodCount == 0 || totals.KnownPriceItemCount == 0
             ? null
-            : Math.Round(totals.PricedAmount / availablePeriodCount, MoneyScale, MidpointRounding.AwayFromZero);
+            : Money.RoundCents(totals.PricedAmount / availablePeriodCount);
 
     /// <summary>The money difference between two sides, and its percentage where one exists.</summary>
+    /// <remarks>
+    /// Both sides arrive rounded to the cent, so the difference is exact and needs no rounding of its own: it
+    /// is the subtraction a reader performs on the two figures in front of them, with the same answer.
+    /// </remarks>
     public static (decimal? Delta, decimal? Percent) AmountDifference(decimal? current, decimal? baseline) =>
         current is { } currentValue && baseline is { } baselineValue
             ? (currentValue - baselineValue, PercentChange(currentValue, baselineValue))

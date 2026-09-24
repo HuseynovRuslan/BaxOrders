@@ -604,16 +604,11 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var comparedCurrent = AmountOf(cohort, row => row.Current);
         var baseline = AmountOf(cohort, row => row.Baseline);
 
-        // The Dəyişmə column, summed — not the difference of the two totals above. A row's difference comes
-        // from its own two unrounded sides, so rounding it can land a qəpik from the difference of its rounded
-        // sides; over two dozen objects that reaches four qəpik. Adding the column up is the check a manager
-        // performs, so the column is what the headline is made of, and the percentage follows the same figure.
-        var delta = baseline.KnownAmount is null
-            ? null
-            : (decimal?)cohort.Sum(row => PortfolioCohort.Money(row.KnownAmountDelta ?? 0m));
-        var percent = delta is null || baseline.KnownAmount is null
-            ? null
-            : OrderAnalyticsCalculator.PercentChange(baseline.KnownAmount.Value + delta.Value, baseline.KnownAmount.Value);
+        // Both identities a reader might check now hold at once, and they hold exactly: every object's
+        // difference is its own two cent figures subtracted, so the Dəyişmə column adds up to this, and this
+        // is also the two totals above subtracted. There is no residual anywhere to decide what to do with.
+        var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(
+            comparedCurrent.KnownAmount, baseline.KnownAmount);
 
         return new ManagementDashboardSummaryDto(
             currentPeriod,

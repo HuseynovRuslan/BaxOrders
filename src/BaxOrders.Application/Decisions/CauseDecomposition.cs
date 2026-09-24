@@ -1,4 +1,5 @@
 ﻿using BaxOrders.Application.Analytics;
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Decisions;
@@ -163,6 +164,11 @@ public static class CauseDecomposition
         CauseCategory.UnattributedDueToMissingPrice,
     ];
 
+    /// <summary>Where each category sits in <see cref="Order"/>, for the one tie-break that needs it.</summary>
+    private static readonly Dictionary<CauseCategory, int> ReadingOrder =
+        Order.Select((category, index) => (category, index))
+            .ToDictionary(pair => pair.category, pair => pair.index);
+
     public static CauseDecompositionResult Decompose(IEnumerable<VariantCauseInput> inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
@@ -206,6 +212,112 @@ public static class CauseDecomposition
             unattributed,
             internalSupply,
             supplyChanged);
+    }
+
+    /// <summary>
+    /// The same explanation in the cents the screen prints, adding up <b>exactly</b> to the difference it is
+    /// explaining.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The components are computed at full precision — that is the only way the quantity and price effects
+    /// reconstruct a variant's difference at all — and the screen then prints them to the cent. Rounding each
+    /// one on its own leaves the list a qəpik or two away from the "Cəmi" above it, which is the one thing a
+    /// list of reasons must never be: a reader who adds the reasons up and does not get the difference has
+    /// been told the reasons are incomplete, whether or not they are.
+    /// </para>
+    /// <para>
+    /// So the cents are <b>allocated</b> rather than rounded. Each component takes its whole cents, and the
+    /// ones left over — never more than one per component, plus at most one more where the difference itself
+    /// rounded the other way — go to the components with the largest fractional part.
+    /// </para>
+    /// <para>
+    /// <b>Ties.</b> Where two components have the same fractional part, the qəpik goes to the one that moved
+    /// more money, because a rounding artefact is least visible on the largest figure. Where <i>that</i> is
+    /// equal too, it goes to whichever comes first in <see cref="Order"/> — the order a reader meets them in,
+    /// so the rule is repeatable and never depends on dictionary order or on the day of the week.
+    /// </para>
+    /// <para>
+    /// Only components that actually have a variant behind them can take a qəpik. A category nobody
+    /// contributed to stays empty rather than appearing out of nowhere with 0,01 manat against it.
+    /// </para>
+    /// </remarks>
+    /// <param name="total">The difference the screen shows for this object, already to the cent.</param>
+    public static CauseDecompositionResult ToCents(CauseDecompositionResult result, decimal total)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var categories = AllocateCents(result.Categories, total);
+
+        // A driver is a line in its own right, not a share of a total, so each is simply rounded. The pair of
+        // effects is then made to reconstruct its own row: the price effect is the remainder here exactly as
+        // it is in the arithmetic above.
+        var variants = new List<VariantCauseResult>(result.Variants.Count);
+        foreach (var variant in result.Variants)
+        {
+            var impact = Money.RoundCents(variant.AmountImpact);
+            var quantity = Money.RoundCents(variant.QuantityImpact);
+            variants.Add(variant with
+            {
+                AmountImpact = impact,
+                QuantityImpact = quantity,
+                PriceImpact = variant.PriceImpact is null ? null : impact - (quantity ?? 0m),
+            });
+        }
+
+        return result with
+        {
+            Categories = categories,
+            Variants = variants,
+            TotalAmountImpact = total,
+        };
+    }
+
+    /// <summary>The largest-remainder allocation itself; see <see cref="ToCents"/> for the rule it applies.</summary>
+    private static IReadOnlyList<CauseCategoryTotal> AllocateCents(
+        IReadOnlyList<CauseCategoryTotal> categories, decimal total)
+    {
+        var units = new long[categories.Count];
+        var remainders = new decimal[categories.Count];
+        var assigned = 0L;
+
+        for (var index = 0; index < categories.Count; index++)
+        {
+            var cents = categories[index].Amount * 100m;
+            var whole = (long)Math.Floor(cents);
+            units[index] = whole;
+            remainders[index] = cents - whole;
+            assigned += whole;
+        }
+
+        // Positive when there are qəpik left to hand out, negative when one has to be taken back because the
+        // difference itself rounded the other way. Either can be at most one per component plus one.
+        var left = (long)Money.RoundCents(total * 100m) - assigned;
+
+        // Largest fractional part first, then the bigger mover, then the reading order. Nothing here depends
+        // on the order the categories happened to arrive in.
+        var ranked = Enumerable.Range(0, categories.Count)
+            .Where(index => categories[index].VariantCount > 0)
+            .OrderByDescending(index => remainders[index])
+            .ThenByDescending(index => Math.Abs(categories[index].Amount))
+            .ThenBy(index => ReadingOrder[categories[index].Category])
+            .ToList();
+
+        for (var step = 0; left != 0 && ranked.Count > 0; step++)
+        {
+            // Taking back walks the same ranking from the other end: the smallest fractional part gives first.
+            var index = left > 0 ? ranked[step % ranked.Count] : ranked[^(1 + (step % ranked.Count))];
+            units[index] += left > 0 ? 1 : -1;
+            left += left > 0 ? -1 : 1;
+        }
+
+        var allocated = new List<CauseCategoryTotal>(categories.Count);
+        for (var index = 0; index < categories.Count; index++)
+        {
+            allocated.Add(categories[index] with { Amount = units[index] / 100m });
+        }
+
+        return allocated;
     }
 
     private static (decimal Amount, int Count) Contributions(

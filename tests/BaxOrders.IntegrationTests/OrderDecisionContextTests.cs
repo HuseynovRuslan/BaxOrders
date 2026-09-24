@@ -1,4 +1,5 @@
 ﻿using BaxOrders.Application.Analytics;
+using BaxOrders.Application.Common;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
@@ -120,7 +121,7 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         Assert.Equal(2, Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).AvailablePeriodCount);
         Assert.Equal(world.April, Assert.Single(Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).MissingPeriods));
         Assert.Equal(
-            Math.Round((MayAmount + JuneAmount) / 2m, OrderAnalyticsCalculator.MoneyScale, MidpointRounding.AwayFromZero),
+            Money.RoundCents((MayAmount + JuneAmount) / 2m),
             Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).BaselineKnownAmount);
     }
 
@@ -135,7 +136,7 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         Assert.Equal(6, Window(context, AnalyticsComparisonBasis.Previous6MonthAverage).ExpectedPeriodCount);
         Assert.Equal(3, Window(context, AnalyticsComparisonBasis.Previous6MonthAverage).AvailablePeriodCount);
         Assert.Equal(
-            Math.Round((MarchAmount + MayAmount + JuneAmount) / 3m, OrderAnalyticsCalculator.MoneyScale, MidpointRounding.AwayFromZero),
+            Money.RoundCents((MarchAmount + MayAmount + JuneAmount) / 3m),
             Window(context, AnalyticsComparisonBasis.Previous6MonthAverage).BaselineKnownAmount);
     }
 

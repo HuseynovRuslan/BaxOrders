@@ -112,6 +112,8 @@ public static class PeriodComparison
         var baselineTotals = OrderAnalyticsCalculator.Totals(
             baselineByVariant.Values.SelectMany(months => months));
 
+        // Both sides are already cents — see Money.RoundCents for why they are rounded where they are computed
+        // — so the difference is exactly the subtraction a reader performs on the two figures they can see.
         var currentAmount = current is null ? null : OrderAnalyticsCalculator.KnownAmount(currentTotals);
         var baselineAmount = OrderAnalyticsCalculator.AverageKnownAmount(baselineTotals, availablePeriodCount);
         var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(currentAmount, baselineAmount);
@@ -126,6 +128,15 @@ public static class PeriodComparison
                     kinds.GetValueOrDefault(variantId, AnalyticsKind.QuantityComparable),
                     current.GetValueOrDefault(variantId),
                     AverageBaseline(variantId, baselineByVariant.GetValueOrDefault(variantId), availablePeriodCount))));
+
+        // The reasons are worked out at full precision, because that is the only way the two effects
+        // reconstruct a variant's difference, and are then allocated to the cents of the difference the screen
+        // is actually showing. A list of reasons that does not add up to the figure above it has told the
+        // reader the reasons are incomplete.
+        if (decomposition is not null && delta is { } deltaAmount)
+        {
+            decomposition = CauseDecomposition.ToCents(decomposition, deltaAmount);
+        }
 
         return new PeriodComparisonResult(
             currentAmount, baselineAmount, delta, percent, currentTotals, baselineTotals, decomposition);
