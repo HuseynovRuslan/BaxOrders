@@ -1,7 +1,7 @@
 import { TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
-import { basisParams, basisRequest, basisSearch, orderLink, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, orderLink, type BasisSelection } from '../analytics/basisParams'
 import { useBasis } from '../analytics/useBasis'
 import { fetchDecisionContext, type OrderDecisionContext } from '../api/decisions'
 import { fetchLocationHistory, type LocationOrderHistory, type LocationOrderHistoryEntry } from '../api/orders'
@@ -83,7 +83,8 @@ export function LocationDetailPage() {
   const data = state.status === 'success' ? state.data : null
 
   // Only the unfiltered first page begins with the object's latest order. Anywhere else the first row is just
-  // the first row, so there is no "Son sifariş" to show and nothing to compare.
+  // the first row, so there is no "Son sifariş" card to show. "Müqayisə et" does not lean on this: the history
+  // header names the latest order itself (`latestOrderRequestId`), whatever page or filter is being read.
   const latest = data && !year && !month && page === 1 ? (data.requests.items[0] ?? null) : null
   const latestId = latest?.orderRequestId ?? null
 
@@ -139,9 +140,11 @@ export function LocationDetailPage() {
         description={data && !data.isActive ? 'Deaktiv' : undefined}
         actions={
           <>
-            {data && data.orderRequestCount > 0 && (
+            {/* The comparison is the latest order's own analysis (11.1), against the reader's basis. An object
+                with no order has nothing to open. */}
+            {data && data.latestOrderRequestId !== null && (
               <Link
-                to={comparisonLink(id, selection)}
+                to={orderLink(data.latestOrderRequestId, selection)}
                 className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
               >
                 <TrendingUp className="size-4" aria-hidden="true" />
@@ -321,8 +324,9 @@ export function LocationDetailPage() {
                     >
                       Sifarişə bax
                     </Link>
+                    {/* This very order's analysis. An older version opens as itself; its page says a newer one exists. */}
                     <Link
-                      to={comparisonLink(id, selection, request.requestPeriod.slice(0, 7))}
+                      to={orderLink(request.orderRequestId, selection)}
                       aria-label={`${formatPeriod(request.requestPeriod)} dövrünü müqayisə et`}
                       className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
@@ -363,19 +367,6 @@ export function LocationDetailPage() {
       )}
     </>
   )
-}
-
-/**
- * The object's comparison page, for a month when a row asks, carrying the reader's basis. Every link out of this
- * page keeps the basis, and `basisSearch` owns its spelling.
- */
-function comparisonLink(locationId: number, selection: BasisSelection, period?: string): string {
-  const search = new URLSearchParams(period === undefined ? {} : { period })
-  for (const [name, value] of new URLSearchParams(basisSearch(selection))) {
-    search.set(name, value)
-  }
-
-  return `/locations/${locationId}/analytics?${search.toString()}`
 }
 
 /**

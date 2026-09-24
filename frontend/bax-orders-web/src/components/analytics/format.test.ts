@@ -19,7 +19,6 @@ import {
   isFutureMonth,
   knownAmountLabel,
   manatSuffix,
-  signedToneClass,
   toMonthKey,
   unknownValue,
   weightedPriceHint,
@@ -221,16 +220,6 @@ describe('which way a month moved', () => {
 
   it('does not call an unchanged month a rise', () => {
     expect(describeDirection('PreviousMonth', [], 0)).toBe('Keçən aydan fərqlənmir')
-  })
-})
-
-describe('the colour of a signed number', () => {
-  /** Direction and nothing else: less spending is not "good" and more is not "bad". */
-  it('is emerald up, rose down and slate flat', () => {
-    expect(signedToneClass(1)).toBe('text-emerald-700')
-    expect(signedToneClass(-1)).toBe('text-rose-700')
-    expect(signedToneClass(0)).toBe('text-slate-600')
-    expect(signedToneClass(null)).toBe('text-slate-600')
   })
 })
 

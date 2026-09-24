@@ -43,6 +43,11 @@ public sealed record DecisionPeriodDto(
 /// of this month are not new, they are simply uncompared, and the screen has to say exactly that.
 /// </param>
 /// <param name="BaselineKnownAmount">The money of an average available month. Null when none is available.</param>
+/// <param name="BaselineMissingPriceItemCount">
+/// Lines somebody still owes a price for across the window's available months — summed, not averaged, because
+/// half a missing price is not a thing. With owed prices on this side too, neither amount is whole, and the
+/// screen says so. The comparison page's <c>BaselineMissingPriceItemCount</c> for the same object, month and basis.
+/// </param>
 public sealed record DecisionComparisonDto(
     AnalyticsComparisonBasis Basis,
     DateOnly? CustomStart,
@@ -56,7 +61,8 @@ public sealed record DecisionComparisonDto(
     decimal? BaselineKnownAmount,
     decimal? DeltaAmount,
     decimal? DeltaPercent,
-    bool AmountIsComplete);
+    bool AmountIsComplete,
+    int BaselineMissingPriceItemCount);
 
 public sealed record DecisionCauseDto(CauseCategory Category, decimal Amount, int VariantCount);
 
@@ -107,8 +113,20 @@ public sealed record DecisionDriverDto(
 /// <param name="NoLongerOrderedCount">Products whose state is <see cref="ComparisonState.NoLongerOrdered"/>.</param>
 /// <param name="ListedCount">The drivers returned: products whose money or effect moved, whose price is unknown,
 /// or that appeared or disappeared.</param>
+/// <param name="IncreasedCount">Products whose state is <see cref="ComparisonState.Increased"/>, over every compared
+/// product — drivers and steady alike. The comparison page's <c>IncreasedVariantCount</c>.</param>
+/// <param name="DecreasedCount">Products whose state is <see cref="ComparisonState.Decreased"/>, counted the same way.</param>
+/// <param name="ServiceCount">Compared products that are services, measured by money rather than quantity. The
+/// comparison page's <c>AmountOrientedServiceCount</c>.</param>
 public sealed record DecisionProductCountsDto(
-    int ComparedCount, int InCurrentOrderCount, int NewCount, int NoLongerOrderedCount, int ListedCount);
+    int ComparedCount,
+    int InCurrentOrderCount,
+    int NewCount,
+    int NoLongerOrderedCount,
+    int ListedCount,
+    int IncreasedCount,
+    int DecreasedCount,
+    int ServiceCount);
 
 /// <param name="TotalAmountImpact">The sum of every category, which is the difference against the month before.</param>
 /// <param name="ExplanationIsComplete">
@@ -122,6 +140,12 @@ public sealed record DecisionProductCountsDto(
 /// Every variant that moved, or that appeared or disappeared even at no money, largest money first.
 /// </param>
 /// <param name="Products">What the product counts on the screen count, each said once.</param>
+/// <param name="Steady">
+/// Every compared product that is not a driver: priced, no money moved, no effect, neither new nor gone — by
+/// product name. Not a reason for anything, but still part of the comparison, so the reader can see it. Its
+/// <see cref="DecisionDriverDto.State"/> can still be up or down: an internally supplied material whose quantity
+/// moved costs nothing either way. With <see cref="Drivers"/> it is exactly the comparison page's rows.
+/// </param>
 public sealed record DecisionDecompositionDto(
     IReadOnlyList<DecisionCauseDto> Categories,
     decimal TotalAmountImpact,
@@ -131,7 +155,8 @@ public sealed record DecisionDecompositionDto(
     /// <summary>Variants paid for in one of the two months and supplied internally in the other.</summary>
     int SupplyChangedVariantCount,
     IReadOnlyList<DecisionDriverDto> Drivers,
-    DecisionProductCountsDto Products);
+    DecisionProductCountsDto Products,
+    IReadOnlyList<DecisionDriverDto> Steady);
 
 /// <summary>
 /// Everything the first screenful of a decision needs, computed for <b>the version that was opened</b>.

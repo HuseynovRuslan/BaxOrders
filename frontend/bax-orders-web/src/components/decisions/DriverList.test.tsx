@@ -69,22 +69,78 @@ const bags = driver({
   state: 'Increased',
 })
 
-/** The counts the backend sends beside the drivers; by default, a list of exactly these drivers. */
-function productsOf(drivers: DecisionDriver[], overrides: Partial<DecisionProductCounts> = {}): DecisionProductCounts {
+/**
+ * The counts the backend sends beside the drivers; by default, a comparison of exactly these drivers and steady
+ * products, counted the way the backend counts them.
+ */
+function productsOf(
+  drivers: DecisionDriver[],
+  overrides: Partial<DecisionProductCounts> = {},
+  steady: DecisionDriver[] = [],
+): DecisionProductCounts {
+  const compared = [...drivers, ...steady]
   return {
-    comparedCount: drivers.length,
-    inCurrentOrderCount: drivers.length,
+    comparedCount: compared.length,
+    inCurrentOrderCount: compared.length,
     newCount: drivers.filter((item) => item.state === 'New').length,
     noLongerOrderedCount: drivers.filter((item) => item.state === 'NoLongerOrdered').length,
     listedCount: drivers.length,
+    increasedCount: compared.filter((item) => item.state === 'Increased').length,
+    decreasedCount: compared.filter((item) => item.state === 'Decreased').length,
+    serviceCount: compared.filter((item) => item.analyticsKind === 'AmountOrientedService').length,
     ...overrides,
   }
 }
 
-function renderList(drivers: DecisionDriver[], onHistory = vi.fn(), products = productsOf(drivers)) {
-  render(<DriverList drivers={drivers} products={products} onHistory={onHistory} />)
+function renderList(
+  drivers: DecisionDriver[],
+  onHistory = vi.fn(),
+  products = productsOf(drivers),
+  steady: DecisionDriver[] = [],
+) {
+  render(<DriverList drivers={drivers} steady={steady} products={products} onHistory={onHistory} />)
   return onHistory
 }
+
+/** A priced product ordered the same at the same price: no money, no effect — steady, and unchanged. */
+const steadyGood = driver({
+  variant: variant({ productVariantId: 71, productName: 'Sabit mal' }),
+  category: 'QuantityChange',
+  amountImpact: 0,
+  quantityImpact: 0,
+  priceImpact: 0,
+  currentQuantity: 50,
+  baselineQuantity: 50,
+  quantityPercentChange: 0,
+  currentUnitPrice: 1,
+  baselineUnitPrice: 1,
+  unitPricePercentChange: 0,
+  currentKnownAmount: 50,
+  baselineKnownAmount: 50,
+  state: 'Unchanged',
+})
+
+/**
+ * Store material whose quantity rose: it costs nothing either way, so it is not a reason — and it is still up.
+ * The one steady product the old "dəyişməyib" misdescribed.
+ */
+const risingStore = driver({
+  variant: variant({ productVariantId: 72, productName: 'Artan anbar malı' }),
+  category: 'InternalSupply',
+  amountImpact: 0,
+  quantityImpact: null,
+  priceImpact: null,
+  currentQuantity: 12,
+  baselineQuantity: 10,
+  quantityPercentChange: 20,
+  currentUnitPrice: null,
+  baselineUnitPrice: null,
+  unitPricePercentChange: null,
+  currentKnownAmount: null,
+  baselineKnownAmount: null,
+  priceNotRequiredItemCount: 2,
+  state: 'Increased',
+})
 
 /** What a sighted reader sees: the text without the words said only to a screen reader, spaces collapsed. */
 function visibleText(element: HTMLElement): string {
@@ -321,13 +377,17 @@ describe('a row', () => {
 })
 
 describe('what "Hamısı" counts', () => {
-  /** Brief: "Hamısı 100" on an order of 76 lines, and nothing said what the 100 was. */
+  /**
+   * Brief: "Hamısı 100" on an order of 76 lines, and nothing said what the 100 was. The tail changed deliberately
+   * in 11b: "9 məhsul dəyişməyib" was not true of store material whose quantity moved at no cost, and those 9 are
+   * now on screen under "Məbləği dəyişməyən" — so the line uses the chip's words.
+   */
   it('says how many products the order has, the comparison covers, and the list holds', () => {
     renderList([driver()], vi.fn(), productsOf([driver()], { inCurrentOrderCount: 76, comparedCount: 100, listedCount: 91 }))
 
     expect(screen.getByText(
       'Bu sifarişdə 76 məhsul var, müqayisə bazası ilə birlikdə 100. «Hamısı» onlardan dəyişən 91 məhsulu sayır. '
-      + '9 məhsul dəyişməyib.',
+      + '9 məhsulun məbləği dəyişməyib.',
     )).toBeInTheDocument()
   })
 
@@ -448,6 +508,101 @@ describe('the filters', () => {
 
     await userEvent.click(filters.getByRole('button', { name: /Qiymət yoxdur/ }))
     expect(within(screen.getByRole('list')).getByText('Yeni qiyməti olmayan mal')).toBeInTheDocument()
+  })
+})
+
+/**
+ * 11.1, sub-line 3: nothing the comparison page showed is lost. It listed every compared product; the order page
+ * lists the ones whose money did not move under a chip of their own, so "Hamısı" keeps Task 10's meaning.
+ */
+describe('the products whose money did not move', () => {
+  const drivers = [driver(), bags]
+  const steady = [risingStore, steadyGood]
+
+  it('are under their own chip, last in the row, counting compared minus listed', () => {
+    const products = productsOf(drivers, {}, steady)
+    renderList(drivers, vi.fn(), products, steady)
+
+    const chips = within(screen.getByRole('group', { name: 'Dəyişiklik növü' })).getAllByRole('button')
+    const chip = chips[chips.length - 1]
+    expect(chip).toHaveTextContent('Məbləği dəyişməyən2')
+    // K − L = U: the chip counts exactly the products the scope line says moved no money.
+    expect(products.comparedCount - products.listedCount).toBe(steady.length)
+    expect(screen.getByText(/2 məhsulun məbləği dəyişməyib\.$/)).toBeInTheDocument()
+  })
+
+  it('list each in the same row form, its pill naming its state in slate', async () => {
+    renderList(drivers, vi.fn(), productsOf(drivers, {}, steady), steady)
+
+    await userEvent.click(screen.getByRole('button', { name: /Məbləği dəyişməyən/ }))
+    const rows = within(screen.getByRole('list')).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+
+    const same = screen.getByRole('button', { name: /Sabit mal/ })
+    expect(within(same).getByText('Dəyişməyib')).toHaveClass('bg-slate-100')
+    expect(within(same).queryByText('Miqdar təsiri')).toBeNull()
+    expect(same).toHaveTextContent('50 → 50 ədəd · Qiymət 1,00 ₼ → 1,00 ₼')
+    // Money known on both sides that did not move is a real zero, in slate.
+    expect(within(same).getByText('0,00 ₼')).toHaveClass('text-slate-600')
+
+    // Up by quantity, no money either way: "Artıb", and an em dash rather than a zero nobody can compute.
+    const rising = screen.getByRole('button', { name: /Artan anbar malı/ })
+    expect(within(rising).getByText('Artıb')).toHaveClass('bg-slate-100')
+    expect(within(rising).queryByText('Daxili təminat', { selector: 'span' })).toBeNull()
+    expect(rising).toHaveTextContent('10 → 12 ədəd')
+    expect(rising).toHaveTextContent('—')
+    expect(within(rising).queryByText('0,00 ₼')).toBeNull()
+  })
+
+  it('open the product history like every other row', async () => {
+    const onHistory = renderList(drivers, vi.fn(), productsOf(drivers, {}, steady), steady)
+
+    await userEvent.click(screen.getByRole('button', { name: /Məbləği dəyişməyən/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Artan anbar malı/ }))
+
+    expect(onHistory).toHaveBeenCalledWith(risingStore)
+  })
+
+  it('leave "Hamısı" and every other chip counting and listing the changed products only', () => {
+    renderList(drivers, vi.fn(), productsOf(drivers, {}, steady), steady)
+
+    const filters = within(screen.getByRole('group', { name: 'Dəyişiklik növü' }))
+    expect(filters.getByRole('button', { name: /Hamısı/ })).toHaveTextContent('Hamısı2')
+    expect(filters.getByRole('button', { name: /Qiymət dəyişən/ })).toHaveTextContent('Qiymət dəyişən1')
+    expect(filters.getByRole('button', { name: /Miqdar dəyişən/ })).toHaveTextContent('Miqdar dəyişən1')
+    expect(screen.queryByText('Sabit mal')).toBeNull()
+    expect(screen.queryByText('Artan anbar malı')).toBeNull()
+  })
+
+  it('offer no chip when there are none', () => {
+    renderList(drivers)
+
+    expect(screen.queryByRole('button', { name: /Məbləği dəyişməyən/ })).toBeNull()
+  })
+
+  it('show six and offer the rest, like every chip', async () => {
+    const many = Array.from({ length: 8 }, (_, index) =>
+      driver({ ...steadyGood, variant: variant({ productVariantId: 200 + index, productName: `Sabit ${index}` }) }))
+    renderList(drivers, vi.fn(), productsOf(drivers, {}, many), many)
+
+    await userEvent.click(screen.getByRole('button', { name: /Məbləği dəyişməyən/ }))
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(6)
+    expect(screen.getByRole('button', { name: /Hamısına bax \(8\)/ })).toBeInTheDocument()
+  })
+})
+
+/** C13: the comparison page's up / down / service counts, from the backend, over every compared product. */
+describe('the state counts', () => {
+  it('say how many went up and down, from the backend', () => {
+    renderList([driver()], vi.fn(), productsOf([driver()], { increasedCount: 12, decreasedCount: 9, serviceCount: 0 }))
+
+    expect(screen.getByText('Artıb: 12 · Azalıb: 9')).toBeInTheDocument()
+  })
+
+  it('add the services when there are any', () => {
+    renderList([driver()], vi.fn(), productsOf([driver()], { increasedCount: 12, decreasedCount: 9, serviceCount: 1 }))
+
+    expect(screen.getByText('Artıb: 12 · Azalıb: 9 · Xidmətlər: 1')).toBeInTheDocument()
   })
 })
 

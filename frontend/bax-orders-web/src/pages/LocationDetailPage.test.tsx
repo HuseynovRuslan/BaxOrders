@@ -60,6 +60,8 @@ function history(entries: LocationOrderHistoryEntry[], overrides: Partial<Locati
     internalSupplyItemCount: 0,
     years: [2026],
     requests: { items: entries, page: 1, pageSize: 24, totalCount: entries.length },
+    // The server names the latest order in the header; here, as on its unfiltered first page, the first row.
+    latestOrderRequestId: entries[0]?.orderRequestId ?? null,
     ...overrides,
   }
 }
@@ -86,6 +88,7 @@ function comparison(overrides: Partial<DecisionComparison> = {}): DecisionCompar
     deltaAmount: 500,
     deltaPercent: 11.9,
     amountIsComplete: true,
+    baselineMissingPriceItemCount: 0,
     ...overrides,
   }
 }
@@ -279,12 +282,14 @@ describe('the basis the page was opened with', () => {
       '/orders/104?basis=avg3',
     ])
 
-    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/locations/43/analytics?basis=avg3')
+    // Changed deliberately in 11b (11.1: "«Müqayisə» … həmin sifarişin təhlil səhifəsini açır"): the comparison is
+    // the order's own analysis, not a second page — the latest order for the header, that very order for a row.
+    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/107?basis=avg3')
     const compare = table().getAllByRole('link', { name: /dövrünü müqayisə et$/ })
     expect(compare.map((link) => link.getAttribute('href'))).toEqual([
-      '/locations/43/analytics?period=2026-07&basis=avg3',
-      '/locations/43/analytics?period=2026-07&basis=avg3',
-      '/locations/43/analytics?period=2026-06&basis=avg3',
+      '/orders/107?basis=avg3',
+      '/orders/105?basis=avg3',
+      '/orders/104?basis=avg3',
     ])
   })
 
@@ -327,6 +332,77 @@ describe('the basis the page was opened with', () => {
     expect(within(card()).getByText('4.700,00 ₼', { selector: '.text-2xl' })).toBeInTheDocument()
     expect(within(card()).getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/107?basis=avg3')
     expect(within(card()).queryByText(/Müqayisə:/)).toBeNull()
+  })
+})
+
+/**
+ * Brief acceptance 5 (11.1): there is no separate comparison page. "Müqayisə et" opens the latest order's analysis
+ * and each row's "Müqayisə" opens that order's, with the chosen basis.
+ */
+describe('"Müqayisə" opens the order’s analysis', () => {
+  function hrefs(): string[] {
+    return screen.getAllByRole('link').map((link) => link.getAttribute('href') ?? '')
+  }
+
+  it('from the header, as the latest order, with the basis', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+
+    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/107?basis=avg3')
+    expect(hrefs().filter((href) => href.includes('/analytics'))).toEqual([])
+  })
+
+  it('from every row, as that row’s order, with the basis', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+
+    // The same order the row's "Sifarişə bax" opens, and the same words and name as before.
+    const rows = table().getAllByRole('row').slice(1)
+    const compare = rows.map((row) => within(row).getByRole('link', { name: /dövrünü müqayisə et$/ }))
+    expect(compare.map((link) => link.getAttribute('href')))
+      .toEqual(rows.map((row) => within(row).getByRole('link', { name: 'Sifarişə bax' }).getAttribute('href')))
+    expect(compare.map((link) => link.textContent)).toEqual(['Müqayisə', 'Müqayisə', 'Müqayisə'])
+    expect(compare[2]).toHaveAccessibleName('İyun 2026 dövrünü müqayisə et')
+  })
+
+  it('still opens the latest order under a filter whose rows do not hold it', async () => {
+    // Filtered, the page lists June alone; the header still names July's newest order.
+    ordersApi.fetchLocationHistory.mockImplementation(
+      (_id: number, query: { year?: number }) => Promise.resolve(query.year === undefined
+        ? history(twoOfJuly)
+        : history([twoOfJuly[2]], { latestOrderRequestId: 107 })))
+    await renderPage('/locations/43?basis=avg3')
+
+    const [yearFilter] = screen.getAllByRole('combobox')
+    await userEvent.selectOptions(yearFilter, '2026')
+    await waitFor(() => expect(table().getAllByRole('link', { name: /dövrünü müqayisə et$/ })).toHaveLength(1))
+
+    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/107?basis=avg3')
+    expect(table().getByRole('link', { name: /dövrünü müqayisə et$/ })).toHaveAttribute('href', '/orders/104?basis=avg3')
+  })
+
+  it('still opens the latest order on the second page', async () => {
+    const many = Array.from({ length: 24 }, (_, index) => entry({ orderRequestId: 200 + index }))
+    ordersApi.fetchLocationHistory.mockImplementation(
+      (_id: number, query: { page: number }) => Promise.resolve(history(many, {
+        requests: { items: query.page === 1 ? many : [twoOfJuly[2]], page: query.page, pageSize: 24, totalCount: 25 },
+        latestOrderRequestId: 200,
+      })))
+    await renderPage('/locations/43?basis=avg3')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Növbəti' }))
+    await screen.findByText('Səhifə 2 / 2 · 25 sifariş')
+
+    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/200?basis=avg3')
+    expect(table().getByRole('link', { name: /dövrünü müqayisə et$/ })).toHaveAttribute('href', '/orders/104?basis=avg3')
+  })
+
+  it('is not offered for an object with no order: there is nothing to open', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([], { earliestPeriod: null, latestPeriod: null }))
+    await renderPage('/locations/43?basis=avg3')
+
+    expect(screen.queryByRole('link', { name: 'Müqayisə et' })).toBeNull()
+    expect(hrefs().filter((href) => href.includes('/analytics'))).toEqual([])
   })
 })
 

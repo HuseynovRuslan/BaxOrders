@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
-import { basisParams, basisRequest, locationLink, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, locationLink, orderLink, type BasisSelection } from '../analytics/basisParams'
 import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
@@ -255,7 +255,8 @@ export function OrderDetailPage() {
           {decision && !decision.isLatestVersion && decision.latestOrderRequestId !== null && (
             <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" role="status">
               Bu ay üçün bu obyektin daha yeni sifarişi var. Rəqəmlər açdığınız sifarişə aiddir.{' '}
-              <Link to={`/orders/${decision.latestOrderRequestId}`} className="font-medium underline">
+              {/* With the reader's basis, like every other link out of this page. */}
+              <Link to={orderLink(decision.latestOrderRequestId, selection)} className="font-medium underline">
                 {latestOrderLinkLabel}
               </Link>
             </p>
@@ -269,9 +270,11 @@ export function OrderDetailPage() {
               basis={decision.primary.basis}
               windowPeriods={decision.primary.windowPeriods}
             />
-            {decision.decomposition.drivers.length > 0 && (
+            {/* An order in which nothing moved still lists the products it was compared on. */}
+            {decision.decomposition.drivers.length + decision.decomposition.steady.length > 0 && (
               <DriverList
                 drivers={decision.decomposition.drivers}
+                steady={decision.decomposition.steady}
                 products={decision.decomposition.products}
                 onHistory={setHistory}
               />

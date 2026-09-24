@@ -253,6 +253,13 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                     .Count(OrderLinePricingQueries.Warning),
                 InternalSupply = db.OrderRequestItems.Where(line => line.OrderRequest.LocationId == item.Id)
                     .Count(OrderLinePricingQueries.InternalSupply),
+                // The rows' own order, so it is the order the unfiltered first page puts first; and no filter,
+                // because the object's latest order does not change with the page being read.
+                LatestOrderRequestId = db.OrderRequests.Where(request => request.LocationId == item.Id)
+                    .OrderByDescending(request => request.RequestPeriod)
+                    .ThenByDescending(request => request.Version)
+                    .Select(request => (long?)request.Id)
+                    .FirstOrDefault(),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -322,7 +329,8 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
             header.MissingPrice,
             header.InternalSupply,
             years,
-            new PagedResult<LocationOrderHistoryEntryDto>(requests, page, pageSize, totalCount));
+            new PagedResult<LocationOrderHistoryEntryDto>(requests, page, pageSize, totalCount),
+            header.LatestOrderRequestId);
     }
 }
 

@@ -98,6 +98,11 @@ export interface LocationOrderHistory {
   internalSupplyItemCount: number
   years: number[]
   requests: PagedResult<LocationOrderHistoryEntry>
+  /**
+   * The latest month's newest version — what "Müqayisə et" opens. From the header, so it is the same on every page
+   * and under every filter. Null when the object has no order.
+   */
+  latestOrderRequestId: number | null
 }
 
 export interface OrderItemSourceRef {

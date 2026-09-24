@@ -104,6 +104,7 @@ function comparison(overrides: Partial<DecisionComparison> = {}): DecisionCompar
     deltaAmount: 600,
     deltaPercent: 14.2857,
     amountIsComplete: true,
+    baselineMissingPriceItemCount: 0,
     ...overrides,
   }
 }
@@ -183,7 +184,17 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
       internalSupplyVariantCount: 0,
       supplyChangedVariantCount: 0,
       drivers: [driver()],
-      products: { comparedCount: 45, inCurrentOrderCount: 40, newCount: 1, noLongerOrderedCount: 0, listedCount: 1 },
+      products: {
+        comparedCount: 45,
+        inCurrentOrderCount: 40,
+        newCount: 1,
+        noLongerOrderedCount: 0,
+        listedCount: 1,
+        increasedCount: 2,
+        decreasedCount: 0,
+        serviceCount: 0,
+      },
+      steady: [],
     },
     ...overrides,
   }
@@ -582,15 +593,47 @@ describe('the drivers', () => {
     )
   })
 
-  /** Brief: every count says what it counts. The list gets the backend's counts and says what "Hamısı" is. */
+  /**
+   * Brief: every count says what it counts. The list gets the backend's counts and says what "Hamısı" is. The tail
+   * changed deliberately in 11b — "məhsulun məbləği dəyişməyib", the words of the chip those products are now under.
+   */
   it('says what "Hamısı" counts, from the counts the backend sent', async () => {
     await renderPage()
 
     const list = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
     expect(within(list).getByText(
       'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 1 məhsulu sayır. '
-      + '44 məhsul dəyişməyib.',
+      + '44 məhsulun məbləği dəyişməyib.',
     )).toBeInTheDocument()
+    expect(within(list).getByText('Artıb: 2 · Azalıb: 0')).toBeInTheDocument()
+  })
+
+  /** 11.1: an order in which nothing moved money still lists the products it was compared on. */
+  it('lists the products when none moved money but some were compared', async () => {
+    const steady = driver({
+      variant: variant({ productVariantId: 71, productName: 'Sabit mal' }),
+      category: 'QuantityChange',
+      amountImpact: 0,
+      quantityImpact: 0,
+      priceImpact: 0,
+      currentUnitPrice: 2.8,
+      unitPricePercentChange: 0,
+      currentKnownAmount: 84,
+      state: 'Unchanged',
+    })
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      decomposition: {
+        ...context().decomposition!,
+        drivers: [],
+        steady: [steady],
+        products: { ...context().decomposition!.products, comparedCount: 1, inCurrentOrderCount: 1, listedCount: 0 },
+      },
+    }))
+    await renderPage()
+
+    const list = within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }))
+    await userEvent.click(list.getByRole('button', { name: /Məbləği dəyişməyən/ }))
+    expect(list.getByRole('button', { name: /Sabit mal/ })).toHaveTextContent('Dəyişməyib')
   })
 
   /** The window compares against the basis the page compares against (Task 1), with the row's own figures. */
@@ -705,8 +748,150 @@ describe('an older version', () => {
     // In business words (Task 05b): the newer order of the month, not "Versiya 2".
     expect(screen.getByText(/Bu ay üçün bu obyektin daha yeni sifarişi var\. Rəqəmlər açdığınız sifarişə aiddir\./))
       .toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/106')
+    // With the basis the page is reading (11b: every link out keeps it), which here is last month.
+    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/106?basis=last')
     expect(document.body).not.toHaveTextContent(/versiya/i)
+  })
+
+  it('offers the newer one with the basis the reader chose', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      version: 1,
+      isLatestVersion: false,
+      latestOrderRequestId: 106,
+      latestVersion: 2,
+    }))
+    render(
+      <MemoryRouter initialEntries={['/orders/105?basis=avg3']}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+
+    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/106?basis=avg3')
+  })
+})
+
+/**
+ * 11.1, sub-line 3: what the comparison page said about the window, said on the order page — which months are
+ * missing, every month with the order behind it, and when both sides owe prices.
+ */
+describe('what the window is made of', () => {
+  const partial = comparison({
+    basis: 'Previous3MonthAverage',
+    windowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
+    expectedPeriodCount: 3,
+    availablePeriodCount: 2,
+    missingPeriods: ['2026-04-01'],
+    periods: [
+      { period: '2026-05-01', orderRequestId: 103, version: 1, status: 'Approved' },
+      { period: '2026-06-01', orderRequestId: 104, version: 1, status: 'Approved' },
+    ],
+  })
+
+  async function renderAt(url: string) {
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+  }
+
+  it('names the missing months where the average says how many it rests on', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({ primary: partial }))
+    await renderAt('/orders/105?basis=avg3')
+
+    expect(within(headline()).getByText('(2/3 ay · Çatışmayan: Aprel 2026)')).toBeInTheDocument()
+  })
+
+  it('lists every month of the window on request, each order opened with the basis', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({ primary: partial }))
+    await renderAt('/orders/105?basis=avg3')
+
+    const toggle = within(headline()).getByRole('button', { name: 'Müqayisəyə daxil olan aylar' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(headline()).queryByText('Aprel 2026 — sifariş yoxdur')).toBeNull()
+
+    await userEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const months = within(headline()).getAllByRole('listitem')
+    expect(months.map((month) => month.textContent)).toEqual([
+      'Aprel 2026 — sifariş yoxdur',
+      'May 2026 · Sifarişə bax',
+      'İyun 2026 · Sifarişə bax',
+    ])
+    expect(months[0]).toHaveClass('text-amber-900')
+    expect(months[0].querySelector('svg')).toBeNull()
+    expect(within(months[1]).getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/103?basis=avg3')
+    expect(within(months[2]).getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/104?basis=avg3')
+  })
+
+  it('lists the window even when it holds no order at all', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      primary: comparison({
+        windowPeriods: ['2026-06-01'],
+        available: false,
+        availablePeriodCount: 0,
+        missingPeriods: ['2026-06-01'],
+        periods: [],
+        baselineKnownAmount: null,
+        deltaAmount: null,
+        deltaPercent: null,
+      }),
+      decomposition: null,
+    }))
+    await renderAt('/orders/105')
+
+    expect(within(headline()).getByText('Seçilmiş dövrdə müqayisə üçün sifariş yoxdur')).toBeInTheDocument()
+    await userEvent.click(within(headline()).getByRole('button', { name: 'Müqayisəyə daxil olan aylar' }))
+    expect(within(headline()).getByText('İyun 2026 — sifariş yoxdur')).toBeInTheDocument()
+    expect(within(headline()).queryByRole('link', { name: 'Sifarişə bax' })).toBeNull()
+  })
+
+  const owing = {
+    knownAmount: 4800,
+    itemCount: 40,
+    knownPriceItemCount: 38,
+    missingPriceItemCount: 2,
+    priceNotRequiredItemCount: 0,
+    isComplete: false,
+  }
+
+  it('says neither amount is whole when both sides owe prices', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      current: owing,
+      primary: comparison({ ...partial, baselineMissingPriceItemCount: 3 }),
+    }))
+    await renderAt('/orders/105?basis=avg3')
+
+    expect(within(headline()).getByText('Müqayisə dövründə də 3 sətirdə qiymət yoxdur — hər iki məbləğ tam deyil.'))
+      .toBeInTheDocument()
+  })
+
+  it('says nothing of the sort when only this order owes prices', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      current: owing,
+      primary: comparison({ ...partial, baselineMissingPriceItemCount: 0 }),
+    }))
+    await renderAt('/orders/105?basis=avg3')
+
+    expect(within(headline()).getByText(/2 sətirdə qiymət yoxdur/)).toBeInTheDocument()
+    expect(within(headline()).queryByText(/hər iki məbləğ tam deyil/)).toBeNull()
+  })
+
+  it('says nothing of the sort when only the window owes prices', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      primary: comparison({ ...partial, baselineMissingPriceItemCount: 3 }),
+    }))
+    await renderAt('/orders/105?basis=avg3')
+
+    expect(within(headline()).getByText('(2/3 ay · Çatışmayan: Aprel 2026)')).toBeInTheDocument()
+    expect(within(headline()).queryByText(/hər iki məbləğ tam deyil/)).toBeNull()
   })
 })
 
@@ -1001,7 +1186,17 @@ describe('internal supply on the decision screen', () => {
         internalSupplyVariantCount: 2,
         supplyChangedVariantCount: 0,
         drivers: [],
-        products: { comparedCount: 40, inCurrentOrderCount: 40, newCount: 0, noLongerOrderedCount: 0, listedCount: 0 },
+        products: {
+          comparedCount: 40,
+          inCurrentOrderCount: 40,
+          newCount: 0,
+          noLongerOrderedCount: 0,
+          listedCount: 0,
+          increasedCount: 0,
+          decreasedCount: 0,
+          serviceCount: 0,
+        },
+        steady: [],
       },
     }))
     await renderPage()

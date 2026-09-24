@@ -11,7 +11,7 @@ import {
   formatQuantity,
   unknownValue,
 } from '../analytics/format'
-import { distinguishVariants } from '../analytics/labels'
+import { distinguishVariants, stateBadgeLabels } from '../analytics/labels'
 import { internalSupplyLabel, missingPriceCount } from '../../pricing/labels'
 import { formatOrderUnit } from '../imports/labels'
 import {
@@ -23,6 +23,7 @@ import {
   mixedCauseLabel,
   mixedCauseToneClass,
   pricePartLabel,
+  productStateLine,
   quantityPartLabel,
   supplyChangedDriverNote,
   type DriverFilter,
@@ -33,27 +34,34 @@ const initialCount = 6
 
 interface DriverListProps {
   drivers: DecisionDriver[]
+  /** The compared products whose money did not move, by name. Listed under their own chip, never under "Hamısı". */
+  steady: DecisionDriver[]
   /** What the counts count, so "Hamısı" can say it rather than leave the reader to guess. */
   products: DecisionProductCounts
   onHistory: (driver: DecisionDriver) => void
 }
 
 /**
- * The products behind the month's difference, largest money first.
+ * The products behind the month's difference, largest money first — and, under "Məbləği dəyişməyən", every other
+ * product the comparison is over.
  *
  * Each row answers "what changed about this thing?" with the two numbers it changed between, so a reader never
  * has to take the classification on trust: 2,80 → 4,10 ₼ is checkable, "qiymət artıb" is not. Only a handful
  * are shown at first — the list is a summary of the causes, and the rest are one click away.
+ *
+ * The separate comparison page listed every compared product; this page is now the only one (11.1), so the
+ * products that moved no money are here as well. They are not reasons, so "Hamısı" and the other chips still
+ * leave them out (Task 10), and their pill names their state rather than a cause.
  */
-export function DriverList({ drivers, products, onHistory }: DriverListProps) {
+export function DriverList({ drivers, steady, products, onHistory }: DriverListProps) {
   const [filter, setFilter] = useState<DriverFilter>('All')
   const [expanded, setExpanded] = useState(false)
 
   const counts = Object.fromEntries(
-    driverFilterOrder.map((option) => [option, drivers.filter((driver) => matches(driver, option)).length]),
+    driverFilterOrder.map((option) => [option, rowsUnder(option, drivers, steady).length]),
   ) as Record<DriverFilter, number>
 
-  const filtered = drivers.filter((driver) => matches(driver, filter))
+  const filtered = rowsUnder(filter, drivers, steady)
   const shown = expanded ? filtered : filtered.slice(0, initialCount)
   const descriptions = distinguishVariants(shown.map((driver) => driver.variant))
 
@@ -63,6 +71,8 @@ export function DriverList({ drivers, products, onHistory }: DriverListProps) {
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
           <p className="mt-0.5 text-xs text-slate-500">{driverScopeLine(products)}</p>
+          {/* The comparison page's up / down / service counts, over every compared product — the backend's. */}
+          <p className="mt-0.5 text-xs text-slate-500">{productStateLine(products)}</p>
         </div>
         <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="Dəyişiklik növü">
           {driverFilterOrder
@@ -109,13 +119,7 @@ export function DriverList({ drivers, products, onHistory }: DriverListProps) {
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="font-medium text-slate-900">{driver.variant.productName}</span>
-                    <span
-                      className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                        isMixed(driver) ? mixedCauseToneClass : causeToneClass[driver.category]
-                      }`}
-                    >
-                      {isMixed(driver) ? mixedCauseLabel : causeLabels[driver.category]}
-                    </span>
+                    <Pill driver={driver} steady={filter === 'Steady'} />
                   </p>
                   <p className="text-xs text-slate-400">{descriptions[index]}</p>
                   <Change driver={driver} />
@@ -213,6 +217,24 @@ function Change({ driver }: { driver: DecisionDriver }) {
   )
 }
 
+/**
+ * What kind of change the row is. A reason names its cause; a product that moved no money has no cause, so it
+ * names its state ("Dəyişməyib", "Artıb" …) in the neutral slate of a pill that is not a verdict.
+ */
+function Pill({ driver, steady }: { driver: DecisionDriver; steady: boolean }) {
+  const [label, toneClass] = steady
+    ? [stateBadgeLabels[driver.state], mixedCauseToneClass]
+    : isMixed(driver)
+      ? [mixedCauseLabel, mixedCauseToneClass]
+      : [causeLabels[driver.category], causeToneClass[driver.category]]
+
+  return (
+    <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${toneClass}`}>
+      {label}
+    </span>
+  )
+}
+
 /** "Miqdar +160,00 ₼ · Qiymət +7,00 ₼" — each part of a mixed row's money, in its own direction's colour (9.1). */
 function Split({ driver }: { driver: DecisionDriver }) {
   return (
@@ -248,15 +270,25 @@ function moneyIsUnknown(driver: DecisionDriver): boolean {
 }
 
 /**
- * Whether a row belongs under a chip. Each chip's count is the number of rows it leaves, so the two can never
- * disagree. "Yeni məhsullar" and "Bu ay yazılmayan məhsullar" go by the product's state — the comparison page's
- * rule — rather than by where its money was filed, so both pages count the same products; a new product with a
- * missing price is therefore under both "Yeni məhsullar" and "Qiymət yoxdur".
+ * The rows under a chip. Each chip's count is the number of rows this leaves, so the two can never disagree.
+ * "Məbləği dəyişməyən" is the steady list itself; every other chip filters the drivers.
+ */
+function rowsUnder(filter: DriverFilter, drivers: DecisionDriver[], steady: DecisionDriver[]): DecisionDriver[] {
+  return filter === 'Steady' ? steady : drivers.filter((driver) => matches(driver, filter))
+}
+
+/**
+ * Whether a driver belongs under a chip. "Yeni məhsullar" and "Bu ay yazılmayan məhsullar" go by the product's
+ * state — the comparison page's rule — rather than by where its money was filed, so both pages count the same
+ * products; a new product with a missing price is therefore under both "Yeni məhsullar" and "Qiymət yoxdur".
  */
 function matches(driver: DecisionDriver, filter: DriverFilter): boolean {
   switch (filter) {
     case 'All':
       return true
+    // A driver moved money, appeared, disappeared or owes a price — it is never steady.
+    case 'Steady':
+      return false
     // A product that moved both ways appears under both, and its own effect is what each total counts.
     case 'PriceChange':
       return driver.priceImpact !== null && driver.priceImpact !== 0

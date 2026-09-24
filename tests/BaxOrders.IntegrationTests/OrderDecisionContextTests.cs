@@ -248,10 +248,12 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         var decomposition = (await ContextAsync(db, world.JulyRequestId)).Decomposition!;
 
         // June and July together hold ten products; July's order has nine; one is new and one is no longer
-        // ordered; the steady one moved nothing, so nine are listed.
+        // ordered; the steady one moved nothing, so nine are listed. The packs, the bags, the gloves and the
+        // partly unpriced product went up, nothing went down, and the cleaning is the one service.
         Assert.Equal(
             new DecisionProductCountsDto(
-                ComparedCount: 10, InCurrentOrderCount: 9, NewCount: 1, NoLongerOrderedCount: 1, ListedCount: 9),
+                ComparedCount: 10, InCurrentOrderCount: 9, NewCount: 1, NoLongerOrderedCount: 1, ListedCount: 9,
+                IncreasedCount: 4, DecreasedCount: 0, ServiceCount: 1),
             decomposition.Products);
         Assert.Equal(decomposition.Drivers.Count, decomposition.Products.ListedCount);
     }
@@ -366,6 +368,23 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         var drivers = (await ContextAsync(db, world.JulyRequestId)).Decomposition!.Drivers;
 
         Assert.DoesNotContain(drivers, driver => driver.Variant.ProductVariantId == world.SteadyVariantId);
+    }
+
+    /// <summary>Not a reason, but still compared — so the order page can show it where the comparison page did.</summary>
+    [PostgresFact]
+    public async Task A_product_that_moved_nothing_is_kept_as_steady()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var decomposition = (await ContextAsync(db, world.JulyRequestId)).Decomposition!;
+
+        var steady = Assert.Single(decomposition.Steady);
+        Assert.Equal(world.SteadyVariantId, steady.Variant.ProductVariantId);
+        Assert.Equal(ComparisonState.Unchanged, steady.State);
+        Assert.Equal(0m, steady.AmountImpact);
+        Assert.Equal((50m, 50m), (steady.BaselineQuantity, steady.CurrentQuantity));
+        Assert.DoesNotContain(decomposition.Drivers, driver => driver.Variant.ProductVariantId == world.SteadyVariantId);
     }
 
     // ---- what it costs to ask ------------------------------------------------------------------------

@@ -3,14 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  ComparisonSide,
-  ComparisonSummary,
-  LocationComparison,
-  VariantComparison,
-  VariantIdentity,
-  VariantTrend,
-} from '../api/analytics'
+import type { VariantIdentity, VariantTrend } from '../api/analytics'
 import type { ApprovalInbox, ApprovalInboxRow } from '../api/approvals'
 import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
 import type { DecisionDriver, OrderDecisionContext } from '../api/decisions'
@@ -26,7 +19,6 @@ import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { ApprovalInboxPage } from '../pages/ApprovalInboxPage'
-import { LocationAnalyticsPage } from '../pages/LocationAnalyticsPage'
 import { LocationDetailPage } from '../pages/LocationDetailPage'
 import { LocationsPage } from '../pages/LocationsPage'
 import { ManagementDashboardPage } from '../pages/ManagementDashboardPage'
@@ -52,11 +44,7 @@ const ordersApi = vi.hoisted(() => ({
 const revisionsApi = vi.hoisted(() => ({ fetchRevision: vi.fn() }))
 const workflowApi = vi.hoisted(() => ({ fetchWorkflow: vi.fn() }))
 const decisionsApi = vi.hoisted(() => ({ fetchDecisionContext: vi.fn() }))
-const analyticsApi = vi.hoisted(() => ({
-  fetchVariantTrend: vi.fn(),
-  fetchAnalyticsPeriods: vi.fn(),
-  fetchComparison: vi.fn(),
-}))
+const analyticsApi = vi.hoisted(() => ({ fetchVariantTrend: vi.fn() }))
 const reportsApi = vi.hoisted(() => ({ fetchMonthlyReport: vi.fn() }))
 const approvalsApi = vi.hoisted(() => ({ fetchApprovalInbox: vi.fn() }))
 
@@ -306,12 +294,18 @@ function decisionContext(): OrderDecisionContext {
       expectedPeriodCount: 3,
       availablePeriodCount: 2,
       missingPeriods: ['2026-04-01'],
-      periods: [],
+      // The months behind the average (Task 11b), so the window's disclosure is swept with its links.
+      periods: [
+        { period: '2026-05-01', orderRequestId: 103, version: 2, status: 'Approved' },
+        { period: '2026-06-01', orderRequestId: 104, version: 2, status: 'Approved' },
+      ],
       available: true,
       baselineKnownAmount: 4200,
       deltaAmount: 600,
       deltaPercent: 14.2857,
       amountIsComplete: false,
+      // Owed prices on both sides, so the sentence saying neither amount is whole is swept too.
+      baselineMissingPriceItemCount: 1,
     },
     secondary: [],
     decomposition: {
@@ -372,7 +366,36 @@ function decisionContext(): OrderDecisionContext {
           state: 'Increased',
         }),
       ],
-      products: { comparedCount: 45, inCurrentOrderCount: 40, newCount: 1, noLongerOrderedCount: 1, listedCount: 4 },
+      products: {
+        comparedCount: 45,
+        inCurrentOrderCount: 40,
+        newCount: 1,
+        noLongerOrderedCount: 1,
+        listedCount: 4,
+        increasedCount: 1,
+        decreasedCount: 0,
+        serviceCount: 1,
+      },
+      // A product whose money did not move (Task 11b), so its chip and its state pill are swept.
+      steady: [
+        driver({
+          variant: variant({ productVariantId: 25, productName: 'Sabit mal', orderUnitCode: 'ROLL', orderUnitName: 'Top (rulon)' }),
+          category: 'QuantityChange',
+          amountImpact: 0,
+          quantityImpact: 0,
+          priceImpact: 0,
+          currentQuantity: 20,
+          baselineQuantity: 20,
+          quantityPercentChange: 0,
+          currentUnitPrice: 1.5,
+          baselineUnitPrice: 1.5,
+          unitPricePercentChange: 0,
+          currentKnownAmount: 30,
+          baselineKnownAmount: 30,
+          currentItemCount: 1,
+          state: 'Unchanged',
+        }),
+      ],
     },
   }
 }
@@ -667,105 +690,8 @@ function locationHistory(): LocationOrderHistory {
       pageSize: 24,
       totalCount: 3,
     },
+    latestOrderRequestId: 105,
   }
-}
-
-function side(overrides: Partial<ComparisonSide> = {}): ComparisonSide {
-  return {
-    quantity: 30,
-    itemCount: 1,
-    knownAmount: 963.82,
-    weightedUnitPrice: 32.1273,
-    priceCoverage: {
-      state: 'Partial',
-      totalQuantity: 30,
-      knownPriceQuantity: 20,
-      missingPriceQuantity: 10,
-      knownPriceItemCount: 1,
-      missingRequiredPriceItemCount: 1,
-      priceNotRequiredItemCount: 0,
-    },
-    ...overrides,
-  }
-}
-
-function comparisonRow(overrides: Partial<VariantComparison> = {}): VariantComparison {
-  return {
-    variant: variant(),
-    analyticsKind: 'QuantityComparable',
-    state: 'NoLongerOrdered',
-    current: side(),
-    baseline: { ...side(), availablePeriodCount: 2, expectedPeriodCount: 3 },
-    delta: {
-      quantityDelta: -41,
-      quantityPercentChange: -57.7465,
-      priceDelta: 0,
-      pricePercentChange: 0,
-      amountDelta: -1317.22,
-      amountPercentChange: -57.7465,
-    },
-    ...overrides,
-  }
-}
-
-function comparisonSummary(): ComparisonSummary {
-  return {
-    locationId: 21,
-    locationCode: 'LOC-000043',
-    locationName: 'Fəvvarələr meydanı',
-    currentPeriod: '2026-07-01',
-    basis: 'Previous3MonthAverage',
-    customStart: null,
-    customEnd: null,
-    baselineWindowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
-    currentRequestId: 105,
-    currentVersion: 2,
-    currentStatus: 'PendingApproval',
-    expectedBaselinePeriodCount: 3,
-    availableBaselinePeriodCount: 2,
-    missingBaselinePeriods: ['2026-04-01'],
-    baselinePeriods: [
-      { period: '2026-05-01', orderRequestId: 103, version: 2, status: 'Approved' },
-      { period: '2026-06-01', orderRequestId: 104, version: 2, status: 'Approved' },
-    ],
-    baselineAvailable: true,
-    currentItemCount: 40,
-    baselineAverageItemCount: 38,
-    currentKnownAmountTotal: 4800,
-    baselineKnownAmountTotal: 4200,
-    knownAmountDelta: 600,
-    knownAmountPercentChange: 14.2857,
-    currentMissingPriceItemCount: 2,
-    baselineMissingPriceItemCount: 1,
-    amountIsComplete: false,
-    currentPriceNotRequiredItemCount: 0,
-    baselinePriceNotRequiredItemCount: 0,
-    newVariantCount: 1,
-    noLongerOrderedVariantCount: 1,
-    increasedVariantCount: 0,
-    decreasedVariantCount: 0,
-    unchangedVariantCount: 0,
-    notComparableVariantCount: 1,
-    insufficientHistoryVariantCount: 0,
-    quantityComparableVariantCount: 2,
-    amountOrientedServiceCount: 1,
-    totalVariantCount: 3,
-  }
-}
-
-function locationComparison(kind: string): LocationComparison {
-  const rows = kind === 'AmountOrientedService'
-    ? [comparisonRow({
-      variant: variant({ productVariantId: 30, productName: 'Ayaqyolu pulu', orderUnitCode: 'MONTH', orderUnitName: 'Ay' }),
-      analyticsKind: 'AmountOrientedService',
-      state: 'NotComparable',
-    })]
-    : [
-      comparisonRow(),
-      comparisonRow({ variant: variant({ productVariantId: 22, productName: 'Rosmarinus', ...bareSpecification }), state: 'New' }),
-    ]
-
-  return { summary: comparisonSummary(), rows: { items: rows, page: 1, pageSize: 50, totalCount: rows.length } }
 }
 
 function reportCell(month: number, overrides: Partial<MonthlyReportCell> = {}): MonthlyReportCell {
@@ -980,17 +906,6 @@ beforeEach(() => {
   workflowApi.fetchWorkflow.mockReset().mockResolvedValue(orderWorkflow())
   decisionsApi.fetchDecisionContext.mockReset().mockResolvedValue(decisionContext())
   analyticsApi.fetchVariantTrend.mockReset().mockResolvedValue(variantTrend())
-  analyticsApi.fetchAnalyticsPeriods.mockReset().mockResolvedValue({
-    locationId: 21,
-    locationCode: 'LOC-000043',
-    locationName: 'Fəvvarələr meydanı',
-    periods: [
-      { period: '2026-07-01', orderRequestId: 105, version: 2, status: 'PendingApproval', itemCount: 40 },
-      { period: '2026-06-01', orderRequestId: 104, version: 2, status: 'Approved', itemCount: 38 },
-    ],
-  })
-  analyticsApi.fetchComparison.mockReset().mockImplementation(
-    (_id: number, _period: string, query: { kind: string }) => Promise.resolve(locationComparison(query.kind)))
   reportsApi.fetchMonthlyReport.mockReset().mockResolvedValue(monthlyReport())
   approvalsApi.fetchApprovalInbox.mockReset().mockResolvedValue(inbox())
 })
@@ -1063,6 +978,20 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).not.toHaveTextContent(/yaxşı|pis/i)
     expect(screen.getByRole('columnheader', { name: 'Vahid' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Müqayisə üçün data azdır — bu nə deməkdir?' })).toBeInTheDocument()
+
+    // Task 11b's lines — what the comparison page used to say — opened and swept on the page that says them now:
+    // the missing month, the window's months, the both-sides sentence, the state counts and the steady products.
+    await userEvent.click(screen.getByRole('button', { name: 'Müqayisəyə daxil olan aylar' }))
+    await userEvent.click(screen.getByRole('button', { name: /Məbləği dəyişməyən/ }))
+    expectNoOldTerms(container)
+    expect(container).toHaveTextContent('(2/3 ay · Çatışmayan: Aprel 2026)')
+    expect(container).toHaveTextContent('Aprel 2026 — sifariş yoxdur')
+    expect(container).toHaveTextContent('May 2026 · Sifarişə bax')
+    expect(container).toHaveTextContent('Müqayisə dövründə də 1 sətirdə qiymət yoxdur — hər iki məbləğ tam deyil.')
+    expect(container).toHaveTextContent('Artıb: 1 · Azalıb: 0 · Xidmətlər: 1')
+    expect(container).toHaveTextContent('41 məhsulun məbləği dəyişməyib.')
+    expect(within(screen.getByRole('button', { name: /Sabit mal/ })).getByText('Dəyişməyib')).toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/yaxşı|pis|Çəkili/i)
   })
 
   /** Task 06: the order page's warning names the products it is about — swept in its longest form. */
@@ -1163,33 +1092,8 @@ describe('no retired word on the manager’s screens', () => {
     expect(readableText(container)).not.toMatch(/(?<![\p{L}])(?:Yan|Fev|Mar|Apr|İyu|Avq|Sen|Okt|Noy|Dek)(?![\p{L}])/u)
   })
 
-  it('the object comparison page, materials and services', async () => {
-    const { container } = renderAt(
-      '/locations/21/analytics?period=2026-07&basis=avg3',
-      '/locations/:locationId/analytics',
-      <LocationAnalyticsPage />,
-    )
-    await screen.findAllByText('Rosmarinus')
-
-    expectNoOldTerms(container)
-    expect(container).toHaveTextContent('Qiyməti olan sətirlərin cəmi')
-    expect(container).toHaveTextContent('Orta qiymət: 32,13 ₼')
-    // Task 10: each count says what it counts.
-    expect(container).toHaveTextContent('2 məhsul göstərilir')
-    expect(container).toHaveTextContent('Müqayisədə 3 məhsul: bu ay və ya müqayisə bazasında sifariş olunanlar')
-    expect(container).not.toHaveTextContent(/yaxşı|pis/i)
-    expect(screen.getByPlaceholderText('Məhsul adı üzrə axtar')).toBeInTheDocument()
-
-    // The months the comparison rests on, opened: each is a month and a link, never "— Versiya 2".
-    await userEvent.click(screen.getByRole('button', { name: 'Müqayisəyə daxil olan dövrlər' }))
-    expect(container).toHaveTextContent('May 2026 · Sifarişə bax')
-    expectNoOldTerms(container)
-
-    await userEvent.click(screen.getByRole('tab', { name: /Xidmətlər/ }))
-    await screen.findAllByText('Ayaqyolu pulu')
-    expectNoOldTerms(container)
-    expect(container).toHaveTextContent('Cari məbləğ')
-  })
+  // The object comparison page's case left with the page (Task 11b, owner decision 11.1). What it swept — the
+  // window's months, the counts, the steady products — is swept on the order page above.
 
   it('the monthly report', async () => {
     // Today in September 2026, so December is a future month on the screen being swept.
@@ -1262,7 +1166,8 @@ describe('no retired word on the manager’s screens', () => {
     expect(screen.getByText('Düzəldilmiş sifariş')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Əvvəlki sifarişə bax' })).toHaveAttribute('href', '/orders/103')
     expect(screen.getByRole('link', { name: 'Düzəldilmiş sifarişə bax' })).toHaveAttribute('href', '/orders/107')
-    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/107')
+    // With the page's basis since Task 11b; here, last month.
+    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/107?basis=last')
 
     await userEvent.click(screen.getByRole('tab', { name: /Təsdiq prosesi/ }))
     await screen.findByText('Düzəliş tələb olundu')

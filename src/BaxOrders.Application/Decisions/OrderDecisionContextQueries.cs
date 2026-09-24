@@ -189,14 +189,23 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             result.BaselineKnownAmount,
             result.KnownAmountDelta,
             result.KnownAmountPercentChange,
-            result.CurrentTotals.IsComplete && result.BaselineTotals.IsComplete);
+            result.CurrentTotals.IsComplete && result.BaselineTotals.IsComplete,
+            result.BaselineTotals.MissingRequiredPriceItemCount);
 
         return (dto, result);
     }
 
     // ---- the explanation ----------------------------------------------------------------------------
 
-    /// <summary>The shared decomposition, dressed with the product names a reader needs.</summary>
+    /// <summary>
+    /// The shared decomposition, dressed with the product names a reader needs, and split into the products that
+    /// are a reason (<c>Drivers</c>) and the ones that are not (<c>Steady</c>).
+    /// </summary>
+    /// <remarks>
+    /// Together the two lists are every compared product, so the order page can show everything the old
+    /// comparison page showed without a second calculation. The counts are taken over both, as the comparison
+    /// page takes them over its rows.
+    /// </remarks>
     /// <param name="availablePeriodCount">The primary window's months that have a request — the state rule's divisor.</param>
     /// <param name="currentSnapshots">The opened order's own products, counted for the screen.</param>
     private static DecisionDecompositionDto Explain(
@@ -206,7 +215,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
         Dictionary<long, VariantPeriodSnapshot> currentSnapshots)
     {
         var drivers = new List<DecisionDriverDto>(result.Variants.Count);
-        int compared = 0, added = 0, dropped = 0;
+        var steady = new List<DecisionDriverDto>();
+        int compared = 0, added = 0, dropped = 0, increased = 0, decreased = 0, services = 0;
         foreach (var variant in result.Variants)
         {
             if (!variants.TryGetValue(variant.ProductVariantId, out var identity))
@@ -222,22 +232,23 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             compared++;
             added += state == ComparisonState.New ? 1 : 0;
             dropped += state == ComparisonState.NoLongerOrdered ? 1 : 0;
+            increased += state == ComparisonState.Increased ? 1 : 0;
+            decreased += state == ComparisonState.Decreased ? 1 : 0;
+            services += variant.Kind == AnalyticsKind.AmountOrientedService ? 1 : 0;
 
-            // A variant that moved no money is not a reason for anything. One whose price is unknown is kept
-            // even so: it moved nothing that can be seen, which is precisely what the reader has to be told.
-            // One that appeared or disappeared is kept too — a new material issued from the company's own store
-            // costs nothing and is still a change — or the list could never hold every product the "Yeni
-            // məhsullar" count says is new.
-            if (variant.PriceIsComplete
+            // A variant that moved no money is not a reason for anything, so it is steady rather than a driver.
+            // One whose price is unknown is a driver even so: it moved nothing that can be seen, which is
+            // precisely what the reader has to be told. One that appeared or disappeared is a driver too — a new
+            // material issued from the company's own store costs nothing and is still a change — or the list
+            // could never hold every product the "Yeni məhsullar" count says is new. A steady product can still
+            // be up or down by quantity: internal supply whose quantity moved costs nothing either way.
+            var isSteady = variant.PriceIsComplete
                 && variant.AmountImpact == 0m
                 && variant.QuantityImpact is null or 0m
                 && variant.PriceImpact is null or 0m
-                && state is not (ComparisonState.New or ComparisonState.NoLongerOrdered))
-            {
-                continue;
-            }
+                && state is not (ComparisonState.New or ComparisonState.NoLongerOrdered);
 
-            drivers.Add(new DecisionDriverDto(
+            (isSteady ? steady : drivers).Add(new DecisionDriverDto(
                 identity.Identity,
                 variant.Kind,
                 variant.Category,
@@ -275,7 +286,14 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 currentSnapshots.Keys.Count(variants.ContainsKey),
                 added,
                 dropped,
-                drivers.Count));
+                drivers.Count,
+                increased,
+                decreased,
+                services),
+            // Their money is zero, so impact cannot order them; the name can, as the comparison page did.
+            [.. steady
+                .OrderBy(product => product.Variant.ProductName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(product => product.Variant.ProductVariantId)]);
     }
 
 

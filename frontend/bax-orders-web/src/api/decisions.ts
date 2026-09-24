@@ -57,6 +57,11 @@ export interface DecisionComparison {
   deltaAmount: number | null
   deltaPercent: number | null
   amountIsComplete: boolean
+  /**
+   * Lines owed a price across the window's available months, summed. With owed prices in the order too, neither
+   * amount is whole — the comparison page's `baselineMissingPriceItemCount`.
+   */
+  baselineMissingPriceItemCount: number
 }
 
 export interface DecisionCause {
@@ -111,6 +116,12 @@ export interface DecisionProductCounts {
   noLongerOrderedCount: number
   /** The drivers listed: every product that moved, whose price is unknown, or that appeared or disappeared. */
   listedCount: number
+  /** Products whose state is `Increased`, over every compared product — drivers and steady alike. */
+  increasedCount: number
+  /** Products whose state is `Decreased`, counted the same way. */
+  decreasedCount: number
+  /** Compared products that are services, measured by money rather than quantity. */
+  serviceCount: number
 }
 
 export interface DecisionDecomposition {
@@ -126,6 +137,12 @@ export interface DecisionDecomposition {
   /** Largest money first. */
   drivers: DecisionDriver[]
   products: DecisionProductCounts
+  /**
+   * Every compared product that is not a driver — no money moved, neither new nor gone — by name. With `drivers`,
+   * exactly the products the old comparison page listed. Its `state` can still be up or down: store material
+   * whose quantity moved costs nothing either way.
+   */
+  steady: DecisionDriver[]
 }
 
 export interface OrderDecisionContext {

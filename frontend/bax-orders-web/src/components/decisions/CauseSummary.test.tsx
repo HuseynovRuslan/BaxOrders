@@ -32,7 +32,17 @@ function decomposition(overrides: Partial<DecisionDecomposition> = {}): Decision
     internalSupplyVariantCount: 0,
     supplyChangedVariantCount: 0,
     drivers: [],
-    products: { comparedCount: 6, inCurrentOrderCount: 5, newCount: 1, noLongerOrderedCount: 1, listedCount: 5 },
+    products: {
+      comparedCount: 6,
+      inCurrentOrderCount: 5,
+      newCount: 1,
+      noLongerOrderedCount: 1,
+      listedCount: 5,
+      increasedCount: 1,
+      decreasedCount: 0,
+      serviceCount: 0,
+    },
+    steady: [],
     ...overrides,
   }
 }

@@ -1,7 +1,8 @@
 import type { CauseCategory, DecisionProductCounts, OrderDecisionContext } from '../../api/decisions'
-import { missingPriceShortLabel } from '../../pricing/labels'
+import { missingPriceCount, missingPriceShortLabel } from '../../pricing/labels'
 import { newProductsLabel, notOrderedThisMonthLabel, productNoun } from '../../terminology/terms'
-import { formatCount } from '../analytics/format'
+import { formatCount, formatMonth } from '../analytics/format'
+import { stateLabels } from '../analytics/labels'
 
 /**
  * What each category is called where money is shown beside it.
@@ -98,8 +99,22 @@ export const pricePartLabel = 'Qiymət'
 /**
  * `New` and `NoLongerOrdered` are the product's state — the comparison page's own rule — not where its money
  * went, so the chip and the comparison page count the same products.
+ *
+ * `Steady` is the one chip whose rows are not drivers: the compared products whose money did not move, which the
+ * comparison page listed and the order page now lists too (11.1). "Hamısı" keeps Task 10's meaning — the products
+ * that changed — so they are under this chip and under no other.
  */
-export type DriverFilter = 'All' | 'PriceChange' | 'QuantityChange' | 'New' | 'NoLongerOrdered' | 'MissingPrice'
+export type DriverFilter =
+  | 'All'
+  | 'PriceChange'
+  | 'QuantityChange'
+  | 'New'
+  | 'NoLongerOrdered'
+  | 'MissingPrice'
+  | 'Steady'
+
+/** The chip of the products whose money did not move, and the scope line's words for them. */
+export const steadyProductsLabel = 'Məbləği dəyişməyən'
 
 export const driverFilterLabels: Record<DriverFilter, string> = {
   All: 'Hamısı',
@@ -108,6 +123,7 @@ export const driverFilterLabels: Record<DriverFilter, string> = {
   New: newProductsLabel,
   NoLongerOrdered: notOrderedThisMonthLabel,
   MissingPrice: missingPriceShortLabel,
+  Steady: steadyProductsLabel,
 }
 
 export const driverFilterOrder: DriverFilter[] = [
@@ -117,6 +133,7 @@ export const driverFilterOrder: DriverFilter[] = [
   'New',
   'NoLongerOrdered',
   'MissingPrice',
+  'Steady',
 ]
 
 /**
@@ -124,6 +141,9 @@ export const driverFilterOrder: DriverFilter[] = [
  *
  * "Hamısı 100" on an order of 76 lines read as a mistake. It was not one — the comparison is over this order and
  * the basis window together, and only the products that changed are listed — but nothing said so.
+ *
+ * The rest are "məbləği dəyişməyən", in the chip's own words. It used to say they "did not change", which is not
+ * true of store material whose quantity moved at no cost — and that product is now on screen, marked "Artıb".
  */
 export function driverScopeLine(products: DecisionProductCounts): string {
   const { inCurrentOrderCount, comparedCount, listedCount } = products
@@ -131,8 +151,26 @@ export function driverScopeLine(products: DecisionProductCounts): string {
     + `${formatCount(comparedCount)}. «Hamısı» onlardan dəyişən ${formatCount(listedCount)} ${productNoun}u sayır.`
 
   return comparedCount > listedCount
-    ? `${line} ${formatCount(comparedCount - listedCount)} ${productNoun} dəyişməyib.`
+    ? `${line} ${formatCount(comparedCount - listedCount)} ${productNoun}un məbləği dəyişməyib.`
     : line
+}
+
+/**
+ * "Artıb: 12 · Azalıb: 9 · Xidmətlər: 1" — how many compared products went up or down by quantity, and how many
+ * are services, as the comparison page counted them. The counts are the backend's, over every compared product;
+ * nothing is counted here. "Xidmətlər" only when there is one.
+ */
+export function productStateLine(products: DecisionProductCounts): string {
+  const parts = [
+    `${stateLabels.Increased}: ${formatCount(products.increasedCount)}`,
+    `${stateLabels.Decreased}: ${formatCount(products.decreasedCount)}`,
+  ]
+
+  if (products.serviceCount > 0) {
+    parts.push(`${causeLabels.Services}: ${formatCount(products.serviceCount)}`)
+  }
+
+  return parts.join(' · ')
 }
 
 /** Said on a product the company paid for in one month and supplied itself in the other. */
@@ -154,6 +192,41 @@ export const coverageHint =
   'Bazanın əhatə etdiyi aylardan yalnız bir hissəsində bu obyektin sifarişi var. Ortalama həmin mövcud aylara bölünür.'
 
 export const noPreviousMonthNote = 'Keçən ay üçün müqayisə məlumatı yoxdur.'
+
+// ---- what the window is made of (Task 11b: the comparison page's facts, on the order page) ---------------
+
+/**
+ * "(2/3 ay · Çatışmayan: Aprel 2026)" — what an average rests on, and which months of the window the object has no
+ * order for. The months are named rather than only counted, as the comparison page named them.
+ */
+export function partialCoverageLine(available: number, expected: number, missing: readonly string[]): string {
+  const months = missing.map(formatMonth).join(', ')
+  return months
+    ? `(${formatCount(available)}/${formatCount(expected)} ay · Çatışmayan: ${months})`
+    : `(${formatCount(available)}/${formatCount(expected)} ay)`
+}
+
+/** The disclosure listing every month of the chosen window. */
+export const windowMonthsLabel = 'Müqayisəyə daxil olan aylar'
+
+/** The link beside a window month the object has an order for. */
+export const openOrderLabel = 'Sifarişə bax'
+
+/**
+ * "Aprel 2026 — sifariş yoxdur": a month of the window the object did not order in. A gap in the window, not a price
+ * warning — so words, never a warning icon.
+ */
+export function windowMonthWithoutOrder(period: string): string {
+  return `${formatMonth(period)} — sifariş yoxdur`
+}
+
+/**
+ * "Müqayisə dövründə də 3 sətirdə qiymət yoxdur — hər iki məbləğ tam deyil." — said only when both this order and
+ * the window owe prices, so neither side of the difference is a whole amount. The comparison page's sentence.
+ */
+export function bothSidesOwePricesNote(baselineMissingPriceItemCount: number): string {
+  return `Müqayisə dövründə də ${missingPriceCount(baselineMissingPriceItemCount)} — hər iki məbləğ tam deyil.`
+}
 
 /**
  * The months an order can be compared against, oldest first, as `yyyy-MM` — what a hand-picked range offers.

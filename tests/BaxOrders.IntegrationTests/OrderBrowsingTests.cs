@@ -128,6 +128,52 @@ public sealed class OrderBrowsingTests(PostgresDatabaseFixture database)
         Assert.All(rows, row => Assert.Equal(world.May, row.RequestPeriod));
     }
 
+    /// <summary>
+    /// "Müqayisə et" opens the object's latest order, so the header names it — the latest month at its highest
+    /// version — and no filter or page the reader is on changes which order that is.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_history_names_its_latest_order_whatever_the_filter_or_page()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var june = await db.OrderRequests.Include(request => request.Location).SingleAsync(request => request.Id == world.JuneRequestId);
+        june.SubmitForApproval(WorkflowActor.System("Test"), null, DateTime.UtcNow);
+        var next = june.CreateNextVersion();
+        next.AddItem(await db.ProductVariants.SingleAsync(variant => variant.Id == world.VariantId), 1m, 1m);
+        db.OrderRequests.Add(next);
+        await db.SaveChangesAsync();
+
+        var queries = Queries(db);
+        var unfiltered = await queries.GetHistoryAsync(world.LocationId, new LocationHistoryQuery(), CancellationToken.None);
+        var otherYear = await queries.GetHistoryAsync(world.LocationId, new LocationHistoryQuery(Year: 2025), CancellationToken.None);
+        var otherMonth = await queries.GetHistoryAsync(world.LocationId, new LocationHistoryQuery(Year: 2026, Month: 5), CancellationToken.None);
+        var secondPage = await queries.GetHistoryAsync(world.LocationId, new LocationHistoryQuery(Page: 2, PageSize: 1), CancellationToken.None);
+
+        // The very order the unfiltered first page lists first.
+        Assert.Equal(next.Id, unfiltered!.LatestOrderRequestId);
+        Assert.Equal(next.Id, unfiltered.Requests.Items[0].OrderRequestId);
+
+        Assert.Empty(otherYear!.Requests.Items);
+        Assert.Equal(next.Id, otherYear.LatestOrderRequestId);
+        Assert.DoesNotContain(otherMonth!.Requests.Items, row => row.OrderRequestId == next.Id);
+        Assert.Equal(next.Id, otherMonth.LatestOrderRequestId);
+        Assert.NotEqual(next.Id, Assert.Single(secondPage!.Requests.Items).OrderRequestId);
+        Assert.Equal(next.Id, secondPage.LatestOrderRequestId);
+    }
+
+    [PostgresFact]
+    public async Task A_location_with_no_order_names_no_latest_order()
+    {
+        await using var db = database.CreateContext();
+        var empty = await EmptyLocationAsync(db);
+
+        var history = await Queries(db).GetHistoryAsync(empty.Id, new LocationHistoryQuery(), CancellationToken.None);
+
+        Assert.Null(history!.LatestOrderRequestId);
+    }
+
     [PostgresFact]
     public async Task An_order_shows_its_header_and_pages_its_lines_in_source_order()
     {

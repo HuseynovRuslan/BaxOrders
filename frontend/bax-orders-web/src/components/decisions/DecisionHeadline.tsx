@@ -1,7 +1,11 @@
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+import { Link } from 'react-router'
 import type { DecisionComparison, OrderDecisionContext } from '../../api/decisions'
-import type { BasisSelection } from '../../analytics/basisParams'
+import { orderLink, type BasisSelection } from '../../analytics/basisParams'
 import { BasisPicker } from '../analytics/BasisPicker'
 import { InfoHint } from '../analytics/InfoHint'
+import { WarningNote } from '../WarningNote'
 import {
   basisHints,
   costDirectionToneClass,
@@ -20,7 +24,16 @@ import {
   warningToneClass,
 } from '../../pricing/labels'
 import { limitedComparisonDataLabel } from '../../terminology/terms'
-import { averagingHint, emptyWindowNote, coverageHint } from './labels'
+import {
+  averagingHint,
+  bothSidesOwePricesNote,
+  coverageHint,
+  emptyWindowNote,
+  openOrderLabel,
+  partialCoverageLine,
+  windowMonthsLabel,
+  windowMonthWithoutOrder,
+} from './labels'
 
 interface DecisionHeadlineProps {
   context: OrderDecisionContext
@@ -38,6 +51,10 @@ interface DecisionHeadlineProps {
  * followed a card here sees the three-month figure in the headline and the three-month reason under it — the
  * page used to answer about last month instead, which gave them two numbers for one question. The other bases
  * stay on screen underneath, small, so the context is never lost by choosing.
+ *
+ * It also says what the window is made of, which the separate comparison page used to say and this page is now
+ * the only place for (11.1): the months the object has no order for, by name; every month of the window with the
+ * order behind it; and, when both sides owe prices, that neither amount is whole.
  */
 export function DecisionHeadline({ context, selection, onSelect, priorMonths }: DecisionHeadlineProps) {
   const { current, primary } = context
@@ -107,12 +124,19 @@ export function DecisionHeadline({ context, selection, onSelect, priorMonths }: 
                 </p>
               </div>
               <Coverage comparison={primary} />
+              {current.missingPriceItemCount > 0 && primary.baselineMissingPriceItemCount > 0 && (
+                <div className="mt-2">
+                  <WarningNote>{bothSidesOwePricesNote(primary.baselineMissingPriceItemCount)}</WarningNote>
+                </div>
+              )}
             </>
           ) : (
             // Nothing in the window. Never a silent comparison against zero and never a quiet fall back to
             // another basis: the products of this month are not new, they are simply uncompared.
             <p className="mt-1 text-sm text-slate-600">{emptyWindowNote}</p>
           )}
+
+          <WindowMonths comparison={primary} selection={selection} />
         </div>
 
         {context.secondary.length > 0 && (
@@ -130,7 +154,7 @@ export function DecisionHeadline({ context, selection, onSelect, priorMonths }: 
   )
 }
 
-/** "(2/3 ay)" — what the average actually rests on, said where the average is. */
+/** "(2/3 ay · Çatışmayan: Aprel 2026)" — what the average actually rests on, said where the average is. */
 function Coverage({ comparison }: { comparison: DecisionComparison }) {
   if (comparison.availablePeriodCount >= comparison.expectedPeriodCount) {
     return null
@@ -139,10 +163,63 @@ function Coverage({ comparison }: { comparison: DecisionComparison }) {
   return (
     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
       <span>
-        ({comparison.availablePeriodCount}/{comparison.expectedPeriodCount} ay)
+        {partialCoverageLine(
+          comparison.availablePeriodCount,
+          comparison.expectedPeriodCount,
+          comparison.missingPeriods,
+        )}
       </span>
       <InfoHint label={`${limitedComparisonDataLabel} — bu nə deməkdir?`}>{coverageHint}</InfoHint>
     </p>
+  )
+}
+
+/**
+ * Every month of the chosen window, oldest first: the order behind each month that has one — opened with the
+ * reader's basis — and the plain fact of each month that has none. Closed until asked for; it is evidence behind
+ * the figures, not a figure.
+ */
+function WindowMonths({ comparison, selection }: { comparison: DecisionComparison; selection: BasisSelection }) {
+  const [open, setOpen] = useState(false)
+
+  if (comparison.windowPeriods.length === 0) {
+    return null
+  }
+
+  const orders = new Map(comparison.periods.map((period) => [period.period.slice(0, 7), period.orderRequestId]))
+
+  return (
+    <div className="mt-2 text-xs text-slate-500">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-slate-50 hover:text-slate-900"
+      >
+        {open ? <ChevronDown className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}
+        {windowMonthsLabel}
+      </button>
+
+      {open && (
+        <ul className="mt-1 space-y-1 border-t border-slate-100 pt-2 text-slate-700">
+          {comparison.windowPeriods.map((period) => {
+            const orderRequestId = orders.get(period.slice(0, 7))
+            // A month with no order is a gap in the window, not a missing price: amber words, no warning icon.
+            return orderRequestId === undefined ? (
+              <li key={period} className="text-amber-900">{windowMonthWithoutOrder(period)}</li>
+            ) : (
+              <li key={period}>
+                {formatMonth(period)}
+                {' · '}
+                <Link to={orderLink(orderRequestId, selection)} className="underline hover:text-slate-900">
+                  {openOrderLabel}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 

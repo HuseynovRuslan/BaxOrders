@@ -46,6 +46,7 @@ function comparison(overrides: Partial<DecisionComparison> = {}): DecisionCompar
     deltaAmount: 1287.91,
     deltaPercent: 65.76,
     amountIsComplete: true,
+    baselineMissingPriceItemCount: 0,
     ...overrides,
   }
 }

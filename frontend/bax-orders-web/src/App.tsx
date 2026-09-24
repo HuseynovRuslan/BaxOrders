@@ -1,10 +1,10 @@
-import { Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useParams, useSearchParams } from 'react-router'
+import { locationLink, parseBasis } from './analytics/basisParams'
 import { RequireAuth, RequirePermission } from './auth/RequireAuth'
 import { AppLayout } from './layout/AppLayout'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { ApprovalInboxPage } from './pages/ApprovalInboxPage'
 import { ImportsPage } from './pages/ImportsPage'
-import { LocationAnalyticsPage } from './pages/LocationAnalyticsPage'
 import { LocationDetailPage } from './pages/LocationDetailPage'
 import { LocationsPage } from './pages/LocationsPage'
 import { LoginPage } from './pages/LoginPage'
@@ -43,7 +43,9 @@ export function App() {
           <Route path="orders/:orderRequestId" element={<OrderDetailPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="locations/:locationId" element={<LocationDetailPage />} />
-          <Route path="locations/:locationId/analytics" element={<LocationAnalyticsPage />} />
+          {/* The comparison page is gone (11.1); its analysis is the order page's. A saved link still lands on
+              the object, with its basis, rather than on "Səhifə tapılmadı". */}
+          <Route path="locations/:locationId/analytics" element={<RetiredComparisonRedirect />} />
           <Route path="products" element={<ProductsPage />} />
           {/* Everybody signed in may look; only the catalogue policy may change what it says. */}
           <Route path="products/categories" element={<ProductCategoriesPage />} />
@@ -66,4 +68,15 @@ export function App() {
       </Route>
     </Routes>
   )
+}
+
+/**
+ * Where an old comparison-page link goes: the object page, keeping only the basis. Its month, tab, filter, search
+ * and page described a screen that no longer exists; the object page lists the months, and each one's "Müqayisə"
+ * opens that order's analysis.
+ */
+function RetiredComparisonRedirect() {
+  const { locationId } = useParams()
+  const [params] = useSearchParams()
+  return <Navigate replace to={locationLink(Number(locationId), parseBasis(params))} />
 }

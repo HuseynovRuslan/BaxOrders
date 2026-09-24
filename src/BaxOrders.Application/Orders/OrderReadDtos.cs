@@ -105,6 +105,11 @@ public sealed record LocationOrderHistoryEntryDto(
     public bool AmountIsComplete => MissingPriceItemCount == 0;
 }
 
+/// <param name="LatestOrderRequestId">
+/// The latest month's highest version — the order the unfiltered first page lists first. Part of the header rather
+/// than read off the rows, so "Müqayisə et" opens the same order on every page and under every filter. Null when
+/// the location has no order.
+/// </param>
 public sealed record LocationOrderHistoryDto(
     int LocationId,
     string Code,
@@ -120,7 +125,8 @@ public sealed record LocationOrderHistoryDto(
     int MissingPriceItemCount,
     int InternalSupplyItemCount,
     IReadOnlyList<int> Years,
-    PagedResult<LocationOrderHistoryEntryDto> Requests);
+    PagedResult<LocationOrderHistoryEntryDto> Requests,
+    long? LatestOrderRequestId);
 
 /// <param name="Year">Filters on <see cref="OrderRequest.RequestPeriod"/>, never on the optional request date.</param>
 public sealed record LocationHistoryQuery(int? Year = null, int? Month = null, int Page = 1, int PageSize = 25);

@@ -302,23 +302,6 @@ export function formatPeriodCoverage(available: number, expected: number): strin
 }
 
 /**
- * The pre-9.1 rule, kept only for the location screens Task 11 will move onto `costDirectionToneClass` (through
- * `./labels`): emerald up, rose down, slate flat — the opposite of owner decision 9.1. The dashboard (Task 09),
- * "Əsas dəyişikliklər" and the product history (Task 10) are off it. Nothing new may use it.
- *
- * It says which way the figure went and nothing else. More is not better and less is not worse — an object
- * that spent less may have skipped work it needed to do — so this is never used on anything but a signed
- * change, and never to grade an object.
- */
-export function signedToneClass(value: number | null | undefined): string {
-  if (value === null || value === undefined || value === 0) {
-    return 'text-slate-600'
-  }
-
-  return value > 0 ? 'text-emerald-700' : 'text-rose-700'
-}
-
-/**
  * Owner decision 9.1: a cost that went up is red and a cost that went down is green. It is the direction of the
  * cost, never a verdict — more is not worse and less is not better. Zero and unknown are slate.
  */
