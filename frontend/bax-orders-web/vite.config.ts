@@ -4,15 +4,28 @@ import tailwindcss from '@tailwindcss/vite'
 
 // The dev server proxies API calls to the ASP.NET Core backend, so the browser
 // talks to a single origin and the API needs no CORS configuration.
-const apiTarget = 'http://localhost:5080'
+//
+// Which backend depends on the mode. `npm run dev` is the ordinary one. `npm run dev:sandbox` (mode "sandbox")
+// is Task 4's test environment: its API runs beside the ordinary one on its own port, against its own database,
+// so both can be open at once without one ever standing in for the other.
+const servers: Record<string, { port: number; apiTarget: string; strictPort: boolean }> = {
+  sandbox: { port: 5174, apiTarget: 'http://localhost:5081', strictPort: true },
+}
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': { target: apiTarget, changeOrigin: true },
-      '/health': { target: apiTarget, changeOrigin: true },
+const ordinary = { port: 5173, apiTarget: 'http://localhost:5080', strictPort: false }
+
+export default defineConfig(({ mode }) => {
+  const { port, apiTarget, strictPort } = servers[mode] ?? ordinary
+
+  return {
+    plugins: [react(), tailwindcss()],
+    server: {
+      port,
+      strictPort,
+      proxy: {
+        '/api': { target: apiTarget, changeOrigin: true },
+        '/health': { target: apiTarget, changeOrigin: true },
+      },
     },
-  },
+  }
 })

@@ -13,6 +13,13 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The test environment and the real data never meet: the Sandbox environment runs only against a sandbox
+// database, and no other environment ever runs against one. Checked from the connection string alone, before
+// anything is registered that could reach a database.
+SandboxDatabase.EnsureFits(
+    builder.Environment.EnvironmentName,
+    builder.Configuration.GetConnectionString(BaxOrders.Infrastructure.DependencyInjection.ConnectionStringName));
+
 builder.Services
     .AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));

@@ -1,7 +1,6 @@
 using BaxOrders.Api.Security;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Infrastructure.Identity;
-using BaxOrders.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -32,27 +31,9 @@ internal static class SecuritySetup
     /// </remarks>
     public static IServiceCollection AddBaxOrdersSecurity(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddIdentityCore<ApplicationUser>(options =>
-            {
-                // Long enough to be worth something, without pushing people towards writing it down.
-                options.Password.RequiredLength = 10;
-                options.Password.RequireDigit = true;
-                options.Password.RequireLowercase = true;
-                options.Password.RequireUppercase = false;
-                options.Password.RequireNonAlphanumeric = false;
-
-                // Five wrong attempts costs fifteen minutes, which makes guessing a password impractical
-                // without locking people out of their own account for a typo.
-                options.Lockout.MaxFailedAccessAttempts = 5;
-                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-                options.Lockout.AllowedForNewUsers = true;
-
-                // Internal application: people sign in with a user name, and an address is not required.
-                options.User.RequireUniqueEmail = false;
-                options.SignIn.RequireConfirmedAccount = false;
-            })
-            .AddRoles<IdentityRole<Guid>>()
-            .AddEntityFrameworkStores<BaxOrdersDbContext>()
+        // The password rules live with the accounts, so the approval sandbox creates its test accounts under
+        // exactly the rules the users page applies.
+        services.AddBaxOrdersIdentity()
             .AddSignInManager()
             .AddDefaultTokenProviders();
 

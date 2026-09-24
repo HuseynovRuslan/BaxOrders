@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { AuthProvider } from './auth/AuthProvider'
 import { App } from './App'
+import { EnvironmentProvider } from './environment/EnvironmentProvider'
 import './index.css'
 
 const rootElement = document.getElementById('root')
@@ -13,9 +14,11 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <EnvironmentProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </EnvironmentProvider>
     </BrowserRouter>
   </StrictMode>,
 )
