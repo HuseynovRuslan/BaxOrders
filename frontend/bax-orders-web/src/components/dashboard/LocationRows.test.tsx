@@ -8,6 +8,7 @@ import type {
   ManagementDashboardSummary,
 } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
+import { partition, partitionMember } from '../../test/dashboardFixtures'
 import { LocationRows } from './LocationRows'
 
 /**
@@ -88,10 +89,23 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
     locationsWithCurrentRequest: 25,
     locationsWithoutCurrentRequest: 1,
     currentRequestCount: 25,
-    current: amount(),
-    baseline: amount(),
-    knownAmountDelta: 0,
-    knownAmountPercentChange: 0,
+    current: amount({ knownAmount: 25000 }),
+    comparedCurrent: amount({ knownAmount: 24000 }),
+    baseline: amount({ knownAmount: 20000 }),
+    knownAmountDelta: 4000,
+    knownAmountPercentChange: 20,
+    /*
+      The compared objects are given ids of their own so that nothing collides with the row under test; the
+      object with no order this month IS the row under test, because that is the row whose status has to be
+      drawn from what the partition knows about it.
+    */
+    partition: partition({
+      compared: Array.from({ length: 25 }, (_, index) => partitionMember(101 + index, `Obyekt ${index + 1}`)),
+      noOrderThisMonth: [partitionMember(21, 'Fəvvarələr meydanı', {
+        lastOrderPeriod: '2026-06-01',
+        lastOrderKnownAmount: 800,
+      })],
+    }),
     locationsWithMissingPrices: 0,
     locationsWithCompleteHistory: 23,
     locationsWithPartialHistory: 0,
@@ -246,7 +260,7 @@ describe('the data-state column', () => {
       primaryCauseAmount: null,
     })])
 
-    expect(table().getByText('Əvvəlki ay üçün məlumat yoxdur')).toBeInTheDocument()
+    expect(table().getByText('Müqayisə bazası yoxdur')).toBeInTheDocument()
   })
 
   it('says the history is short when it is', () => {
@@ -269,7 +283,7 @@ describe('the data-state column', () => {
       primaryCauseAmount: null,
     })])
 
-    expect(table().getByText('Bu ay sifariş yoxdur')).toBeInTheDocument()
+    expect(table().getByText('Sifariş qeydə alınmayıb · son sifariş İyun 2026 (800,00 ₼)')).toBeInTheDocument()
     expect(table().queryByText('0,00 ₼')).toBeNull()
   })
 
@@ -331,5 +345,145 @@ describe('a phone', () => {
     expect(within(cards).getByText('1.000,00 ₼')).toBeInTheDocument()
     expect(within(cards).getByText(/Yeni sifarişlər/)).toBeInTheDocument()
     expect(within(cards).getByRole('link', { name: /Detallara bax/ })).toBeInTheDocument()
+  })
+})
+
+/**
+ * The table ends on the same figures the page began with.
+ *
+ * A manager who reads down a column and adds it up must land on the number at the top of the page, or one of
+ * the two is wrong and there is no way to tell which. Every column does add up, because each object's figure
+ * — including its own difference — is rounded to the cent before the total is taken.
+ */
+describe('the footer', () => {
+  function footer() {
+    return within(document.querySelector('tfoot')!)
+  }
+
+  it('restates the page headline rather than summing the page in front of the reader', () => {
+    renderRows([row()])
+
+    expect(footer().getByText('Müqayisə olunan 25 obyekt')).toBeInTheDocument()
+    expect(footer().getByText('24.000,00 ₼')).toBeInTheDocument()
+    expect(footer().getByText('20.000,00 ₼')).toBeInTheDocument()
+    expect(footer().getByText('+4.000,00 ₼')).toBeInTheDocument()
+    expect(footer().getByText('+20%')).toBeInTheDocument()
+  })
+
+  /**
+   * The month is a bigger number than the comparison whenever an object ordered with nothing behind it, and
+   * the footer says both rather than letting the reader take one for the other.
+   */
+  it('adds the whole month underneath when some of it was not compared', () => {
+    render(
+      <MemoryRouter>
+        <LocationRows
+          rows={[row()]}
+          selection={selection}
+          summary={{
+            ...summary(),
+            partition: partition({
+              compared: Array.from({ length: 24 }, (_, index) => partitionMember(101 + index, `Obyekt ${index + 1}`)),
+              noBaseline: [partitionMember(31, 'EXPO', { currentKnownAmount: 1000 })],
+              noOrderThisMonth: [partitionMember(21, 'Fəvvarələr meydanı')],
+            }),
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(footer().getByText('Müqayisə olunan 24 obyekt')).toBeInTheDocument()
+    expect(footer().getByText('Bütün sifarişlər (25 obyekt): 25.000,00 ₼')).toBeInTheDocument()
+  })
+
+  it('says nothing of the sort when the comparison covers the whole month', () => {
+    renderRows([row()])
+
+    expect(footer().queryByText(/Bütün sifarişlər/)).toBeNull()
+  })
+
+  it('colours its difference by direction, exactly as a row does', () => {
+    renderRows([row()])
+
+    expect(footer().getByText('+4.000,00 ₼')).toHaveClass('text-emerald-700')
+  })
+
+  /** It is a summary of the table, not a row of it: it must not turn up among the objects. */
+  it('is not counted as an object row', () => {
+    renderRows([row()])
+
+    expect(table().getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      'Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti', 'Detallar',
+    ])
+    expect(within(document.querySelector('tbody')!).queryByText(/Müqayisə olunan/)).toBeNull()
+  })
+
+  /** A phone would otherwise have to scroll back to the top of the page for the same three figures. */
+  it('is repeated at the end of the phone list', () => {
+    renderRows([row()])
+
+    const cards = within(document.querySelector('ul')!)
+    expect(cards.getByText('Müqayisə olunan 25 obyekt')).toBeInTheDocument()
+    expect(cards.getByText('24.000,00 ₼')).toBeInTheDocument()
+  })
+})
+
+describe('an object with no order this month', () => {
+  const noOrder = {
+    hasCurrentRequest: false,
+    currentRequestId: null,
+    current: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+    baseline: amount({ knownAmount: 800 }),
+    knownAmountDelta: null,
+    knownAmountPercentChange: null,
+    primaryCause: null,
+    primaryCauseAmount: null,
+  } as const
+
+  /**
+   * An object that did not order is not an object that ordered nothing — and it is not an object that ordered
+   * its usual amount either. Its own average is a real number, and printing it under "Keçən ay" would invite
+   * exactly the subtraction this page exists to prevent.
+   */
+  it('shows an em dash for its money, its baseline and its difference alike', () => {
+    renderRows([row(noOrder)])
+
+    const cells = table().getAllByRole('cell').map((cell) => cell.textContent)
+    expect(cells.slice(0, 3)).toEqual(['—', '—', '—'])
+    expect(table().queryByText('0,00 ₼')).toBeNull()
+    expect(table().queryByText('800,00 ₼')).toBeNull()
+  })
+
+  /** What it last did is the fact a reader wants next, and the one fact that is actually known. */
+  it('says when it last ordered instead of calling it a missing order', () => {
+    renderRows([row(noOrder)])
+
+    expect(table().getByText('Sifariş qeydə alınmayıb · son sifariş İyun 2026 (800,00 ₼)')).toBeInTheDocument()
+    expect(table().queryByText('Sifariş yoxdur')).toBeNull()
+  })
+
+  /**
+   * An object that has never ordered at all is a different fact again, and amber would be claiming somebody
+   * has something to put right. The screen reads the group the backend put it in rather than guessing.
+   */
+  it('says something else again when it has never ordered', () => {
+    render(
+      <MemoryRouter>
+        <LocationRows
+          rows={[row({ ...noOrder, locationId: 77 })]}
+          selection={selection}
+          summary={{
+            ...summary(),
+            partition: partition({
+              compared: Array.from({ length: 25 }, (_, index) => partitionMember(101 + index, `Obyekt ${index + 1}`)),
+              noHistory: [partitionMember(77, 'Heç sifariş verməyən obyekt')],
+            }),
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(table().getByText('Sifariş tarixçəsi yoxdur')).toHaveClass('text-slate-500')
+    expect(table().queryByText(/Sifariş qeydə alınmayıb/)).toBeNull()
   })
 })

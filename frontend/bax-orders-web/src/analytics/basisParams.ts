@@ -37,6 +37,22 @@ const TO_PARAM: Record<AnalyticsComparisonBasis, BasisParam> = {
   CustomRange: 'custom',
 }
 
+/**
+ * The spelling these screens used before the short names existed.
+ *
+ * `?basis=Previous6MonthAverage&customStart=2026-03&customEnd=2026-08` is what a manager's bookmark, a
+ * pasted chat message or a mail from before this change still carries. Refusing it would silently show them
+ * last month under the link they saved, which is the one failure worse than an error: a different answer
+ * under the same address. They are read, and then rewritten in place — see `normalizeBasis`.
+ *
+ * There is no second table for them: the old spelling was the wire format, so `TO_PARAM` already is the map.
+ */
+const LEGACY_BASIS: Record<string, BasisParam> = TO_PARAM
+
+/** The wire names of the two months, as the older links spelled them. */
+const LEGACY_FROM = 'customStart'
+const LEGACY_TO = 'customEnd'
+
 /** The order a reader meets them, on every screen that offers a choice. */
 export const basisParamOrder: BasisParam[] = ['last', 'avg3', 'avg6', 'all', 'custom']
 
@@ -68,7 +84,9 @@ export function isComplete(selection: BasisSelection): boolean {
  */
 export function parseBasis(params: URLSearchParams): BasisSelection {
   const raw = params.get('basis')
-  const param = (basisParamOrder as string[]).includes(raw ?? '') ? (raw as BasisParam) : null
+  const param = (basisParamOrder as string[]).includes(raw ?? '')
+    ? (raw as BasisParam)
+    : (LEGACY_BASIS[raw ?? ''] ?? null)
   if (param === null) {
     return defaultSelection
   }
@@ -77,8 +95,9 @@ export function parseBasis(params: URLSearchParams): BasisSelection {
     return { basis: TO_WIRE[param], from: null, to: null }
   }
 
-  const from = params.get('from')
-  const to = params.get('to')
+  // The short names win where a link carries both, because that is what the screen writes.
+  const from = params.get('from') ?? params.get(LEGACY_FROM)
+  const to = params.get('to') ?? params.get(LEGACY_TO)
   if (!isMonth(from) || !isMonth(to)) {
     // A half-typed range is not a comparison. The screen still renders, against last month.
     return { basis: 'CustomRange', from: null, to: null }
@@ -99,6 +118,51 @@ export function basisParams(selection: BasisSelection): Record<string, string | 
     from: selection.from ?? undefined,
     to: selection.to ?? undefined,
   }
+}
+
+/**
+ * The same URL written the way the screen writes it, or null when it already is.
+ *
+ * Two things send a reader to an address that does not match what they are looking at, and both are fixed
+ * here. A link saved before the short names existed still says `basis=Previous6MonthAverage`; and a basis
+ * nobody recognises — a typo, a truncated paste, a value from a version that no longer exists — falls back to
+ * last month while the address goes on claiming six. Either way the reader copies the address on and passes
+ * the mismatch to somebody else.
+ *
+ * What it does not touch: a URL with no basis at all, which is not making any claim, and a half-typed range,
+ * where dropping the month somebody has already chosen would undo their work while they are still choosing.
+ * Returns null for both, so a caller can use it as its own guard and never replace an entry with itself.
+ */
+export function normalizeBasis(params: URLSearchParams): URLSearchParams | null {
+  const raw = params.get('basis')
+  const hasLegacyRange = params.has(LEGACY_FROM) || params.has(LEGACY_TO)
+  if (raw === null && !hasLegacyRange) {
+    return null
+  }
+
+  const selection = parseBasis(params)
+  const next = new URLSearchParams(params)
+  next.set('basis', toBasisParam(selection.basis))
+
+  if (hasLegacyRange) {
+    next.delete(LEGACY_FROM)
+    next.delete(LEGACY_TO)
+    if (selection.from !== null) {
+      next.set('from', selection.from)
+    }
+
+    if (selection.to !== null) {
+      next.set('to', selection.to)
+    }
+  }
+
+  // The months travel only with the basis that uses them.
+  if (selection.basis !== 'CustomRange') {
+    next.delete('from')
+    next.delete('to')
+  }
+
+  return next.toString() === params.toString() ? null : next
 }
 
 /** The same thing as a query string, for a link rather than a state update. */

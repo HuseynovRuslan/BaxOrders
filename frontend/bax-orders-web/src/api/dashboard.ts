@@ -117,6 +117,42 @@ export interface DashboardAttention {
   location: LocationDashboardRow
 }
 
+/**
+ * One object named in the portfolio partition. Mirrors `DashboardPartitionMemberDto`.
+ */
+export interface DashboardPartitionMember {
+  locationId: number
+  locationCode: string
+  locationName: string
+  /** Its own money this month, to the cent. Null when it did not order — never a zero standing in for that. */
+  currentKnownAmount: number | null
+  baselineKnownAmount: number | null
+  /** Its own difference, to the cent: the figure its Dəyişmə cell shows, never current − baseline. */
+  knownAmountDelta: number | null
+  /** The last month it ordered in before this one, as `yyyy-MM-dd`. Null only when it never has. */
+  lastOrderPeriod: string | null
+  lastOrderKnownAmount: number | null
+}
+
+/**
+ * Every object in the catalogue, in one of four groups. The four add up to `locationCount` — the backend
+ * refuses to return a partition that does not — so the headline can be reconciled against the company
+ * instead of taken on trust.
+ */
+export interface DashboardPartition {
+  locationCount: number
+  /** Compared + no-baseline + no-order-this-month: the objects that had a history as of this month. */
+  comparableLocationCount: number
+  /** Ordered this month and has at least one month inside the window. The headline is summed over these. */
+  compared: DashboardPartitionMember[]
+  /** Has ordered before, but nothing was recorded for this month. */
+  noOrderThisMonth: DashboardPartitionMember[]
+  /** Ordered this month, but not in any month the window covers. */
+  noBaseline: DashboardPartitionMember[]
+  /** Had never ordered as of this month. */
+  noHistory: DashboardPartitionMember[]
+}
+
 export interface ManagementDashboardSummary {
   selectedPeriod: string
   basis: AnalyticsComparisonBasis
@@ -129,10 +165,25 @@ export interface ManagementDashboardSummary {
   locationsWithCurrentRequest: number
   locationsWithoutCurrentRequest: number
   currentRequestCount: number
+  /** The whole month: every object that ordered. It does not move when the basis changes. */
   current: DashboardAmount
+  /**
+   * The same month over the cohort alone — the objects that also have a baseline. This is the figure
+   * `baseline` sits beside and `knownAmountDelta` is the difference of. It equals `current` whenever every
+   * object that ordered can be compared, which is the ordinary case.
+   */
+  comparedCurrent: DashboardAmount
+  /** The cohort's average baseline month. Never a baseline over some other set of objects. */
   baseline: DashboardAmount
+  /**
+   * The Dəyişmə column of the compared objects, added up — deliberately not `comparedCurrent − baseline`.
+   * Each object's difference comes from its own two unrounded sides, so the two can land a few qəpik apart,
+   * and the column somebody can actually add up is the one the headline is made of.
+   */
   knownAmountDelta: number | null
   knownAmountPercentChange: number | null
+  /** Who was compared and who was not, by name. */
+  partition: DashboardPartition
   locationsWithMissingPrices: number
   locationsWithCompleteHistory: number
   locationsWithPartialHistory: number

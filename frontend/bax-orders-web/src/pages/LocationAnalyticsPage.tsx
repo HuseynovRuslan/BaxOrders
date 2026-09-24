@@ -14,7 +14,8 @@ import { AnalyticsSummary } from '../components/analytics/AnalyticsSummary'
 import { MaterialRows, ServiceRows } from '../components/analytics/ComparisonRows'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { BasisPicker } from '../components/analytics/BasisPicker'
-import { basisParams, basisRequest, parseBasis, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
+import { useBasis } from '../analytics/useBasis'
 import {
   formatAnalyticsPeriod,
   isState,
@@ -45,7 +46,7 @@ export function LocationAnalyticsPage() {
   const stateParam = params.get('state')
   // The same query-string vocabulary the dashboard and the order screen use, so a link from either of them
   // keeps its comparison when it lands here.
-  const selection = parseBasis(params)
+  const selection = useBasis(params, setParams)
   const kind: AnalyticsKind = params.get('kind') === 'AmountOrientedService' ? 'AmountOrientedService' : 'QuantityComparable'
   const state: ComparisonState | undefined = isState(stateParam) ? stateParam : undefined
   const search = params.get('search') ?? ''

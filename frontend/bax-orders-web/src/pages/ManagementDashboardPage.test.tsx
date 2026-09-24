@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
+import { partition, partitionMember } from '../test/dashboardFixtures'
 import { ManagementDashboardPage } from './ManagementDashboardPage'
 
 /**
@@ -90,9 +91,14 @@ function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashbo
       locationsWithoutCurrentRequest: 2,
       currentRequestCount: 24,
       current: amount(),
+      comparedCurrent: amount(),
       baseline: amount({ knownAmount: 60583.47 }),
       knownAmountDelta: 10626.82,
       knownAmountPercentChange: 17.54,
+      partition: partition({
+        compared: Array.from({ length: 24 }, (_, index) => partitionMember(index + 1, `Obyekt ${index + 1}`)),
+        noOrderThisMonth: [partitionMember(98, 'Puşkin parkı'), partitionMember(99, 'Təmir-tikinti')],
+      }),
       locationsWithMissingPrices: 10,
       locationsWithCompleteHistory: 23,
       locationsWithPartialHistory: 0,
@@ -317,5 +323,61 @@ describe('carrying the basis into the order', () => {
     await renderPage('/dashboard?period=2026-09&basis=avg3')
 
     expect(screen.getAllByText('Son 3 ayın ortalamasına görə').length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * A link somebody saved before the short names existed.
+ *
+ * It must open the comparison it was saved with — otherwise the same address quietly answers a different
+ * question — and it must then become an address written the way the screen writes them, so the next person
+ * it is passed to does not inherit the old one. The rewrite replaces the history entry rather than adding
+ * one: nobody pressed anything, so Back still goes where the reader came from.
+ */
+describe('an older link', () => {
+  it('is read, and asks the API for the comparison it names', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=Previous6MonthAverage')
+
+    await waitFor(() => expect(dashboardApi.fetchDashboard).toHaveBeenCalledWith(
+      '2026-09',
+      expect.objectContaining({ basis: 'Previous6MonthAverage' }),
+      expect.anything(),
+    ))
+  })
+
+  it('is rewritten in the address bar, keeping everything that is not the basis', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=Previous6MonthAverage&sort=KnownAmountDelta')
+
+    await waitFor(() => {
+      const search = new URLSearchParams(screen.getByTestId('search').textContent ?? '')
+      expect(search.get('basis')).toBe('avg6')
+      expect(search.get('period')).toBe('2026-09')
+      expect(search.get('sort')).toBe('KnownAmountDelta')
+    })
+  })
+
+  it('carries a hand-picked range across onto the short month names', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=CustomRange&customStart=2026-05&customEnd=2026-08')
+
+    await waitFor(() => {
+      const search = new URLSearchParams(screen.getByTestId('search').textContent ?? '')
+      expect(search.get('basis')).toBe('custom')
+      expect(search.get('from')).toBe('2026-05')
+      expect(search.get('to')).toBe('2026-08')
+      expect(search.has('customStart')).toBe(false)
+    })
+
+    expect(dashboardApi.fetchDashboard).toHaveBeenCalledWith(
+      '2026-09',
+      expect.objectContaining({ basis: 'CustomRange', customStart: '2026-05', customEnd: '2026-08' }),
+      expect.anything(),
+    )
+  })
+
+  /** Nothing to rewrite means the URL is left exactly as it was found. */
+  it('leaves a current link untouched', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=avg6')
+
+    await waitFor(() => expect(screen.getByTestId('search').textContent).toBe('?period=2026-09&basis=avg6'))
   })
 })

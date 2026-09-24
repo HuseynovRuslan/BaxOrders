@@ -21,7 +21,8 @@ import {
 } from '../components/dashboard/labels'
 import { formatCount, formatMonth, toMonthKey } from '../components/analytics/format'
 import { BasisPicker } from '../components/analytics/BasisPicker'
-import { basisParams, basisRequest, parseBasis, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
+import { useBasis } from '../analytics/useBasis'
 
 const pageSize = 25
 
@@ -41,7 +42,7 @@ export function ManagementDashboardPage() {
   // The whole reading lives in the query string, so Back, Forward, a reload and a pasted link all restore
   // the same comparison — and a card can hand it on to the order it opens. Anything unrecognised falls back
   // to last month rather than breaking the screen.
-  const selection = parseBasis(params)
+  const selection = useBasis(params, setParams)
   const historyCoverage: HistoryCoverageState | undefined = isHistoryCoverage(params.get('historyCoverage'))
     ? (params.get('historyCoverage') as HistoryCoverageState)
     : undefined
@@ -219,7 +220,7 @@ export function ManagementDashboardPage() {
         <EmptyState>Hələ heç bir dövr üzrə daimi sifariş məlumatı yoxdur.</EmptyState>
       )}
 
-      {data && <DashboardSummary summary={data.summary} />}
+      {data && <DashboardSummary summary={data.summary} selection={selection} />}
 
       {/* Meaning first: which objects to read, and why. The full table follows and hides nothing. */}
       {data && <AttentionSection attention={data.attention} summary={data.summary} selection={selection} />}

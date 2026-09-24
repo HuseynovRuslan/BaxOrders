@@ -222,9 +222,10 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
             await new ManagementDashboardQueries(counted).GetAsync(July, new DashboardQuery(), None);
         }
 
-        // The locations, their requests, the lines of those requests, and the variant kinds. The decomposition
-        // runs on figures already in memory, so it is free however many objects there are.
-        Assert.Equal(4, counter.Count);
+        // The locations, their requests, each object's last month before this one, the lines of the requests
+        // in the window, and the variant kinds. Five whatever the number of objects: the decomposition and the
+        // partition both run on figures already in memory.
+        Assert.Equal(5, counter.Count);
     }
 
     [PostgresFact]

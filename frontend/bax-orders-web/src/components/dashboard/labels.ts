@@ -7,7 +7,6 @@ import type {
 } from '../../api/dashboard'
 import type { PriceCoverageState } from '../../api/analytics'
 import { formatCount, formatMonth } from '../analytics/format'
-import { missingPriceShortLabel } from '../../pricing/labels'
 
 export const historyCoverageLabels: Record<HistoryCoverageState, string> = {
   Complete: 'Tam tarixçə',
@@ -155,20 +154,15 @@ export function locationsWithoutRequestNote(count: number): string {
   return `${formatCount(count)} obyekt üzrə sifariş qeydə alınmayıb`
 }
 
-/** Only prices somebody owes. Internal supply is complete and is never counted here. */
-export function incompletePriceDataNote(locationCount: number): string {
-  return `${formatCount(locationCount)} obyektdə qiymət məlumatı natamamdır.`
+/**
+ * How much of an object's own comparison window it actually has.
+ *
+ * A property of the objects that are being compared, never a group of its own: an object averaged over two of
+ * the three months the basis asked for is compared, and is compared against the months it has.
+ */
+export function partialHistoryCoverageNote(count: number): string {
+  return `${formatCount(count)} obyektin müqayisə dövrü natamamdır — ortalama yalnız mövcud aylar üzrədir`
 }
-
-/** The ordinary case, said plainly so the exceptions beside it are the ones that catch the eye. */
-export const coverageNormalLabel = 'Tam tarixçə'
-
-export const coverageExceptionLabels = {
-  noHistory: 'Tarixçə yoxdur',
-  partialHistory: 'Tarixçə natamam',
-  missingPrice: missingPriceShortLabel,
-  noRequest: 'Sifariş yoxdur',
-} as const
 
 /** Products bought in one of the two months and supplied from the company's own store in the other. */
 export function supplyChangedNote(count: number): string {
@@ -178,6 +172,9 @@ export function supplyChangedNote(count: number): string {
 export const noComparisonNote = 'Əvvəlki ay üçün məlumat yoxdur'
 export const partialHistoryNote = 'Tarixçə natamamdır'
 export const noCurrentRequestNote = 'Bu ay sifariş yoxdur'
+
+/** An object that has never ordered at all. A fact about the catalogue, not a gap in the records. */
+export const noOrderHistoryNote = 'Sifariş tarixçəsi yoxdur'
 export const incompleteExplanationNote = 'Məbləğin bir hissəsi izah edilə bilmir — qiymət yoxdur'
 export const noComparisonCause = 'Müqayisə üçün əvvəlki ay yoxdur'
 export const detailsLabel = 'Detallara bax'

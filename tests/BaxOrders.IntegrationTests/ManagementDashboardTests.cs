@@ -370,13 +370,23 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
         var filtered = await Queries(db).GetAsync(
             world.July, new DashboardQuery(HasCurrentRequest: false, PageSize: 100), CancellationToken.None);
 
-        // The summary is the company's month; only the row count follows the filter. Its window of months is
-        // compared on its own: a list inside a record is compared by reference, so leaving it in would make
-        // every one of these pass or fail for the wrong reason.
-        static void AssertSameSummary(ManagementDashboardSummaryDto expected, ManagementDashboardSummaryDto actual)
+        // The summary is the company's month; only the row count follows the filter. Its window of months
+        // and its partition are compared on their own: a list inside a record is compared by reference, so
+        // leaving either in would make every one of these pass or fail for the wrong reason.
+        var blank = new DashboardPartitionDto(0, 0, [], [], [], []);
+
+        void AssertSameSummary(ManagementDashboardSummaryDto expected, ManagementDashboardSummaryDto actual)
         {
-            Assert.Equal(expected with { BaselinePeriods = [] }, actual with { BaselinePeriods = [] });
             Assert.Equal(expected.BaselinePeriods, actual.BaselinePeriods);
+            Assert.Equal(expected.Partition.LocationCount, actual.Partition.LocationCount);
+            Assert.Equal(expected.Partition.ComparableLocationCount, actual.Partition.ComparableLocationCount);
+            Assert.Equal(expected.Partition.Compared, actual.Partition.Compared);
+            Assert.Equal(expected.Partition.NoOrderThisMonth, actual.Partition.NoOrderThisMonth);
+            Assert.Equal(expected.Partition.NoBaseline, actual.Partition.NoBaseline);
+            Assert.Equal(expected.Partition.NoHistory, actual.Partition.NoHistory);
+            Assert.Equal(
+                expected with { BaselinePeriods = [], Partition = blank },
+                actual with { BaselinePeriods = [], Partition = blank });
         }
 
         AssertSameSummary(everything!.Summary, onePage!.Summary);

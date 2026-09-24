@@ -88,13 +88,26 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var baselinePeriods = BaselineWindow.PeriodsFor(currentPeriod, selection, companyPeriods);
         var wanted = baselinePeriods.Append(currentPeriod).ToArray();
 
-        // Every location that has ever ordered is in the dashboard, so an object that ordered nothing this
-        // month is visible as exactly that. A location that has never ordered is not part of the company's
-        // order history and would only be noise.
-        var locations = await db.Locations.AsNoTracking()
-            .Where(location => db.OrderRequests.Any(request => request.LocationId == location.Id))
-            .Select(location => new LocationRef(location.Id, location.Code, location.Name))
+        // Two universes, on purpose, in one query.
+        //
+        // The rows are the objects that have ordered, exactly as the table has always shown them: a location
+        // that has never ordered is not part of the company's order history, and whether it belongs in the
+        // table is a separate question that is not answered here.
+        //
+        // The partition is the whole catalogue. A headline summed over a cohort can only be checked if the
+        // objects outside the cohort are named, and that has to include the ones with no orders at all —
+        // otherwise the groups add up to a number the reader cannot reconcile against the company.
+        var catalogue = await db.Locations.AsNoTracking()
+            .Where(location => location.IsActive
+                || db.OrderRequests.Any(request => request.LocationId == location.Id))
+            .Select(location => new LocationRef(
+                location.Id,
+                location.Code,
+                location.Name,
+                db.OrderRequests.Any(request => request.LocationId == location.Id)))
             .ToListAsync(cancellationToken);
+
+        var locations = catalogue.Where(location => location.HasOrdered).ToList();
 
         // The highest version of each location and month, in one query for the whole company.
         var requests = await db.OrderRequests.AsNoTracking()
@@ -113,6 +126,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         }
 
         var requestIds = requests.Select(request => request.OrderRequestId).ToArray();
+        var lastOrders = await LastOrdersBeforeAsync(currentPeriod, cancellationToken);
         var snapshots = await SnapshotsAsync(requestIds, cancellationToken);
         var kinds = await KindsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
 
@@ -124,7 +138,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         }
 
         rows = [.. rows.OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
-        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows);
+        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, catalogue, lastOrders);
 
         var filtered = Sort(Filter(rows, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
@@ -391,6 +405,42 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         return byRequest;
     }
 
+    /// <summary>
+    /// The last month each object ordered in <b>before</b> the selected one, and what that order came to.
+    /// </summary>
+    /// <remarks>
+    /// Two facts in one query because they are the same fact: an object appears here exactly when it had a
+    /// history as of the selected month, which is what separates "no order this month" from "has never
+    /// ordered", and the value is the month a reader asks about the moment they see the first of those.
+    /// <para>
+    /// Strictly earlier than the month being read, never "the latest month overall". Reading August must not
+    /// be coloured by an order placed in September, and an object whose first order came after the month being
+    /// looked at genuinely had no history then.
+    /// </para>
+    /// </remarks>
+    private async Task<Dictionary<int, LastOrderRef>> LastOrdersBeforeAsync(
+        DateOnly currentPeriod, CancellationToken cancellationToken)
+    {
+        var rows = await db.OrderRequests.AsNoTracking()
+            .Where(request => request.RequestPeriod < currentPeriod
+                && !db.OrderRequests.Any(later =>
+                    later.LocationId == request.LocationId
+                    && later.RequestPeriod > request.RequestPeriod
+                    && later.RequestPeriod < currentPeriod)
+                && !db.OrderRequests.Any(other =>
+                    other.LocationId == request.LocationId
+                    && other.RequestPeriod == request.RequestPeriod
+                    && other.Version > request.Version))
+            .Select(request => new LastOrderRef(
+                request.LocationId,
+                request.RequestPeriod,
+                // The money of the priced lines, exactly as every other amount on this screen is counted.
+                request.Items.Where(item => item.UnitPrice != null).Sum(item => item.Quantity * item.UnitPrice)))
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.LocationId);
+    }
+
     /// <summary>Only what decides whether a variant is material or service; the dashboard lists no products.</summary>
     private async Task<Dictionary<long, AnalyticsKind>> KindsAsync(long[] variantIds, CancellationToken cancellationToken)
     {
@@ -479,30 +529,91 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     private static (int Page, int PageSize) PageOf(int page, int pageSize) =>
         (Math.Max(1, page), pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize));
 
+    /// <remarks>
+    /// The headline is summed over the cohort and nothing else — see <see cref="PortfolioCohort"/> for the rule
+    /// and for what the three different sets used to do to the difference. What is kept apart from it is the
+    /// month's own total, which is a fact about the month rather than about the comparison and must not move
+    /// when the reader changes the basis.
+    /// </remarks>
     private static ManagementDashboardSummaryDto Summarize(
         DateOnly currentPeriod,
         ComparisonSelection selection,
         IReadOnlyList<DateOnly> baselinePeriods,
-        IReadOnlyList<LocationDashboardRowDto> rows)
+        IReadOnlyList<LocationDashboardRowDto> rows,
+        IReadOnlyList<LocationRef> catalogue,
+        IReadOnlyDictionary<int, LastOrderRef> lastOrders)
     {
+        // Every object lands in exactly one group, and Partition refuses to return a set that does not add up
+        // to the catalogue. The rows are one universe and the catalogue is another: an object with no orders
+        // at all has no row, but it is still one of the company's objects and the groups have to account for it.
+        var groups = rows.ToDictionary(
+            row => row.LocationId,
+            row => PortfolioCohort.GroupOf(
+                row.HasCurrentRequest,
+                lastOrders.ContainsKey(row.LocationId),
+                row.AvailableBaselinePeriodCount));
+
+        var rowMembers = rows.Select(row =>
+        {
+            var last = lastOrders.GetValueOrDefault(row.LocationId);
+            return (groups[row.LocationId], new DashboardPartitionMemberDto(
+                row.LocationId,
+                row.LocationCode,
+                row.LocationName,
+                PortfolioCohort.Money(row.Current.KnownAmount),
+                PortfolioCohort.Money(row.Baseline.KnownAmount),
+                PortfolioCohort.Money(row.KnownAmountDelta),
+                last?.Period,
+                PortfolioCohort.Money(last?.KnownAmount)));
+        });
+
+        // An object the company has that has never placed an order. Nothing about it is missing, and nothing
+        // here pretends otherwise: it carries no money, in either direction.
+        var unordered = catalogue
+            .Where(location => !location.HasOrdered)
+            .Select(location => (PortfolioGroup.NoHistory, new DashboardPartitionMemberDto(
+                location.Id, location.Code, location.Name, null, null, null, null, null)));
+
+        var partition = PortfolioCohort.Partition([.. rowMembers, .. unordered], catalogue.Count);
+
         var withCurrent = rows.Where(row => row.HasCurrentRequest).ToList();
+        var cohort = rows.Where(row => groups[row.LocationId] == PortfolioGroup.Compared).ToList();
 
-        var currentItems = withCurrent.Sum(row => row.Current.ItemCount);
-        var currentKnownItems = withCurrent.Sum(row => row.Current.KnownPriceItemCount);
-        var currentMissing = withCurrent.Sum(row => row.Current.MissingPriceItemCount);
-        var currentNotRequired = withCurrent.Sum(row => row.Current.PriceNotRequiredItemCount);
-        var currentAmount = currentKnownItems == 0 ? null : (decimal?)withCurrent.Sum(row => row.Current.KnownAmount ?? 0m);
+        // Each object's money is rounded to the cent before it is added up, because the cent is what its row
+        // shows: a manager who adds a column up must land on the number at the top of the page.
+        static DashboardAmountDto AmountOf(
+            IReadOnlyList<LocationDashboardRowDto> group,
+            Func<LocationDashboardRowDto, DashboardAmountDto> side)
+        {
+            var items = group.Sum(row => side(row).ItemCount);
+            var known = group.Sum(row => side(row).KnownPriceItemCount);
+            var missing = group.Sum(row => side(row).MissingPriceItemCount);
+            var notRequired = group.Sum(row => side(row).PriceNotRequiredItemCount);
+            var amount = known == 0
+                ? null
+                : (decimal?)group.Sum(row => PortfolioCohort.Money(side(row).KnownAmount ?? 0m));
 
-        // Each location contributes the money of its own average baseline month, so the company figure is the
-        // company's average month and is comparable with the one month beside it.
-        var baselineRows = rows.Where(row => row.AvailableBaselinePeriodCount > 0).ToList();
-        var baselineItems = baselineRows.Sum(row => row.Baseline.ItemCount);
-        var baselineKnownItems = baselineRows.Sum(row => row.Baseline.KnownPriceItemCount);
-        var baselineMissing = baselineRows.Sum(row => row.Baseline.MissingPriceItemCount);
-        var baselineNotRequired = baselineRows.Sum(row => row.Baseline.PriceNotRequiredItemCount);
-        var baselineAmount = baselineKnownItems == 0 ? null : (decimal?)baselineRows.Sum(row => row.Baseline.KnownAmount ?? 0m);
+            return new DashboardAmountDto(amount, items, known, missing, notRequired, missing == 0);
+        }
 
-        var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(currentAmount, baselineAmount);
+        // The month, whole: what the company ordered, whoever it can or cannot be compared with.
+        var current = AmountOf(withCurrent, row => row.Current);
+
+        // The comparison, over one set of objects on both sides. Each location contributes the money of its own
+        // average baseline month, so the company figure is a month and is comparable with the month beside it.
+        var comparedCurrent = AmountOf(cohort, row => row.Current);
+        var baseline = AmountOf(cohort, row => row.Baseline);
+
+        // The Dəyişmə column, summed — not the difference of the two totals above. A row's difference comes
+        // from its own two unrounded sides, so rounding it can land a qəpik from the difference of its rounded
+        // sides; over two dozen objects that reaches four qəpik. Adding the column up is the check a manager
+        // performs, so the column is what the headline is made of, and the percentage follows the same figure.
+        var delta = baseline.KnownAmount is null
+            ? null
+            : (decimal?)cohort.Sum(row => PortfolioCohort.Money(row.KnownAmountDelta ?? 0m));
+        var percent = delta is null || baseline.KnownAmount is null
+            ? null
+            : OrderAnalyticsCalculator.PercentChange(baseline.KnownAmount.Value + delta.Value, baseline.KnownAmount.Value);
 
         return new ManagementDashboardSummaryDto(
             currentPeriod,
@@ -515,12 +626,12 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             withCurrent.Count,
             rows.Count - withCurrent.Count,
             withCurrent.Count,
-            new DashboardAmountDto(
-                currentAmount, currentItems, currentKnownItems, currentMissing, currentNotRequired, currentMissing == 0),
-            new DashboardAmountDto(
-                baselineAmount, baselineItems, baselineKnownItems, baselineMissing, baselineNotRequired, baselineMissing == 0),
+            current,
+            comparedCurrent,
+            baseline,
             delta,
             percent,
+            partition,
             withCurrent.Count(row => row.Current.MissingPriceItemCount > 0),
             rows.Count(row => row.HistoryCoverage == HistoryCoverageState.Complete),
             rows.Count(row => row.HistoryCoverage == HistoryCoverageState.Partial),
@@ -535,7 +646,14 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             rows.Sum(row => row.AmountOrientedServiceCount));
     }
 
-    private sealed record LocationRef(int Id, string Code, string Name);
+    /// <param name="HasOrdered">
+    /// Whether the company has ever recorded an order for it, at any time. It decides whether the object is a
+    /// row; the partition names it either way.
+    /// </param>
+    private sealed record LocationRef(int Id, string Code, string Name, bool HasOrdered = true);
+
+    /// <summary>The last month an object ordered in before the one being read, and that order's money.</summary>
+    private sealed record LastOrderRef(int LocationId, DateOnly Period, decimal? KnownAmount);
 
     private sealed record RequestRef(
         int LocationId, DateOnly Period, long OrderRequestId, int Version, Domain.Orders.OrderRequestStatus Status);

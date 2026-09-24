@@ -6,6 +6,7 @@ import {
   defaultSelection,
   isComplete,
   isMonth,
+  normalizeBasis,
   orderLink,
   parseBasis,
   previousMonth,
@@ -45,7 +46,7 @@ describe('reading the basis out of a URL', () => {
     expect(parseBasis(params('basis=avg12'))).toEqual(defaultSelection)
     expect(parseBasis(params('basis=LAST'))).toEqual(defaultSelection)
     expect(parseBasis(params('basis='))).toEqual(defaultSelection)
-    expect(parseBasis(params('basis=Previous3MonthAverage'))).toEqual(defaultSelection)
+    expect(parseBasis(params('basis=Previous3Month'))).toEqual(defaultSelection)
   })
 
   it('keeps the custom basis but drops a half-typed range', () => {
@@ -148,5 +149,86 @@ describe('months', () => {
     expect(previousMonth('2026-09')).toBe('2026-08')
     expect(previousMonth('2026-01')).toBe('2025-12')
     expect(previousMonth('2026-09-01')).toBe('2026-08')
+  })
+})
+
+/**
+ * Links written before the short names existed.
+ *
+ * A manager's bookmark, a link pasted into a chat, a mail sent last month: they all carry
+ * `?basis=Previous6MonthAverage&customStart=2026-03&customEnd=2026-08`. Refusing to read it would show them
+ * last month under the address they saved, which is worse than an error — it is a different answer under the
+ * same link, with nothing to say so.
+ */
+describe('a link written in the old spelling', () => {
+  it('still opens the comparison it was saved with', () => {
+    expect(parseBasis(params('basis=PreviousMonth')).basis).toBe('PreviousMonth')
+    expect(parseBasis(params('basis=Previous3MonthAverage')).basis).toBe('Previous3MonthAverage')
+    expect(parseBasis(params('basis=Previous6MonthAverage')).basis).toBe('Previous6MonthAverage')
+    expect(parseBasis(params('basis=AllPriorMonths')).basis).toBe('AllPriorMonths')
+  })
+
+  it('still opens the hand-picked range it was saved with', () => {
+    expect(parseBasis(params('basis=CustomRange&customStart=2026-05&customEnd=2026-08'))).toEqual({
+      basis: 'CustomRange',
+      from: '2026-05',
+      to: '2026-08',
+    })
+  })
+
+  /** A link that carries both spellings is one the screen half-rewrote; today's wins. */
+  it('prefers the spelling the screen writes when a link carries both', () => {
+    expect(parseBasis(params('basis=custom&from=2026-07&to=2026-07&customStart=2026-01&customEnd=2026-02'))).toEqual({
+      basis: 'CustomRange',
+      from: '2026-07',
+      to: '2026-07',
+    })
+  })
+
+  /**
+   * The other way a URL stops matching the screen: a basis nobody recognises falls back to last month while
+   * the address goes on claiming six. The reader copies the address on and passes the mismatch to somebody
+   * else, which is the same failure as the old spelling and is fixed the same way.
+   */
+  it('rewrites a basis nobody recognises to the one actually being shown', () => {
+    const next = normalizeBasis(params('period=2026-09&basis=avg12&from=2026-05&to=2026-08'))
+
+    expect(next?.get('basis')).toBe('last')
+    expect(next?.has('from')).toBe(false)
+    expect(next?.has('to')).toBe(false)
+    expect(next?.get('period')).toBe('2026-09')
+  })
+
+  /** Somebody halfway through choosing a range has not made a mistake; their months stay where they are. */
+  it('leaves a half-typed range alone', () => {
+    expect(normalizeBasis(params('basis=custom&from=2026-05'))).toBeNull()
+  })
+
+  it("is rewritten into today's spelling, with everything else left where it was", () => {
+    const next = normalizeBasis(params('period=2026-09&basis=Previous6MonthAverage&sort=KnownAmountDelta'))
+
+    expect(next?.get('basis')).toBe('avg6')
+    expect(next?.get('period')).toBe('2026-09')
+    expect(next?.get('sort')).toBe('KnownAmountDelta')
+    expect(next?.has('from')).toBe(false)
+  })
+
+  it('moves a range onto the short month names and drops the long ones', () => {
+    const next = normalizeBasis(params('basis=CustomRange&customStart=2026-05&customEnd=2026-08'))
+
+    expect(next?.get('basis')).toBe('custom')
+    expect(next?.get('from')).toBe('2026-05')
+    expect(next?.get('to')).toBe('2026-08')
+    expect(next?.has('customStart')).toBe(false)
+    expect(next?.has('customEnd')).toBe(false)
+  })
+
+  /** Nothing to rewrite means no rewrite: a history entry that changes nothing is one Back has to step over. */
+  it("leaves a URL already in today's spelling alone", () => {
+    expect(normalizeBasis(params('basis=avg6&period=2026-09'))).toBeNull()
+    expect(normalizeBasis(params('basis=custom&from=2026-05&to=2026-08'))).toBeNull()
+    expect(normalizeBasis(params(''))).toBeNull()
+    // A URL that makes no claim about the basis is not corrected into making one.
+    expect(normalizeBasis(params('period=2026-09'))).toBeNull()
   })
 })

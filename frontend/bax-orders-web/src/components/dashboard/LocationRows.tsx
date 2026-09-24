@@ -11,13 +11,19 @@ import {
   signedToneClass,
   unknownValue,
 } from '../analytics/format'
+import type { DashboardPartitionMember } from '../../api/dashboard'
 import { DetailsLink } from './AttentionSection'
+import {
+  footerAllOrdersLine,
+  footerComparedLabel,
+  noOrderRowStatus,
+  portfolioGroupLabels,
+} from '../../coverage/labels'
 import {
   causeHeadline,
   incompleteExplanationNote,
   noComparisonCause,
-  noComparisonNote,
-  noCurrentRequestNote,
+  noOrderHistoryNote,
   partialHistoryNote,
 } from './labels'
 
@@ -44,6 +50,16 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
   // lines costs every row of the table below it.
   const basisText = describeBasis(summary.basis, summary.baselinePeriods)
   const basisDetail = describeBasisWithRange(summary.basis, summary.baselinePeriods)
+
+  // What each row that has no order this month has to say for itself. The backend has already sorted every
+  // object into its group and carried the facts along; this only reads that answer.
+  const noOrder = new Map(summary.partition.noOrderThisMonth.map((member) => [member.locationId, member]))
+  const neverOrdered = new Set(summary.partition.noHistory.map((member) => member.locationId))
+
+  // The footer restates the page headline, so it is summed over the same cohort the headline is.
+  const compared = summary.partition.compared.length
+  const withOrders = summary.locationsWithCurrentRequest
+  const partiallyCompared = summary.partition.noBaseline.length > 0
 
   return (
     <>
@@ -76,8 +92,15 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                   <MissingPrices row={row} />
                 </td>
 
+                {/*
+                  An object that did not order this month has no comparison, so it has no baseline to show
+                  either. Its own average is a real number and printing it here would invite the subtraction
+                  the whole page exists to prevent: an average set beside a month that does not exist.
+                */}
                 <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">
-                  {formatMoney(row.baseline.knownAmount)}
+                  {row.hasCurrentRequest
+                    ? formatMoney(row.baseline.knownAmount)
+                    : <span className="text-slate-400">{unknownValue}</span>}
                 </td>
 
                 <td className="px-3 py-2.5 text-right">
@@ -96,7 +119,13 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                 </td>
 
                 <td className="px-3 py-2.5"><MainCause row={row} /></td>
-                <td className="px-3 py-2.5"><DataState row={row} /></td>
+                <td className="px-3 py-2.5">
+                  <DataState
+                    row={row}
+                    lastOrder={noOrder.get(row.locationId)}
+                    neverOrdered={neverOrdered.has(row.locationId)}
+                  />
+                </td>
 
                 <td className="px-3 py-2.5 text-right">
                   <DetailsLink row={row} selection={selection} compact />
@@ -104,6 +133,47 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
               </tr>
             ))}
           </tbody>
+
+          {/*
+            The page's own headline, restated where somebody who has just read down the column will look for
+            it. The two money columns add up to it exactly, because every object's figure was rounded to the
+            cent before the total was taken. The difference column does not always, by a qəpik or two: each
+            object's difference is rounded from its own two unrounded sides, so the rounding lands separately.
+            That is why this row is labelled rather than presented as the sum of the column above it.
+          */}
+          <tfoot className="border-t-2 border-slate-300 bg-slate-50">
+            <tr>
+              <th scope="row" className="px-4 py-3 text-left">
+                <p className="font-semibold text-slate-900">{footerComparedLabel(compared)}</p>
+                {partiallyCompared && (
+                  <p className="text-xs font-normal text-slate-500">
+                    {footerAllOrdersLine(withOrders, summary.current.knownAmount)}
+                  </p>
+                )}
+              </th>
+
+              <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">
+                {formatMoney(summary.comparedCurrent.knownAmount)}
+              </td>
+
+              <td className="whitespace-nowrap px-3 py-3 text-right font-medium text-slate-700">
+                {formatMoney(summary.baseline.knownAmount)}
+              </td>
+
+              <td className="px-3 py-3 text-right">
+                <p className={`whitespace-nowrap font-semibold ${signedToneClass(summary.knownAmountDelta)}`}>
+                  {formatMoneyDelta(summary.knownAmountDelta)}
+                </p>
+                <p className={`whitespace-nowrap text-xs ${signedToneClass(summary.knownAmountDelta)}`}>
+                  {formatPercent(summary.knownAmountPercentChange)}
+                </p>
+              </td>
+
+              <td colSpan={3} className="px-3 py-3 text-xs text-slate-500">
+                {basisDetail}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -131,7 +201,11 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
 
             <div className="mt-2 text-xs">
               <MainCause row={row} />
-              <DataState row={row} />
+              <DataState
+                row={row}
+                lastOrder={noOrder.get(row.locationId)}
+                neverOrdered={neverOrdered.has(row.locationId)}
+              />
               <MissingPrices row={row} />
             </div>
 
@@ -140,6 +214,32 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
             </div>
           </li>
         ))}
+
+        {/* The same closing figures a phone would otherwise have to scroll back up for. */}
+        <li className="rounded-lg border-2 border-slate-300 bg-slate-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-900">{footerComparedLabel(compared)}</p>
+              {partiallyCompared && (
+                <p className="text-xs text-slate-500">
+                  {footerAllOrdersLine(withOrders, summary.current.knownAmount)}
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="whitespace-nowrap text-base font-semibold text-slate-900">
+                {formatMoney(summary.comparedCurrent.knownAmount)}
+              </p>
+              <p className={`whitespace-nowrap text-xs font-medium ${signedToneClass(summary.knownAmountDelta)}`}>
+                {formatMoneyDelta(summary.knownAmountDelta)} {formatPercent(summary.knownAmountPercentChange)}
+              </p>
+              <p className="text-xs text-slate-400">
+                {basisText} {formatMoney(summary.baseline.knownAmount)}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-500">{basisDetail}</p>
+        </li>
       </ul>
     </>
   )
@@ -172,13 +272,27 @@ function MainCause({ row }: { row: LocationDashboardRow }) {
  * Said only when there is something to say. A healthy row carries nothing here at all — a badge that appears
  * on every row is one a reader learns to skip, and then skips the real ones with it.
  */
-function DataState({ row }: { row: LocationDashboardRow }) {
-  if (!row.hasCurrentRequest) {
-    return <span className="text-xs text-amber-900">{noCurrentRequestNote}</span>
+function DataState({ row, lastOrder, neverOrdered }: {
+  row: LocationDashboardRow
+  lastOrder: DashboardPartitionMember | undefined
+  neverOrdered: boolean
+}) {
+  // Said plainly and without amber: there is nothing here for anybody to put right.
+  if (neverOrdered) {
+    return <span className="text-xs text-slate-500">{noOrderHistoryNote}</span>
   }
 
+  /*
+    Not "sifariş yoxdur", which reads as an order of zero, and not an average either. What the object last
+    did is the fact a reader wants next, and it is the one fact that is actually known.
+  */
+  if (!row.hasCurrentRequest) {
+    return <span className="text-xs text-amber-900">{noOrderRowStatus(lastOrder)}</span>
+  }
+
+  // One wording for it, the same one the chip and the exceptions block use.
   if (row.comparisonAvailability === 'NoBaselineHistory') {
-    return <span className="text-xs text-slate-600">{noComparisonNote}</span>
+    return <span className="text-xs text-slate-600">{portfolioGroupLabels.NoBaseline}</span>
   }
 
   if (row.historyCoverage === 'Partial') {

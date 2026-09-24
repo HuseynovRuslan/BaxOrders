@@ -114,6 +114,25 @@ public sealed record LocationDashboardRowDto(
 /// the screen names its basis from: "every prior month" and a hand-picked range cannot be worked out from
 /// <paramref name="Basis"/> and <paramref name="SelectedPeriod"/> alone.
 /// </param>
+/// <param name="Current">
+/// The whole month's money: every object that ordered, whether or not it can be compared with anything. This
+/// is what the company spent, and it does not move when the reader changes the comparison basis.
+/// </param>
+/// <param name="ComparedCurrent">
+/// The same month, restricted to the cohort — the objects that also have a baseline. This is the figure
+/// <paramref name="Baseline"/> is beside and <paramref name="KnownAmountDelta"/> is the difference of. It
+/// equals <paramref name="Current"/> whenever every object that ordered can be compared, which is the ordinary
+/// case; when it does not, the screen shows both so that nobody has to guess which one moved.
+/// </param>
+/// <param name="Baseline">
+/// The cohort's average baseline month. Never "the baseline of every object that has history": that would be a
+/// total over a different set of objects than <paramref name="ComparedCurrent"/>, and their difference would
+/// be part change in spending and part change in membership.
+/// </param>
+/// <param name="Partition">
+/// Every object in the catalogue, in one of four named groups, so the cohort can be reconciled against the
+/// company rather than taken on trust. See <see cref="PortfolioCohort"/> for the rule.
+/// </param>
 public sealed record ManagementDashboardSummaryDto(
     DateOnly SelectedPeriod,
     AnalyticsComparisonBasis Basis,
@@ -123,9 +142,11 @@ public sealed record ManagementDashboardSummaryDto(
     int LocationsWithoutCurrentRequest,
     int CurrentRequestCount,
     DashboardAmountDto Current,
+    DashboardAmountDto ComparedCurrent,
     DashboardAmountDto Baseline,
     decimal? KnownAmountDelta,
     decimal? KnownAmountPercentChange,
+    DashboardPartitionDto Partition,
     int LocationsWithMissingPrices,
     int LocationsWithCompleteHistory,
     int LocationsWithPartialHistory,

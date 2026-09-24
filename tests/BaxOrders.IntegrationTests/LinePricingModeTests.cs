@@ -482,8 +482,8 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
         var everyMonth = await CountAsync(counted => new ManagementDashboardQueries(counted).GetAsync(
             world.April, new DashboardQuery(AnalyticsComparisonBasis.AllPriorMonths, PageSize: 100), None));
 
-        Assert.Equal(4, fixedWindow);
-        Assert.Equal(5, everyMonth);
+        Assert.Equal(5, fixedWindow);
+        Assert.Equal(6, everyMonth);
     }
 
     [PostgresFact]
@@ -499,7 +499,7 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
             None));
 
         // The months were named by the reader, so there is nothing to look up.
-        Assert.Equal(4, count);
+        Assert.Equal(5, count);
     }
 
     /// <summary>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
-import { basisParams, basisRequest, parseBasis, type BasisSelection } from '../analytics/basisParams'
+import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
+import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
 import { PageHeader } from '../components/PageHeader'
@@ -63,7 +64,7 @@ export function OrderDetailPage() {
   // The comparison is the reader's, and it lives in the URL: arriving from a dashboard card keeps the basis
   // that card was showing, and Back, Forward and a reload all restore it. Absent means last month, which is
   // what a link from the monthly report — a month-to-month reading — should keep meaning.
-  const selection = parseBasis(params)
+  const selection = useBasis(params, setParams)
   const basisKey = `${selection.basis}|${selection.from ?? ''}|${selection.to ?? ''}`
 
   function selectBasis(next: BasisSelection) {
