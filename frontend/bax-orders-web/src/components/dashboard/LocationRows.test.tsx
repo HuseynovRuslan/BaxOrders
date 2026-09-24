@@ -464,7 +464,8 @@ describe('an object with no order this month', () => {
 
   /**
    * An object that has never ordered at all is a different fact again, and amber would be claiming somebody
-   * has something to put right. The screen reads the group the backend put it in rather than guessing.
+   * has something to put right. The screen reads the group the backend put it in rather than guessing, and
+   * says it in the same words as that group's chip — "Sistemdə hələ sifarişi yoxdur" (B2, Task 3).
    */
   it('says something else again when it has never ordered', () => {
     render(
@@ -483,7 +484,38 @@ describe('an object with no order this month', () => {
       </MemoryRouter>,
     )
 
-    expect(table().getByText('Sifariş tarixçəsi yoxdur')).toHaveClass('text-slate-500')
+    expect(table().getByText('Sistemdə hələ sifarişi yoxdur')).toHaveClass('text-slate-500')
     expect(table().queryByText(/Sifariş qeydə alınmayıb/)).toBeNull()
+  })
+
+  /** B2: its money columns carry the dash an object with no order carries, never a zero. */
+  it('shows no money for an object that has never ordered', () => {
+    render(
+      <MemoryRouter>
+        <LocationRows
+          rows={[row({
+            ...noOrder,
+            locationId: 77,
+            locationName: 'Çadır',
+            baseline: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+            availableBaselinePeriodCount: 0,
+            historyCoverage: 'Unavailable',
+          })]}
+          selection={selection}
+          summary={{
+            ...summary(),
+            partition: partition({
+              compared: Array.from({ length: 26 }, (_, index) => partitionMember(101 + index, `Obyekt ${index + 1}`)),
+              noHistory: [partitionMember(77, 'Çadır')],
+            }),
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    const cadir = table().getByText('Çadır').closest('tr')!
+    expect(within(cadir).queryByText(/₼/)).toBeNull()
+    expect(within(cadir).getAllByText('—').length).toBeGreaterThanOrEqual(3)
+    expect(within(cadir).getByText('Sistemdə hələ sifarişi yoxdur')).toBeInTheDocument()
   })
 })

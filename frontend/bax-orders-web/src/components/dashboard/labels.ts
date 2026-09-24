@@ -172,9 +172,6 @@ export function supplyChangedNote(count: number): string {
 export const noComparisonNote = 'Əvvəlki ay üçün məlumat yoxdur'
 export const partialHistoryNote = 'Tarixçə natamamdır'
 export const noCurrentRequestNote = 'Bu ay sifariş yoxdur'
-
-/** An object that has never ordered at all. A fact about the catalogue, not a gap in the records. */
-export const noOrderHistoryNote = 'Sifariş tarixçəsi yoxdur'
 export const incompleteExplanationNote = 'Məbləğin bir hissəsi izah edilə bilmir — qiymət yoxdur'
 export const noComparisonCause = 'Müqayisə üçün əvvəlki ay yoxdur'
 export const detailsLabel = 'Detallara bax'

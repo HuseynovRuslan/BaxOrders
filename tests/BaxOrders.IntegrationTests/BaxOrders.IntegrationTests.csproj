@@ -27,6 +27,12 @@
     <ProjectReference Include="..\..\src\BaxOrders.Application\BaxOrders.Application.csproj" />
     <ProjectReference Include="..\..\src\BaxOrders.Infrastructure\BaxOrders.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BaxOrders.Api\BaxOrders.Api.csproj" />
+    <ProjectReference Include="..\..\tools\BaxOrders.CatalogueMigration\BaxOrders.CatalogueMigration.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The catalogue the inspect command found, shared with the unit tests of the same migration. -->
+    <Compile Include="..\BaxOrders.UnitTests\CatalogueMigration\CatalogueAsFound.cs" Link="CatalogueMigration\CatalogueAsFound.cs" />
   </ItemGroup>
 
 </Project>

@@ -16,7 +16,6 @@ import {
 } from '../analytics/format'
 import {
   comparedAmountLine,
-  coverageGroups,
   coverageHeading,
   coverageTotalNote,
   excludedFromComparisonLine,
@@ -24,9 +23,11 @@ import {
   memberNote,
   missingPriceChipLabel,
   missingPriceLocationsNote,
-  noOrderLine,
+  ordersThisMonthCaption,
+  ordersThisMonthDetails,
   ordersThisMonthLine,
   partialHistoryChipLabel,
+  portfolioGroups,
   type PortfolioGroupView,
 } from '../../coverage/labels'
 import { monthAmountHeading, ordersThisMonthLabel } from './labels'
@@ -119,23 +120,31 @@ export function DashboardSummary({ summary, selection }: DashboardSummaryProps) 
           )}
         </section>
 
-        {/* 6. How much of the company the number above covers. A count, with no reason attached to it. */}
+        {/*
+          6. How much of the company the number above covers. A count, with no reason attached to it.
+
+          Out of every object of the month — the same number the chips, the table, the monthly report and the
+          Obyektlər page count — and the rest of the sentence says where the others are: some did not order
+          this month, and some have never ordered at all. Nothing is left for the reader to reconcile.
+        */}
         <section className="rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="text-xs text-slate-500">{ordersThisMonthLabel}</h2>
-          <p className="mt-1 whitespace-nowrap text-3xl font-semibold text-slate-900">
+          <p className="mt-1 whitespace-nowrap text-3xl font-semibold text-slate-900" aria-hidden="true">
             {formatCount(summary.locationsWithCurrentRequest)}
-            {/*
-              Out of the objects that have ever ordered, not out of the whole catalogue: an object that has
-              never placed an order cannot sensibly be described as missing one this month.
-            */}
-            <span className="text-xl font-normal text-slate-400"> / {formatCount(partition.comparableLocationCount)}</span>
+            <span className="text-xl font-normal text-slate-400"> / {formatCount(partition.locationCount)}</span>
+          </p>
+          <p className="mt-1 text-xs text-slate-500" aria-hidden="true">
+            {[ordersThisMonthCaption, ...ordersThisMonthDetails(partition.noOrderThisMonth.length, partition.noHistory.length)]
+              .join(' · ')}
           </p>
           <p className="sr-only">
-            {ordersThisMonthLine(summary.locationsWithCurrentRequest, partition.comparableLocationCount)}
+            {ordersThisMonthLine(
+              summary.locationsWithCurrentRequest,
+              partition.locationCount,
+              partition.noOrderThisMonth.length,
+              partition.noHistory.length,
+            )}
           </p>
-          {partition.noOrderThisMonth.length > 0 && (
-            <p className="mt-1 text-xs text-slate-500">{noOrderLine(partition.noOrderThisMonth.length)}</p>
-          )}
         </section>
       </div>
 
@@ -147,15 +156,16 @@ export function DashboardSummary({ summary, selection }: DashboardSummaryProps) 
 }
 
 /**
- * What the dashboard can and cannot speak about, as counts that add up to the objects it has rows for.
+ * What the dashboard can and cannot speak about, as counts that add up to every object of the month.
  *
  * The chips used to be five overlapping facts — an object could be in three of them — so nothing could be
- * checked against anything. The first three are now the groups the headline is summed over, they are mutually
- * exclusive, and the line ends by saying what they come to. The two after the divider are quality flags: they
- * describe objects already counted above, and they say what they count so nobody adds them in.
+ * checked against anything. The groups before the total are mutually exclusive, they include the objects that
+ * have never ordered, and the line ends by saying what they come to — the same number the table has rows for.
+ * The two after the divider are quality flags: they describe objects already counted above, and they say what
+ * they count so nobody adds them in.
  */
 function DataCoverage({ summary }: { summary: ManagementDashboardSummary }) {
-  const groups = coverageGroups(summary.partition).filter(
+  const groups = portfolioGroups(summary.partition).filter(
     (group) => group.group === 'Compared' || group.count > 0)
 
   return (
@@ -180,7 +190,7 @@ function DataCoverage({ summary }: { summary: ManagementDashboardSummary }) {
 
         <div className="flex items-baseline gap-1.5 text-slate-500">
           <dt className="sr-only">Cəmi</dt>
-          <dd>{coverageTotalNote(summary.partition.comparableLocationCount)}</dd>
+          <dd>{coverageTotalNote(summary.partition.locationCount)}</dd>
         </div>
 
         {/*
@@ -232,7 +242,8 @@ function chipClass(group: PortfolioGroupView): string {
  * read as if it did.
  */
 function Exceptions({ summary, selection }: DashboardSummaryProps) {
-  const groups = coverageGroups(summary.partition)
+  // Every group but the compared one, each under its own heading — an object that has never ordered included.
+  const groups = portfolioGroups(summary.partition)
     .filter((group) => group.group !== 'Compared' && group.count > 0)
 
   if (groups.length === 0) {

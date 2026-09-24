@@ -1,5 +1,6 @@
 ﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
@@ -317,8 +318,9 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
         var byName = await DashboardAsync(db, world);
         var byAmount = await DashboardAsync(db, world, new DashboardQuery(Sort: DashboardSort.CurrentKnownAmount, Descending: true));
 
+        // In the Azerbaijani alphabet (Task 3, B6): "Xidmətli" follows the h-words and comes before the q-words.
         Assert.Equal(
-            byName.Rows.Items.Select(row => row.LocationName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase),
+            byName.Rows.Items.Select(row => row.LocationName).OrderBy(name => name, AzerbaijaniCollation.Comparer),
             byName.Rows.Items.Select(row => row.LocationName));
 
         var amounts = byAmount.Rows.Items.Where(row => row.Current.KnownAmount is not null)

@@ -23,7 +23,6 @@ import {
   causeHeadline,
   incompleteExplanationNote,
   noComparisonCause,
-  noOrderHistoryNote,
   partialHistoryNote,
 } from './labels'
 
@@ -277,9 +276,10 @@ function DataState({ row, lastOrder, neverOrdered }: {
   lastOrder: DashboardPartitionMember | undefined
   neverOrdered: boolean
 }) {
-  // Said plainly and without amber: there is nothing here for anybody to put right.
+  // Said plainly and without amber: there is nothing here for anybody to put right. The same words as its
+  // group in the chips and the exceptions block, so the row and the count above it are recognisably one fact.
   if (neverOrdered) {
-    return <span className="text-xs text-slate-500">{noOrderHistoryNote}</span>
+    return <span className="text-xs text-slate-500">{portfolioGroupLabels.NoHistory}</span>
   }
 
   /*

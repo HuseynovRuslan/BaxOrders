@@ -6,6 +6,7 @@
     <Project Path="src/BaxOrders.Infrastructure/BaxOrders.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/BaxOrders.CatalogueMigration/BaxOrders.CatalogueMigration.csproj" />
     <Project Path="tools/BaxOrders.DataTransfer/BaxOrders.DataTransfer.csproj" />
   </Folder>
   <Folder Name="/tests/">

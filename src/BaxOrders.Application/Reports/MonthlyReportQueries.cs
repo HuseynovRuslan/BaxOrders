@@ -1,6 +1,7 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Common;
+using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Domain.Suppliers;
@@ -40,25 +41,17 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             .OrderByDescending(year => year)
             .ToListAsync(cancellationToken);
 
-        // The report's universe is the directory of objects management watches, not the set that happens to
-        // have ordered: a location that submitted nothing all year is exactly the row a yearly report exists to
-        // surface, and dropping it would hide the omission instead of showing it.
-        //
-        // A location that has ordered is kept whether or not it is still active, so deactivating one never
-        // retroactively removes its money from a year that has already been read and reconciled.
-        //
-        // This is deliberately a wider universe than the management dashboard's, which compares months and so
-        // is built only from locations with order history. The two answer different questions and are allowed
-        // to differ; neither was changed to make the other's counts match.
-        var locations = await db.Locations.AsNoTracking()
-            .Where(location => location.IsActive
-                || db.OrderRequests.Any(request => request.LocationId == location.Id))
-            .Select(location => new LocationRef(location.Id, location.Code, location.Name, location.IsActive, location.NormalizedName))
-            .ToListAsync(cancellationToken);
-
         // Asked for nothing in particular, the report opens on the year that has something in it rather than on
         // today's, which early in January would be twelve empty columns.
         var year = query.Year ?? (availableYears.Count > 0 ? availableYears[0] : DateTime.UtcNow.Year);
+
+        // The year's universe — the same rule every screen counts by (see LocationUniverse): every active
+        // object, and every object that ordered during the year. A location that submitted nothing all year is
+        // exactly the row a yearly report exists to surface, and one that has since been deactivated keeps its
+        // row in the years it ordered, so its money never leaves a year that has already been read.
+        var locations = await LocationUniverse.ForYear(db, year)
+            .Select(location => new LocationRef(location.Id, location.Code, location.Name, location.IsActive, location.NormalizedName))
+            .ToListAsync(cancellationToken);
 
         var from = new DateOnly(year - 1, 12, 1);
         var to = new DateOnly(year, 12, 1);
@@ -81,7 +74,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             .ToDictionary(group => group.Key, group => group.ToDictionary(request => request.Period));
 
         var rows = new List<MonthlyReportRowDto>(locations.Count);
-        foreach (var location in locations.OrderBy(location => location.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var location in locations.OrderByName(location => location.Name))
         {
             rows.Add(Build(location, year, byLocation.GetValueOrDefault(location.Id) ?? [], totals));
         }

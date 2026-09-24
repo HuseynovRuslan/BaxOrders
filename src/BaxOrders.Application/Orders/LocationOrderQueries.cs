@@ -1,7 +1,9 @@
 ﻿using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Common;
 using BaxOrders.Application.Orders.Pricing;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Imports;
+using BaxOrders.Application.Locations;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Domain.Suppliers;
@@ -24,46 +26,49 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
     {
         var (page, pageSize) = Paging.Of(query.Page, query.PageSize, 25);
 
-        var locations = db.Locations.AsNoTracking();
-        if (!query.IncludeInactive)
-        {
-            locations = locations.Where(location => location.IsActive);
-        }
+        // The company's objects across its whole history — the rule every screen counts by (LocationUniverse).
+        // Asked for inactive ones too, it lists every object there is.
+        var catalogue = query.IncludeInactive ? db.Locations.AsNoTracking() : LocationUniverse.AllTime(db);
 
+        var locations = catalogue;
         if (Search.Of(query.Search) is { } search)
         {
             locations = locations.Where(location =>
                 location.NormalizedName.Contains(search) || location.Code.ToLower().Contains(search));
         }
 
-        // Ordering happens on the source query, not on the projection: a sort key that is itself a subquery
-        // is still translatable there, so paging stays in SQL.
+        // The order is decided here, in the Azerbaijani alphabet, from one small row per object; only the page is
+        // then projected. The database's own collation is whatever the server was created with, and a list that
+        // sorts "Çadır" after "Zabitlər parkı" on one machine and before it on another is not one order.
+        // An object with no order yet has no latest month and no count worth ranking, so it goes last whichever
+        // way the list is turned — a missing month is not an early one.
+        var keys = await locations
+            .Select(location => new
+            {
+                location.Id,
+                location.Name,
+                Latest = db.OrderRequests.Where(request => request.LocationId == location.Id)
+                    .Max(request => (DateOnly?)request.RequestPeriod),
+                Requests = db.OrderRequests.Count(request => request.LocationId == location.Id),
+            })
+            .ToListAsync(cancellationToken);
+
         var ordered = (query.Sort, query.Descending) switch
         {
-            (LocationOrderSort.LatestPeriod, false) => locations
-                .OrderBy(location => db.OrderRequests.Where(request => request.LocationId == location.Id)
-                    .Max(request => (DateOnly?)request.RequestPeriod))
-                .ThenBy(location => location.Name),
-            (LocationOrderSort.LatestPeriod, true) => locations
-                .OrderByDescending(location => db.OrderRequests.Where(request => request.LocationId == location.Id)
-                    .Max(request => (DateOnly?)request.RequestPeriod))
-                .ThenBy(location => location.Name),
-            (LocationOrderSort.OrderRequestCount, false) => locations
-                .OrderBy(location => db.OrderRequests.Count(request => request.LocationId == location.Id))
-                .ThenBy(location => location.Name),
-            (LocationOrderSort.OrderRequestCount, true) => locations
-                .OrderByDescending(location => db.OrderRequests.Count(request => request.LocationId == location.Id))
-                .ThenBy(location => location.Name),
-            (_, true) => locations.OrderByDescending(location => location.Name),
-            _ => locations.OrderBy(location => location.Name),
+            (LocationOrderSort.LatestPeriod, false) => keys.OrderBy(key => key.Latest is null).ThenBy(key => key.Latest).ThenByName(key => key.Name),
+            (LocationOrderSort.LatestPeriod, true) => keys.OrderBy(key => key.Latest is null).ThenByDescending(key => key.Latest).ThenByName(key => key.Name),
+            (LocationOrderSort.OrderRequestCount, false) => keys.OrderBy(key => key.Requests == 0).ThenBy(key => key.Requests).ThenByName(key => key.Name),
+            (LocationOrderSort.OrderRequestCount, true) => keys.OrderBy(key => key.Requests == 0).ThenByDescending(key => key.Requests).ThenByName(key => key.Name),
+            (_, true) => keys.OrderByNameDescending(key => key.Name),
+            _ => keys.OrderByName(key => key.Name),
         };
 
-        var totalCount = await locations.CountAsync(cancellationToken);
+        var totalCount = keys.Count;
+        var pageIds = ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(key => key.Id).ToList();
 
         // Correlated projections instead of loaded graphs: one query answers the whole page.
-        var items = await ordered
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var projected = await db.Locations.AsNoTracking()
+            .Where(location => pageIds.Contains(location.Id))
             .Select(location => new LocationOrderSummaryDto(
                 location.Id,
                 location.Code,
@@ -97,18 +102,18 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                     .Count(OrderLinePricingQueries.InternalSupply)))
             .ToListAsync(cancellationToken);
 
+        // Back into the order decided above; the query itself returns the page in no particular order.
         // SQL sums an empty set to zero once EF wraps it; "no priced line at all" must stay unknown instead.
         // Counted from the lines that carry a price, so internal supply neither hides nor invents an amount.
-        items = [.. items.Select(row =>
-            row.TotalItemCount - row.MissingPriceItemCount - row.InternalSupplyItemCount == 0
+        List<LocationOrderSummaryDto> items = [.. pageIds
+            .Select(id => projected.Single(row => row.LocationId == id))
+            .Select(row => row.TotalItemCount - row.MissingPriceItemCount - row.InternalSupplyItemCount == 0
                 ? row with { KnownAmountTotal = null }
                 : row)];
 
         items = await WithLatestOrderAsync(items, cancellationToken);
 
-        // The header counts describe the whole catalogue, not the page in front of the operator.
-        var catalogue = db.Locations.AsNoTracking().Where(location => query.IncludeInactive || location.IsActive);
-
+        // The header counts describe the whole universe, not the page in front of the operator.
         return new LocationOrderListDto(
             new PagedResult<LocationOrderSummaryDto>(items, page, pageSize, totalCount),
             await catalogue.CountAsync(cancellationToken),

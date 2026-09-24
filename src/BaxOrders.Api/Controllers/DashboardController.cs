@@ -22,7 +22,8 @@ public sealed class DashboardController(ManagementDashboardQueries queries) : Co
         queries.GetPeriodsAsync(cancellationToken);
 
     /// <summary>
-    /// One month across every location that has ever ordered, each beside its own history.
+    /// One month across every object of that month — every active object and every object that ordered in it —
+    /// each beside its own history.
     /// </summary>
     /// <param name="period">The month being looked at, as <c>yyyy-MM</c>.</param>
     /// <param name="query">Basis, search, filters, sorting and paging.</param>

@@ -1,4 +1,5 @@
 using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Normalization;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,13 +17,16 @@ public sealed class ReferenceSearchQueries(IBaxOrdersDbContext db)
     {
         var (normalized, code) = Terms(search);
 
-        return await db.Locations.AsNoTracking()
+        // Active objects only, deliberately narrower than the universe the screens count: a row can only be
+        // mapped to an object that is still in use, and the domain refuses anything else. The catalogue is a
+        // few dozen objects, so every match is read and put in the Azerbaijani order before the list is cut.
+        var found = await db.Locations.AsNoTracking()
             .Where(location => location.IsActive
                                && (normalized.Length == 0 || location.NormalizedName.Contains(normalized) || location.Code.Contains(code)))
-            .OrderBy(location => location.Name)
-            .Take(MaxResults)
             .Select(location => new ReferenceOption(location.Id, location.Name, location.Code))
             .ToListAsync(cancellationToken);
+
+        return [.. found.OrderByName(option => option.Label).Take(MaxResults)];
     }
 
     public async Task<IReadOnlyList<ReferenceOption>> SearchSuppliersAsync(string? search, CancellationToken cancellationToken)

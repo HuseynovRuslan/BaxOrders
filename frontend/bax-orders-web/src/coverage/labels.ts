@@ -17,10 +17,10 @@ import { formatCount, formatMoney, formatMonth } from '../components/analytics/f
  *     and never a zero: an object that did not order is not an object that ordered nothing.
  *   **Müqayisə bazası yoxdur** — ordered this month, but nothing in the window to set it against. Its money
  *     is in the month's total and not in the difference.
- *   **Tarixçə yoxdur** — had never ordered as of this month at all.
+ *   **Sistemdə hələ sifarişi yoxdur** — had never ordered as of this month at all.
  *
- * They add up to the catalogue, and the screen shows the first three adding up to the objects it has rows
- * for, because a total nobody can reconcile is a total nobody can check.
+ * They add up to the month's objects — the same number the headline, the chips and the table count — because
+ * a total nobody can reconcile is a total nobody can check.
  */
 
 /** The mirror of `BaxOrders.Application.Analytics.Dashboard.PortfolioGroup`. */
@@ -30,7 +30,7 @@ export const portfolioGroupLabels: Record<PortfolioGroup, string> = {
   Compared: 'Müqayisə olunan',
   NoOrderThisMonth: 'Sifariş qeydə alınmayıb',
   NoBaseline: 'Müqayisə bazası yoxdur',
-  NoHistory: 'Tarixçə yoxdur',
+  NoHistory: 'Sistemdə hələ sifarişi yoxdur',
 }
 
 /** Short enough for a chip, where the surrounding row already says these are comparison groups. */
@@ -54,7 +54,8 @@ export const portfolioGroupHints: Record<PortfolioGroup, string> = {
     'Bu ay sifarişi var, lakin seçilmiş müqayisə dövründə heç bir ayı yoxdur. Məbləği ayın cəminə daxildir, '
     + 'müqayisəyə isə daxil deyil.',
   NoHistory:
-    'Seçilmiş aya qədər heç vaxt sifariş verməyib. Nə müqayisə ediləcək bir şey var, nə də əskik olan bir şey.',
+    'Seçilmiş aya qədər sistemdə bu obyekt üzrə heç bir sifariş qeydə alınmayıb. Nə müqayisə ediləcək bir şey '
+    + 'var, nə də əskik olan bir şey.',
 }
 
 /** The order a reader meets them: what was compared, then what was not. */
@@ -75,10 +76,14 @@ export interface PortfolioGroupView {
 }
 
 /**
- * The four groups in reading order, each with the objects in it.
+ * The four groups in reading order, each with the objects in it — every object of the month, in one group.
  *
  * Every group is returned, including the empty ones, so a caller that chips only the exceptions filters on
  * `count` and a caller that shows the arithmetic does not have to invent the zeroes.
+ *
+ * An object that has never ordered is one of them. It used to be left out of the chips, which is how they came
+ * to add up to 26 while the monthly report and the Obyektlər page said 29 — each number true of a different
+ * set. The table has a row for every object now, so the chips and the table count the same objects.
  */
 export function portfolioGroups(partition: DashboardPartition): PortfolioGroupView[] {
   const members: Record<PortfolioGroup, DashboardPartitionMember[]> = {
@@ -98,17 +103,6 @@ export function portfolioGroups(partition: DashboardPartition): PortfolioGroupVi
   }))
 }
 
-/**
- * The groups the screen counts: the objects it has rows for.
- *
- * "Tarixçə yoxdur" is left out on purpose. Those objects are in the catalogue and not in this table, and
- * whether the dashboard should show all of them is a question of its own — the partition names them so the
- * arithmetic can be checked, and the chips stay about the objects in front of the reader.
- */
-export function coverageGroups(partition: DashboardPartition): PortfolioGroupView[] {
-  return portfolioGroups(partition).filter((group) => group.group !== 'NoHistory')
-}
-
 // ---- the headline ------------------------------------------------------------------------------------
 
 export const coverageHeading = 'Məlumatın əhatəsi'
@@ -116,13 +110,36 @@ export const coverageHeading = 'Məlumatın əhatəsi'
 /** The heading over the objects the comparison could not speak about. Not a list of problems: a list of facts. */
 export const exceptionsHeading = 'Müqayisədən kənarda qalan obyektlər'
 
-/** "24 / 26 obyekt üzrə sifariş var" — a count, with no reason attached to it. */
-export function ordersThisMonthLine(withOrder: number, comparable: number): string {
-  return `${formatCount(withOrder)} / ${formatCount(comparable)} obyekt üzrə sifariş var`
+/** "obyekt üzrə sifariş var" — what the "24 / 27" above it counts. */
+export const ordersThisMonthCaption = 'obyekt üzrə sifariş var'
+
+/** "2 obyektdə sifariş qeydə alınmayıb" — has ordered before, nothing recorded this month. */
+export function noOrderLine(count: number): string {
+  return `${formatCount(count)} obyektdə sifariş qeydə alınmayıb`
 }
 
-export function noOrderLine(count: number): string {
-  return `${formatCount(count)} obyekt üzrə sifariş qeydə alınmayıb`
+/** "1 obyektin sistemdə hələ sifarişi yoxdur" — nothing is missing; there is simply nothing yet. */
+export function noHistoryLine(count: number): string {
+  return `${formatCount(count)} obyektin sistemdə hələ sifarişi yoxdur`
+}
+
+/**
+ * "24 / 27 obyekt üzrə sifariş var · 2 obyektdə sifariş qeydə alınmayıb · 1 obyektin sistemdə hələ sifarişi
+ * yoxdur" — every object of the month, accounted for in one sentence. A part with nothing in it is left out.
+ */
+export function ordersThisMonthLine(withOrder: number, total: number, noOrder: number, noHistory: number): string {
+  return [
+    `${formatCount(withOrder)} / ${formatCount(total)} ${ordersThisMonthCaption}`,
+    ...ordersThisMonthDetails(noOrder, noHistory),
+  ].join(' · ')
+}
+
+/** The parts of the sentence after the count, for a card that shows the count in large type. */
+export function ordersThisMonthDetails(noOrder: number, noHistory: number): string[] {
+  return [
+    ...(noOrder > 0 ? [noOrderLine(noOrder)] : []),
+    ...(noHistory > 0 ? [noHistoryLine(noHistory)] : []),
+  ]
 }
 
 /**
@@ -175,7 +192,7 @@ export function missingPriceChipLabel(count: number): string {
 /** An object averaged over fewer months than the basis asked for. A property of a compared object. */
 export const partialHistoryChipLabel = 'Tarixçə natamam'
 
-/** "= 26 obyekt" — the line that closes the chips, so the reader can see them add up. */
+/** "= 27 obyekt" — the line that closes the chips, so the reader can see them add up. */
 export function coverageTotalNote(count: number): string {
   return `= ${formatCount(count)} obyekt`
 }

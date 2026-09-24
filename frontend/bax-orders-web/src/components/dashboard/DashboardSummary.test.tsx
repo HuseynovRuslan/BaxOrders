@@ -61,11 +61,15 @@ function summary(overrides: Partial<ManagementDashboardSummary> = {}): Managemen
   }
 }
 
-/** September 2026 as it really is: two objects with no order, one with no baseline, three with no history. */
+/**
+ * September 2026 as it really is once the catalogue is the owner's 27 objects (Task 3): two objects with no
+ * order, one with no baseline, and Çadır, which has never ordered.
+ */
 function september(overrides: Partial<ManagementDashboardSummary> = {}): ManagementDashboardSummary {
   return summary({
+    locationCount: 27,
     locationsWithCurrentRequest: 24,
-    locationsWithoutCurrentRequest: 2,
+    locationsWithoutCurrentRequest: 3,
     currentRequestCount: 24,
     current: amount({ knownAmount: 71210.29 }),
     comparedCurrent: amount({ knownAmount: 71030.25 }),
@@ -78,14 +82,13 @@ function september(overrides: Partial<ManagementDashboardSummary> = {}): Managem
       compared: Array.from({ length: 23 }, (_, index) => partitionMember(index + 1, `Obyekt ${index + 1}`)),
       noOrderThisMonth: [
         partitionMember(32, 'Puşkin parkı', { lastOrderPeriod: '2026-05-01', lastOrderKnownAmount: 700 }),
-        partitionMember(33, 'Təmir-tikinti', { lastOrderPeriod: '2026-07-01', lastOrderKnownAmount: 4645.05 }),
+        partitionMember(33, 'Təmir-tikinti (ərazidə olan dibçəklərə qulluq)', {
+          lastOrderPeriod: '2026-07-01',
+          lastOrderKnownAmount: 4645.05,
+        }),
       ],
-      noBaseline: [partitionMember(31, 'EXPO', { currentKnownAmount: 180.04 })],
-      noHistory: [
-        partitionMember(2, 'Maştağa'),
-        partitionMember(1, 'Ramana'),
-        partitionMember(3, 'Əmircan'),
-      ],
+      noBaseline: [partitionMember(31, 'EXPO Center', { currentKnownAmount: 180.04 })],
+      noHistory: [partitionMember(51, 'Çadır')],
     }),
     ...overrides,
   })
@@ -182,7 +185,7 @@ describe('the cohort the difference is over', () => {
   it('names who was left out, and says it is the window that did not reach them', () => {
     renderSummary(september())
 
-    expect(screen.getByText(/Müqayisəyə daxil deyil: EXPO \(bu ay 180,04 ₼\) — keçən ay sifarişi yoxdur/))
+    expect(screen.getByText(/Müqayisəyə daxil deyil: EXPO Center \(bu ay 180,04 ₼\) — keçən ay sifarişi yoxdur/))
       .toBeInTheDocument()
   })
 
@@ -241,53 +244,62 @@ describe('incomplete price data', () => {
 
 describe('object coverage', () => {
   /**
-   * Out of the objects that have ever ordered, not out of the catalogue: an object that has never placed an
-   * order cannot be described as missing one, and counting it in the denominator would say it was.
+   * Out of every object of the month — the number the chips, the table, the monthly report and the Obyektlər
+   * page count too — and the sentence accounts for the rest: the ones that did not order this month, and the
+   * one that has never ordered at all (B2, Task 3).
    */
-  it('counts the objects that ordered, without saying why the rest did not', () => {
+  it('counts the objects that ordered out of every object, and says where the rest are', () => {
     renderSummary(september())
 
     const card = screen.getByText('Bu ay sifariş olan obyektlər').closest('section')!
-    expect(within(card).getByText('24 / 26 obyekt üzrə sifariş var')).toBeInTheDocument()
-    expect(within(card).getByText('2 obyekt üzrə sifariş qeydə alınmayıb')).toBeInTheDocument()
+    expect(within(card).getByText(
+      '24 / 27 obyekt üzrə sifariş var · 2 obyektdə sifariş qeydə alınmayıb · 1 obyektin sistemdə hələ sifarişi yoxdur',
+    )).toBeInTheDocument()
+    expect(card).toHaveTextContent('24 / 27')
   })
 
   /**
    * The system knows an object has no request. It does not know whether one is late, was not needed, or was
-   * never expected — so it must not imply any of them.
+   * never expected — so it must not imply any of them. "Hələ" is only ever said of an object with no order in
+   * the system at all, in the owner's own words for it.
    */
   it('never says an object has "not sent yet"', () => {
     renderSummary(september())
 
-    expect(screen.queryByText(/hələ göndərməyib/)).toBeNull()
-    expect(screen.queryByText(/hələ/)).toBeNull()
+    expect(screen.queryByText(/göndərməyib/)).toBeNull()
+    const mentions = screen.queryAllByText(/hələ/)
+    expect(mentions.length).toBeGreaterThan(0)
+    mentions.forEach((element) => expect(element.textContent).toMatch(/[Ss]istemdə hələ sifarişi yoxdur/))
   })
 
   it('says nothing extra when every object has ordered', () => {
     renderSummary(summary())
 
-    expect(screen.queryByText(/obyekt üzrə sifariş qeydə alınmayıb/)).toBeNull()
+    expect(screen.queryByText(/sifariş qeydə alınmayıb/)).toBeNull()
+    expect(screen.queryByText(/hələ sifarişi yoxdur/)).toBeNull()
   })
 })
 
 describe('data coverage', () => {
   /**
-   * Three counts that are mutually exclusive and add up to the objects the table has rows for. The old chips
-   * overlapped — an object could be in three of them at once — so nothing could be checked against anything.
+   * Counts that are mutually exclusive and add up to every object of the month — the objects the table has
+   * rows for. The old chips overlapped — an object could be in three of them at once — so nothing could be
+   * checked against anything. Sentyabr 2026 on the previous-month basis: 23 + 1 + 2 + 1 = 27.
    */
   it('chips the groups and shows them adding up', () => {
     renderSummary(september())
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
-    const counts = ['Müqayisə olunan', 'Bazası yoxdur', 'Sifariş qeydə alınmayıb']
+    const counts = ['Müqayisə olunan', 'Bazası yoxdur', 'Sifariş qeydə alınmayıb', 'Sistemdə hələ sifarişi yoxdur']
       .map((label) => within(coverage).getByText(label).closest('div')!.textContent)
 
     expect(counts).toEqual([
       expect.stringContaining('23'),
       expect.stringContaining('1'),
       expect.stringContaining('2'),
+      expect.stringContaining('1'),
     ])
-    expect(within(coverage).getByText('= 26 obyekt')).toBeInTheDocument()
+    expect(within(coverage).getByText('= 27 obyekt')).toBeInTheDocument()
   })
 
   /** A chip on every healthy row is one a reader learns to skip, and the real ones get skipped with it. */
@@ -320,14 +332,19 @@ describe('data coverage', () => {
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
     expect(within(coverage).getByText('Tarixçə natamam').closest('div')).toHaveTextContent('3')
     expect(within(coverage).getByText('Qiymət yoxdur · 10 obyekt')).toBeInTheDocument()
-    expect(within(coverage).getByText('= 26 obyekt')).toBeInTheDocument()
+    expect(within(coverage).getByText('= 27 obyekt')).toBeInTheDocument()
   })
 
-  /** Whether the dashboard should also count the objects that have never ordered is Task 3's question. */
-  it('does not chip the objects that have never ordered', () => {
+  /**
+   * Task 3 answered the question this test used to leave open: an object that has never ordered is one of the
+   * company's objects, so it is chipped, and the chips add up to every object rather than to all but it.
+   */
+  it('chips the objects that have never ordered, plainly', () => {
     renderSummary(september())
 
     const coverage = screen.getByText('Məlumatın əhatəsi').closest('section')!
+    const chip = within(coverage).getByText('Sistemdə hələ sifarişi yoxdur').closest('div')!
+    expect(chip).toHaveTextContent('1')
     expect(within(coverage).queryByText('Tarixçə yoxdur')).toBeNull()
   })
 })
@@ -342,7 +359,16 @@ describe('the objects left out of the comparison', () => {
 
     expect(block().getByText('Sifariş qeydə alınmayıb (2)')).toBeInTheDocument()
     expect(block().getByText('Puşkin parkı').closest('li')).toHaveTextContent('son sifariş May 2026, 700,00 ₼')
-    expect(block().getByText('Təmir-tikinti').closest('li')).toHaveTextContent('son sifariş İyul 2026, 4.645,05 ₼')
+    expect(block().getByText('Təmir-tikinti (ərazidə olan dibçəklərə qulluq)').closest('li'))
+      .toHaveTextContent('son sifariş İyul 2026, 4.645,05 ₼')
+  })
+
+  /** B2: Çadır is listed under its own heading, and nothing further is claimed about it. */
+  it('lists the object that has never ordered under its own heading', () => {
+    renderSummary(september())
+
+    expect(block().getByText('Sistemdə hələ sifarişi yoxdur (1)')).toBeInTheDocument()
+    expect(block().getByText('Çadır').closest('li')).toHaveTextContent(/^Çadır$/)
   })
 
   /** Never an average: an object that did not order is not an object that ordered its usual amount. */
@@ -357,7 +383,7 @@ describe('the objects left out of the comparison', () => {
     renderSummary(september())
 
     expect(block().getByText('Müqayisə bazası yoxdur (1)')).toBeInTheDocument()
-    expect(block().getByText('EXPO').closest('li')).toHaveTextContent('bu ay 180,04 ₼')
+    expect(block().getByText('EXPO Center').closest('li')).toHaveTextContent('bu ay 180,04 ₼')
   })
 
   /** Each name opens the object, carrying the comparison the reader is currently looking at. */
@@ -365,7 +391,7 @@ describe('the objects left out of the comparison', () => {
     renderSummary(september())
 
     expect(block().getByRole('link', { name: 'Puşkin parkı' })).toHaveAttribute('href', '/locations/32?basis=last')
-    expect(block().getByRole('link', { name: 'EXPO' })).toHaveAttribute('href', '/locations/31?basis=last')
+    expect(block().getByRole('link', { name: 'EXPO Center' })).toHaveAttribute('href', '/locations/31?basis=last')
   })
 
   it('is absent entirely when every object was compared', () => {

@@ -54,16 +54,16 @@ public sealed record DashboardPartitionMemberDto(
     decimal? LastOrderKnownAmount);
 
 /// <summary>
-/// Every object in the catalogue, sorted into the four situations, so the headline can be reconciled.
+/// Every object of the month's universe, sorted into the four situations, so the headline can be reconciled.
 /// </summary>
 /// <param name="LocationCount">
-/// The catalogue. The four groups add up to it — <see cref="PortfolioCohort.Partition"/> refuses to return a
-/// partition that does not.
+/// The month's universe (see <see cref="Locations.LocationUniverse"/>) — the same number the table, the chips
+/// and the headline's "24 / 27" count. The four groups add up to it — <see cref="PortfolioCohort.Partition"/>
+/// refuses to return a partition that does not.
 /// </param>
 /// <param name="ComparableLocationCount">
 /// The objects that had a history to compare as of this month: compared, no-baseline and no-order-this-month.
-/// This is the denominator the coverage line uses, because an object that has never ordered cannot sensibly be
-/// described as missing an order.
+/// Everything in the universe except the objects that had never ordered.
 /// </param>
 public sealed record DashboardPartitionDto(
     int LocationCount,
@@ -158,8 +158,9 @@ public static class PortfolioCohort
 
         var byGroup = members.ToLookup(entry => entry.Group, entry => entry.Member);
 
+        // The same Azerbaijani order the table below uses, so a name in a group and its row are met in step.
         static IReadOnlyList<DashboardPartitionMemberDto> Named(IEnumerable<DashboardPartitionMemberDto> group) =>
-            [.. group.OrderBy(member => member.LocationName, StringComparer.OrdinalIgnoreCase)];
+            [.. group.OrderByName(member => member.LocationName)];
 
         var compared = Named(byGroup[PortfolioGroup.Compared]);
         var noOrder = Named(byGroup[PortfolioGroup.NoOrderThisMonth]);

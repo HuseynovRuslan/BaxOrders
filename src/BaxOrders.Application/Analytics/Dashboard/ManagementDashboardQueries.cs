@@ -1,7 +1,9 @@
 ﻿using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
+using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Suppliers;
@@ -88,26 +90,12 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var baselinePeriods = BaselineWindow.PeriodsFor(currentPeriod, selection, companyPeriods);
         var wanted = baselinePeriods.Append(currentPeriod).ToArray();
 
-        // Two universes, on purpose, in one query.
-        //
-        // The rows are the objects that have ordered, exactly as the table has always shown them: a location
-        // that has never ordered is not part of the company's order history, and whether it belongs in the
-        // table is a separate question that is not answered here.
-        //
-        // The partition is the whole catalogue. A headline summed over a cohort can only be checked if the
-        // objects outside the cohort are named, and that has to include the ones with no orders at all —
-        // otherwise the groups add up to a number the reader cannot reconcile against the company.
-        var catalogue = await db.Locations.AsNoTracking()
-            .Where(location => location.IsActive
-                || db.OrderRequests.Any(request => request.LocationId == location.Id))
-            .Select(location => new LocationRef(
-                location.Id,
-                location.Code,
-                location.Name,
-                db.OrderRequests.Any(request => request.LocationId == location.Id)))
+        // One universe: the month's, the same one every screen counts (see LocationUniverse). Every object in
+        // it is a row and a member of the partition — an object that has never ordered included, so the table,
+        // the chips and the headline all add up to the same number of objects.
+        var locations = await LocationUniverse.ForMonth(db, currentPeriod)
+            .Select(location => new LocationRef(location.Id, location.Code, location.Name))
             .ToListAsync(cancellationToken);
-
-        var locations = catalogue.Where(location => location.HasOrdered).ToList();
 
         // The highest version of each location and month, in one query for the whole company.
         var requests = await db.OrderRequests.AsNoTracking()
@@ -137,8 +125,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds));
         }
 
-        rows = [.. rows.OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
-        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, catalogue, lastOrders);
+        rows = [.. rows.OrderByName(row => row.LocationName)];
+        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, lastOrders);
 
         var filtered = Sort(Filter(rows, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
@@ -497,8 +485,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         if (query.Sort == DashboardSort.LocationName)
         {
             return [.. query.Descending
-                ? rows.OrderByDescending(row => row.LocationName, StringComparer.OrdinalIgnoreCase)
-                : rows.OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
+                ? rows.OrderByNameDescending(row => row.LocationName)
+                : rows.OrderByName(row => row.LocationName)];
         }
 
         decimal? Key(LocationDashboardRowDto row) => query.Sort switch
@@ -516,12 +504,11 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         };
 
         var withValue = rows.Where(row => Key(row) is not null);
-        var withoutValue = rows.Where(row => Key(row) is null)
-            .OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase);
+        var withoutValue = rows.Where(row => Key(row) is null).OrderByName(row => row.LocationName);
 
         var ordered = query.Descending
-            ? withValue.OrderByDescending(Key).ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)
-            : withValue.OrderBy(Key).ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase);
+            ? withValue.OrderByDescending(Key).ThenByName(row => row.LocationName)
+            : withValue.OrderBy(Key).ThenByName(row => row.LocationName);
 
         return [.. ordered, .. withoutValue];
     }
@@ -540,12 +527,11 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         ComparisonSelection selection,
         IReadOnlyList<DateOnly> baselinePeriods,
         IReadOnlyList<LocationDashboardRowDto> rows,
-        IReadOnlyList<LocationRef> catalogue,
         IReadOnlyDictionary<int, LastOrderRef> lastOrders)
     {
         // Every object lands in exactly one group, and Partition refuses to return a set that does not add up
-        // to the catalogue. The rows are one universe and the catalogue is another: an object with no orders
-        // at all has no row, but it is still one of the company's objects and the groups have to account for it.
+        // to the universe. The rows are the universe, so an object that has never ordered is a row here too —
+        // it lands in "no history" with no money in either direction, because nothing about it is missing.
         var groups = rows.ToDictionary(
             row => row.LocationId,
             row => PortfolioCohort.GroupOf(
@@ -567,14 +553,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 PortfolioCohort.Money(last?.KnownAmount)));
         });
 
-        // An object the company has that has never placed an order. Nothing about it is missing, and nothing
-        // here pretends otherwise: it carries no money, in either direction.
-        var unordered = catalogue
-            .Where(location => !location.HasOrdered)
-            .Select(location => (PortfolioGroup.NoHistory, new DashboardPartitionMemberDto(
-                location.Id, location.Code, location.Name, null, null, null, null, null)));
-
-        var partition = PortfolioCohort.Partition([.. rowMembers, .. unordered], catalogue.Count);
+        var partition = PortfolioCohort.Partition(rowMembers, rows.Count);
 
         var withCurrent = rows.Where(row => row.HasCurrentRequest).ToList();
         var cohort = rows.Where(row => groups[row.LocationId] == PortfolioGroup.Compared).ToList();
@@ -641,11 +620,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             rows.Sum(row => row.AmountOrientedServiceCount));
     }
 
-    /// <param name="HasOrdered">
-    /// Whether the company has ever recorded an order for it, at any time. It decides whether the object is a
-    /// row; the partition names it either way.
-    /// </param>
-    private sealed record LocationRef(int Id, string Code, string Name, bool HasOrdered = true);
+    private sealed record LocationRef(int Id, string Code, string Name);
 
     /// <summary>The last month an object ordered in before the one being read, and that order's money.</summary>
     private sealed record LastOrderRef(int LocationId, DateOnly Period, decimal? KnownAmount);

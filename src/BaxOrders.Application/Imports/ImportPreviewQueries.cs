@@ -1,4 +1,5 @@
 using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
@@ -108,7 +109,7 @@ public sealed class ImportPreviewQueries(IBaxOrdersDbContext db)
                     latestVersion is null ? GroupSuggestedAction.CreateNewRequest : GroupSuggestedAction.RequiresOperatorDecision);
             })
             .OrderBy(g => g.Period)
-            .ThenBy(g => g.LocationName, StringComparer.Ordinal)
+            .ThenBy(g => g.LocationName, AzerbaijaniCollation.Comparer)
             .ToList();
 
         return new ImportPreview(batch, issueSummary, groups, batch.TotalRows - groups.Sum(g => g.RowCount));

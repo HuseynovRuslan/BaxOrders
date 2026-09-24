@@ -1,4 +1,5 @@
 using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Evaluation;
 using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Domain.Imports;
@@ -217,7 +218,7 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
                     group.RowCount,
                     request.Latest))
             .OrderBy(item => item.Period)
-            .ThenBy(item => item.LocationName, StringComparer.Ordinal)
+            .ThenByName(item => item.LocationName)
             .ToList();
     }
 

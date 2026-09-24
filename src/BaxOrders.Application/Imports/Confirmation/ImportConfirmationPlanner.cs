@@ -1,4 +1,5 @@
 using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Common;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
@@ -147,7 +148,7 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
         var groups = planned
             .GroupBy(row => (row.LocationId, row.RequestPeriod))
             .OrderBy(group => group.Key.RequestPeriod)
-            .ThenBy(group => locations.TryGetValue(group.Key.LocationId, out var location) ? location.Name : string.Empty, StringComparer.Ordinal)
+            .ThenBy(group => locations.TryGetValue(group.Key.LocationId, out var location) ? location.Name : string.Empty, AzerbaijaniCollation.Comparer)
             .Select(group =>
             {
                 var location = locations.GetValueOrDefault(group.Key.LocationId);

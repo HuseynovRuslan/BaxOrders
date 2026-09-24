@@ -159,25 +159,28 @@ public sealed class PortfolioCohortTests(PostgresDatabaseFixture database)
     }
 
     /// <summary>
-    /// The rows are the objects that have ordered; the partition is the whole catalogue. An object with no
-    /// orders at all has no row — whether it should is a separate question — but it is still one of the
-    /// company's objects, and a cohort figure can only be checked against a count that includes it.
+    /// The rows and the partition are one universe. An object with no orders at all used to be in the partition
+    /// and not in the table; Task 3 (B2) answered the question that left open, and it now has a row too — with
+    /// no money on it — so the table, the chips and the headline all count the same objects.
     /// </summary>
     [PostgresFact]
-    public async Task The_partition_covers_objects_the_table_does_not()
+    public async Task The_table_has_a_row_for_every_object_the_partition_names()
     {
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
         var dashboard = (await DashboardAsync(db, AnalyticsComparisonBasis.PreviousMonth))!;
 
         Assert.Contains(dashboard.Summary.Partition.NoHistory, member => member.LocationId == world.NeverOrdered);
-        Assert.True(dashboard.Summary.Partition.LocationCount > dashboard.Summary.LocationCount);
+        Assert.Equal(dashboard.Summary.Partition.LocationCount, dashboard.Summary.LocationCount);
 
         var found = await Queries(db).GetAsync(
             September,
             new DashboardQuery(Search: Member(dashboard.Summary.Partition, world.NeverOrdered).LocationName, PageSize: 100),
             None);
-        Assert.Empty(found!.Rows.Items);
+        var row = Assert.Single(found!.Rows.Items);
+        Assert.Equal(world.NeverOrdered, row.LocationId);
+        Assert.Null(row.Current.KnownAmount);
+        Assert.Null(row.KnownAmountDelta);
     }
 
     /// <summary>

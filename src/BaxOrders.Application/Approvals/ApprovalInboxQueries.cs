@@ -190,8 +190,8 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
         if (query.Sort == ApprovalInboxSort.LocationName)
         {
             return [.. query.Descending
-                ? rows.OrderByDescending(row => row.LocationName, StringComparer.OrdinalIgnoreCase)
-                : rows.OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
+                ? rows.OrderByNameDescending(row => row.LocationName)
+                : rows.OrderByName(row => row.LocationName)];
         }
 
         if (query.Sort == ApprovalInboxSort.RequestPeriod)
@@ -199,7 +199,7 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
             var byPeriod = query.Descending
                 ? rows.OrderByDescending(row => row.RequestPeriod)
                 : rows.OrderBy(row => row.RequestPeriod);
-            return [.. byPeriod.ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
+            return [.. byPeriod.ThenByName(row => row.LocationName)];
         }
 
         if (query.Sort == ApprovalInboxSort.SubmittedAtUtc)
@@ -207,7 +207,7 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
             var bySubmitted = query.Descending
                 ? rows.OrderByDescending(row => row.SubmittedAtUtc)
                 : rows.OrderBy(row => row.SubmittedAtUtc);
-            return [.. bySubmitted.ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
+            return [.. bySubmitted.ThenByName(row => row.LocationName)];
         }
 
         if (query.Sort == ApprovalInboxSort.MissingPriceItemCount)
@@ -215,17 +215,16 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
             var byMissing = query.Descending
                 ? rows.OrderByDescending(row => row.MissingPriceItemCount)
                 : rows.OrderBy(row => row.MissingPriceItemCount);
-            return [.. byMissing.ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
+            return [.. byMissing.ThenByName(row => row.LocationName)];
         }
 
         // KnownAmount: the one nullable key, so a row with nothing priced goes last regardless of direction.
         var withValue = rows.Where(row => row.KnownAmount is not null);
-        var withoutValue = rows.Where(row => row.KnownAmount is null)
-            .OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase);
+        var withoutValue = rows.Where(row => row.KnownAmount is null).OrderByName(row => row.LocationName);
 
         var ordered = query.Descending
-            ? withValue.OrderByDescending(row => row.KnownAmount).ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)
-            : withValue.OrderBy(row => row.KnownAmount).ThenBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase);
+            ? withValue.OrderByDescending(row => row.KnownAmount).ThenByName(row => row.LocationName)
+            : withValue.OrderBy(row => row.KnownAmount).ThenByName(row => row.LocationName);
 
         return [.. ordered, .. withoutValue];
     }

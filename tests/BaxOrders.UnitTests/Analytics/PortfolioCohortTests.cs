@@ -59,8 +59,8 @@ public sealed class PortfolioCohortTests
     /// <summary>
     /// Within a group, the names come back in the same order the table below puts them in — the dashboard rows
     /// are ordered by the same comparer — so a reader matching a name in the block against a row in the table
-    /// walks both lists the same way. That comparer is ordinal, which puts "Ə" after the Latin letters; making
-    /// the partition alphabetical on its own would only put the two lists out of step with each other.
+    /// walks both lists the same way. Since Task 3 (B6) that comparer is the Azerbaijani alphabet on both
+    /// lists, so "Əmircan" comes after "E" and before "M" rather than after "Z".
     /// </summary>
     [Fact]
     public void Each_group_is_ordered_by_name()
@@ -70,10 +70,11 @@ public sealed class PortfolioCohortTests
                 (PortfolioGroup.NoHistory, Member(1, "Ramana")),
                 (PortfolioGroup.NoHistory, Member(2, "Maştağa")),
                 (PortfolioGroup.NoHistory, Member(3, "Əmircan")),
+                (PortfolioGroup.NoHistory, Member(4, "Çadır")),
             ],
-            locationCount: 3);
+            locationCount: 4);
 
-        Assert.Equal(["Maştağa", "Ramana", "Əmircan"], partition.NoHistory.Select(member => member.LocationName));
+        Assert.Equal(["Çadır", "Əmircan", "Maştağa", "Ramana"], partition.NoHistory.Select(member => member.LocationName));
     }
 
     /// <summary>
