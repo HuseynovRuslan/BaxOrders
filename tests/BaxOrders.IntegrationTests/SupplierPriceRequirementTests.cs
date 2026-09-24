@@ -161,7 +161,7 @@ public sealed class SupplierPriceRequirementTests(PostgresDatabaseFixture databa
         await using var db = database.CreateContext();
         var world = await ComparedWorldAsync(db);
 
-        var context = (await new OrderDecisionContextQueries(db).GetAsync(world.JulyId, None))!;
+        var context = (await new OrderDecisionContextQueries(db).GetAsync(world.JulyId, new DecisionContextQuery(), None))!;
         var decomposition = context.Decomposition!;
 
         var driver = decomposition.Drivers.Single(row => row.Variant.ProductVariantId == world.SwitchedVariantId);
@@ -179,7 +179,7 @@ public sealed class SupplierPriceRequirementTests(PostgresDatabaseFixture databa
         await using var db = database.CreateContext();
         var world = await ComparedWorldAsync(db);
 
-        var context = (await new OrderDecisionContextQueries(db).GetAsync(world.JulyId, None))!;
+        var context = (await new OrderDecisionContextQueries(db).GetAsync(world.JulyId, new DecisionContextQuery(), None))!;
 
         Assert.Equal(0, context.Current.MissingPriceItemCount);
         Assert.Equal(2, context.Current.PriceNotRequiredItemCount);
@@ -345,7 +345,7 @@ public sealed class SupplierPriceRequirementTests(PostgresDatabaseFixture databa
     }
 
     [PostgresFact]
-    public async Task It_takes_effect_on_the_orders_that_already_exist()
+    public async Task It_is_the_default_for_new_lines_and_does_not_rewrite_the_ones_already_recorded()
     {
         await using var db = database.CreateContext();
         var world = await WorldAsync(db);
@@ -358,10 +358,14 @@ public sealed class SupplierPriceRequirementTests(PostgresDatabaseFixture databa
             new ChangeSupplierPriceRequirementCommand(SupplierPriceRequirement.NotRequired),
             None);
 
+        // The supplier's setting seeds a line when it is created; it is not a rule the line keeps obeying.
+        // One source can be both — Qala anbar buys through Cleanfix and issues free from the same store — so
+        // a change here must not reach back and silently reclassify lines somebody already recorded. Those
+        // need a decision of their own, which is what the pricing-mode review is for.
         await using var fresh = database.CreateContext();
         var order = await OrderAsync(fresh, world.ExternalUnpricedId);
-        Assert.Equal(0, order.MissingPriceItemCount);
-        Assert.Equal(1, order.PriceNotRequiredItemCount);
+        Assert.Equal(1, order.MissingPriceItemCount);
+        Assert.Equal(0, order.PriceNotRequiredItemCount);
     }
 
     [PostgresFact]

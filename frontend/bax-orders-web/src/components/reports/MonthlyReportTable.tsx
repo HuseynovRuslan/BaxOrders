@@ -1,7 +1,19 @@
 import { Link } from 'react-router'
 import type { MonthlyReportCell, MonthlyReportRow } from '../../api/reports'
-import { formatCount, formatMoney, formatMoneyDelta, formatMonth, formatPercent, unknownValue } from '../analytics/format'
+import {
+  formatCount,
+  formatMoney,
+  formatMoneyDelta,
+  formatMonth,
+  formatPercent,
+  signedToneClass,
+  unknownValue,
+} from '../analytics/format'
 import { workflowStatusClass, workflowStatusLabels } from '../workflow/labels'
+import { missingPriceCount } from '../../pricing/labels'
+
+/** The year's own column, named so it cannot be mistaken for a thirteenth month. */
+export const yearTotalLabel = 'İl cəmi'
 
 /** January first, in the short form a twelve-column header has room for. */
 export const shortMonths = [
@@ -60,45 +72,59 @@ export function MonthlyReportTable({ rows }: MonthlyReportTableProps) {
             ))}
             <th
               scope="col"
-              className="border-b border-l border-slate-200 bg-slate-50 px-2 py-2 text-right font-medium text-slate-500"
+              className="sticky right-0 z-20 border-b border-l border-slate-200 bg-slate-100 px-2 py-2 text-right font-medium text-slate-600"
             >
-              İl
+              {yearTotalLabel}
             </th>
           </tr>
         </thead>
 
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.locationId} className="group">
-              <th
-                scope="row"
-                className="sticky left-0 z-10 border-b border-slate-100 bg-white px-3 py-1.5 text-left font-normal group-hover:bg-slate-50"
-              >
-                <Link
-                  to={`/locations/${row.locationId}`}
-                  className="block truncate font-medium text-slate-900 hover:underline"
-                  title={`${row.locationName} · ${row.locationCode}`}
-                >
-                  {row.locationName}
-                </Link>
-              </th>
+          {rows.map((row, index) => {
+            // Zebra and hover are set per cell rather than per row: the first and last columns carry their own
+            // background so they can sit above the others when the table is scrolled, and a background on the
+            // row would be painted underneath them.
+            const stripe = index % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'
+            const band = `${stripe} group-hover:bg-sky-50/70`
 
-              {row.months.map((cell) => (
+            return (
+              <tr key={row.locationId} className="group">
+                <th
+                  scope="row"
+                  className={`sticky left-0 z-10 border-b border-slate-100 px-3 py-1.5 text-left font-normal ${band}`}
+                >
+                  <Link
+                    to={`/locations/${row.locationId}`}
+                    className="block truncate font-medium text-slate-900 hover:underline"
+                    title={`${row.locationName} · ${row.locationCode}`}
+                  >
+                    {row.locationName}
+                  </Link>
+                </th>
+
+                {row.months.map((cell) => (
+                  <td
+                    key={cell.month}
+                    className={`border-b border-slate-100 px-0.5 py-0.5 text-right align-middle ${band}`}
+                  >
+                    <Cell cell={cell} locationName={row.locationName} />
+                  </td>
+                ))}
+
+                {/* The year is the figure a manager reads across to, so it is given its own quiet band and
+                    the strongest number in the row — without a second border or a colour of its own. */}
                 <td
-                  key={cell.month}
-                  className="border-b border-slate-100 px-0.5 py-0.5 text-right align-middle group-hover:bg-slate-50"
+                  className={`sticky right-0 z-10 border-b border-l border-slate-200 px-2 py-1.5 text-right ${
+                    index % 2 === 1 ? 'bg-slate-100/80' : 'bg-slate-50'
+                  } group-hover:bg-sky-100/70`}
                 >
-                  <Cell cell={cell} locationName={row.locationName} />
+                  <span className="block whitespace-nowrap font-semibold text-slate-900">
+                    {formatMoney(row.knownAmount)}
+                  </span>
                 </td>
-              ))}
-
-              <td className="border-b border-l border-slate-100 px-2 py-1.5 text-right group-hover:bg-slate-50">
-                <span className="block whitespace-nowrap font-semibold text-slate-900">
-                  {formatMoney(row.knownAmount)}
-                </span>
-              </td>
-            </tr>
-          ))}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -162,8 +188,10 @@ function Secondary({ cell }: { cell: MonthlyReportCell }) {
         />
       )}
 
+      {/* Direction, not judgement — and amber only where a price somebody owes is actually absent. Material
+          the company supplies itself never reaches this mark: the backend counts it apart. */}
       {cell.amountIsComplete ? (
-        <span className="text-slate-400">{compactDelta(cell)}</span>
+        <span className={signedToneClass(cell.deltaPercent ?? cell.deltaAmount)}>{compactDelta(cell)}</span>
       ) : (
         <span className="font-medium text-amber-700">⚠ {formatCount(cell.missingPriceItemCount)}</span>
       )}
@@ -189,7 +217,7 @@ function describe(cell: MonthlyReportCell, month: string): string {
   }
 
   if (!cell.amountIsComplete) {
-    parts.push(`${formatCount(cell.missingPriceItemCount)} qiymətsiz sətir`)
+    parts.push(missingPriceCount(cell.missingPriceItemCount))
   }
 
   if (cell.status) {
@@ -245,7 +273,7 @@ export function MonthlyReportMonthList({
                     )
                   ) : (
                     <p className="whitespace-nowrap text-xs text-amber-800">
-                      {formatCount(cell.missingPriceItemCount)} qiymətsiz sətir
+                      {missingPriceCount(cell.missingPriceItemCount)}
                     </p>
                   )}
                 </div>

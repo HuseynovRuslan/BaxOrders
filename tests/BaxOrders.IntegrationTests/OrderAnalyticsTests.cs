@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
@@ -611,7 +611,12 @@ public sealed class OrderAnalyticsTests(PostgresDatabaseFixture database)
         var queries = Queries(db);
         foreach (var basis in Enum.GetValues<AnalyticsComparisonBasis>())
         {
-            await queries.CompareAsync(world.LocationId, world.June, new ComparisonQuery(basis), CancellationToken.None);
+            // A hand-picked range needs its months; every other basis works them out for itself.
+            var query = basis is AnalyticsComparisonBasis.CustomRange
+                ? new ComparisonQuery(basis, CustomStart: "2026-04", CustomEnd: "2026-05")
+                : new ComparisonQuery(basis);
+
+            await queries.CompareAsync(world.LocationId, world.June, query, CancellationToken.None);
         }
 
         await queries.GetPeriodsAsync(world.LocationId, CancellationToken.None);

@@ -1,4 +1,4 @@
-using BaxOrders.Infrastructure.Persistence;
+﻿using BaxOrders.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -118,6 +118,19 @@ public sealed class PostgresCollection : ICollectionFixture<PostgresDatabaseFixt
 public sealed class PostgresFactAttribute : FactAttribute
 {
     public PostgresFactAttribute()
+    {
+        if (!PostgresDatabaseFixture.IsConfigured)
+        {
+            Skip = "Run scripts/dev-postgres.ps1, or set "
+                   + $"{PostgresDatabaseFixture.AdminConnectionStringVariable} to a PostgreSQL server.";
+        }
+    }
+}
+
+/// <summary>The same rule for a test that runs once per case, such as one per comparison basis.</summary>
+public sealed class PostgresTheoryAttribute : TheoryAttribute
+{
+    public PostgresTheoryAttribute()
     {
         if (!PostgresDatabaseFixture.IsConfigured)
         {

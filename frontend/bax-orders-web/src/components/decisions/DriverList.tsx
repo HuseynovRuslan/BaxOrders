@@ -1,8 +1,26 @@
 import { useState } from 'react'
 import type { DecisionDriver } from '../../api/decisions'
-import { formatCount, formatMoney, formatMoneyDelta, formatPercent, formatPrice, formatQuantity, unknownValue } from '../analytics/format'
-import { formatVariantLine, internalSupplyLabel } from '../analytics/labels'
-import { causeLabels, causeToneClass, driverFilterLabels, driverFilterOrder, type DriverFilter } from './labels'
+import {
+  formatCount,
+  formatMoney,
+  formatMoneyDelta,
+  formatPercent,
+  formatPrice,
+  formatQuantity,
+  signedToneClass,
+  unknownValue,
+} from '../analytics/format'
+import { formatVariantLine } from '../analytics/labels'
+import { internalSupplyLabel, missingPriceCount } from '../../pricing/labels'
+import { formatOrderUnit } from '../imports/labels'
+import {
+  causeLabels,
+  causeToneClass,
+  driverFilterLabels,
+  driverFilterOrder,
+  supplyChangedDriverNote,
+  type DriverFilter,
+} from './labels'
 
 /** How many reasons fit on a screen before the list stops being a summary and becomes a table. */
 const initialCount = 6
@@ -66,29 +84,40 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
       ) : (
         <ul className="divide-y divide-slate-100">
           {shown.map((driver) => (
-            <li key={driver.variant.productVariantId} className="flex flex-wrap items-start gap-x-4 gap-y-1 p-3 sm:px-4">
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <button
-                    type="button"
-                    onClick={() => onHistory(driver)}
-                    className="text-left font-medium text-slate-900 hover:underline"
-                  >
-                    {driver.variant.productName}
-                  </button>
-                  <span
-                    className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${causeToneClass[driver.category]}`}
-                  >
-                    {causeLabels[driver.category]}
-                  </span>
-                </p>
-                <p className="text-xs text-slate-400">{formatVariantLine(driver.variant)}</p>
-                <Change driver={driver} />
-              </div>
+            <li key={driver.variant.productVariantId}>
+              {/*
+                The whole row opens the product, not just its name: the name was a small target for the one
+                thing a reader wants to do from here, and the figures beside it are what makes them want to.
+              */}
+              <button
+                type="button"
+                onClick={() => onHistory(driver)}
+                className="flex w-full flex-wrap items-start gap-x-4 gap-y-1 p-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-slate-900 sm:px-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium text-slate-900">{driver.variant.productName}</span>
+                    <span
+                      className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${causeToneClass[driver.category]}`}
+                    >
+                      {causeLabels[driver.category]}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400">{formatVariantLine(driver.variant)}</p>
+                  <Change driver={driver} />
+                </div>
 
-              <p className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-slate-900">
-                {formatMoneyDelta(driver.amountImpact)}
-              </p>
+                {/*
+                  What it did to the money — the second of the two questions this row answers. A product
+                  whose price nobody knows moved an amount nobody can compute, and "0,00 ₼" would claim it
+                  moved nothing at all. An em dash says what is true: unknown.
+                */}
+                <p className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold ${signedToneClass(driver.amountImpact)}`}>
+                  {!driver.priceIsComplete && driver.amountImpact === 0
+                    ? <span className="text-slate-400">{unknownValue}</span>
+                    : formatMoneyDelta(driver.amountImpact)}
+                </p>
+              </button>
             </li>
           ))}
         </ul>
@@ -110,49 +139,57 @@ export function DriverList({ drivers, onHistory }: DriverListProps) {
 }
 
 /**
- * The before and after values that explain the money beside them. Only the dimensions that actually moved are
- * written: a quantity of 30 → 30 is noise on a row whose whole story is the price.
+ * The two numbers the row moved between, under the money they moved it by.
+ *
+ * Quantity and price are both written even when one of them did not move, because "20 → 40 · Qiymət 2,00 →
+ * 2,00 ₼" is what makes the effect beside it checkable: the reader can see that the money came from the
+ * quantity and not from the price. Everything else about the product — baseline amounts, the split of the two
+ * effects, the whole history, how often it is ordered — is one click away and deliberately not here.
  */
 function Change({ driver }: { driver: DecisionDriver }) {
-  const parts: string[] = []
+  const notes: string[] = []
 
   if (!driver.priceIsComplete) {
-    parts.push(`${formatCount(driver.missingPriceItemCount)} sətrin qiyməti yoxdur`)
+    notes.push(missingPriceCount(driver.missingPriceItemCount))
   }
 
   // Not a shortfall: this material comes out of the company's own store and owes no purchase price.
   if (driver.priceNotRequiredItemCount > 0) {
-    parts.push(internalSupplyLabel)
+    notes.push(internalSupplyLabel)
   }
 
-  if (driver.baselineUnitPrice !== driver.currentUnitPrice) {
-    parts.push(
-      `Qiymət ${driver.baselineUnitPrice === null ? unknownValue : formatPrice(driver.baselineUnitPrice)} → ${
-        driver.currentUnitPrice === null ? unknownValue : formatPrice(driver.currentUnitPrice)
-      }${driver.unitPricePercentChange === null ? '' : ` (${formatPercent(driver.unitPricePercentChange)})`}`,
-    )
+  if (driver.supplyChanged) {
+    notes.push(supplyChangedDriverNote)
   }
 
-  if (
-    driver.currentQuantity !== null
-    && driver.baselineQuantity !== null
-    && driver.currentQuantity !== driver.baselineQuantity
-  ) {
-    parts.push(`Miqdar ${formatQuantity(driver.baselineQuantity)} → ${formatQuantity(driver.currentQuantity)}`)
-  }
+  const unit = formatOrderUnit(driver.variant.orderUnitCode)
+  const quantity = driver.currentQuantity !== null && driver.baselineQuantity !== null
+    ? `${formatQuantity(driver.baselineQuantity)} → ${formatQuantity(driver.currentQuantity)}${unit ? ` ${unit}` : ''}`
+    : null
 
   // A service has no comparable quantity, so its money is the only thing there is to say about it.
-  if (driver.analyticsKind === 'AmountOrientedService') {
-    parts.push(
-      `Məbləğ ${formatMoney(driver.baselineKnownAmount)} → ${formatMoney(driver.currentKnownAmount)}`,
-    )
-  }
+  const amount = driver.analyticsKind === 'AmountOrientedService'
+    ? `Cəmi ${formatMoney(driver.baselineKnownAmount)} → ${formatMoney(driver.currentKnownAmount)}`
+    : null
 
-  if (parts.length === 0) {
+  const price = driver.currentUnitPrice === null && driver.baselineUnitPrice === null
+    ? null
+    : `Qiymət ${driver.baselineUnitPrice === null ? unknownValue : formatPrice(driver.baselineUnitPrice)} → ${
+      driver.currentUnitPrice === null ? unknownValue : formatPrice(driver.currentUnitPrice)
+    }${driver.unitPricePercentChange ? ` (${formatPercent(driver.unitPricePercentChange)})` : ''}`
+
+  const facts = [quantity, price, amount].filter((part): part is string => part !== null)
+
+  if (facts.length === 0 && notes.length === 0) {
     return null
   }
 
-  return <p className="mt-0.5 text-xs text-slate-600">{parts.join(' · ')}</p>
+  return (
+    <>
+      {facts.length > 0 && <p className="mt-0.5 text-xs text-slate-600">{facts.join(' · ')}</p>}
+      {notes.length > 0 && <p className="mt-0.5 text-xs text-slate-500">{notes.join(' · ')}</p>}
+    </>
+  )
 }
 
 function matches(driver: DecisionDriver, filter: DriverFilter): boolean {

@@ -125,13 +125,13 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
                 OrderRequestId = group.Key,
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
-                // recorded property of the supplier and never a guess from its name. No supplier at all is
-                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                // A price is only missing when it was owed, and the line itself says whether it was — see
+                // PricingMode for why no property of the supplier can answer that. A line nobody has classified
+                // counts as owed: the cautious reading is the one that cannot hide a real gap.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
             .ToListAsync(cancellationToken);

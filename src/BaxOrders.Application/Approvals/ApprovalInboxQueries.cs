@@ -59,10 +59,10 @@ public sealed class ApprovalInboxQueries(IBaxOrdersDbContext db, ICurrentUserCon
                 request.SubmittedAtUtc,
                 request.SubmittedByUserId,
                 ItemCount = request.Items.Count,
-                // Only the prices somebody owes. Material issued from the company's own store carries no
-                // purchase price because none is owed, and an approver has nothing to acknowledge for it.
+                // Only the prices somebody owes. Material the company supplies itself carries none, and an
+                // approver has nothing to acknowledge for it.
                 MissingPriceItemCount = request.Items.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 KnownPriceItemCount = request.Items.Count(item => item.UnitPrice != null),
                 KnownAmount = request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
                 // The display name is the snapshot on the current cycle's own submit event, not a live lookup:

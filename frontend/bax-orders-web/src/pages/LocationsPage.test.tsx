@@ -128,7 +128,7 @@ describe('the money column', () => {
     }))
     await renderPage()
 
-    expect(await screen.findByText(/2 məhsulun qiyməti yoxdur/)).toBeInTheDocument()
+    expect(await screen.findByText(/2 sətirdə qiymət yoxdur/)).toBeInTheDocument()
   })
 
   it('says nothing of the sort when every line is priced', async () => {

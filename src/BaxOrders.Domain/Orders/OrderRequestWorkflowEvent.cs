@@ -6,6 +6,16 @@ public enum OrderWorkflowAction
     SubmittedForApproval = 1,
     Approved = 2,
     ReturnedForCorrection = 3,
+
+    /// <summary>
+    /// A request that was already approved in real life before this system existed, carried in as approved.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <see cref="Approved"/>. Nobody approved these through this application, and an event
+    /// that said they did would put a decision in the history that never happened here. It has no actor id,
+    /// because there is no person in this system to attribute it to.
+    /// </remarks>
+    ImportedAsApproved = 4,
 }
 
 /// <summary>

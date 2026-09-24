@@ -154,37 +154,33 @@ public sealed class OrderRequest
     /// How many of this request's lines are still waiting for a price somebody owes.
     /// </summary>
     /// <remarks>
-    /// Only material bought from outside counts. Material issued from the company's own store carries no
-    /// purchase price because none is owed, and counting it here would hold up an approval over nothing.
+    /// Only material the company buys counts. Material it supplies itself carries no purchase price because
+    /// none is owed, and counting it here would hold up an approval over nothing.
     /// <para>
-    /// This needs the items <b>and their suppliers</b> loaded. Read without them, every internal line would
-    /// quietly be called a missing price and every such order would demand an acknowledgement nobody owes, so
-    /// it refuses rather than guess. A line with no supplier at all is read as bought: nothing has said
-    /// otherwise, and assuming internal supply would hide a real gap.
+    /// A line whose supply nobody has classified yet is counted here, deliberately: not knowing is not the
+    /// same as knowing nothing is owed, and the cautious reading is the one that cannot hide a real gap.
+    /// </para>
+    /// <para>
+    /// This reads the lines only. It needs no supplier loaded, because the answer lives on the line — see
+    /// <c>PricingMode</c> for why one supplier cannot speak for all of its lines.
     /// </para>
     /// </remarks>
-    public int MissingRequiredPriceItemCount
-    {
-        get
-        {
-            var unpriced = _items.Where(item => item.UnitPrice is null).ToList();
-            if (unpriced.Any(item => item.SupplierId is not null && item.Supplier is null))
-            {
-                throw new InvalidOperationException(
-                    "This request's line suppliers are not loaded, so a price somebody owes cannot be told apart "
-                    + "from material issued internally. Include Items.Supplier before reading this.");
-            }
+    public int MissingRequiredPriceItemCount => _items.Count(item => item.IsMissingRequiredPrice);
 
-            return unpriced.Count(item =>
-                item.Supplier is null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required);
-        }
-    }
+    /// <summary>
+    /// Lines the company supplies itself, free of charge. Never a shortfall and never an acknowledgement.
+    /// </summary>
+    public int InternalFreeSupplyItemCount => _items.Count(item => item.IsInternalFreeSupply);
 
-    /// <summary>Lines issued from the company's own store, which need no purchase price. Never a shortfall.</summary>
-    public int PriceNotRequiredItemCount =>
-        _items.Count(item => item.UnitPrice is null
-            && item.Supplier is not null
-            && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired);
+    /// <summary>
+    /// Unpriced lines nobody has yet said are bought or supplied free.
+    /// </summary>
+    /// <remarks>
+    /// Counted inside <see cref="MissingRequiredPriceItemCount"/> as well, because an unreviewed line must not
+    /// quietly suppress a warning. This says how many of those are waiting on a person rather than on a price.
+    /// </remarks>
+    public int UnresolvedPricingItemCount =>
+        _items.Count(item => item.UnitPrice is null && item.PricingMode is PricingMode.Unresolved);
 
     /// <summary>
     /// Who put the request into its <b>current</b> approval cycle, so that person cannot also decide on it.

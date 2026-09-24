@@ -12,8 +12,15 @@ import { unitlessOrderUnitLabel } from '../imports/labels'
 export {
   basisHints,
   basisLabels,
+  basisNeedsRange,
   basisOrder,
+  describeBasis,
+  describeBasisCaption,
+  describeBasisWithRange,
+  describeDirection,
   formatDelta,
+  formatMonth,
+  formatMonthRange,
   formatMoneyDelta,
   formatPercent,
   formatPeriodCoverage,
@@ -22,6 +29,7 @@ export {
   isBasis,
   knownAmountHint,
   knownAmountLabel,
+  signedToneClass,
   unknownValue,
   weightedPriceHint,
   weightedPriceLabel,
@@ -136,13 +144,13 @@ export function formatBaselineBasisNote(available: number, expected: number): st
 
 export { unknownValue as emDash }
 
-/**
- * Material issued from the company's own store. It carries no purchase price because none is owed, so it is
- * described in plain business words and never dressed up as a gap in the records.
- */
-export const internalSupplyLabel = 'Daxili təminat'
-
-export const internalSupplyFromWarehouseLabel = 'Daxili anbardan'
-
-export const internalSupplyHint =
-  'Daxili anbardan verilən material üçün alış qiyməti tələb olunmur.'
+// What an empty price cell means has exactly one home — src/pricing/labels — and these names are kept only
+// so the analytics screens can go on importing from here. There is no second definition.
+export {
+  internalSupplyFullLabel as internalFreeSupplyLabel,
+  internalSupplyHint,
+  internalSupplyLabel,
+  missingPriceLabel as noPriceLabel,
+  unclassifiedHint as unresolvedPricingHint,
+  unclassifiedLabel as unresolvedPricingLabel,
+} from '../../pricing/labels'

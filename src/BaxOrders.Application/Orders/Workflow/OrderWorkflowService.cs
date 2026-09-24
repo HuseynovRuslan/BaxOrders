@@ -156,12 +156,11 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             .Select(group => new
             {
                 ItemCount = group.Count(),
-                // A price is only missing when somebody owed it. See SupplierPriceRequirement; a line with no
-                // supplier is read as bought, because nothing has said otherwise.
+                // A price is only missing when somebody owed it, and the line says whether they did.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })

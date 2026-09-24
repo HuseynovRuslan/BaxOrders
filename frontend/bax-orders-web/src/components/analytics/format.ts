@@ -22,26 +22,178 @@ export const knownAmountHint = 'Qiyməti olmayan sətirlər bu məbləğə daxil
 
 export const historyHint = 'Müqayisə yalnız mövcud əvvəlki aylar əsasında hesablanır.'
 
+/** What each choice is called in the picker. The two open-ended ones are named by `describeBasis` once chosen. */
 export const basisLabels: Record<AnalyticsComparisonBasis, string> = {
   PreviousMonth: 'Keçən ay',
   Previous3MonthAverage: 'Son 3 ayın ortalaması',
   Previous6MonthAverage: 'Son 6 ayın ortalaması',
+  AllPriorMonths: 'Bütün dövr',
+  CustomRange: 'Xüsusi seçim',
 }
 
 export const basisHints: Record<AnalyticsComparisonBasis, string> = {
   PreviousMonth: 'Seçilmiş aydan əvvəlki təqvim ayı.',
   Previous3MonthAverage: 'Mövcud əvvəlki 3 aydakı aylıq göstəricilərin ortalaması.',
   Previous6MonthAverage: 'Mövcud əvvəlki 6 aydakı aylıq göstəricilərin ortalaması.',
+  AllPriorMonths:
+    'Seçilmiş aydan əvvəlki bütün mövcud ayların ortalaması. Sifariş olmayan aylar sıfır sayılmır, ortalamaya daxil edilmir.',
+  CustomRange:
+    'Özünüz seçdiyiniz ayların ortalaması. Seçim seçilmiş aydan əvvəl olmalıdır; sifariş olmayan aylar ortalamaya daxil edilmir.',
 }
 
 export const basisOrder: AnalyticsComparisonBasis[] = [
   'PreviousMonth',
   'Previous3MonthAverage',
   'Previous6MonthAverage',
+  'AllPriorMonths',
+  'CustomRange',
 ]
 
 export function isBasis(value: string | null): value is AnalyticsComparisonBasis {
   return value !== null && (basisOrder as string[]).includes(value)
+}
+
+/** Whether this basis needs two months chosen before it means anything. */
+export function basisNeedsRange(basis: AnalyticsComparisonBasis): boolean {
+  return basis === 'CustomRange'
+}
+
+/**
+ * What the comparison is actually against, in words, for the column heading and the summary line.
+ *
+ * The fixed bases name themselves. The other two cannot: "Bütün dövr" is however many months the company
+ * turns out to have, and a hand-picked range is whatever was picked — so both are named from the months the
+ * backend resolved, and a range of one month is named as that month rather than as an average of it.
+ */
+export function describeBasis(basis: AnalyticsComparisonBasis, periods: readonly string[]): string {
+  if (basis === 'AllPriorMonths') {
+    return 'Bütün dövrün ortalaması'
+  }
+
+  if (basis !== 'CustomRange') {
+    return basisLabels[basis]
+  }
+
+  if (periods.length === 0) {
+    return basisLabels.CustomRange
+  }
+
+  if (periods.length === 1) {
+    return formatMonth(periods[0])
+  }
+
+  // "Yanvar–May ortalaması" within one year; the year is repeated only when it changes, because a heading
+  // that reads "Noyabr–Fevral" without it would name four months that are not the four being averaged.
+  const first = periods[0]
+  const last = periods[periods.length - 1]
+  const sameYear = first.slice(0, 4) === last.slice(0, 4)
+  const from = sameYear ? formatMonth(first).split(' ')[0] : formatMonth(first)
+  return `${from}–${formatMonth(last)} ortalaması`
+}
+
+/**
+ * The months a window actually covers: "İyun–Avqust 2026", or "Mart 2026" when it is one month.
+ *
+ * Every screen that names a basis names its months beside it. "Son 3 ayın ortalaması" is a rule; the reader
+ * needs to know which three, because two of them may be months this object never ordered in.
+ */
+export function formatMonthRange(periods: readonly string[]): string | null {
+  if (periods.length === 0) {
+    return null
+  }
+
+  const first = periods[0]
+  const last = periods[periods.length - 1]
+  if (first.slice(0, 7) === last.slice(0, 7)) {
+    return formatMonth(first)
+  }
+
+  // The year is repeated only when it changes: "Noyabr 2025–Yanvar 2026" names four months that
+  // "Noyabr–Yanvar 2026" would get wrong.
+  const sameYear = first.slice(0, 4) === last.slice(0, 4)
+  const from = sameYear ? formatMonth(first).split(' ')[0] : formatMonth(first)
+  return `${from}–${formatMonth(last)}`
+}
+
+/** "Son 3 ayın ortalaması (İyun–Avqust 2026)" — the rule and the months it landed on. */
+export function describeBasisWithRange(
+  basis: AnalyticsComparisonBasis,
+  periods: readonly string[],
+): string {
+  const range = formatMonthRange(periods)
+  const label = describeBasis(basis, periods)
+  // A hand-picked range is already named by its months; saying them twice helps nobody.
+  if (range === null || basis === 'CustomRange') {
+    return label
+  }
+
+  return `${label} (${range})`
+}
+
+/**
+ * The caption a card carries: "Son 3 ayın ortalamasına görə".
+ *
+ * As with the ablative below, the fixed phrasings are written out and an arbitrary month takes the form that
+ * needs no ending — guessing an Azerbaijani case ending for "Mart 2026" would produce wrong Azerbaijani.
+ */
+export function describeBasisCaption(
+  basis: AnalyticsComparisonBasis,
+  periods: readonly string[],
+): string {
+  switch (basis) {
+    case 'PreviousMonth':
+      return 'Keçən aya görə'
+    case 'Previous3MonthAverage':
+      return 'Son 3 ayın ortalamasına görə'
+    case 'Previous6MonthAverage':
+      return 'Son 6 ayın ortalamasına görə'
+    case 'AllPriorMonths':
+      return 'Bütün dövrün ortalamasına görə'
+    case 'CustomRange':
+      return periods.length > 1
+        ? `${describeBasis(basis, periods)}na görə`
+        : `${describeBasis(basis, periods)} ilə müqayisədə`
+  }
+}
+
+/**
+ * The comparison basis in the ablative, for "… yüksəkdir" / "… aşağıdır".
+ *
+ * Azerbaijani case endings depend on the word they attach to, and a hand-picked month can be any month of any
+ * year, so the four fixed phrasings are written out and anything else takes the "… ilə müqayisədə" form, which
+ * needs no ending at all. Guessing an ending for an arbitrary string would produce wrong Azerbaijani.
+ */
+export function describeBasisAblative(basis: AnalyticsComparisonBasis, periods: readonly string[]): string {
+  switch (basis) {
+    case 'PreviousMonth':
+      return 'Keçən aydan'
+    case 'Previous3MonthAverage':
+      return 'Son 3 ayın ortalamasından'
+    case 'Previous6MonthAverage':
+      return 'Son 6 ayın ortalamasından'
+    case 'AllPriorMonths':
+      return 'Bütün dövrün ortalamasından'
+    case 'CustomRange':
+      return periods.length > 1 ? `${describeBasis(basis, periods)}ndan` : `${describeBasis(basis, periods)} ilə müqayisədə`
+  }
+}
+
+/** "Son 6 ayın ortalamasından yüksəkdir". Null when there is no difference to describe. */
+export function describeDirection(
+  basis: AnalyticsComparisonBasis,
+  periods: readonly string[],
+  delta: number | null | undefined,
+): string | null {
+  if (delta === null || delta === undefined) {
+    return null
+  }
+
+  const basisText = describeBasisAblative(basis, periods)
+  if (delta === 0) {
+    return `${basisText} fərqlənmir`
+  }
+
+  return `${basisText} ${delta > 0 ? 'yüksəkdir' : 'aşağıdır'}`
 }
 
 const monthNames = [
@@ -128,4 +280,19 @@ export function amountHeading(label: string, isComplete: boolean): string {
 /** "2 / 3 ay" — what a comparison actually rests on, written where it can be seen. */
 export function formatPeriodCoverage(available: number, expected: number): string {
   return `${available}/${expected} ay`
+}
+
+/**
+ * The colour of a signed number: emerald up, rose down, slate flat.
+ *
+ * It says which way the figure went and nothing else. More is not better and less is not worse — an object
+ * that spent less may have skipped work it needed to do — so this is never used on anything but a signed
+ * change, and never to grade an object.
+ */
+export function signedToneClass(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) {
+    return 'text-slate-600'
+  }
+
+  return value > 0 ? 'text-emerald-700' : 'text-rose-700'
 }

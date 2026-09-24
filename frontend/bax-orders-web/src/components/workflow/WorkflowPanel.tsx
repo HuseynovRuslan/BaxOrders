@@ -13,6 +13,8 @@ import {
   approveLabel,
   formatWorkflowMoment,
   missingPriceNote,
+  momentsNotRecordedNote,
+  notSubmittedYetNote,
   ownContributionBlockedNote,
   resubmitLabel,
   returnLabel,
@@ -83,6 +85,9 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
   }
 
   const { allowedActions: allowed } = workflow
+
+  // A request that has genuinely not been sent yet, as opposed to one whose moments were never recorded.
+  const waitingToBeSent = workflow.status === 'Draft' || workflow.status === 'ReturnedForCorrection'
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
@@ -161,7 +166,16 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
         {formatMoney(workflow.knownAmountTotal)} · {formatCount(workflow.itemCount)} sətir
         {workflow.submittedAtUtc && <> · Təqdim: {formatWorkflowMoment(workflow.submittedAtUtc)}</>}
         {workflow.approvedAtUtc && <> · Təsdiq: {formatWorkflowMoment(workflow.approvedAtUtc)}</>}
-        {!workflow.submittedAtUtc && !workflow.approvedAtUtc && <> · Hələ təqdim olunmayıb {unknownValue}</>}
+        {/*
+          Two different silences. A request nobody has sent has no moments because nothing has happened to it
+          yet. One carried in from before this system has none because its real approval was never recorded —
+          and calling that one "hələ təqdim olunmayıb" would contradict the Təsdiqlənib badge above it.
+        */}
+        {!workflow.submittedAtUtc && !workflow.approvedAtUtc && (
+          waitingToBeSent
+            ? <> · {notSubmittedYetNote} {unknownValue}</>
+            : <> · {momentsNotRecordedNote}</>
+        )}
       </p>
 
       {dialog && (

@@ -7,6 +7,7 @@ import type {
   LocationDashboardRow,
   ManagementDashboardSummary,
 } from '../../api/dashboard'
+import type { BasisSelection } from '../../analytics/basisParams'
 import { LocationRows } from './LocationRows'
 
 /**
@@ -63,6 +64,9 @@ function row(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRo
     comparedVariantCount: 15,
     deepLinkPeriod: '2026-07-01',
     deepLinkBasis: 'PreviousMonth',
+    deepLinkCustomStart: null,
+    deepLinkCustomEnd: null,
+    supplyChangedVariantCount: 0,
     causes: [
       { category: 'NewOrders', amount: 150, variantCount: 3 },
       { category: 'PriceChange', amount: 50, variantCount: 2 },
@@ -79,6 +83,7 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
   return {
     selectedPeriod: '2026-07-01',
     basis,
+    baselinePeriods: ['2026-06-01'],
     locationCount: 26,
     locationsWithCurrentRequest: 25,
     locationsWithoutCurrentRequest: 1,
@@ -102,10 +107,13 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
   }
 }
 
+/** What the dashboard was comparing against; the table carries it into every "Detallara bax". */
+const selection: BasisSelection = { basis: 'Previous3MonthAverage', from: null, to: null }
+
 function renderRows(rows: LocationDashboardRow[], basis: AnalyticsComparisonBasis = 'PreviousMonth') {
   return render(
     <MemoryRouter>
-      <LocationRows rows={rows} summary={summary(basis)} />
+      <LocationRows rows={rows} summary={summary(basis)} selection={selection} />
     </MemoryRouter>,
   )
 }
@@ -120,6 +128,39 @@ describe('the columns a manager reads', () => {
 
     const headers = table().getAllByRole('columnheader').map((cell) => cell.textContent)
     expect(headers).toEqual(['Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti', 'Detallar'])
+  })
+
+  /**
+   * The comparison column is headed by whatever the comparison actually is. A figure under "Keçən ay" that
+   * was in fact a six-month average would be a true number under a false label.
+   */
+  it('names the comparison column after the basis in force', () => {
+    renderRows([row()], 'Previous6MonthAverage')
+    expect(table().getByRole('columnheader', { name: 'Son 6 ayın ortalaması' })).toBeInTheDocument()
+  })
+
+  it('names a hand-picked range by its own months', () => {
+    render(
+      <MemoryRouter>
+        <LocationRows
+          selection={selection}
+          rows={[row()]}
+          summary={{
+            ...summary('CustomRange'),
+            baselinePeriods: ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01'],
+          }}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(table().getByRole('columnheader', { name: 'Yanvar–May 2026 ortalaması' })).toBeInTheDocument()
+  })
+
+  it('colours the difference by direction alone', () => {
+    renderRows([row(), row({ locationId: 22, knownAmountDelta: -200, knownAmountPercentChange: -25 })])
+
+    expect(table().getByText('+200,00 ₼')).toHaveClass('text-emerald-700')
+    expect(table().getByText('−200,00 ₼')).toHaveClass('text-rose-700')
   })
 
   it('has dropped the line count nobody decided anything with', () => {
@@ -243,7 +284,7 @@ describe('the unpriced lines', () => {
   it('names them beside the money they affect', () => {
     renderRows([row({ current: amount({ missingPriceItemCount: 3, isComplete: false }) })])
 
-    expect(table().getByText(/3 qiymətsiz sətir/)).toBeInTheDocument()
+    expect(table().getByText(/3 sətirdə qiymət yoxdur/)).toBeInTheDocument()
   })
 
   it('says nothing of the sort when every line that needed a price has one', () => {
@@ -255,11 +296,12 @@ describe('the unpriced lines', () => {
 })
 
 describe('the drill-down', () => {
-  it('goes straight to the order the figures came from', () => {
+  /** The basis travels with the link, so the order answers about the comparison the row was showing. */
+  it('goes straight to the order the figures came from, carrying the basis', () => {
     renderRows([row({ currentRequestId: 105 })])
 
     expect(table().getByRole('link', { name: /Fəvvarələr meydanı · Detallara bax/ }))
-      .toHaveAttribute('href', '/orders/105')
+      .toHaveAttribute('href', '/orders/105?basis=avg3')
   })
 
   it('offers the object itself when there is no order this month to open', () => {
@@ -270,7 +312,7 @@ describe('the drill-down', () => {
       primaryCauseAmount: null,
     })])
 
-    expect(table().getByRole('link', { name: /Detallara bax/ })).toHaveAttribute('href', '/locations/21')
+    expect(table().getByRole('link', { name: /Detallara bax/ })).toHaveAttribute('href', '/locations/21?basis=avg3')
   })
 
   it('no longer sends the reader through a separate analytics screen', () => {

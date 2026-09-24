@@ -1,4 +1,4 @@
-using BaxOrders.Application.Decisions;
+﻿using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Orders;
 
@@ -87,11 +87,15 @@ public sealed record LocationDashboardRowDto(
     int ComparedVariantCount,
     DateOnly DeepLinkPeriod,
     AnalyticsComparisonBasis DeepLinkBasis,
+    DateOnly? DeepLinkCustomStart,
+    DateOnly? DeepLinkCustomEnd,
     IReadOnlyList<DashboardCauseDto> Causes,
     CauseCategory? PrimaryCause,
     decimal? PrimaryCauseAmount,
     bool ExplanationIsComplete,
-    decimal UnattributedAmount);
+    decimal UnattributedAmount,
+    /// <summary>Products this object paid for in one of the two months and had supplied internally in the other.</summary>
+    int SupplyChangedVariantCount);
 
 /// <summary>
 /// The company's selected month.
@@ -105,9 +109,15 @@ public sealed record LocationDashboardRowDto(
 /// square metres of tile would produce a number that means nothing. Quantity is compared inside a variant.
 /// </para>
 /// </remarks>
+/// <param name="BaselinePeriods">
+/// The months the comparison window covers, oldest first, whether or not anybody ordered in them. This is what
+/// the screen names its basis from: "every prior month" and a hand-picked range cannot be worked out from
+/// <paramref name="Basis"/> and <paramref name="SelectedPeriod"/> alone.
+/// </param>
 public sealed record ManagementDashboardSummaryDto(
     DateOnly SelectedPeriod,
     AnalyticsComparisonBasis Basis,
+    IReadOnlyList<DateOnly> BaselinePeriods,
     int LocationCount,
     int LocationsWithCurrentRequest,
     int LocationsWithoutCurrentRequest,
@@ -142,6 +152,8 @@ public sealed record ManagementDashboardDto(
     IReadOnlyList<DashboardAttentionDto> Attention,
     PagedResult<LocationDashboardRowDto> Rows);
 
+/// <param name="CustomStart">First month of a hand-picked comparison range, as <c>yyyy-MM</c>. Only with <see cref="AnalyticsComparisonBasis.CustomRange"/>.</param>
+/// <param name="CustomEnd">Last month of that range, as <c>yyyy-MM</c>. It lies before the month being looked at.</param>
 public sealed record DashboardQuery(
     AnalyticsComparisonBasis Basis = AnalyticsComparisonBasis.PreviousMonth,
     string? Search = null,
@@ -151,4 +163,14 @@ public sealed record DashboardQuery(
     DashboardSort Sort = DashboardSort.LocationName,
     bool Descending = false,
     int Page = 1,
-    int PageSize = 25);
+    int PageSize = 25,
+    string? CustomStart = null,
+    string? CustomEnd = null)
+{
+    /// <summary>The window this query asks for, with its months checked against the month being looked at.</summary>
+    public ComparisonSelection SelectionFor(DateOnly currentPeriod) => ComparisonSelection.Of(
+        Basis,
+        AnalyticsPeriod.ParseOptional(CustomStart, nameof(CustomStart)),
+        AnalyticsPeriod.ParseOptional(CustomEnd, nameof(CustomEnd)),
+        currentPeriod);
+}

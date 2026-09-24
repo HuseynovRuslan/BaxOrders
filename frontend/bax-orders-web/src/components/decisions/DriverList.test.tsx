@@ -48,6 +48,7 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     missingPriceItemCount: 0,
     priceNotRequiredItemCount: 0,
     priceIsComplete: true,
+    supplyChanged: false,
     ...overrides,
   }
 }
@@ -81,18 +82,43 @@ describe('a row', () => {
     expect(screen.getByText('+39,00 ₼')).toBeInTheDocument()
   })
 
-  it('leaves out the dimension that did not move', () => {
+  /**
+   * Both dimensions, even the one that stayed put. "30 → 30 PCS · Qiymət 2,80 ₼ → 4,10 ₼" is what makes the
+   * effect beside it checkable: a reader can see the money came from the price and not from the quantity.
+   */
+  it('states the quantity even when only the price moved', () => {
     renderList([driver()])
 
-    // The quantity stayed at 30. Writing "30 → 30" would be noise on a row whose whole story is the price.
-    expect(screen.queryByText(/Miqdar 30 → 30/)).toBeNull()
+    expect(screen.getByText(/30 → 30 PCS/)).toBeInTheDocument()
   })
 
   it('shows the quantity it moved between when that is the story', () => {
     renderList([bags])
 
-    expect(screen.getByText(/Miqdar 20 → 60/)).toBeInTheDocument()
+    expect(screen.getByText(/20 → 60 PCS/)).toBeInTheDocument()
     expect(screen.getByText('+120,00 ₼')).toBeInTheDocument()
+  })
+
+  /** The money is an effect on money, not a quantity, and the badge above it says so. */
+  it('calls the money an effect rather than a change in quantity', () => {
+    renderList([bags])
+
+    expect(screen.getByText('Miqdar təsiri')).toBeInTheDocument()
+    expect(screen.queryByText('Miqdar dəyişməsi')).toBeNull()
+  })
+
+  it('colours the effect by direction alone', () => {
+    renderList([bags, driver({ amountImpact: -20, priceImpact: -20 })])
+
+    expect(screen.getByText('+120,00 ₼')).toHaveClass('text-emerald-700')
+    expect(screen.getByText('−20,00 ₼')).toHaveClass('text-rose-700')
+  })
+
+  /** Both months are ordinary and nothing is missing, which is exactly why it has to be said out loud. */
+  it('says when a product was paid for in one month and supplied internally in the other', () => {
+    renderList([driver({ supplyChanged: true })])
+
+    expect(screen.getByText(/Təchizat forması dəyişib/)).toBeInTheDocument()
   })
 
   it('gives a service its money and never a quantity', () => {
@@ -113,7 +139,7 @@ describe('a row', () => {
       currentKnownAmount: 800,
     })])
 
-    expect(screen.getByText(/Məbləğ 400,00 ₼ → 800,00 ₼/)).toBeInTheDocument()
+    expect(screen.getByText(/Cəmi 400,00 ₼ → 800,00 ₼/)).toBeInTheDocument()
     expect(screen.queryByText(/Miqdar/)).toBeNull()
   })
 
@@ -124,8 +150,33 @@ describe('a row', () => {
       priceIsComplete: false,
     })])
 
-    expect(screen.getByText(/2 sətrin qiyməti yoxdur/)).toBeInTheDocument()
-    expect(screen.getByText('Qiyməti bilinməyənlər')).toBeInTheDocument()
+    expect(screen.getByText(/2 sətirdə qiymət yoxdur/)).toBeInTheDocument()
+    expect(screen.getByText('Qiyməti olmayanlar')).toBeInTheDocument()
+    // The money it did move is known and real, so it is shown.
+    expect(screen.getByText('+39,00 ₼')).toBeInTheDocument()
+  })
+
+  /**
+   * The row that read as a real zero. A product whose price nobody knows moved an amount nobody can compute,
+   * and "0,00 ₼" claims it moved nothing at all.
+   */
+  it('shows an em dash, not a zero, when the money cannot be computed at all', () => {
+    renderList([driver({
+      category: 'UnattributedDueToMissingPrice',
+      amountImpact: 0,
+      quantityImpact: null,
+      priceImpact: null,
+      currentUnitPrice: null,
+      baselineUnitPrice: null,
+      unitPricePercentChange: null,
+      currentKnownAmount: null,
+      baselineKnownAmount: null,
+      missingPriceItemCount: 1,
+      priceIsComplete: false,
+    })])
+
+    expect(screen.queryByText('0,00 ₼')).toBeNull()
+    expect(screen.getByRole('button', { name: /York qatlama salfet/ })).toHaveTextContent('—')
   })
 })
 
@@ -195,9 +246,10 @@ describe('a long list', () => {
 })
 
 describe('the product history', () => {
+  /** The whole row is the target, not just the name: the figures are what make a reader want to open it. */
   it('opens on the product that was clicked', async () => {
     const onHistory = renderList([driver()])
-    await userEvent.click(screen.getByRole('button', { name: 'York qatlama salfet' }))
+    await userEvent.click(screen.getByRole('button', { name: /York qatlama salfet/ }))
 
     expect(onHistory).toHaveBeenCalledWith(expect.objectContaining({
       variant: expect.objectContaining({ productVariantId: 21 }),

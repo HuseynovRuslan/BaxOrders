@@ -1,4 +1,5 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
+using BaxOrders.Domain.Orders;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Domain.Imports;
@@ -43,10 +44,9 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
                 request.SourceImportBatchId,
                 ItemCount = request.Items.Count,
                 KnownPrice = request.Items.Count(item => item.UnitPrice != null),
-                // Only the prices somebody owes. Material issued from the company's own store carries no
-                // purchase price because none is owed, so it is not a shortfall on this header either.
+                // Only the prices somebody owes; the line itself says whether one was.
                 MissingPrice = request.Items.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 KnownAmount = request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
                 RevisedFrom = db.OrderRequestRevisions
                     .Where(revision => revision.RevisionOrderRequestId == request.Id)
@@ -130,10 +130,17 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
                 row.Item.SupplierId,
                 SupplierName = row.Item.Supplier != null ? row.Item.Supplier.Name : null,
                 // Carried on the line so the screen can tell "nobody has priced this yet" from "this came out
-                // of our own store and has no purchase price". A line with no supplier is read as bought.
-                SupplierPriceRequirement = row.Item.Supplier != null
-                    ? row.Item.Supplier.PriceRequirement
-                    : SupplierPriceRequirement.Required,
+                // of our own store and never had a purchase price" — and from "nobody has said which".
+                PricingMode = row.Item.PricingMode,
+                // The workbook's own supplier cell. For an internally supplied line it is often the only
+                // record of which store it came out of — "Azpetrol baza" never matched a catalogue supplier —
+                // so the screen can say "Daxili: Azpetrol baza" instead of "Məlum deyil", which reads like a
+                // gap in the data rather than like our own warehouse.
+                SourceSupplierName = db.ImportRowMaterializations
+                    .Where(link => link.OrderRequestItemId == row.Item.Id
+                                   || link.OrderRequestItemId == row.Item.SourceOrderRequestItemId)
+                    .Select(link => link.ImportRow.OriginalSupplierName)
+                    .FirstOrDefault(),
                 row.Item.SourceOrderRequestItemId,
                 Source = db.ImportRowMaterializations
                     .Where(link => link.OrderRequestItemId == row.Item.Id)
@@ -178,7 +185,8 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
             row.UnitPrice is { } price ? row.Quantity * price : null,
             row.SupplierId,
             row.SupplierName,
-            row.SupplierPriceRequirement,
+            row.PricingMode,
+            row.SourceSupplierName,
             paths.GetValueOrDefault(row.ProductCategoryId ?? row.Source?.MatchedCategoryId ?? 0) ?? [],
             row.Source is null
                 ? null

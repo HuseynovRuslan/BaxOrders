@@ -1,13 +1,20 @@
 import type { CauseCategory } from '../../api/decisions'
+import { missingPriceShortLabel } from '../../pricing/labels'
 
+/**
+ * What each category is called where money is shown beside it.
+ *
+ * "Miqdar dəyişməsi" read as though the manat figure next to it were a quantity. It is not: it is the share of
+ * the money difference that ordering more or less accounts for, so it is named as an effect on money.
+ */
 export const causeLabels: Record<CauseCategory, string> = {
   NewOrders: 'Yeni sifarişlər',
-  QuantityChange: 'Miqdar dəyişməsi',
-  PriceChange: 'Qiymət dəyişməsi',
+  QuantityChange: 'Miqdar təsiri',
+  PriceChange: 'Qiymət təsiri',
   NoLongerOrdered: 'Artıq sifariş olunmayanlar',
   Services: 'Xidmətlər',
   InternalSupply: 'Daxili təminat',
-  UnattributedDueToMissingPrice: 'Qiyməti bilinməyənlər',
+  UnattributedDueToMissingPrice: 'Qiyməti olmayanlar',
 }
 
 /**
@@ -59,7 +66,7 @@ export const driverFilterLabels: Record<DriverFilter, string> = {
   QuantityChange: 'Miqdar dəyişən',
   NewOrders: 'Yeni',
   NoLongerOrdered: 'Artıq sifariş olunmur',
-  MissingPrice: 'Qiymətsiz',
+  MissingPrice: missingPriceShortLabel,
 }
 
 export const driverFilterOrder: DriverFilter[] = [
@@ -70,6 +77,24 @@ export const driverFilterOrder: DriverFilter[] = [
   'NoLongerOrdered',
   'MissingPrice',
 ]
+
+/** Said on a product the company paid for in one month and supplied itself in the other. */
+export const supplyChangedDriverNote = 'Təchizat forması dəyişib: alınan / şirkətdaxili'
+
+/**
+ * Said when the chosen window holds no order at all.
+ *
+ * Not "keçən ay yoxdur": the reader may have chosen any window, and the honest statement is about the window
+ * they chose. Nothing is compared against zero and no other basis is quietly substituted.
+ */
+export const emptyWindowNote = 'Seçilmiş dövrdə müqayisə üçün sifariş yoxdur'
+
+/** How the average treats a month the object never ordered in. Said wherever an average is shown. */
+export const averagingHint =
+  'Ortalama yalnız sifariş olan aylar üzrə hesablanır: obyektin sifarişi olmayan ay sıfır sayılmır və bölənə daxil edilmir.'
+
+export const coverageHint =
+  'Bazanın əhatə etdiyi aylardan yalnız bir hissəsində bu obyektin sifarişi var. Ortalama həmin mövcud aylara bölünür.'
 
 export const noPreviousMonthNote = 'Keçən ay üçün müqayisə məlumatı yoxdur.'
 

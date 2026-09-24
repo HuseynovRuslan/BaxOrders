@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
@@ -70,7 +70,7 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
     {
         await using var db = database.CreateContext();
 
-        Assert.Null(await new OrderDecisionContextQueries(db).GetAsync(-1, None));
+        Assert.Null(await new OrderDecisionContextQueries(db).GetAsync(-1, new DecisionContextQuery(), None));
     }
 
     // ---- the comparison ------------------------------------------------------------------------------
@@ -83,12 +83,13 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
 
         var context = await ContextAsync(db, world.JulyRequestId);
 
-        Assert.True(context.PreviousMonth.Available);
-        Assert.Equal(world.June, context.PreviousMonth.Period);
-        Assert.Equal(world.JuneRequestId, context.PreviousMonth.Request!.OrderRequestId);
-        Assert.Equal(JuneAmount, context.PreviousMonth.Amount!.KnownAmount);
+        Assert.Equal(AnalyticsComparisonBasis.PreviousMonth, context.Primary.Basis);
+        Assert.True(context.Primary.Available);
+        Assert.Equal(world.June, Assert.Single(context.Primary.WindowPeriods));
+        Assert.Equal(world.JuneRequestId, Assert.Single(context.Primary.Periods).OrderRequestId);
+        Assert.Equal(JuneAmount, context.Primary.BaselineKnownAmount);
         Assert.Equal(JulyAmount, context.Current.KnownAmount);
-        Assert.Equal(JulyAmount - JuneAmount, context.PreviousMonth.DeltaAmount);
+        Assert.Equal(JulyAmount - JuneAmount, context.Primary.DeltaAmount);
     }
 
     [PostgresFact]
@@ -99,9 +100,9 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
 
         var context = await ContextAsync(db, world.RequestId);
 
-        Assert.False(context.PreviousMonth.Available);
-        Assert.Null(context.PreviousMonth.Request);
-        Assert.Null(context.PreviousMonth.DeltaAmount);
+        Assert.False(context.Primary.Available);
+        Assert.Empty(context.Primary.Periods);
+        Assert.Null(context.Primary.DeltaAmount);
         // No baseline means no explanation at all — not an explanation that calls every product new.
         Assert.Null(context.Decomposition);
     }
@@ -115,12 +116,12 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         var context = await ContextAsync(db, world.JulyRequestId);
 
         // April, May, June are asked for; the world has no April, so the average rests on two months.
-        Assert.Equal(3, context.ThreeMonth.ExpectedPeriodCount);
-        Assert.Equal(2, context.ThreeMonth.AvailablePeriodCount);
-        Assert.Equal(world.April, Assert.Single(context.ThreeMonth.MissingPeriods));
+        Assert.Equal(3, Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).ExpectedPeriodCount);
+        Assert.Equal(2, Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).AvailablePeriodCount);
+        Assert.Equal(world.April, Assert.Single(Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).MissingPeriods));
         Assert.Equal(
             Math.Round((MayAmount + JuneAmount) / 2m, OrderAnalyticsCalculator.MoneyScale, MidpointRounding.AwayFromZero),
-            context.ThreeMonth.AverageKnownAmount);
+            Window(context, AnalyticsComparisonBasis.Previous3MonthAverage).BaselineKnownAmount);
     }
 
     [PostgresFact]
@@ -131,11 +132,11 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
 
         var context = await ContextAsync(db, world.JulyRequestId);
 
-        Assert.Equal(6, context.SixMonth.ExpectedPeriodCount);
-        Assert.Equal(3, context.SixMonth.AvailablePeriodCount);
+        Assert.Equal(6, Window(context, AnalyticsComparisonBasis.Previous6MonthAverage).ExpectedPeriodCount);
+        Assert.Equal(3, Window(context, AnalyticsComparisonBasis.Previous6MonthAverage).AvailablePeriodCount);
         Assert.Equal(
             Math.Round((MarchAmount + MayAmount + JuneAmount) / 3m, OrderAnalyticsCalculator.MoneyScale, MidpointRounding.AwayFromZero),
-            context.SixMonth.AverageKnownAmount);
+            Window(context, AnalyticsComparisonBasis.Previous6MonthAverage).BaselineKnownAmount);
     }
 
     // ---- why it changed ------------------------------------------------------------------------------
@@ -151,7 +152,7 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
 
         Assert.Equal(JulyAmount - JuneAmount, decomposition.TotalAmountImpact);
         Assert.Equal(decomposition.TotalAmountImpact, decomposition.Categories.Sum(category => category.Amount));
-        Assert.Equal(context.PreviousMonth.DeltaAmount, decomposition.TotalAmountImpact);
+        Assert.Equal(context.Primary.DeltaAmount, decomposition.TotalAmountImpact);
     }
 
     [PostgresFact]
@@ -327,11 +328,13 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
             .AddInterceptors(counter)
             .Options))
         {
-            await new OrderDecisionContextQueries(counted).GetAsync(world.JulyRequestId, None);
+            await new OrderDecisionContextQueries(counted).GetAsync(world.JulyRequestId, new DecisionContextQuery(), None);
         }
 
-        // The request, its baseline months, the lines of all of them, and the variants: four, never one per product.
-        Assert.Equal(4, counter.Count);
+        // The request; which months the company has ever ordered in, for "Bütün dövr"; this location's
+        // requests in every window; the lines of all of them; and the variants. Five, and five whatever the
+        // basis, however many products the order has, and however many bases are shown beside the chosen one.
+        Assert.Equal(5, counter.Count);
     }
 
     [PostgresFact]
@@ -348,6 +351,10 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         Assert.Equal(before, after);
     }
 
+    /// <summary>One of the bases shown beside the chosen one.</summary>
+    private static DecisionComparisonDto Window(OrderDecisionContextDto context, AnalyticsComparisonBasis basis) =>
+        context.Secondary.Single(item => item.Basis == basis);
+
     // ---- fixture -------------------------------------------------------------------------------------
 
     private const decimal MarchAmount = 100m;
@@ -362,7 +369,7 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
     private const decimal JulyAmount = 123m + 180m + 120m + 50m + 50m + 800m + 190m + 10m + 45m;
 
     private static async Task<OrderDecisionContextDto> ContextAsync(BaxOrdersDbContext db, long orderRequestId) =>
-        (await new OrderDecisionContextQueries(db).GetAsync(orderRequestId, None))!;
+        (await new OrderDecisionContextQueries(db).GetAsync(orderRequestId, new DecisionContextQuery(), None))!;
 
     private static DecisionDriverDto Driver(OrderDecisionContextDto context, long variantId) =>
         context.Decomposition!.Drivers.Single(driver => driver.Variant.ProductVariantId == variantId);

@@ -28,6 +28,7 @@ function decomposition(overrides: Partial<DecisionDecomposition> = {}): Decision
     explanationIsComplete: true,
     unattributedVariantCount: 0,
     internalSupplyVariantCount: 0,
+    supplyChangedVariantCount: 0,
     drivers: [],
     ...overrides,
   }
@@ -39,9 +40,10 @@ describe('the causes', () => {
 
     expect(screen.getByText('Yeni sifarişlər')).toBeInTheDocument()
     expect(screen.getByText('+50,00 ₼')).toBeInTheDocument()
-    expect(screen.getByText('Miqdar dəyişməsi')).toBeInTheDocument()
+    // Named as effects on money: the manat figure beside "Miqdar" is not a quantity.
+    expect(screen.getByText('Miqdar təsiri')).toBeInTheDocument()
     expect(screen.getByText('+120,00 ₼')).toBeInTheDocument()
-    expect(screen.getByText('Qiymət dəyişməsi')).toBeInTheDocument()
+    expect(screen.getByText('Qiymət təsiri')).toBeInTheDocument()
     expect(screen.getByText('+39,00 ₼')).toBeInTheDocument()
     expect(screen.getByText('Artıq sifariş olunmayanlar')).toBeInTheDocument()
     expect(screen.getByText('−20,00 ₼')).toBeInTheDocument()

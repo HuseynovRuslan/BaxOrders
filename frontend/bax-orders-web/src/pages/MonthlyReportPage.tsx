@@ -4,6 +4,7 @@ import { fetchMonthlyReport, type MonthlyReport } from '../api/reports'
 import { ApiError } from '../api/client'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
+import { amountIncompleteLabel, missingPriceShortLabel } from '../pricing/labels'
 import { SummaryMetric } from '../components/SummaryMetric'
 import { formatCount, formatMoney } from '../components/analytics/format'
 import { MonthlyReportMonthList, MonthlyReportTable, shortMonths } from '../components/reports/MonthlyReportTable'
@@ -139,10 +140,10 @@ export function MonthlyReportPage() {
           <SummaryMetric label="Sifariş" value={formatCount(data.requestCount)} />
           <SummaryMetric label="Obyekt" value={formatCount(data.locationCount)} />
           <SummaryMetric
-            label="Qiymətsiz sətir"
+            label={missingPriceShortLabel}
             value={formatCount(data.missingPriceItemCount)}
             noteAttention={data.missingPriceItemCount > 0}
-            note={data.missingPriceItemCount > 0 ? 'Məbləğ tam deyil' : undefined}
+            note={data.missingPriceItemCount > 0 ? amountIncompleteLabel : undefined}
           />
         </div>
       )}

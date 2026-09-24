@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Domain.Suppliers;
@@ -17,9 +17,15 @@ namespace BaxOrders.Application.Decisions;
 /// over products to fetch anything, and nothing here writes — not a row, not a counter, not a log.
 /// </para>
 /// <para>
-/// The comparison is the <b>previous calendar month</b>, because that is the question a decision answers.
-/// The three- and six-month windows are context beside it, never instead of it, and each is an average of the
-/// months that exist rather than of the months the window asked for.
+/// <b>The comparison is whichever one the reader chose</b>, and it arrives with the request. A manager who
+/// picked "Son 3 ayın ortalaması" on the dashboard and followed a card here sees the three-month figure as
+/// the headline and the three-month reason under it — not last month's, with the three-month number demoted
+/// to a footnote. The other bases are still computed and shown beside it, small, as context.
+/// </para>
+/// <para>
+/// The arithmetic is <see cref="PeriodComparison"/>, the very same call the dashboard makes. That is the
+/// whole point: for one location, one month and one basis the two screens cannot disagree, because there is
+/// only one formula to disagree about.
 /// </para>
 /// <para>
 /// The current side is the opened version's own lines. The baseline side is the previous month's <i>highest</i>
@@ -29,9 +35,25 @@ namespace BaxOrders.Application.Decisions;
 /// </remarks>
 public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
 {
+    /// <summary>Every basis the screen offers, in the order a reader meets them.</summary>
+    private static readonly AnalyticsComparisonBasis[] Offered =
+    [
+        AnalyticsComparisonBasis.PreviousMonth,
+        AnalyticsComparisonBasis.Previous3MonthAverage,
+        AnalyticsComparisonBasis.Previous6MonthAverage,
+        AnalyticsComparisonBasis.AllPriorMonths,
+    ];
+
+    /// <param name="query">
+    /// What to compare against. Its default is the previous month, so a link from the monthly report — which
+    /// is a month-to-month reading — keeps comparing month to month.
+    /// </param>
     /// <returns>Null when there is no such request.</returns>
-    public async Task<OrderDecisionContextDto?> GetAsync(long orderRequestId, CancellationToken cancellationToken)
+    public async Task<OrderDecisionContextDto?> GetAsync(
+        long orderRequestId, DecisionContextQuery query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
+
         var order = await db.OrderRequests.AsNoTracking()
             .Where(request => request.Id == orderRequestId)
             .Select(request => new OrderRef(
@@ -59,11 +81,35 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             return null;
         }
 
-        // Six months back covers every window; the previous month is simply the nearest of them.
-        var window = BaselineWindow.PeriodsFor(order.Period, AnalyticsComparisonBasis.Previous6MonthAverage);
+        // The range is checked against this order's own month, which is why it is resolved here and not in
+        // the controller: a window that reached into the month being decided would compare it with itself.
+        var selection = query.SelectionFor(order.Period);
+
+        // "Every prior month" is a fact about the company's data rather than about the calendar, so it is
+        // asked for — one row per month anybody has ordered in, which is a handful of rows. The same
+        // definition the dashboard uses, so the two agree about what "Bütün dövr" covers.
+        var companyPeriods = await db.OrderRequests.AsNoTracking()
+            .Where(request => request.RequestPeriod < order.Period)
+            .Select(request => request.RequestPeriod)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        // Every basis the screen will show, resolved to its months. The chosen one is first.
+        var selections = new List<ComparisonSelection> { selection };
+        selections.AddRange(Offered
+            .Where(basis => basis != selection.Basis)
+            .Select(ComparisonSelection.Of));
+
+        var windows = selections
+            .Select(item => (Selection: item,
+                Periods: BaselineWindow.PeriodsFor(order.Period, item, companyPeriods)))
+            .ToList();
+
+        // One query for the requests of every month any basis looks at, however many bases that is.
+        var wanted = windows.SelectMany(item => item.Periods).Distinct().ToArray();
         var baseline = await db.OrderRequests.AsNoTracking()
             .Where(request => request.LocationId == order.LocationId
-                && window.Contains(request.RequestPeriod)
+                && wanted.Contains(request.RequestPeriod)
                 && !db.OrderRequests.Any(other =>
                     other.LocationId == request.LocationId
                     && other.RequestPeriod == request.RequestPeriod
@@ -72,25 +118,26 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 request.RequestPeriod, request.Id, request.Version, request.Status))
             .ToListAsync(cancellationToken);
 
-        var previousPeriod = order.Period.AddMonths(-1);
-        var previous = baseline.FirstOrDefault(request => request.Period == previousPeriod);
-
         long[] requestIds = [order.OrderRequestId, .. baseline.Select(request => request.OrderRequestId)];
         var snapshots = await SnapshotsAsync(requestIds, cancellationToken);
 
         var currentSnapshots = snapshots.GetValueOrDefault(order.OrderRequestId) ?? [];
-        var previousSnapshots = previous is null
-            ? []
-            : snapshots.GetValueOrDefault(previous.OrderRequestId) ?? [];
-
         var current = AmountOf(currentSnapshots.Values);
-        var previousAmount = previous is null ? null : AmountOf(previousSnapshots.Values);
-        var (previousDelta, previousPercent) =
-            OrderAnalyticsCalculator.AmountDifference(current.KnownAmount, previousAmount?.KnownAmount);
 
-        var decomposition = previous is null
+        // Product metadata for every variant in play, fetched once: it carries both the material-or-service
+        // kind the comparison needs and the names the driver rows show.
+        var variantIds = snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray();
+        var variants = await VariantsAsync(variantIds, cancellationToken);
+        var kinds = variants.ToDictionary(entry => entry.Key, entry => entry.Value.Kind);
+
+        var comparisons = windows
+            .Select(item => Compare(item.Selection, item.Periods, order, baseline, snapshots, currentSnapshots, kinds))
+            .ToList();
+
+        var primary = comparisons[0];
+        var decomposition = primary.Result.Decomposition is null
             ? null
-            : await DecomposeAsync(currentSnapshots, previousSnapshots, cancellationToken);
+            : Explain(primary.Result.Decomposition, variants);
 
         return new OrderDecisionContextDto(
             order.OrderRequestId,
@@ -104,46 +151,55 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             order.LatestOrderRequestId,
             order.LatestVersion,
             current,
-            new DecisionPreviousMonthDto(
-                previous is not null,
-                previousPeriod,
-                previous,
-                previousAmount,
-                previousDelta,
-                previousPercent),
-            Window(AnalyticsComparisonBasis.Previous3MonthAverage, order.Period, baseline, snapshots, current),
-            Window(AnalyticsComparisonBasis.Previous6MonthAverage, order.Period, baseline, snapshots, current),
+            primary.Dto,
+            [.. comparisons.Skip(1).Select(item => item.Dto)],
             decomposition);
+    }
+
+    /// <summary>One basis, measured through the shared comparison the dashboard also calls.</summary>
+    private static (DecisionComparisonDto Dto, PeriodComparisonResult Result) Compare(
+        ComparisonSelection selection,
+        IReadOnlyList<DateOnly> periods,
+        OrderRef order,
+        List<DecisionPeriodDto> baseline,
+        Dictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
+        Dictionary<long, VariantPeriodSnapshot> currentSnapshots,
+        Dictionary<long, AnalyticsKind> kinds)
+    {
+        var available = baseline
+            .Where(request => periods.Contains(request.Period))
+            .OrderBy(request => request.Period)
+            .ToList();
+
+        var baselineByVariant = PeriodComparison.GroupBaseline(
+            available.Select(request => request.OrderRequestId), snapshots);
+
+        var result = PeriodComparison.Of(currentSnapshots, baselineByVariant, available.Count, kinds);
+
+        var dto = new DecisionComparisonDto(
+            selection.Basis,
+            selection.CustomStart,
+            selection.CustomEnd,
+            periods,
+            periods.Count,
+            available.Count,
+            [.. periods.Where(period => !available.Any(request => request.Period == period))],
+            available,
+            available.Count > 0,
+            result.BaselineKnownAmount,
+            result.KnownAmountDelta,
+            result.KnownAmountPercentChange,
+            result.CurrentTotals.IsComplete && result.BaselineTotals.IsComplete);
+
+        return (dto, result);
     }
 
     // ---- the explanation ----------------------------------------------------------------------------
 
-    private async Task<DecisionDecompositionDto> DecomposeAsync(
-        Dictionary<long, VariantPeriodSnapshot> current,
-        Dictionary<long, VariantPeriodSnapshot> previous,
-        CancellationToken cancellationToken)
+    /// <summary>The shared decomposition, dressed with the product names a reader needs.</summary>
+    private static DecisionDecompositionDto Explain(
+        CauseDecompositionResult result, Dictionary<long, VariantRef> variants)
     {
-        // The union of both months, so a product that stopped being ordered explains as much as a new one.
-        var variantIds = current.Keys.Union(previous.Keys).ToArray();
-        var variants = await VariantsAsync(variantIds, cancellationToken);
-
-        var inputs = new List<VariantCauseInput>(variantIds.Length);
-        foreach (var variantId in variantIds)
-        {
-            if (!variants.TryGetValue(variantId, out var variant))
-            {
-                continue;
-            }
-
-            inputs.Add(new VariantCauseInput(
-                variantId,
-                variant.Kind,
-                current.GetValueOrDefault(variantId),
-                previous.GetValueOrDefault(variantId)));
-        }
-
-        var result = CauseDecomposition.Decompose(inputs);
-
         var drivers = new List<DecisionDriverDto>(result.Variants.Count);
         foreach (var variant in result.Variants)
         {
@@ -157,8 +213,13 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 continue;
             }
 
+            if (!variants.TryGetValue(variant.ProductVariantId, out var identity))
+            {
+                continue;
+            }
+
             drivers.Add(new DecisionDriverDto(
-                variants[variant.ProductVariantId].Identity,
+                identity.Identity,
                 variant.Kind,
                 variant.Category,
                 variant.AmountImpact,
@@ -176,7 +237,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 variant.BaselineItemCount,
                 variant.MissingRequiredPriceItemCount,
                 variant.PriceNotRequiredItemCount,
-                variant.PriceIsComplete));
+                variant.PriceIsComplete,
+                variant.SupplyChanged));
         }
 
         return new DecisionDecompositionDto(
@@ -186,41 +248,10 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             result.ExplanationIsComplete,
             result.UnattributedVariantCount,
             result.InternalSupplyVariantCount,
+            result.SupplyChangedVariantCount,
             drivers);
     }
 
-    // ---- the windows --------------------------------------------------------------------------------
-
-    private static DecisionWindowDto Window(
-        AnalyticsComparisonBasis basis,
-        DateOnly currentPeriod,
-        List<DecisionPeriodDto> baseline,
-        Dictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
-        DecisionAmountDto current)
-    {
-        var periods = BaselineWindow.PeriodsFor(currentPeriod, basis);
-        var available = baseline.Where(request => periods.Contains(request.Period)).OrderBy(request => request.Period).ToList();
-        var missing = periods.Where(period => !available.Any(request => request.Period == period)).ToList();
-
-        var totals = OrderAnalyticsCalculator.Totals(available
-            .SelectMany(request => snapshots.TryGetValue(request.OrderRequestId, out var byVariant)
-                ? byVariant.Values.AsEnumerable()
-                : []));
-
-        var average = OrderAnalyticsCalculator.AverageKnownAmount(totals, available.Count);
-        var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(current.KnownAmount, average);
-
-        return new DecisionWindowDto(
-            basis,
-            periods.Count,
-            available.Count,
-            missing,
-            available,
-            average,
-            delta,
-            percent,
-            totals.IsComplete && current.IsComplete);
-    }
 
     // ---- reading ------------------------------------------------------------------------------------
 
@@ -238,13 +269,13 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
-                // recorded property of the supplier and never a guess from its name. No supplier at all is
-                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                // A price is only missing when it was owed, and the line itself says whether it was — see
+                // PricingMode for why no property of the supplier can answer that. A line nobody has classified
+                // counts as owed: the cautious reading is the one that cannot hide a real gap.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })

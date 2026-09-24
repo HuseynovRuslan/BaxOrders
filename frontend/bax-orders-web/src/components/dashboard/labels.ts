@@ -6,6 +6,8 @@ import type {
   HistoryCoverageState,
 } from '../../api/dashboard'
 import type { PriceCoverageState } from '../../api/analytics'
+import { formatCount, formatMonth } from '../analytics/format'
+import { missingPriceShortLabel } from '../../pricing/labels'
 
 export const historyCoverageLabels: Record<HistoryCoverageState, string> = {
   Complete: 'Tam tarixçə',
@@ -108,22 +110,74 @@ export function causeHeadline(category: CauseCategory, amount: number): string {
   }
 }
 
-/** Why an object was surfaced. Said in the reader's terms, never as the enum name. */
+/**
+ * Why an object was surfaced, said as the fact that put it there.
+ *
+ * "Ən çox artan" and "Nisbətdə böyük dəyişmə" were both true and both vague — neither said what was measured,
+ * and two cards could sit side by side for what looked like the same reason. Each label now names its own
+ * measure, so a card for the biggest sum and a card for the biggest proportion cannot be confused.
+ */
 export const attentionReasonLabels: Record<DashboardAttentionReason, string> = {
-  LargestIncrease: 'Ən çox artan',
-  LargestDecrease: 'Ən çox azalan',
-  StrongPercentageChange: 'Nisbətdə böyük dəyişmə',
-  MissingRequiredPrice: 'Qiymət məlumatı çatışmır',
+  LargestIncrease: 'Ən böyük məbləğ artımı',
+  LargestDecrease: 'Ən böyük məbləğ azalması',
+  StrongPercentageChange: 'Ən böyük faiz dəyişməsi',
+  MissingRequiredPrice: 'Qiymət məlumatı natamamdır',
   NoComparisonHistory: 'Müqayisə üçün əvvəlki ay yoxdur',
+}
+
+/**
+ * Which cards report a movement and which report a gap in the records.
+ *
+ * It decides one thing: whether the card's figures are coloured by direction or left neutral under an amber
+ * warning. A card about missing data has no direction to colour.
+ */
+export const attentionReasonIsWarning: Record<DashboardAttentionReason, boolean> = {
+  LargestIncrease: false,
+  LargestDecrease: false,
+  StrongPercentageChange: false,
+  MissingRequiredPrice: true,
+  NoComparisonHistory: true,
 }
 
 /**
  * What the "Məlumat vəziyyəti" column says — and, when everything is in order, it says nothing at all. A badge
  * that appears on every healthy row is noise a reader learns to skip, which is how the real ones get skipped too.
  */
+/** "Sentyabr 2026 sifarişlərinin məbləği" — the month says which month, so nobody has to look it up. */
+export function monthAmountHeading(period: string): string {
+  return `${formatMonth(period)} sifarişlərinin məbləği`
+}
+
+/** Neutral by design: the system knows an object has no request, never why. */
+export const ordersThisMonthLabel = 'Bu ay sifariş olan obyektlər'
+
+export function locationsWithoutRequestNote(count: number): string {
+  return `${formatCount(count)} obyekt üzrə sifariş qeydə alınmayıb`
+}
+
+/** Only prices somebody owes. Internal supply is complete and is never counted here. */
+export function incompletePriceDataNote(locationCount: number): string {
+  return `${formatCount(locationCount)} obyektdə qiymət məlumatı natamamdır.`
+}
+
+/** The ordinary case, said plainly so the exceptions beside it are the ones that catch the eye. */
+export const coverageNormalLabel = 'Tam tarixçə'
+
+export const coverageExceptionLabels = {
+  noHistory: 'Tarixçə yoxdur',
+  partialHistory: 'Tarixçə natamam',
+  missingPrice: missingPriceShortLabel,
+  noRequest: 'Sifariş yoxdur',
+} as const
+
+/** Products bought in one of the two months and supplied from the company's own store in the other. */
+export function supplyChangedNote(count: number): string {
+  return `${formatCount(count)} məhsulun təchizat forması dəyişib (alınan / şirkətdaxili)`
+}
+
 export const noComparisonNote = 'Əvvəlki ay üçün məlumat yoxdur'
 export const partialHistoryNote = 'Tarixçə natamamdır'
 export const noCurrentRequestNote = 'Bu ay sifariş yoxdur'
-export const incompleteExplanationNote = 'Məbləğin bir hissəsi izah edilə bilmir — qiymət məlumatı çatışmır'
+export const incompleteExplanationNote = 'Məbləğin bir hissəsi izah edilə bilmir — qiymət yoxdur'
 export const noComparisonCause = 'Müqayisə üçün əvvəlki ay yoxdur'
 export const detailsLabel = 'Detallara bax'

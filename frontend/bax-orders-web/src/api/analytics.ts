@@ -2,7 +2,14 @@ import { getJson } from './client'
 import type { OrderRequestStatus, PagedResult } from './orders'
 
 /** Mirrors `BaxOrders.Application.Analytics`. Every name is the backend's own; nothing is reinterpreted here. */
-export type AnalyticsComparisonBasis = 'PreviousMonth' | 'Previous3MonthAverage' | 'Previous6MonthAverage'
+export type AnalyticsComparisonBasis =
+  | 'PreviousMonth'
+  | 'Previous3MonthAverage'
+  | 'Previous6MonthAverage'
+  /** Every month the company has orders for before the selected one, averaged. */
+  | 'AllPriorMonths'
+  /** Months the reader picked by hand, averaged. Carried by `customStart` and `customEnd`. */
+  | 'CustomRange'
 
 /** Whether a variant's quantities may be compared at all, or only its money. */
 export type AnalyticsKind = 'QuantityComparable' | 'AmountOrientedService'
@@ -91,6 +98,11 @@ export interface ComparisonSummary {
   locationName: string
   currentPeriod: string
   basis: AnalyticsComparisonBasis
+  /** The first and last month of a hand-picked range; null for every other basis. */
+  customStart: string | null
+  customEnd: string | null
+  /** Every month the window covers, oldest first, whether or not this object ordered in them. */
+  baselineWindowPeriods: string[]
   currentRequestId: number
   currentVersion: number
   currentStatus: OrderRequestStatus
@@ -160,6 +172,26 @@ export interface VariantTrendPoint {
   priceNotRequiredItemCount: number
 }
 
+/**
+ * How often this location actually orders this product. Every figure is a count of months in `points`, so a
+ * month the location has no request for is in none of them — it is not a month the product was skipped.
+ */
+export interface VariantOrderFrequency {
+  /** Months the location has a request for. The denominator. */
+  availableMonthCount: number
+  /** How many of those contain this product at all. */
+  orderedMonthCount: number
+  firstOrderedPeriod: string | null
+  lastOrderedPeriod: string | null
+  /** Months from the last order of this product to the location's most recent order of anything. */
+  monthsSinceLastOrder: number | null
+  intervalsInMonths: number[]
+  /** The median gap; null until there are two gaps to take one of. */
+  typicalIntervalMonths: number | null
+  shortestIntervalMonths: number | null
+  longestIntervalMonths: number | null
+}
+
 export interface VariantTrend {
   locationId: number
   locationCode: string
@@ -170,10 +202,14 @@ export interface VariantTrend {
   to: string
   /** One point per month the location actually ordered in; a month with no request produces no point. */
   points: VariantTrendPoint[]
+  frequency: VariantOrderFrequency
 }
 
 export interface ComparisonRequest {
   basis: AnalyticsComparisonBasis
+  /** Both required by `CustomRange` and rejected by every other basis, as `yyyy-MM`. */
+  customStart?: string
+  customEnd?: string
   search?: string
   state?: ComparisonState
   kind?: AnalyticsKind
@@ -196,6 +232,8 @@ export function fetchComparison(
     page: String(query.page),
     pageSize: String(query.pageSize),
   })
+  if (query.customStart) params.set('customStart', query.customStart)
+  if (query.customEnd) params.set('customEnd', query.customEnd)
   if (query.search) params.set('search', query.search)
   if (query.state) params.set('state', query.state)
   if (query.kind) params.set('kind', query.kind)

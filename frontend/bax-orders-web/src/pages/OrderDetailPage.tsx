@@ -1,13 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
+import { basisParams, basisRequest, parseBasis, type BasisSelection } from '../analytics/basisParams'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
 import { PageHeader } from '../components/PageHeader'
 import { SectionHeader } from '../components/SectionHeader'
 import { StatusBadge } from '../components/StatusBadge'
 import { InfoHint } from '../components/analytics/InfoHint'
-import { internalSupplyFromWarehouseLabel, internalSupplyHint } from '../components/analytics/labels'
+import {
+  classifyLine,
+  internalSupplierLabel,
+  internalSupplyHint,
+  internalSupplyLabel,
+  isInternalSupply,
+  lineToneClass,
+  missingPriceCount,
+  missingPriceLabel,
+  unclassifiedHint,
+} from '../pricing/labels'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { CauseSummary } from '../components/decisions/CauseSummary'
 import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
@@ -29,7 +40,6 @@ import {
   formatPeriod,
   formatQuantity,
   knownAmountLabel,
-  noPriceLabel,
   unknownSupplierLabel,
 } from '../components/imports/labels'
 
@@ -48,6 +58,26 @@ type Dialog =
 /** One monthly request with its lines, in the order the sheet had them. */
 export function OrderDetailPage() {
   const { orderRequestId } = useParams()
+  const [params, setParams] = useSearchParams()
+
+  // The comparison is the reader's, and it lives in the URL: arriving from a dashboard card keeps the basis
+  // that card was showing, and Back, Forward and a reload all restore it. Absent means last month, which is
+  // what a link from the monthly report — a month-to-month reading — should keep meaning.
+  const selection = parseBasis(params)
+  const basisKey = `${selection.basis}|${selection.from ?? ''}|${selection.to ?? ''}`
+
+  function selectBasis(next: BasisSelection) {
+    const search = new URLSearchParams(params)
+    for (const [name, value] of Object.entries(basisParams(next))) {
+      if (value === undefined) {
+        search.delete(name)
+      } else {
+        search.set(name, value)
+      }
+    }
+
+    setParams(search)
+  }
   const id = Number(orderRequestId)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -93,7 +123,7 @@ export function OrderDetailPage() {
   useEffect(() => {
     const controller = new AbortController()
     setDecisionPending(true)
-    fetchDecisionContext(id, controller.signal)
+    fetchDecisionContext(id, basisRequest(selection), controller.signal)
       .then(setDecision)
       .catch(() => undefined)
       .finally(() => {
@@ -102,7 +132,19 @@ export function OrderDetailPage() {
         }
       })
     return () => controller.abort()
-  }, [id, reloadToken])
+    // The basis is flattened into a key: a new object every render would re-fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, reloadToken, basisKey])
+
+  /**
+   * The months this object can be compared against, oldest first.
+   *
+   * They come from the "Bütün dövr" window, which is every month the company has ordered in before this one —
+   * the same set the dashboard offers, so the two screens agree about what a hand-picked range may contain.
+   */
+  const priorMonths = (decision?.secondary.find((item) => item.basis === 'AllPriorMonths')?.windowPeriods
+    ?? decision?.primary.windowPeriods
+    ?? []).map((period) => period.slice(0, 7))
 
   /** What every dialog does when it succeeds, and what a 409 does: read everything again. */
   const afterChange = useCallback(
@@ -171,7 +213,12 @@ export function OrderDetailPage() {
       <div className="mt-4 grid gap-4 lg:grid-cols-3 lg:items-start">
         <div className="order-1 lg:col-span-2 lg:col-start-1 lg:row-start-1">
           {decision ? (
-            <DecisionHeadline context={decision} />
+            <DecisionHeadline
+              context={decision}
+              selection={selection}
+              onSelect={selectBasis}
+              priorMonths={priorMonths}
+            />
           ) : (
             data && (
               <section className="rounded-lg border border-slate-200 bg-white p-4" aria-label="Sifariş xülasəsi">
@@ -184,7 +231,7 @@ export function OrderDetailPage() {
                 <p className="mt-0.5 text-xs text-slate-500">
                   {formatNumber(data.itemCount)} sətir
                   {data.missingPriceItemCount > 0 && (
-                    <span className="text-amber-800"> · {formatNumber(data.missingPriceItemCount)} qiymətsiz</span>
+                    <span className="text-amber-800"> · {missingPriceCount(data.missingPriceItemCount)}</span>
                   )}
                 </p>
                 {/* The comparison is still on its way, or did not come; the amount never waits for it. */}
@@ -254,7 +301,7 @@ export function OrderDetailPage() {
         >
           <option value="">Bütün sətirlər</option>
           <option value="true">Yalnız qiyməti olanlar</option>
-          <option value="false">Yalnız qiymətsizlər</option>
+          <option value="false">Yalnız qiyməti olmayanlar</option>
         </select>
 
         {/* Offered only where the server says this version may be edited; the endpoint checks again. */}
@@ -327,27 +374,20 @@ export function OrderDetailPage() {
                 </td>
                 <td className="px-3 py-2 text-right">
                   {/*
-                    A blank price means two different things. Material bought from outside that nobody has
-                    priced is a gap, and says so in amber. Material issued from our own store was never going
-                    to have a purchase price, so it is described in calm grey — calling it "Qiymət yoxdur"
-                    sent people looking for a number that does not exist.
+                    A blank price means three different things, and the line itself says which. Material the
+                    company supplies itself was never going to have a purchase price, so it is described in
+                    calm grey — calling it "Qiymət yoxdur" sent people looking for a number that does not
+                    exist. The other two are amber, because in both cases a price is still owed; what the
+                    unclassified one adds is that nobody has yet said whether it really is.
                   */}
-                  {item.unitPrice !== null ? (
-                    <span className="text-slate-900">{formatAmount(item.unitPrice)}</span>
-                  ) : item.supplierPriceRequirement === 'NotRequired' ? (
-                    <span className="inline-flex items-center gap-1 text-slate-500">
-                      {internalSupplyFromWarehouseLabel}
-                      <InfoHint label="Daxili təminat nədir?">{internalSupplyHint}</InfoHint>
-                    </span>
-                  ) : (
-                    <span className="text-amber-800">{noPriceLabel}</span>
-                  )}
+                  <PriceCell item={item} />
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">
+                  {/* Never a zero: no amount was recorded, for either reason. */}
                   {item.lineTotal === null ? <span className="text-slate-400">—</span> : formatAmount(item.lineTotal)}
                 </td>
                 <td className="px-3 py-2 text-slate-700">
-                  {item.supplierName ?? <span className="text-slate-500">{unknownSupplierLabel}</span>}
+                  <SupplierCell item={item} />
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-600">
                   {item.categoryPath.length > 0 ? item.categoryPath.join(' › ') : <span className="text-slate-400">—</span>}
@@ -423,6 +463,7 @@ export function OrderDetailPage() {
           isService={history.analyticsKind === 'AmountOrientedService'}
           from={monthKey(data.requestPeriod, -11)}
           to={monthKey(data.requestPeriod, 0)}
+          driver={history}
           onClose={() => setHistory(null)}
         />
       )}
@@ -469,6 +510,60 @@ export function OrderDetailPage() {
       )}
     </>
   )
+}
+
+/**
+ * What a line's price cell says.
+ *
+ * Three different situations look identical in the database — an empty cell — and only two of them are a
+ * problem. Material the company issues from its own store was never going to carry a purchase price, so it
+ * is described in calm grey; calling it "Qiymət yoxdur" sent people looking for a number that does not exist.
+ * The other two are amber, because a price is still owed; what the unclassified one adds is that nobody has
+ * yet said whether it really is.
+ */
+function PriceCell({ item }: { item: OrderRequestItem }) {
+  if (item.unitPrice !== null) {
+    return <span className="text-slate-900">{formatAmount(item.unitPrice)}</span>
+  }
+
+  const state = classifyLine(item.unitPrice, item.pricingMode)
+
+  if (isInternalSupply(state)) {
+    return (
+      <span className={`inline-flex items-center gap-1 ${lineToneClass(state)}`}>
+        {internalSupplyLabel}
+        <InfoHint label="Daxili təminat nədir?">{internalSupplyHint}</InfoHint>
+      </span>
+    )
+  }
+
+  if (state === 'MissingUnclassified') {
+    return (
+      <span className={`inline-flex items-center gap-1 ${lineToneClass(state)}`}>
+        {missingPriceLabel}
+        <InfoHint label="Təsnif edilməyib nə deməkdir?">{unclassifiedHint}</InfoHint>
+      </span>
+    )
+  }
+
+  return <span className={lineToneClass(state)}>{missingPriceLabel}</span>
+}
+
+/**
+ * Who supplied the line.
+ *
+ * An internally supplied line has no catalogue supplier at all, so this cell used to read "Məlum deyil" —
+ * which says the record is incomplete. It is not: the material came out of one of our own stores, and the
+ * workbook usually says which.
+ */
+function SupplierCell({ item }: { item: OrderRequestItem }) {
+  if (isInternalSupply(classifyLine(item.unitPrice, item.pricingMode))) {
+    return <span className="text-slate-600">{internalSupplierLabel(item.sourceSupplierName)}</span>
+  }
+
+  return item.supplierName === null
+    ? <span className="text-slate-500">{unknownSupplierLabel}</span>
+    : <>{item.supplierName}</>
 }
 
 /**

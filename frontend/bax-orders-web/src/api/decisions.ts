@@ -32,24 +32,28 @@ export interface DecisionPeriod {
   status: OrderRequestStatus
 }
 
-export interface DecisionPreviousMonth {
-  /** False when the location has no request for the month before. Nothing is then claimed about the change. */
-  available: boolean
-  period: string
-  request: DecisionPeriod | null
-  amount: DecisionAmount | null
-  deltaAmount: number | null
-  deltaPercent: number | null
-}
-
-export interface DecisionWindow {
+/**
+ * One basis resolved for this order: the months it covers, which of them this object actually has, and what
+ * the comparison against them says.
+ *
+ * The screen shows the chosen one large and the rest small. They are the same shape on purpose — whichever is
+ * in front of the reader was computed the same way, so switching basis changes the answer and never its meaning.
+ */
+export interface DecisionComparison {
   basis: AnalyticsComparisonBasis
+  customStart: string | null
+  customEnd: string | null
+  /** Every month the basis covers, oldest first, whether or not the object ordered in them. */
+  windowPeriods: string[]
   expectedPeriodCount: number
+  /** The months the object has a request for — and the divisor of the average below. */
   availablePeriodCount: number
   missingPeriods: string[]
   periods: DecisionPeriod[]
+  /** False when the object ordered in none of the window's months: there is nothing to compare with. */
+  available: boolean
   /** The money of an average available month — divided by the months that exist, not the months asked for. */
-  averageKnownAmount: number | null
+  baselineKnownAmount: number | null
   deltaAmount: number | null
   deltaPercent: number | null
   amountIsComplete: boolean
@@ -88,6 +92,8 @@ export interface DecisionDriver {
   /** Lines issued from the company's own store: complete without a purchase price, never a warning. */
   priceNotRequiredItemCount: number
   priceIsComplete: boolean
+  /** The company paid for this product in one of the two months and supplied it itself in the other. */
+  supplyChanged: boolean
 }
 
 export interface DecisionDecomposition {
@@ -98,6 +104,8 @@ export interface DecisionDecomposition {
   unattributedVariantCount: number
   /** Products supplied from the company's own store. Neutral context, never a problem. */
   internalSupplyVariantCount: number
+  /** Products paid for in one of the two months and supplied internally in the other. */
+  supplyChangedVariantCount: number
   /** Largest money first. */
   drivers: DecisionDriver[]
 }
@@ -114,16 +122,31 @@ export interface OrderDecisionContext {
   latestOrderRequestId: number | null
   latestVersion: number | null
   current: DecisionAmount
-  previousMonth: DecisionPreviousMonth
-  threeMonth: DecisionWindow
-  sixMonth: DecisionWindow
-  /** Null when the previous month has no request: there is then nothing to explain. */
+  /** The comparison the reader chose. The headline and `decomposition` are both against this one. */
+  primary: DecisionComparison
+  /** The other bases, as quiet context beside it. Never a rival answer. */
+  secondary: DecisionComparison[]
+  /** Null when the primary window holds no request: there is then nothing to explain. */
   decomposition: DecisionDecomposition | null
+}
+
+export interface DecisionContextRequest {
+  basis: AnalyticsComparisonBasis
+  /** Both required by `CustomRange` and rejected by every other basis, as `yyyy-MM`. */
+  customStart?: string
+  customEnd?: string
 }
 
 export function fetchDecisionContext(
   orderRequestId: number,
+  query: DecisionContextRequest,
   signal?: AbortSignal,
 ): Promise<OrderDecisionContext> {
-  return getJson<OrderDecisionContext>(`/api/v1/orders/${orderRequestId}/decision-context`, signal)
+  const params = new URLSearchParams({ basis: query.basis })
+  if (query.customStart) params.set('customStart', query.customStart)
+  if (query.customEnd) params.set('customEnd', query.customEnd)
+  return getJson<OrderDecisionContext>(
+    `/api/v1/orders/${orderRequestId}/decision-context?${params.toString()}`,
+    signal,
+  )
 }

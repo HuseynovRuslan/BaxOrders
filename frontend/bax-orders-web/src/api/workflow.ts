@@ -2,7 +2,15 @@ import { getJson, postJson, type ProblemDetails } from './client'
 import type { OrderRequestStatus } from './orders'
 
 /** Mirrors `BaxOrders.Application.Orders.Workflow`. */
-export type OrderWorkflowAction = 'SubmittedForApproval' | 'Approved' | 'ReturnedForCorrection'
+export type OrderWorkflowAction =
+  | 'SubmittedForApproval'
+  | 'Approved'
+  | 'ReturnedForCorrection'
+  /**
+   * Carried in already approved, from before this system existed. Deliberately not `Approved`: nobody
+   * approved these here, and it has no actor because there is no person here to attribute it to.
+   */
+  | 'ImportedAsApproved'
 
 /**
  * What the signed-in person may do to this request right now: the state, narrowed by their role, narrowed

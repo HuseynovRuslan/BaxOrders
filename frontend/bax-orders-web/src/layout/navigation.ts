@@ -1,6 +1,7 @@
 import {
   CheckCheck,
   CalendarRange,
+  CircleDollarSign,
   Users,
   FileSpreadsheet,
   LayoutDashboard,
@@ -32,5 +33,6 @@ export const navItems: NavItem[] = [
   { to: '/locations', label: 'Obyektlər', icon: MapPin },
   { to: '/products', label: 'Məhsullar', icon: Package },
   { to: '/suppliers', label: 'Təchizatçılar', icon: Truck },
+  { to: '/pricing-modes', label: 'Qiymət təsnifatı', icon: CircleDollarSign },
   { to: '/admin/users', label: 'İstifadəçilər', icon: Users, requires: 'canManageUsers' },
 ]

@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Approvals;
 using BaxOrders.Application.Catalog;
@@ -9,6 +9,7 @@ using BaxOrders.Application.Imports.Matching;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
+using BaxOrders.Application.Orders.Pricing;
 using BaxOrders.Application.Orders.Revisions;
 using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Application.Reports;
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ProductCategoryQueries>();
         services.AddScoped<ProductCategoryService>();
         services.AddScoped<SupplierPricingService>();
+        services.AddScoped<PricingModeReviewService>();
 
         services.AddScoped<ImportCatalogLoader>();
         services.AddScoped<ImportPreviewQueries>();

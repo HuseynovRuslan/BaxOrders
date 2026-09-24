@@ -13,6 +13,7 @@ import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderDetailPage } from './pages/OrderDetailPage'
 import { ProductCategoriesPage } from './pages/ProductCategoriesPage'
+import { PricingModeReviewPage } from './pages/PricingModeReviewPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SuppliersPage } from './pages/SuppliersPage'
 
@@ -46,6 +47,9 @@ export function App() {
           {/* Everybody signed in may look; only the catalogue policy may change what it says. */}
           <Route path="products/categories" element={<ProductCategoriesPage />} />
           <Route path="suppliers" element={<SuppliersPage />} />
+          {/* A manager reads the queue — how much of the missing money is a real gap is the context behind
+              every price warning — and the server refuses their attempt to decide on it. */}
+          <Route path="pricing-modes" element={<PricingModeReviewPage />} />
 
           {/* The import screens change data, so a manager does not get them. */}
           <Route element={<RequirePermission permission="canManageImports" />}>

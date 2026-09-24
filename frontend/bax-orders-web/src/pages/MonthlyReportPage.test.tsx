@@ -183,8 +183,8 @@ describe('the grid', () => {
     // A sentence twelve times to a row would drown the money, so the cell shows a count and explains itself.
     expect(within(table()).getByText('⚠ 2')).toBeInTheDocument()
     const link = within(table()).getByRole('link', { name: /Yanvar 2026/ })
-    expect(link).toHaveAccessibleName(expect.stringContaining('2 qiymətsiz sətir') as unknown as string)
-    expect(link).toHaveAttribute('title', expect.stringContaining('2 qiymətsiz sətir') as unknown as string)
+    expect(link).toHaveAccessibleName(expect.stringContaining('2 sətirdə qiymət yoxdur') as unknown as string)
+    expect(link).toHaveAttribute('title', expect.stringContaining('2 sətirdə qiymət yoxdur') as unknown as string)
   })
 
   it('keeps the location column pinned while the months scroll', async () => {
@@ -305,7 +305,9 @@ describe('the panorama', () => {
     await renderPage()
 
     const headers = within(table()).getAllByRole('columnheader').map((cell) => cell.textContent)
-    expect(headers).toEqual(['Obyekt', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn', 'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek', 'İl'])
+    expect(headers).toEqual([
+      'Obyekt', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn', 'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek', 'İl cəmi',
+    ])
   })
 
   it('keeps money on one line', async () => {

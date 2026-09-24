@@ -81,6 +81,8 @@ export interface LocationDashboardRow {
   /** The month and basis this row's own comparison should open on. */
   deepLinkPeriod: string
   deepLinkBasis: AnalyticsComparisonBasis
+  deepLinkCustomStart: string | null
+  deepLinkCustomEnd: string | null
   /** Every share of this location's difference that moved money, from the shared cause decomposition. */
   causes: DashboardCause[]
   /** The one that moved the most, in either direction. Null when there is nothing to compare against. */
@@ -89,6 +91,8 @@ export interface LocationDashboardRow {
   /** False only when somebody owes a price. Internal supply never makes it false. */
   explanationIsComplete: boolean
   unattributedAmount: number
+  /** Products paid for in one of the two months and supplied internally in the other. */
+  supplyChangedVariantCount: number
 }
 
 export interface DashboardCause {
@@ -116,6 +120,11 @@ export interface DashboardAttention {
 export interface ManagementDashboardSummary {
   selectedPeriod: string
   basis: AnalyticsComparisonBasis
+  /**
+   * The months the window covers, oldest first, whether or not anybody ordered in them. The screen names its
+   * basis from this: "every prior month" and a hand-picked range cannot be worked out from the basis alone.
+   */
+  baselinePeriods: string[]
   locationCount: number
   locationsWithCurrentRequest: number
   locationsWithoutCurrentRequest: number
@@ -150,6 +159,9 @@ export interface ManagementDashboard {
 
 export interface DashboardRequest {
   basis: AnalyticsComparisonBasis
+  /** Both required by `CustomRange` and rejected by every other basis, as `yyyy-MM`. */
+  customStart?: string
+  customEnd?: string
   search?: string
   historyCoverage?: HistoryCoverageState
   priceCoverage?: PriceCoverageState
@@ -175,6 +187,8 @@ export function fetchDashboard(
     page: String(query.page),
     pageSize: String(query.pageSize),
   })
+  if (query.customStart) params.set('customStart', query.customStart)
+  if (query.customEnd) params.set('customEnd', query.customEnd)
   if (query.search) params.set('search', query.search)
   if (query.historyCoverage) params.set('historyCoverage', query.historyCoverage)
   if (query.priceCoverage) params.set('priceCoverage', query.priceCoverage)

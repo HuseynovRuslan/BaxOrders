@@ -83,7 +83,8 @@ function item(overrides: Partial<OrderRequestItem> = {}): OrderRequestItem {
     lineTotal: 20,
     supplierId: null,
     supplierName: null,
-    supplierPriceRequirement: 'Required',
+    pricingMode: 'PriceRequired',
+    sourceSupplierName: null,
     categoryPath: [],
     source: { importBatchId: 7, importRowId: 70, sheetName: 'Əsas', rowNumber: 4 },
     sourceOrderRequestItemId: 401,
@@ -378,7 +379,7 @@ describe('the header and the summary', () => {
     await renderPage()
     const summary = screen.getByRole('region', { name: 'Sifariş xülasəsi' })
 
-    expect(within(summary).getByText(/1 sətir/)).toHaveTextContent('1 sətir · 1 qiymətsiz')
+    expect(summary).toHaveTextContent('1 sətir · 1 sətirdə qiymət yoxdur')
   })
 })
 

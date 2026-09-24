@@ -1,6 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import type { OrderWorkflow } from '../../api/workflow'
+import { missingPriceShortLabel } from '../../pricing/labels'
 import { ApiError } from '../../api/client'
 import { formatMoney, formatMonth } from '../analytics/format'
 import { Modal } from '../imports/review/Modal'
@@ -98,7 +99,7 @@ export function WorkflowDialog({ kind, workflow, onClose, onConfirm }: WorkflowD
             label={workflow.amountIsComplete ? 'Məbləğ' : 'Məlum qiymətlər üzrə məbləğ'}
             value={formatMoney(workflow.knownAmountTotal)}
           />
-          <Fact label="Qiymətsiz sətir" value={String(missing)} />
+          <Fact label={missingPriceShortLabel} value={String(missing)} />
         </dl>
 
         {missing > 0 && (

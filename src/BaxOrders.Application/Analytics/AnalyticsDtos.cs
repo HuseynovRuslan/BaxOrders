@@ -1,4 +1,4 @@
-using BaxOrders.Application.Imports;
+﻿using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Analytics;
@@ -88,6 +88,10 @@ public sealed record ComparisonSummaryDto(
     string LocationName,
     DateOnly CurrentPeriod,
     AnalyticsComparisonBasis Basis,
+    DateOnly? CustomStart,
+    DateOnly? CustomEnd,
+    /// <summary>The months the window covers, oldest first, whether or not this object ordered in them.</summary>
+    IReadOnlyList<DateOnly> BaselineWindowPeriods,
     long CurrentRequestId,
     int CurrentVersion,
     OrderRequestStatus CurrentStatus,
@@ -128,13 +132,25 @@ public sealed record LocationComparisonDto(
 /// service has no quantity to put in a quantity table, so a caller showing the two apart needs the paging and
 /// the row count to follow that split rather than doing it after the fact.
 /// </param>
+/// <param name="CustomStart">First month of a hand-picked comparison range, as <c>yyyy-MM</c>. Only with <see cref="AnalyticsComparisonBasis.CustomRange"/>.</param>
+/// <param name="CustomEnd">Last month of that range, as <c>yyyy-MM</c>. It lies before the month being looked at.</param>
 public sealed record ComparisonQuery(
     AnalyticsComparisonBasis Basis = AnalyticsComparisonBasis.PreviousMonth,
     string? Search = null,
     ComparisonState? State = null,
     AnalyticsKind? Kind = null,
     int Page = 1,
-    int PageSize = 50);
+    int PageSize = 50,
+    string? CustomStart = null,
+    string? CustomEnd = null)
+{
+    /// <summary>The window this query asks for, with its months checked against the month being looked at.</summary>
+    public ComparisonSelection SelectionFor(DateOnly currentPeriod) => ComparisonSelection.Of(
+        Basis,
+        AnalyticsPeriod.ParseOptional(CustomStart, nameof(CustomStart)),
+        AnalyticsPeriod.ParseOptional(CustomEnd, nameof(CustomEnd)),
+        currentPeriod);
+}
 
 /// <summary>A month a location has a request for, with the version analytics would use.</summary>
 public sealed record AnalyticsPeriodDto(
@@ -176,6 +192,34 @@ public sealed record VariantTrendPointDto(
     int MissingRequiredPriceItemCount,
     int PriceNotRequiredItemCount);
 
+/// <summary>
+/// How often this location actually orders this product, counted rather than estimated.
+/// </summary>
+/// <remarks>
+/// Every figure here is a count of months the data states outright. Nothing is projected, and a month the
+/// location has no request for is not a month in which the product was not ordered — it is a month nobody
+/// knows about, so it is left out of every count below rather than treated as a zero.
+/// </remarks>
+/// <param name="AvailableMonthCount">Months in the window the location has a request for. The denominator.</param>
+/// <param name="OrderedMonthCount">How many of those months contain this product at all.</param>
+/// <param name="MonthsSinceLastOrder">
+/// Calendar months from the last month it was ordered to the last month the location ordered anything. Zero
+/// means it was on the most recent order. Measured against the data rather than against today's date, because
+/// the absence of a recent request is not the same as a product having been dropped.
+/// </param>
+/// <param name="IntervalsInMonths">The gaps between consecutive ordered months, oldest first.</param>
+/// <param name="TypicalIntervalMonths">The median gap; null until there are at least two gaps to take one of.</param>
+public sealed record VariantOrderFrequencyDto(
+    int AvailableMonthCount,
+    int OrderedMonthCount,
+    DateOnly? FirstOrderedPeriod,
+    DateOnly? LastOrderedPeriod,
+    int? MonthsSinceLastOrder,
+    IReadOnlyList<int> IntervalsInMonths,
+    int? TypicalIntervalMonths,
+    int? ShortestIntervalMonths,
+    int? LongestIntervalMonths);
+
 public sealed record VariantTrendDto(
     int LocationId,
     string LocationCode,
@@ -184,6 +228,7 @@ public sealed record VariantTrendDto(
     AnalyticsKind AnalyticsKind,
     DateOnly From,
     DateOnly To,
-    IReadOnlyList<VariantTrendPointDto> Points);
+    IReadOnlyList<VariantTrendPointDto> Points,
+    VariantOrderFrequencyDto Frequency);
 
 public sealed record TrendQuery(DateOnly? From = null, DateOnly? To = null);

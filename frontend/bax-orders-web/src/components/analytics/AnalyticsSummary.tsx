@@ -6,12 +6,13 @@ import { WarningNote } from '../WarningNote'
 import { formatNumber } from '../imports/labels'
 import { orderStatusLabels } from '../imports/labels'
 import {
-  basisLabels,
+  describeBasis,
   formatAnalyticsAmount,
   formatAnalyticsPeriod,
   formatBaselineBasisNote,
   formatCoverage,
   formatDelta,
+  formatMonth,
   formatPercent,
   knownAmountLabel,
   stateLabels,
@@ -45,7 +46,9 @@ function AmountSummary({ summary }: { summary: ComparisonSummary }) {
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h2 className="text-xs text-slate-500">
         {/* Never "ümumi məbləğ": the backend says whether this is the whole story, and usually it is not. */}
-        {summary.amountIsComplete ? 'Cari dövrün məbləği' : `${knownAmountLabel} məbləği`}
+        {summary.amountIsComplete
+          ? `${formatMonth(summary.currentPeriod)} sifarişlərinin məbləği`
+          : `${knownAmountLabel} məbləği`}
       </h2>
       <p className="mt-1 text-3xl font-semibold text-slate-900">{formatAnalyticsAmount(summary.currentKnownAmountTotal)}</p>
       <p className="mt-0.5 text-xs text-slate-500">
@@ -55,7 +58,7 @@ function AmountSummary({ summary }: { summary: ComparisonSummary }) {
 
       {summary.knownAmountDelta !== null && (
         <div className="mt-3 border-t border-slate-100 pt-3">
-          <span className="text-xs text-slate-500">Fərq ({basisLabels[summary.basis]})</span>
+          <span className="text-xs text-slate-500">Fərq ({describeBasis(summary.basis, summary.baselineWindowPeriods)})</span>
           <p className="mt-0.5 text-base font-semibold text-slate-900">
             {formatDelta(summary.knownAmountDelta, (value) => formatAnalyticsAmount(value))}
           </p>
@@ -112,7 +115,7 @@ function BaselineCoverage({ summary }: { summary: ComparisonSummary }) {
       className={`rounded-lg border p-3 ${partial ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-        <span className="font-medium text-slate-900">{basisLabels[summary.basis]}</span>
+        <span className="font-medium text-slate-900">{describeBasis(summary.basis, summary.baselineWindowPeriods)}</span>
         <span className={partial ? 'text-amber-900' : 'text-slate-600'}>
           {formatCoverage(summary.availableBaselinePeriodCount, summary.expectedBaselinePeriodCount)}
         </span>

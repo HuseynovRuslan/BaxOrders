@@ -292,7 +292,7 @@ public sealed class OrderRevisionService(
                 ItemCount = request.Items.Count,
                 // Only the prices somebody owes; internally supplied lines are complete as they stand.
                 MissingPrice = request.Items.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 KnownPrice = request.Items.Count(item => item.UnitPrice != null),
                 KnownAmount = request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
                 HasNewerVersion = db.OrderRequests.Any(other =>

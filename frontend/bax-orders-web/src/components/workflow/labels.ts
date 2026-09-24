@@ -1,3 +1,4 @@
+import { amountIncompleteLabel, missingPriceCount } from '../../pricing/labels'
 import type { OrderRequestStatus } from '../../api/orders'
 import type { OrderWorkflowAction } from '../../api/workflow'
 
@@ -31,12 +32,16 @@ export const workflowActionLabels: Record<OrderWorkflowAction, string> = {
   SubmittedForApproval: 'Təsdiqə göndərildi',
   Approved: 'Təsdiqləndi',
   ReturnedForCorrection: 'Düzəlişə qaytarıldı',
+  // Says what happened, not that somebody here decided it: these orders were approved before this system.
+  ImportedAsApproved: 'Təsdiqlənmiş kimi köçürülüb',
 }
 
 export const workflowActionClass: Record<OrderWorkflowAction, string> = {
   SubmittedForApproval: 'bg-sky-100 text-sky-800',
   Approved: 'bg-emerald-100 text-emerald-800',
   ReturnedForCorrection: 'bg-amber-100 text-amber-800',
+  // Grey, not the green of a decision made here: this is a record carried over, not an approval given.
+  ImportedAsApproved: 'bg-slate-100 text-slate-700',
 }
 
 /** The button that starts each action, worded for the state it starts from. */
@@ -46,6 +51,20 @@ export const approveLabel = 'Təsdiqlə'
 export const returnLabel = 'Düzəlişə qaytar'
 
 export const acknowledgeMissingPricesLabel = 'Qiyməti olmayan sətirlərin mövcud olduğunu bilirəm.'
+
+// One home for what an empty price cell means; see src/pricing/labels.
+
+/** Said only of a request that really is still waiting to be sent. */
+export const notSubmittedYetNote = 'Hələ təqdim olunmayıb'
+
+/**
+ * Said of an order approved before this system existed.
+ *
+ * Its approval happened at some real moment nobody recorded, so there is no date to show and none is made up.
+ * What must not be said is "hələ təqdim olunmayıb": the order was approved, and calling it unsent would
+ * contradict the state badge beside it.
+ */
+export const momentsNotRecordedNote = 'Təqdim və təsdiq tarixi sistemdə qeyd olunmayıb'
 
 /**
  * Said where the state and the role would both allow a decision and the only thing in the way is that this
@@ -66,7 +85,7 @@ export function missingPriceWarning(count: number): string {
 }
 
 export function missingPriceNote(count: number): string {
-  return `${count} sətirdə qiymət yoxdur. Məbləğ tam deyil.`
+  return `${missingPriceCount(count)}. ${amountIncompleteLabel}.`
 }
 
 /** Read by the operator, not by a developer: the server's own message is shown when it has one. */

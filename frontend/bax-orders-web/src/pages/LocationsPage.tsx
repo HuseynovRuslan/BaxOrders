@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { fetchLocationOrders, type LocationOrderList, type LocationOrderSort } from '../api/orders'
 import { PageHeader } from '../components/PageHeader'
+import { missingPriceCount } from '../pricing/labels'
 import { StatusBadge } from '../components/StatusBadge'
 import { SummaryMetric } from '../components/SummaryMetric'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
@@ -159,7 +160,7 @@ export function LocationsPage() {
                   <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(location.latestKnownAmount)}</p>
                   {location.latestMissingPriceItemCount > 0 && (
                     <p className="text-xs text-amber-800">
-                      {formatCount(location.latestMissingPriceItemCount)} məhsulun qiyməti yoxdur
+                      {missingPriceCount(location.latestMissingPriceItemCount)}
                     </p>
                   )}
                 </td>

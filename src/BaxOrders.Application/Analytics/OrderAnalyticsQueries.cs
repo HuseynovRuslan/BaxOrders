@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Normalization;
@@ -40,7 +40,19 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             return null;
         }
 
-        var baselinePeriods = BaselineWindow.PeriodsFor(currentPeriod, query.Basis);
+        var selection = query.SelectionFor(currentPeriod);
+
+        // The window for "every prior month" is the company's history, not this object's: an object that has
+        // six of the company's nine months is missing three, and saying so is the point of the figure.
+        var companyPeriods = BaselineWindow.NeedsCompanyPeriods(selection.Basis)
+            ? await db.OrderRequests.AsNoTracking()
+                .Where(request => request.RequestPeriod < currentPeriod)
+                .Select(request => request.RequestPeriod)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : null;
+
+        var baselinePeriods = BaselineWindow.PeriodsFor(currentPeriod, selection, companyPeriods);
         var wanted = baselinePeriods.Append(currentPeriod).ToArray();
         var requests = await LatestRequestsAsync(locationId, wanted, cancellationToken);
 
@@ -132,7 +144,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             .ThenBy(row => row.Variant.ProductVariantId)];
 
         var summary = Summarize(
-            location, currentPeriod, query.Basis, current, baseline, missing,
+            location, currentPeriod, selection, baselinePeriods, current, baseline, missing,
             currentSnapshots.Values, baselineByVariant.Values.SelectMany(list => list), rows);
 
         var filtered = Filter(rows, variants, query);
@@ -217,7 +229,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
         {
             return new VariantTrendDto(
                 location.Id, location.Code, location.Name, variant.Identity, variant.Kind,
-                query.From ?? default, query.To ?? default, []);
+                query.From ?? default, query.To ?? default, [], Frequency([]));
         }
 
         var requestIds = periods.Select(period => period.OrderRequestId).ToArray();
@@ -230,13 +242,13 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
-                // recorded property of the supplier and never a guess from its name. No supplier at all is
-                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                // A price is only missing when it was owed, and the line itself says whether it was — see
+                // PricingMode for why no property of the supplier can answer that. A line nobody has classified
+                // counts as owed: the cautious reading is the one that cannot hide a real gap.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -268,8 +280,62 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
 
         return new VariantTrendDto(
             location.Id, location.Code, location.Name, variant.Identity, variant.Kind,
-            query.From ?? points[0].Period, query.To ?? points[^1].Period, points);
+            query.From ?? points[0].Period, query.To ?? points[^1].Period, points, Frequency(points));
     }
+
+    /// <summary>
+    /// How often this location orders this product, counted from the months it has orders for.
+    /// </summary>
+    /// <remarks>
+    /// The points are already the answer: one per month the location ordered anything, in order, with an item
+    /// count that is zero for the months it ordered without this product. So this counts and never estimates,
+    /// and it costs no query.
+    /// <para>
+    /// The distinction the whole figure rests on is that a month with no request is not in <paramref name="points"/>
+    /// at all. Such a month is neither a month the product was ordered nor a month it was skipped, and counting
+    /// it either way would put a number on something nobody recorded.
+    /// </para>
+    /// </remarks>
+    private static VariantOrderFrequencyDto Frequency(IReadOnlyList<VariantTrendPointDto> points)
+    {
+        var ordered = points.Where(point => point.ItemCount > 0).Select(point => point.Period).ToList();
+        if (ordered.Count == 0)
+        {
+            return new VariantOrderFrequencyDto(points.Count, 0, null, null, null, [], null, null, null);
+        }
+
+        var intervals = new List<int>(ordered.Count - 1);
+        for (var index = 1; index < ordered.Count; index++)
+        {
+            intervals.Add(MonthsBetween(ordered[index - 1], ordered[index]));
+        }
+
+        // The median rather than the mean: one long gap in a year of monthly orders should not make the typical
+        // interval "every two months". With one gap there is nothing typical yet, so nothing is claimed.
+        int? typical = null;
+        if (intervals.Count >= 2)
+        {
+            var sorted = intervals.Order().ToList();
+            var middle = sorted.Count / 2;
+            typical = sorted.Count % 2 == 1
+                ? sorted[middle]
+                : (int)Math.Round((sorted[middle - 1] + sorted[middle]) / 2m, MidpointRounding.AwayFromZero);
+        }
+
+        return new VariantOrderFrequencyDto(
+            points.Count,
+            ordered.Count,
+            ordered[0],
+            ordered[^1],
+            MonthsBetween(ordered[^1], points[^1].Period),
+            intervals,
+            typical,
+            intervals.Count == 0 ? null : intervals.Min(),
+            intervals.Count == 0 ? null : intervals.Max());
+    }
+
+    private static int MonthsBetween(DateOnly from, DateOnly to) =>
+        ((to.Year - from.Year) * 12) + to.Month - from.Month;
 
     // ---- reading ------------------------------------------------------------------------------------
 
@@ -306,13 +372,13 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
-                // recorded property of the supplier and never a guess from its name. No supplier at all is
-                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                // A price is only missing when it was owed, and the line itself says whether it was — see
+                // PricingMode for why no property of the supplier can answer that. A line nobody has classified
+                // counts as owed: the cautious reading is the one that cannot hide a real gap.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -421,7 +487,8 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
     private static ComparisonSummaryDto Summarize(
         LocationRef location,
         DateOnly currentPeriod,
-        AnalyticsComparisonBasis basis,
+        ComparisonSelection selection,
+        IReadOnlyList<DateOnly> baselinePeriods,
         PeriodRequestDto current,
         IReadOnlyList<PeriodRequestDto> baseline,
         IReadOnlyList<DateOnly> missing,
@@ -443,11 +510,14 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             location.Code,
             location.Name,
             currentPeriod,
-            basis,
+            selection.Basis,
+            selection.CustomStart,
+            selection.CustomEnd,
+            baselinePeriods,
             current.OrderRequestId,
             current.Version,
             current.Status,
-            BaselineWindow.ExpectedPeriodCount(basis),
+            baselinePeriods.Count,
             available,
             missing,
             baseline,

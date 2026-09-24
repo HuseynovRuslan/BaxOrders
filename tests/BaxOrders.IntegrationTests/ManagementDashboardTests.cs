@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
@@ -370,9 +370,17 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
         var filtered = await Queries(db).GetAsync(
             world.July, new DashboardQuery(HasCurrentRequest: false, PageSize: 100), CancellationToken.None);
 
-        // The summary is the company's month; only the row count follows the filter.
-        Assert.Equal(everything!.Summary, onePage!.Summary);
-        Assert.Equal(everything.Summary, filtered!.Summary);
+        // The summary is the company's month; only the row count follows the filter. Its window of months is
+        // compared on its own: a list inside a record is compared by reference, so leaving it in would make
+        // every one of these pass or fail for the wrong reason.
+        static void AssertSameSummary(ManagementDashboardSummaryDto expected, ManagementDashboardSummaryDto actual)
+        {
+            Assert.Equal(expected with { BaselinePeriods = [] }, actual with { BaselinePeriods = [] });
+            Assert.Equal(expected.BaselinePeriods, actual.BaselinePeriods);
+        }
+
+        AssertSameSummary(everything!.Summary, onePage!.Summary);
+        AssertSameSummary(everything.Summary, filtered!.Summary);
         Assert.Equal(everything.FilteredLocationCount, everything.Rows.TotalCount);
         Assert.True(filtered.FilteredLocationCount < everything.FilteredLocationCount);
         Assert.Equal(everything.Summary.LocationsWithoutCurrentRequest, filtered.FilteredLocationCount);
@@ -440,7 +448,12 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
 
         foreach (var basis in Enum.GetValues<AnalyticsComparisonBasis>())
         {
-            await Queries(db).GetAsync(world.July, new DashboardQuery(basis, PageSize: 100), CancellationToken.None);
+            // A hand-picked range needs its months; every other basis works them out for itself.
+            var query = basis is AnalyticsComparisonBasis.CustomRange
+                ? new DashboardQuery(basis, PageSize: 100, CustomStart: "2026-05", CustomEnd: "2026-06")
+                : new DashboardQuery(basis, PageSize: 100);
+
+            await Queries(db).GetAsync(world.July, query, CancellationToken.None);
         }
 
         await Queries(db).GetPeriodsAsync(CancellationToken.None);

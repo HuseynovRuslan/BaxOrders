@@ -415,3 +415,106 @@ describe('the history', () => {
     expect(screen.getByText(/3 qiymətsiz sətir təsdiq zamanı qeyd edilib/)).toBeInTheDocument()
   })
 })
+
+/**
+ * An order approved before this system existed: Approved, with neither moment recorded.
+ *
+ * The migration left both dates null on purpose — the real approval happened at a moment nobody wrote down,
+ * and stamping it with the moment the migration ran would be a date nobody could stand behind. The panel has
+ * to say that plainly without either inventing a date or calling an approved order unsent.
+ */
+const historical = (): Partial<OrderWorkflow> => ({
+  status: 'Approved',
+  submittedAtUtc: null,
+  approvedAtUtc: null,
+  returnedAtUtc: null,
+  submittedByUserId: null,
+  history: [{
+    id: 1,
+    action: 'ImportedAsApproved',
+    fromStatus: 'Draft',
+    toStatus: 'Approved',
+    actorUserId: null,
+    actorDisplayName: 'Sistem',
+    comment: 'Tarixi sifariş sistemə artıq təsdiqlənmiş kimi köçürülüb.',
+    missingPriceItemCount: 0,
+    missingPricesAcknowledged: false,
+    occurredAtUtc: '2026-09-23T12:26:42Z',
+  }],
+})
+
+describe('an order approved before this system existed', () => {
+  it('reads as approved', async () => {
+    await renderPanel(workflow(historical()))
+
+    expect(screen.getByText('Təsdiqlənib')).toBeInTheDocument()
+  })
+
+  it('offers no action, the same as any approved order', async () => {
+    await renderPanel(workflow(historical()))
+
+    expect(screen.queryByRole('button', { name: /Təsdiqə göndər/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Təsdiqlə' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Düzəlişə qaytar/ })).toBeNull()
+  })
+
+  it('shows no submission or approval date, because there is none to show', async () => {
+    await renderPanel(workflow(historical()))
+
+    expect(screen.queryByText(/Təqdim: /)).toBeNull()
+    expect(screen.queryByText(/Təsdiq: /)).toBeNull()
+    expect(screen.getByText(/Təqdim və təsdiq tarixi sistemdə qeyd olunmayıb/)).toBeInTheDocument()
+  })
+
+  /** The order was approved. Calling it unsent would contradict the badge directly above it. */
+  it('never calls an approved order one that has not been sent', async () => {
+    await renderPanel(workflow(historical()))
+
+    expect(screen.queryByText(/Hələ təqdim olunmayıb/)).toBeNull()
+  })
+
+  it('still says a genuine draft has not been sent', async () => {
+    await renderPanel(workflow({ status: 'Draft' }))
+
+    expect(screen.getByText(/Hələ təqdim olunmayıb/)).toBeInTheDocument()
+    expect(screen.queryByText(/qeyd olunmayıb/)).toBeNull()
+  })
+
+  it('names the carried-over event in the reader s own words', async () => {
+    await renderPanel(workflow(historical()))
+
+    const entry = screen.getByRole('listitem')
+    expect(within(entry).getByText('Təsdiqlənmiş kimi köçürülüb')).toBeInTheDocument()
+    expect(within(entry).queryByText('Təsdiqləndi')).toBeNull()
+  })
+
+  /** Nobody in this system approved it, so the history names the system rather than a person. */
+  it('names nobody as the approver', async () => {
+    await renderPanel(workflow(historical()))
+
+    const entry = screen.getByRole('listitem')
+    expect(within(entry).getByText(/Sistem/)).toBeInTheDocument()
+    expect(within(entry).getByText(/Tarixi sifariş sistemə artıq təsdiqlənmiş kimi köçürülüb/)).toBeInTheDocument()
+  })
+
+  /** Grey, not the green of a decision taken here: this is a record carried over, not an approval given. */
+  it('does not dress the carried-over record as a decision made here', async () => {
+    await renderPanel(workflow(historical()))
+
+    expect(screen.getByText('Təsdiqlənmiş kimi köçürülüb')).toHaveClass('bg-slate-100')
+  })
+})
+
+describe('an order approved through the workflow', () => {
+  it('shows both moments it recorded', async () => {
+    await renderPanel(workflow({
+      status: 'Approved',
+      submittedAtUtc: '2026-09-10T08:00:00Z',
+      approvedAtUtc: '2026-09-11T09:30:00Z',
+    }))
+
+    expect(screen.getByText(/Təqdim: /)).toBeInTheDocument()
+    expect(screen.getByText(/Təsdiq: /)).toBeInTheDocument()
+    expect(screen.queryByText(/qeyd olunmayıb/)).toBeNull()
+  })
+})

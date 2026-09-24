@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Decisions;
@@ -78,7 +78,8 @@ public sealed record VariantCauseResult(
     int BaselineItemCount,
     int MissingRequiredPriceItemCount,
     int PriceNotRequiredItemCount,
-    bool PriceIsComplete);
+    bool PriceIsComplete,
+    bool SupplyChanged);
 
 /// <param name="VariantCount">
 /// Variants that put money in this category. For the two split categories that means variants whose own
@@ -97,13 +98,23 @@ public sealed record CauseCategoryTotal(CauseCategory Category, decimal Amount, 
 /// <param name="InternalSupplyVariantCount">
 /// Variants supplied from the company's own store. Neutral context, never a warning.
 /// </param>
+/// <param name="SupplyChangedVariantCount">
+/// Variants the company paid for in one of the two months and supplied itself in the other.
+/// </param>
+/// <remarks>
+/// <paramref name="SupplyChangedVariantCount"/> is reported apart from the rest because it is the one case
+/// where the two months are not measuring the same thing. A product bought last month and issued free this
+/// month shows a money difference equal to everything it used to cost, and calling that a fall in spending
+/// without saying what changed would be a true number telling a false story.
+/// </remarks>
 public sealed record CauseDecompositionResult(
     IReadOnlyList<CauseCategoryTotal> Categories,
     IReadOnlyList<VariantCauseResult> Variants,
     decimal TotalAmountImpact,
     bool ExplanationIsComplete,
     int UnattributedVariantCount,
-    int InternalSupplyVariantCount);
+    int InternalSupplyVariantCount,
+    int SupplyChangedVariantCount);
 
 /// <summary>
 /// Splits the difference between two months into causes, arithmetically and with no judgement: no model, no
@@ -185,6 +196,7 @@ public static class CauseDecomposition
 
         var unattributed = variants.Count(variant => variant.Category == CauseCategory.UnattributedDueToMissingPrice);
         var internalSupply = variants.Count(variant => variant.Category == CauseCategory.InternalSupply);
+        var supplyChanged = variants.Count(variant => variant.SupplyChanged);
 
         return new CauseDecompositionResult(
             categories,
@@ -192,7 +204,8 @@ public static class CauseDecomposition
             total,
             unattributed == 0,
             unattributed,
-            internalSupply);
+            internalSupply,
+            supplyChanged);
     }
 
     private static (decimal Amount, int Count) Contributions(
@@ -255,6 +268,13 @@ public static class CauseDecomposition
 
         // Complete means nothing is owed, not that everything carries a price.
         var priceIsComplete = missingRequired == 0;
+
+        // Paid on one side and issued free on the other. Both months are ordinary and neither is missing
+        // anything, which is exactly why this has to be said: the money moved because the supply arrangement
+        // changed, not because the company bought more or paid a different price.
+        var supplyChanged =
+            (current is { PriceNotRequiredItemCount: > 0 } && baseline is { KnownPriceItemCount: > 0 })
+            || (baseline is { PriceNotRequiredItemCount: > 0 } && current is { KnownPriceItemCount: > 0 });
 
         var currentPrice = WeightedPrice(current);
         var baselinePrice = WeightedPrice(baseline);
@@ -333,7 +353,8 @@ public static class CauseDecomposition
             baseline?.ItemCount ?? 0,
             missingRequired,
             priceNotRequired,
-            priceIsComplete);
+            priceIsComplete,
+            supplyChanged);
     }
 
     /// <summary>

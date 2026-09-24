@@ -1,9 +1,32 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { fetchVariantTrend, type VariantIdentity, type VariantTrend } from '../../api/analytics'
-import { formatNumber } from '../imports/labels'
+import {
+  fetchVariantTrend,
+  type VariantIdentity,
+  type VariantOrderFrequency,
+  type VariantTrend,
+  type VariantTrendPoint,
+} from '../../api/analytics'
+import type { DecisionDriver } from '../../api/decisions'
+import { formatNumber, formatOrderUnit } from '../imports/labels'
 import { Modal } from '../imports/review/Modal'
-import { formatAnalyticsPeriod, formatVariantLine, internalSupplyLabel, unknownValue } from './labels'
-import { formatTrendValue, metricLabels, monthsBetween, trendValueOf, type TrendMetric, type TrendSlot } from './trend'
+import { InfoHint } from './InfoHint'
+import { formatMoneyDelta, formatPercent, signedToneClass } from './format'
+import {
+  formatAnalyticsAmount,
+  formatAnalyticsPeriod,
+  formatPrice,
+  formatVariantLine,
+  internalSupplyLabel,
+  unknownValue,
+  weightedPriceHint,
+} from './labels'
+import {
+  frequencySentence,
+  metricLabels,
+  monthsBetween,
+  type TrendMetric,
+  type TrendSlot,
+} from './trend'
 
 // Charting is only downloaded when somebody actually opens a trend.
 const TrendChart = lazy(() => import('./TrendChart').then((module) => ({ default: module.TrendChart })))
@@ -15,10 +38,23 @@ interface TrendModalProps {
   to: string
   /** Earliest month to show. Omitted means the whole history the location has. */
   from?: string
+  /**
+   * The comparison this product was opened from, when it was opened from one. It carries the before-and-after
+   * figures the driver row deliberately leaves out, which is what makes that row a summary rather than a table.
+   */
+  driver?: DecisionDriver | null
   onClose: () => void
 }
 
-export function TrendModal({ locationId, variant, isService, to, from, onClose }: TrendModalProps) {
+/**
+ * One product at one object, over time.
+ *
+ * Read in the order a manager asks: what changed this month, how often the thing is ordered at all, and then
+ * the whole history as a chart and as a table. The table is the four figures a manager thinks in — month,
+ * quantity, price, amount — and the technical record of which request and which version each month came from
+ * is folded away underneath, because it answers a different question from a different job.
+ */
+export function TrendModal({ locationId, variant, isService, to, from, driver, onClose }: TrendModalProps) {
   const [trend, setTrend] = useState<VariantTrend | null>(null)
   const [error, setError] = useState<string | null>(null)
   // A service has no quantity to plot, so its trend opens on money.
@@ -50,6 +86,7 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
 
   const metrics: TrendMetric[] = isService ? ['amount', 'price'] : ['quantity', 'amount', 'price']
   const gaps = slots.filter((slot) => slot.point === null).length
+  const unit = formatOrderUnit(variant.orderUnitCode)
 
   return (
     <Modal title="Trend" subtitle={`${variant.productName} · ${formatVariantLine(variant)}`} onClose={onClose} width="wide">
@@ -65,6 +102,10 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
 
       {trend !== null && slots.length > 0 && (
         <div className="space-y-3">
+          {driver && <ComparisonDetail driver={driver} isService={isService} unit={unit} />}
+
+          <Frequency frequency={trend.frequency} />
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500">
               {formatAnalyticsPeriod(slots[0].period)} – {formatAnalyticsPeriod(slots[slots.length - 1].period)}
@@ -72,7 +113,7 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
               {formatNumber(trend.points.length)} dövr
             </p>
 
-            <div className="flex gap-1" role="group" aria-label="Trend göstəricisi">
+            <div className="flex items-center gap-1" role="group" aria-label="Trend göstəricisi">
               {metrics.map((option) => (
                 <button
                   key={option}
@@ -88,6 +129,7 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
                   {metricLabels[option]}
                 </button>
               ))}
+              <InfoHint label="Orta qiymət necə hesablanır?">{weightedPriceHint}</InfoHint>
             </div>
           </div>
 
@@ -102,19 +144,64 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
             </p>
           )}
 
-          {/* The same numbers as a table, so the trend is not available only to people who can see the chart. */}
+          {/* The same history as figures, in the four a manager reads. Present always, not behind a summary:
+              the numbers are the point of the screen, and the chart is one way of looking at them. */}
+          <div className="overflow-x-auto rounded-md border border-slate-200">
+            <table className="min-w-full text-left text-xs">
+              <caption className="sr-only">
+                {variant.productName} üzrə aylıq miqdar, qiymət və məbləğ
+              </caption>
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th scope="col" className="px-3 py-1.5 font-medium">Ay</th>
+                  <th scope="col" className="px-3 py-1.5 text-right font-medium">Miqdar</th>
+                  <th scope="col" className="px-3 py-1.5 text-right font-medium">Qiymət</th>
+                  <th scope="col" className="px-3 py-1.5 text-right font-medium">Məbləğ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {slots.map((slot) => (
+                  <tr key={slot.period} className={slot.point === null ? 'text-slate-400' : 'text-slate-700'}>
+                    <th scope="row" className="px-3 py-1.5 font-normal">{formatAnalyticsPeriod(slot.period)}</th>
+
+                    {slot.point === null ? (
+                      // No request that month at all. Not an order of nothing — three dashes, not three zeros.
+                      <td className="px-3 py-1.5 text-slate-400" colSpan={3}>
+                        sifariş yoxdur
+                      </td>
+                    ) : (
+                      <>
+                        <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                          {slot.point.quantity === null
+                            ? unknownValue
+                            : `${formatNumber(slot.point.quantity)}${unit ? ` ${unit}` : ''}`}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                          <PriceCell point={slot.point} />
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                          {/* Never a fabricated 0 ₼: a month with no purchase price has no amount to show. */}
+                          {slot.point.knownAmount === null ? unknownValue : formatAnalyticsAmount(slot.point.knownAmount)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Which request each month came from. A different job's question, so it is folded away. */}
           <details className="rounded-md border border-slate-200">
             <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-slate-700">
-              Rəqəmlərlə ({formatNumber(slots.length)} ay)
+              Mənbə və versiya məlumatı
             </summary>
             <div className="overflow-x-auto border-t border-slate-200">
               <table className="min-w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th scope="col" className="px-3 py-1.5 font-medium">Ay</th>
-                    <th scope="col" className="px-3 py-1.5 font-medium">{metricLabels[metric]}</th>
                     <th scope="col" className="px-3 py-1.5 font-medium">Sətir</th>
-                    <th scope="col" className="px-3 py-1.5 font-medium">Qiymətsiz</th>
                     <th scope="col" className="px-3 py-1.5 font-medium">Versiya</th>
                   </tr>
                 </thead>
@@ -122,21 +209,7 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
                   {slots.map((slot) => (
                     <tr key={slot.period} className={slot.point === null ? 'text-slate-400' : 'text-slate-700'}>
                       <th scope="row" className="px-3 py-1.5 font-normal">{formatAnalyticsPeriod(slot.period)}</th>
-                      <td className="px-3 py-1.5">
-                        {slot.point === null ? 'sifariş yoxdur' : formatTrendValue(trendValueOf(slot.point, metric), metric)}
-                      </td>
                       <td className="px-3 py-1.5">{slot.point === null ? unknownValue : formatNumber(slot.point.itemCount)}</td>
-                      <td className="px-3 py-1.5">
-                        {slot.point === null
-                          ? unknownValue
-                          : slot.point.missingRequiredPriceItemCount > 0
-                            ? formatNumber(slot.point.missingRequiredPriceItemCount)
-                            // A month supplied from our own store owes no price, so it is described rather
-                            // than counted as a shortfall of zero.
-                            : slot.point.priceNotRequiredItemCount > 0
-                              ? internalSupplyLabel
-                              : '0'}
-                      </td>
                       <td className="px-3 py-1.5">{slot.point === null ? unknownValue : slot.point.version}</td>
                     </tr>
                   ))}
@@ -147,5 +220,168 @@ export function TrendModal({ locationId, variant, isService, to, from, onClose }
         </div>
       )}
     </Modal>
+  )
+}
+
+/**
+ * The price a month actually carried.
+ *
+ * Three different months look alike in the data and must not look alike here: one that was bought and priced,
+ * one the company supplied itself — which owes no price and is therefore complete — and one somebody still has
+ * to price. Only the last of the three is a gap, and only it is amber.
+ */
+function PriceCell({ point }: { point: VariantTrendPoint }) {
+  if (point.weightedUnitPrice !== null) {
+    return <span>{formatPrice(point.weightedUnitPrice)}</span>
+  }
+
+  if (point.priceNotRequiredItemCount > 0) {
+    return <span className="text-slate-500">{internalSupplyLabel}</span>
+  }
+
+  if (point.missingRequiredPriceItemCount > 0) {
+    return <span className="text-amber-800">{formatNumber(point.missingRequiredPriceItemCount)} sətir qiymətsiz</span>
+  }
+
+  return <span className="text-slate-400">{unknownValue}</span>
+}
+
+/**
+ * How often this object orders this product, from counted months only.
+ *
+ * A month the object has no request for is in none of these counts. It is not a month the product was skipped
+ * — nobody recorded anything about it — and turning it into a skipped month would be the same mistake as
+ * turning it into a zero.
+ */
+function Frequency({ frequency }: { frequency: VariantOrderFrequency }) {
+  if (frequency.availableMonthCount === 0) {
+    return null
+  }
+
+  const facts: string[] = []
+  if (frequency.firstOrderedPeriod) {
+    facts.push(`İlk sifariş: ${formatAnalyticsPeriod(frequency.firstOrderedPeriod)}`)
+  }
+
+  if (frequency.lastOrderedPeriod) {
+    facts.push(`Son sifariş: ${formatAnalyticsPeriod(frequency.lastOrderedPeriod)}`)
+  }
+
+  if (frequency.monthsSinceLastOrder !== null && frequency.monthsSinceLastOrder > 0) {
+    facts.push(`Son sifarişdən sonra ${formatNumber(frequency.monthsSinceLastOrder)} ay keçib`)
+  }
+
+  const interval = describeInterval(frequency)
+  if (interval) {
+    facts.push(interval)
+  }
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-slate-50 p-3" aria-label="Sifariş tezliyi">
+      <p className="text-sm font-medium text-slate-900">{frequencySentence(frequency)}</p>
+      {facts.length > 0 && <p className="mt-0.5 text-xs text-slate-600">{facts.join(' · ')}</p>}
+    </section>
+  )
+}
+
+/** "Tipik interval: 1–2 ay" — a median with its range, and nothing at all until there is a median to give. */
+function describeInterval(frequency: VariantOrderFrequency): string | null {
+  if (frequency.typicalIntervalMonths === null) {
+    return null
+  }
+
+  const { shortestIntervalMonths: shortest, longestIntervalMonths: longest } = frequency
+  if (shortest !== null && longest !== null && shortest !== longest) {
+    return `Tipik interval: ${formatNumber(shortest)}–${formatNumber(longest)} ay`
+  }
+
+  return `Tipik interval: ${formatNumber(frequency.typicalIntervalMonths)} ay`
+}
+
+/**
+ * The comparison the product was opened from, in full.
+ *
+ * This is the other half of progressive disclosure: the driver row says what changed and what it did to the
+ * money, and everything it left out is here — both sides of every figure, and the split of the difference into
+ * the part quantity accounts for and the part price accounts for.
+ */
+function ComparisonDetail({
+  driver,
+  isService,
+  unit,
+}: {
+  driver: DecisionDriver
+  isService: boolean
+  unit: string
+}) {
+  return (
+    <section className="rounded-md border border-slate-200 p-3" aria-label="Bu ayın müqayisəsi">
+      <div className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+        {!isService && (
+          <Pair
+            label="Miqdar"
+            baseline={driver.baselineQuantity === null ? unknownValue : `${formatNumber(driver.baselineQuantity)}${unit ? ` ${unit}` : ''}`}
+            current={driver.currentQuantity === null ? unknownValue : `${formatNumber(driver.currentQuantity)}${unit ? ` ${unit}` : ''}`}
+            note={driver.quantityPercentChange === null ? null : formatPercent(driver.quantityPercentChange)}
+          />
+        )}
+        <Pair
+          label="Qiymət"
+          baseline={driver.baselineUnitPrice === null ? unknownValue : formatPrice(driver.baselineUnitPrice)}
+          current={driver.currentUnitPrice === null ? unknownValue : formatPrice(driver.currentUnitPrice)}
+          note={driver.unitPricePercentChange === null ? null : formatPercent(driver.unitPricePercentChange)}
+        />
+        <Pair
+          label="Məbləğ"
+          baseline={driver.baselineKnownAmount === null ? unknownValue : formatAnalyticsAmount(driver.baselineKnownAmount)}
+          current={driver.currentKnownAmount === null ? unknownValue : formatAnalyticsAmount(driver.currentKnownAmount)}
+          note={null}
+        />
+      </div>
+
+      {(driver.quantityImpact !== null || driver.priceImpact !== null) && (
+        <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-xs">
+          {driver.quantityImpact !== null && (
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-slate-500">Miqdar təsiri</dt>
+              <dd className={`font-medium ${signedToneClass(driver.quantityImpact)}`}>
+                {formatMoneyDelta(driver.quantityImpact)}
+              </dd>
+            </div>
+          )}
+          {driver.priceImpact !== null && (
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-slate-500">Qiymət təsiri</dt>
+              <dd className={`font-medium ${signedToneClass(driver.priceImpact)}`}>
+                {formatMoneyDelta(driver.priceImpact)}
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </section>
+  )
+}
+
+/** "Keçən ay → bu ay", with the percentage underneath where there is one. */
+function Pair({
+  label,
+  baseline,
+  current,
+  note,
+}: {
+  label: string
+  baseline: string
+  current: string
+  note: string | null
+}) {
+  return (
+    <div>
+      <p className="text-slate-500">{label}</p>
+      <p className="whitespace-nowrap font-medium text-slate-900">
+        {baseline} <span className="text-slate-400">→</span> {current}
+      </p>
+      {note && <p className="text-slate-500">{note}</p>}
+    </div>
   )
 }

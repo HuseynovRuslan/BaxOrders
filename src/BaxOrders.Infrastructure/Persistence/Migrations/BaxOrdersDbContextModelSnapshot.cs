@@ -1329,6 +1329,52 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderItemPricingDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewMode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("OrderRequestItemId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("PreviousMode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderRequestItemId", "OccurredAtUtc");
+
+                    b.ToTable("OrderItemPricingDecisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OrderItemPricingDecisions_ModeChanged", "\"PreviousMode\" <> \"NewMode\"");
+                        });
+                });
+
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequest", b =>
                 {
                     b.Property<long>("Id")
@@ -1487,6 +1533,13 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Property<string>("OriginalProductName")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PricingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("PriceRequired");
 
                     b.Property<long>("ProductVariantId")
                         .HasColumnType("bigint");
@@ -2300,6 +2353,17 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Orders.OrderItemPricingDecision", b =>
+                {
+                    b.HasOne("BaxOrders.Domain.Orders.OrderRequestItem", "OrderRequestItem")
+                        .WithMany()
+                        .HasForeignKey("OrderRequestItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrderRequestItem");
                 });
 
             modelBuilder.Entity("BaxOrders.Domain.Orders.OrderRequest", b =>

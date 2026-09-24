@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Domain.Catalog;
@@ -97,7 +97,7 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         var world = await WorldAsync(db, june: [(10m, 5m)], july: [(20m, 6m), (5m, 40m)]);
 
         var row = await RowAsync(db, world);
-        var context = (await new OrderDecisionContextQueries(db).GetAsync(world.JulyId, None))!;
+        var context = (await new OrderDecisionContextQueries(db).GetAsync(world.JulyId, new DecisionContextQuery(), None))!;
 
         // One decomposition, two screens. If these ever disagree the manager has been told two stories.
         var strongest = context.Decomposition!.Categories

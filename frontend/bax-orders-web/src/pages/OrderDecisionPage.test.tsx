@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity, VariantTrend } from '../api/analytics'
-import type { DecisionDriver, OrderDecisionContext } from '../api/decisions'
+import type { DecisionComparison, DecisionDriver, OrderDecisionContext } from '../api/decisions'
 import type { OrderRequestDetail, OrderRequestItem } from '../api/orders'
 import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
@@ -82,6 +82,27 @@ function driver(overrides: Partial<DecisionDriver> = {}): DecisionDriver {
     missingPriceItemCount: 0,
     priceNotRequiredItemCount: 0,
     priceIsComplete: true,
+    supplyChanged: false,
+    ...overrides,
+  }
+}
+
+/** One basis resolved for the order. Whichever is primary, the shape is the same. */
+function comparison(overrides: Partial<DecisionComparison> = {}): DecisionComparison {
+  return {
+    basis: 'PreviousMonth',
+    customStart: null,
+    customEnd: null,
+    windowPeriods: ['2026-06-01'],
+    expectedPeriodCount: 1,
+    availablePeriodCount: 1,
+    missingPeriods: [],
+    periods: [],
+    available: true,
+    baselineKnownAmount: 4200,
+    deltaAmount: 600,
+    deltaPercent: 14.2857,
+    amountIsComplete: true,
     ...overrides,
   }
 }
@@ -106,43 +127,46 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
       priceNotRequiredItemCount: 0,
       isComplete: true,
     },
-    previousMonth: {
-      available: true,
-      period: '2026-06-01',
-      request: { period: '2026-06-01', orderRequestId: 104, version: 1, status: 'Approved' },
-      amount: {
-        knownAmount: 4200,
-        itemCount: 38,
-        knownPriceItemCount: 38,
-        missingPriceItemCount: 0,
-        priceNotRequiredItemCount: 0,
-        isComplete: true,
-      },
+    primary: comparison({
+      basis: 'PreviousMonth',
+      windowPeriods: ['2026-06-01'],
+      expectedPeriodCount: 1,
+      availablePeriodCount: 1,
+      periods: [{ period: '2026-06-01', orderRequestId: 104, version: 1, status: 'Approved' }],
+      baselineKnownAmount: 4200,
       deltaAmount: 600,
       deltaPercent: 14.2857,
-    },
-    threeMonth: {
-      basis: 'Previous3MonthAverage',
-      expectedPeriodCount: 3,
-      availablePeriodCount: 2,
-      missingPeriods: ['2026-04-01'],
-      periods: [],
-      averageKnownAmount: 4000,
-      deltaAmount: 800,
-      deltaPercent: 20,
-      amountIsComplete: true,
-    },
-    sixMonth: {
-      basis: 'Previous6MonthAverage',
-      expectedPeriodCount: 6,
-      availablePeriodCount: 3,
-      missingPeriods: [],
-      periods: [],
-      averageKnownAmount: 3800,
-      deltaAmount: 1000,
-      deltaPercent: 26.3158,
-      amountIsComplete: true,
-    },
+    }),
+    secondary: [
+      comparison({
+        basis: 'Previous3MonthAverage',
+        windowPeriods: ['2026-04-01', '2026-05-01', '2026-06-01'],
+        expectedPeriodCount: 3,
+        availablePeriodCount: 2,
+        missingPeriods: ['2026-04-01'],
+        baselineKnownAmount: 4000,
+        deltaAmount: 800,
+        deltaPercent: 20,
+      }),
+      comparison({
+        basis: 'Previous6MonthAverage',
+        windowPeriods: ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01'],
+        expectedPeriodCount: 6,
+        availablePeriodCount: 3,
+        baselineKnownAmount: 3800,
+        deltaAmount: 1000,
+        deltaPercent: 26.3158,
+      }),
+      comparison({
+        basis: 'AllPriorMonths',
+        windowPeriods: ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01'],
+        expectedPeriodCount: 6,
+        availablePeriodCount: 3,
+        baselineKnownAmount: 3700,
+        deltaAmount: 1100,
+        deltaPercent: 29.7297,
+      }),
+    ],
     decomposition: {
       categories: [
         { category: 'NewOrders', amount: 50, variantCount: 1 },
@@ -156,6 +180,7 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
       explanationIsComplete: true,
       unattributedVariantCount: 0,
       internalSupplyVariantCount: 0,
+      supplyChangedVariantCount: 0,
       drivers: [driver()],
     },
     ...overrides,
@@ -181,7 +206,8 @@ function item(): OrderRequestItem {
     lineTotal: 123,
     supplierId: null,
     supplierName: null,
-    supplierPriceRequirement: 'Required',
+    pricingMode: 'PriceRequired',
+    sourceSupplierName: null,
     categoryPath: [],
     source: null,
     sourceOrderRequestItemId: null,
@@ -281,6 +307,17 @@ function trend(): VariantTrend {
     analyticsKind: 'QuantityComparable',
     from: '2026-06-01',
     to: '2026-07-01',
+    frequency: {
+      availableMonthCount: 2,
+      orderedMonthCount: 2,
+      firstOrderedPeriod: '2026-06-01',
+      lastOrderedPeriod: '2026-07-01',
+      monthsSinceLastOrder: 0,
+      intervalsInMonths: [1],
+      typicalIntervalMonths: null,
+      shortestIntervalMonths: 1,
+      longestIntervalMonths: 1,
+    },
     points: [
       {
         period: '2026-06-01',
@@ -347,18 +384,32 @@ describe('the first screenful', () => {
   it('puts the comparison with last month directly under it', async () => {
     await renderPage()
 
-    expect(within(headline()).getByText('İyun 2026')).toBeInTheDocument()
+    // The comparison names itself and the months it covers, so the figure under it cannot be misread.
+    expect(within(headline()).getByText(/Müqayisə: Keçən ay \(İyun 2026\)/)).toBeInTheDocument()
     expect(within(headline()).getByText('4.200,00 ₼')).toBeInTheDocument()
     expect(within(headline()).getByText('+600,00 ₼')).toBeInTheDocument()
     expect(within(headline()).getByText('+14,29%')).toBeInTheDocument()
   })
 
-  it('keeps the longer runs of months as quiet context beside it', async () => {
+  it('keeps the other bases as quiet context beside it', async () => {
     await renderPage()
 
-    expect(within(headline()).getByText('Son 3 ayın ortalaması')).toBeInTheDocument()
-    expect(within(headline()).getByText(/2\/3 ay/)).toBeInTheDocument()
-    expect(within(headline()).getByText('Son 6 ayın ortalaması')).toBeInTheDocument()
+    const beside = within(within(headline()).getByLabelText('Digər müqayisə bazaları'))
+    // Named in the small print, not in the headline: context, never a second verdict.
+    expect(beside.getByText('Son 3 ayın ortalaması')).toBeInTheDocument()
+    expect(beside.getByText(/2\/3 ay/)).toBeInTheDocument()
+    expect(beside.getByText('Son 6 ayın ortalaması')).toBeInTheDocument()
+    // "Bütün dövr" was missing from this screen entirely; it is a first-class basis now.
+    expect(beside.getByText('Bütün dövrün ortalaması')).toBeInTheDocument()
+  })
+
+  it('offers the same five choices the dashboard offers', async () => {
+    await renderPage()
+
+    const picker = within(within(headline()).getByRole('group', { name: 'Müqayisə' }))
+    for (const label of ['Keçən ay', 'Son 3 ayın ortalaması', 'Son 6 ayın ortalaması', 'Bütün dövr', 'Xüsusi seçim']) {
+      expect(picker.getByRole('button', { name: label })).toBeInTheDocument()
+    }
   })
 
   it('answers why it changed, and offers the decision', async () => {
@@ -373,19 +424,20 @@ describe('the first screenful', () => {
 describe('a month with nothing before it', () => {
   it('says so, and does not present its products as new', async () => {
     decisionsApi.fetchDecisionContext.mockResolvedValue(context({
-      previousMonth: {
+      primary: comparison({
         available: false,
-        period: '2026-06-01',
-        request: null,
-        amount: null,
+        availablePeriodCount: 0,
+        periods: [],
+        baselineKnownAmount: null,
         deltaAmount: null,
         deltaPercent: null,
-      },
+      }),
       decomposition: null,
     }))
     await renderPage()
 
-    expect(within(headline()).getByText('Keçən ay üçün müqayisə məlumatı yoxdur.')).toBeInTheDocument()
+    // About the window the reader chose, not about "last month": they may have chosen any window.
+    expect(within(headline()).getByText('Seçilmiş dövrdə müqayisə üçün sifariş yoxdur')).toBeInTheDocument()
     expect(screen.queryByText('Niyə dəyişib?')).toBeNull()
     expect(screen.queryByText('Yeni sifarişlər')).toBeNull()
   })
@@ -405,7 +457,7 @@ describe('an order whose prices are not all known', () => {
     }))
     await renderPage()
 
-    expect(within(headline()).getByText(/2 məhsulun qiyməti yoxdur/)).toBeInTheDocument()
+    expect(within(headline()).getByText(/2 sətirdə qiymət yoxdur/)).toBeInTheDocument()
   })
 })
 
@@ -414,13 +466,13 @@ describe('the drivers', () => {
     await renderPage()
 
     expect(screen.getByText('Əsas dəyişikliklər')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'York qatlama salfet' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /York qatlama salfet/ })).toBeInTheDocument()
     expect(screen.getByText(/Qiymət 2,80 ₼ → 4,10 ₼/)).toBeInTheDocument()
   })
 
   it('opens that product s own history when it is clicked', async () => {
     await renderPage()
-    await userEvent.click(screen.getByRole('button', { name: 'York qatlama salfet' }))
+    await userEvent.click(screen.getByRole('button', { name: /York qatlama salfet/ }))
 
     await waitFor(() => expect(analyticsApi.fetchVariantTrend).toHaveBeenCalled())
     // Twelve months ending on the month being decided — the history of this product at this object.
@@ -497,7 +549,7 @@ describe('a blank price', () => {
   it('is a warning when somebody owes it', async () => {
     ordersApi.fetchOrder.mockResolvedValue(detail({
       items: {
-        items: [{ ...item(), unitPrice: null, lineTotal: null, supplierName: 'Kənar şirkət', supplierPriceRequirement: 'Required' }],
+        items: [{ ...item(), unitPrice: null, lineTotal: null, supplierName: 'Kənar şirkət', pricingMode: 'PriceRequired' }],
         page: 1,
         pageSize: 50,
         totalCount: 1,
@@ -507,13 +559,13 @@ describe('a blank price', () => {
 
     const table = within(document.querySelector('table')!)
     expect(table.getByText('Qiymət yoxdur')).toHaveClass('text-amber-800')
-    expect(table.queryByText(/Daxili anbardan/)).toBeNull()
+    expect(table.queryByText(/Daxili təminat/)).toBeNull()
   })
 
   it('is a plain fact when the material came out of our own store', async () => {
     ordersApi.fetchOrder.mockResolvedValue(detail({
       items: {
-        items: [{ ...item(), unitPrice: null, lineTotal: null, supplierName: 'Qala baza', supplierPriceRequirement: 'NotRequired' }],
+        items: [{ ...item(), unitPrice: null, lineTotal: null, supplierName: 'Qala baza', pricingMode: 'InternalFreeSupply' }],
         page: 1,
         pageSize: 50,
         totalCount: 1,
@@ -523,17 +575,25 @@ describe('a blank price', () => {
 
     const table = within(document.querySelector('table')!)
     // Not "Qiymət yoxdur", and above all not amber: nobody is meant to go looking for this number.
-    expect(table.getByText('Daxili anbardan')).toBeInTheDocument()
+    expect(table.getByText('Daxili təminat')).toBeInTheDocument()
     expect(table.queryByText('Qiymət yoxdur')).toBeNull()
-    expect(table.getByText('Daxili anbardan').closest('span')).not.toHaveClass('text-amber-800')
-    // The supplier stays visible; it is the reason the price is absent.
-    expect(table.getByText('Qala baza')).toBeInTheDocument()
+    expect(table.getByText('Daxili təminat').closest('span')).not.toHaveClass('text-amber-800')
+    // The supplier cell says our own warehouse rather than "Məlum deyil", which reads like a gap.
+    expect(table.getByText('Daxili anbar')).toBeInTheDocument()
   })
 
-  it('shows a real price even on an internally supplied line', async () => {
+  /** The workbook usually names the store the material was issued by; the cell says which. */
+  it('names the store an internally supplied line came out of', async () => {
     ordersApi.fetchOrder.mockResolvedValue(detail({
       items: {
-        items: [{ ...item(), unitPrice: 4.1, supplierName: 'Qala baza', supplierPriceRequirement: 'NotRequired' }],
+        items: [{
+          ...item(),
+          unitPrice: null,
+          lineTotal: null,
+          supplierName: null,
+          pricingMode: 'InternalFreeSupply',
+          sourceSupplierName: 'Azpetrol baza',
+        }],
         page: 1,
         pageSize: 50,
         totalCount: 1,
@@ -542,7 +602,25 @@ describe('a blank price', () => {
     await renderPage()
 
     const table = within(document.querySelector('table')!)
-    expect(table.queryByText('Daxili anbardan')).toBeNull()
+    expect(table.getByText('Daxili: Azpetrol baza')).toBeInTheDocument()
+    expect(table.queryByText('Məlum deyil')).toBeNull()
+    // And no amount at all — never a fabricated zero.
+    expect(table.queryByText('0,00 ₼')).toBeNull()
+  })
+
+  it('shows a real price even on an internally supplied line', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      items: {
+        items: [{ ...item(), unitPrice: 4.1, supplierName: 'Qala baza', pricingMode: 'InternalFreeSupply' }],
+        page: 1,
+        pageSize: 50,
+        totalCount: 1,
+      },
+    } as never))
+    await renderPage()
+
+    const table = within(document.querySelector('table')!)
+    expect(table.queryByText('Daxili təminat')).toBeNull()
     expect(table.getAllByText(/4,10/).length).toBeGreaterThan(0)
   })
 })
@@ -561,7 +639,7 @@ describe('internal supply on the decision screen', () => {
     }))
     await renderPage()
 
-    expect(within(headline()).getByText(/Daxili təminat: 3 sətir/)).toBeInTheDocument()
+    expect(within(headline()).getByText(/3 sətir daxili təminat \(ödənişsiz\)/)).toBeInTheDocument()
     expect(within(headline()).queryByText(/qiyməti yoxdur/)).toBeNull()
   })
 
@@ -578,8 +656,8 @@ describe('internal supply on the decision screen', () => {
     }))
     await renderPage()
 
-    expect(within(headline()).getByText(/1 məhsulun qiyməti yoxdur/)).toHaveClass('text-amber-800')
-    expect(within(headline()).getByText(/Daxili təminat: 3 sətir/)).toBeInTheDocument()
+    expect(within(headline()).getByText(/1 sətirdə qiymət yoxdur/)).toHaveClass('text-amber-800')
+    expect(within(headline()).getByText(/3 sətir daxili təminat \(ödənişsiz\)/)).toBeInTheDocument()
   })
 
   it('appears among the causes without making the explanation incomplete', async () => {
@@ -598,6 +676,7 @@ describe('internal supply on the decision screen', () => {
         explanationIsComplete: true,
         unattributedVariantCount: 0,
         internalSupplyVariantCount: 2,
+        supplyChangedVariantCount: 0,
         drivers: [],
       },
     }))
@@ -606,5 +685,67 @@ describe('internal supply on the decision screen', () => {
     expect(screen.getByText('Daxili təminat')).toBeInTheDocument()
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByText(/tam izah edilə bilmir/)).toBeNull()
+  })
+})
+
+/**
+ * The whole screen for an order approved before this system existed.
+ *
+ * It is the one order state the domain cannot produce — Approved with neither moment recorded — so the risk is
+ * that a screen reads it as broken data and either fails on it or fills the gap with a date nobody can stand
+ * behind. It renders as an ordinary approved order, and the gap is stated rather than filled.
+ */
+describe('an order carried in as already approved', () => {
+  beforeEach(() => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({ status: 'Approved' }) as never)
+    workflowApi.fetchWorkflow.mockResolvedValue(workflow({
+      status: 'Approved',
+      submittedByUserId: null,
+      submittedAtUtc: null,
+      approvedAtUtc: null,
+      allowedActions: {
+        canSubmit: false,
+        canApprove: false,
+        canReturn: false,
+        blockedBySelfApproval: false,
+        blockedByOwnContribution: false,
+      },
+      history: [{
+        id: 1,
+        action: 'ImportedAsApproved',
+        fromStatus: 'Draft',
+        toStatus: 'Approved',
+        actorUserId: null,
+        actorDisplayName: 'Sistem',
+        comment: 'Tarixi sifariş sistemə artıq təsdiqlənmiş kimi köçürülüb.',
+        missingPriceItemCount: 0,
+        missingPricesAcknowledged: false,
+        occurredAtUtc: '2026-09-23T12:26:42Z',
+      }],
+    }))
+  })
+
+  it('renders the whole page without failing on the missing moments', async () => {
+    await renderPage()
+
+    expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
+    expect(screen.getAllByText('Təsdiqlənib').length).toBeGreaterThan(0)
+  })
+
+  it('shows the carried-over event instead of an approval nobody gave', async () => {
+    await renderPage()
+
+    // The history panel loads on its own; with no line edits it opens on the approval side.
+    expect(await screen.findByText('Təsdiqlənmiş kimi köçürülüb')).toBeInTheDocument()
+    expect(screen.queryByText('Təsdiqləndi')).toBeNull()
+    expect(screen.getByText(/Tarixi sifariş sistemə artıq təsdiqlənmiş kimi köçürülüb/)).toBeInTheDocument()
+  })
+
+  it('invents neither a submission date nor an approval date', async () => {
+    await renderPage()
+
+    expect(screen.queryByText(/Təqdim: /)).toBeNull()
+    expect(screen.queryByText(/Təsdiq: /)).toBeNull()
+    expect(screen.queryByText(/Hələ təqdim olunmayıb/)).toBeNull()
   })
 })

@@ -43,6 +43,9 @@ public interface IBaxOrdersDbContext
     /// <summary>Append-only record of who changed a supplier's price requirement, and when.</summary>
     DbSet<SupplierPricingDecision> SupplierPricingDecisions { get; }
 
+    /// <summary>Append-only record of who said how one order line was supplied.</summary>
+    DbSet<OrderItemPricingDecision> OrderItemPricingDecisions { get; }
+
     DbSet<ResponsiblePerson> ResponsiblePeople { get; }
 
     DbSet<ResponsiblePersonAlias> ResponsiblePersonAliases { get; }

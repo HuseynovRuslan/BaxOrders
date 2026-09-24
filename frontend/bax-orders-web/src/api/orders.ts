@@ -6,6 +6,19 @@ export type OrderRequestStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'Ret
 /** Whether a supplier's lines are expected to carry a purchase price. */
 export type SupplierPriceRequirement = 'Required' | 'NotRequired'
 
+/**
+ * What an empty price on one order line means. Three states, because two were not enough: one supplier can
+ * both sell to the company and issue material to it free, so the answer belongs to the line and not to the
+ * supplier, and a line nobody has answered for yet is its own case rather than a guess in either direction.
+ */
+export type PricingMode =
+  /** A purchase price is owed. Empty here is a gap somebody has to close. */
+  | 'PriceRequired'
+  /** The company supplies this itself. Empty here is complete, and never a warning. */
+  | 'InternalFreeSupply'
+  /** Nobody has said which. Counted with the gaps, because the cautious reading cannot hide a real one. */
+  | 'Unresolved'
+
 export type LocationOrderSort = 'Name' | 'LatestPeriod' | 'OrderRequestCount'
 
 export interface PagedResult<T> {
@@ -111,11 +124,16 @@ export interface OrderRequestItem {
   supplierId: number | null
   supplierName: string | null
   /**
-   * Whether this line's supplier owes a purchase price at all. A null `unitPrice` means two different things
-   * depending on it: a price nobody has filled in, or material issued from the company's own store that never
-   * had one. A line with no supplier is reported as `Required`.
+   * What an empty `unitPrice` on this line means: a price nobody has filled in, material the company supplies
+   * itself that never had one, or a line nobody has classified yet. It is a property of the line, because the
+   * same supplier can be the source of all three.
    */
-  supplierPriceRequirement: SupplierPriceRequirement
+  pricingMode: PricingMode
+  /**
+   * The supplier cell of the workbook row this line came from. Often the only record of which of the
+   * company's own stores an internally supplied line was issued by.
+   */
+  sourceSupplierName: string | null
   categoryPath: string[]
   /** The workbook row this very line came from. Null for a copied line — its row is reached through the chain. */
   source: OrderItemSourceRef | null

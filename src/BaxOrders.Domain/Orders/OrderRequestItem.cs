@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Catalog;
+﻿using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Suppliers;
 
 namespace BaxOrders.Domain.Orders;
@@ -49,6 +49,11 @@ public sealed class OrderRequestItem
         SupplierId = supplier is { Id: > 0 } ? supplier.Id : null;
         Quantity = ValidQuantity(quantity);
         UnitPrice = ValidUnitPrice(unitPrice);
+        // A supplier that is known never to charge seeds the line; from then on the line owns the answer,
+        // because one supplier can be both — see PricingMode for why this cannot live on the supplier.
+        PricingMode = supplier?.PriceRequirement == SupplierPriceRequirement.NotRequired
+            ? PricingMode.InternalFreeSupply
+            : PricingMode.PriceRequired;
         OriginalProductName = Guard.OptionalText(originalProductName, OriginalProductNameMaxLength, nameof(OriginalProductName));
         Notes = Guard.OptionalText(notes, NotesMaxLength, nameof(Notes));
     }
@@ -71,6 +76,28 @@ public sealed class OrderRequestItem
     public decimal Quantity { get; private set; }
 
     public decimal? UnitPrice { get; private set; }
+
+    /// <summary>
+    /// Whether this line is expected to carry a purchase price at all.
+    /// </summary>
+    /// <remarks>
+    /// The authoritative answer, and the only one any count or warning consults. A null
+    /// <see cref="UnitPrice"/> beside <see cref="PricingMode.InternalFreeSupply"/> is a complete line, not a
+    /// missing one.
+    /// </remarks>
+    public PricingMode PricingMode { get; private set; } = PricingMode.PriceRequired;
+
+    /// <summary>
+    /// What this line's price situation is, read through the one rule the whole system shares.
+    /// </summary>
+    public OrderLinePricingState PricingState => OrderLinePricing.Classify(UnitPrice, PricingMode);
+
+    /// <summary>True when this line still owes a price nobody has given it.</summary>
+    /// <remarks>An unreviewed line counts here: not knowing is not the same as knowing none is owed.</remarks>
+    public bool IsMissingRequiredPrice => PricingState.IsWarning();
+
+    /// <summary>True when this line carries no price because none was ever owed.</summary>
+    public bool IsInternalFreeSupply => PricingState.IsInternalSupply();
 
     public string? OriginalProductName { get; private set; }
 
@@ -117,6 +144,8 @@ public sealed class OrderRequestItem
         SupplierId = SupplierId,
         Quantity = Quantity,
         UnitPrice = UnitPrice,
+        // A correction inherits how its source was supplied; changing that is its own decision.
+        PricingMode = PricingMode,
         OriginalProductName = OriginalProductName,
         Notes = Notes,
         SourceOrderRequestItem = this,
@@ -127,6 +156,40 @@ public sealed class OrderRequestItem
 
     /// <remarks>Null means the price is not known. It is never turned into zero, which would be a price.</remarks>
     internal void ChangeUnitPrice(decimal? unitPrice) => UnitPrice = ValidUnitPrice(unitPrice);
+
+    /// <summary>
+    /// Records what this line's supply actually is, and who said so. The only way the mode moves.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately public on the item rather than internal to a revision: this is a statement about a line
+    /// that may be years old and long approved, not an edit to what was ordered. It touches no price, no
+    /// quantity and no status.
+    /// </remarks>
+    /// <returns>The decision written, or null when the line already said this.</returns>
+    public OrderItemPricingDecision? SetPricingMode(
+        PricingMode mode, WorkflowActor actor, string? reason, DateTime utcNow)
+    {
+        if (!Enum.IsDefined(mode))
+        {
+            throw new DomainException($"'{mode}' is not a pricing mode this system knows.");
+        }
+
+        if (UnitPrice is not null && mode is PricingMode.InternalFreeSupply)
+        {
+            // A recorded price is the strongest possible statement that this line was bought.
+            throw new DomainException(
+                "This line carries a price, so it cannot be recorded as supplied free of charge.");
+        }
+
+        if (PricingMode == mode)
+        {
+            return null;
+        }
+
+        var previous = PricingMode;
+        PricingMode = mode;
+        return new OrderItemPricingDecision(this, previous, mode, actor, reason, utcNow);
+    }
 
     internal void ChangeSupplier(Supplier? supplier)
     {

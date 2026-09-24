@@ -43,6 +43,12 @@ internal sealed class OrderRequestItemConfiguration : IEntityTypeConfiguration<O
 
         builder.HasIndex(item => item.OrderRequestId);
         builder.HasIndex(item => item.ProductVariantId);
+        // Stored as text, like every other enum here, so a migration can read and set it by name.
+        builder.Property(item => item.PricingMode)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasDefaultValue(PricingMode.PriceRequired);
+
         builder.HasIndex(item => item.SupplierId);
         builder.HasIndex(item => item.SourceOrderRequestItemId);
     }

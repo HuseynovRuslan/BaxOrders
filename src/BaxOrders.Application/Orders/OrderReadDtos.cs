@@ -1,4 +1,4 @@
-using BaxOrders.Application.Imports;
+﻿using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Domain.Suppliers;
@@ -49,7 +49,9 @@ public sealed record LocationOrderSummaryDto(
     OrderRequestStatus? LatestRequestStatus,
     int TotalItemCount,
     decimal? KnownAmountTotal,
+    /// <summary>Lines somebody has to put right. Internal supply is counted apart and is never a problem.</summary>
     int MissingPriceItemCount,
+    int InternalSupplyItemCount,
     decimal? LatestKnownAmount = null,
     int LatestItemCount = 0,
     int LatestMissingPriceItemCount = 0,
@@ -93,9 +95,15 @@ public sealed record LocationOrderHistoryEntryDto(
     OrderRequestStatus Status,
     int ItemCount,
     int KnownPriceItemCount,
+    /// <summary>Lines somebody has to put right. Internal supply is counted apart and is never a problem.</summary>
     int MissingPriceItemCount,
+    int InternalSupplyItemCount,
     decimal? KnownAmountTotal,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc)
+{
+    /// <summary>True when every line that needed a price has one — not when every line has one.</summary>
+    public bool AmountIsComplete => MissingPriceItemCount == 0;
+}
 
 public sealed record LocationOrderHistoryDto(
     int LocationId,
@@ -108,7 +116,9 @@ public sealed record LocationOrderHistoryDto(
     DateOnly? LatestPeriod,
     int TotalItemCount,
     decimal? KnownAmountTotal,
+    /// <summary>Lines somebody has to put right. Internal supply is counted apart and is never a problem.</summary>
     int MissingPriceItemCount,
+    int InternalSupplyItemCount,
     IReadOnlyList<int> Years,
     PagedResult<LocationOrderHistoryEntryDto> Requests);
 
@@ -128,11 +138,10 @@ public sealed record OrderItemSourceRefDto(long ImportBatchId, long ImportRowId,
 /// The workbook row this very line was created from. Null for a line copied into a correction version — its
 /// row is reached through <paramref name="SourceOrderRequestItemId"/> — and for a line added by hand.
 /// </param>
-/// <param name="SupplierPriceRequirement">
-/// Whether this line's supplier owes a purchase price at all. A null <see cref="UnitPrice"/> means two very
-/// different things depending on it: a price nobody has filled in, or material issued from the company's own
-/// store that never had one. The screen must say which. A line with no supplier is reported as
-/// <c>Required</c>, because nothing has said otherwise.
+/// <param name="PricingMode">
+/// Whether this line was ever expected to carry a purchase price. A null <see cref="UnitPrice"/> means three
+/// different things depending on it — a price nobody has filled in, material the company supplies itself that
+/// never had one, or a line nobody has yet classified — and the screen must say which.
 /// </param>
 /// <param name="SourceOrderRequestItemId">The line of the previous version this one was copied from, if any.</param>
 public sealed record OrderRequestItemDto(
@@ -153,7 +162,12 @@ public sealed record OrderRequestItemDto(
     decimal? LineTotal,
     int? SupplierId,
     string? SupplierName,
-    SupplierPriceRequirement SupplierPriceRequirement,
+    PricingMode PricingMode,
+    /// <summary>
+    /// The supplier cell of the workbook row this line came from. Often the only record of which of the
+    /// company's own stores an internally supplied line was issued by.
+    /// </summary>
+    string? SourceSupplierName,
     IReadOnlyList<string> CategoryPath,
     OrderItemSourceRefDto? Source,
     long? SourceOrderRequestItemId);

@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router'
 import { fetchLocationHistory, type LocationOrderHistory } from '../api/orders'
 import { LocationTrend } from '../components/locations/LocationTrend'
 import { PageHeader } from '../components/PageHeader'
+import { missingPriceCount, missingPriceShortLabel } from '../pricing/labels'
 import { StatusBadge } from '../components/StatusBadge'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import {
@@ -94,7 +95,7 @@ export function LocationDetailPage() {
           <Fact label="Sətirlər" value={formatNumber(data.totalItemCount)} />
           <Fact label={`${knownAmountLabel} cəm`} value={formatAmount(data.knownAmountTotal)} />
           {data.missingPriceItemCount > 0 && (
-            <Fact label="Qiymətsiz sətirlər" value={formatNumber(data.missingPriceItemCount)} warn />
+            <Fact label={missingPriceShortLabel} value={formatNumber(data.missingPriceItemCount)} warn />
           )}
         </dl>
       )}
@@ -191,7 +192,7 @@ export function LocationDetailPage() {
                   <p className="whitespace-nowrap text-slate-900">{formatAmount(request.knownAmountTotal)}</p>
                   {request.missingPriceItemCount > 0 && (
                     <p className="whitespace-nowrap text-xs text-amber-800">
-                      {formatNumber(request.missingPriceItemCount)} məhsulun qiyməti yoxdur
+                      {missingPriceCount(request.missingPriceItemCount)}
                     </p>
                   )}
                 </td>

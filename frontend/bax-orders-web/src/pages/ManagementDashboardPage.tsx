@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import type { AnalyticsComparisonBasis, PriceCoverageState } from '../api/analytics'
+import type { PriceCoverageState } from '../api/analytics'
 import {
   fetchDashboard,
   fetchDashboardPeriods,
@@ -19,7 +19,9 @@ import {
   isPriceCoverage,
   isSort,
 } from '../components/dashboard/labels'
-import { basisLabels, basisOrder, formatCount, formatMonth, isBasis, toMonthKey } from '../components/analytics/format'
+import { formatCount, formatMonth, toMonthKey } from '../components/analytics/format'
+import { BasisPicker } from '../components/analytics/BasisPicker'
+import { basisParams, basisRequest, parseBasis, type BasisSelection } from '../analytics/basisParams'
 
 const pageSize = 25
 
@@ -36,7 +38,10 @@ export function ManagementDashboardPage() {
   const [dashboard, setDashboard] = useState<Loaded<ManagementDashboard>>({ status: 'loading' })
 
   // The whole view lives in the URL, so a refresh, a shared link and Back all show the same thing.
-  const basis: AnalyticsComparisonBasis = isBasis(params.get('basis')) ? (params.get('basis') as AnalyticsComparisonBasis) : 'PreviousMonth'
+  // The whole reading lives in the query string, so Back, Forward, a reload and a pasted link all restore
+  // the same comparison — and a card can hand it on to the order it opens. Anything unrecognised falls back
+  // to last month rather than breaking the screen.
+  const selection = parseBasis(params)
   const historyCoverage: HistoryCoverageState | undefined = isHistoryCoverage(params.get('historyCoverage'))
     ? (params.get('historyCoverage') as HistoryCoverageState)
     : undefined
@@ -52,6 +57,7 @@ export function ManagementDashboardPage() {
       : undefined
   const search = params.get('search') ?? ''
   const page = Math.max(1, Number(params.get('page') ?? '1') || 1)
+
 
   const [searchInput, setSearchInput] = useState(search)
   useEffect(() => setSearchInput(search), [search])
@@ -76,9 +82,34 @@ export function ManagementDashboardPage() {
     ? requested!
     : (available[0] ? toMonthKey(available[0].period) : null)
 
+  // Oldest first, and never the selected month itself.
+  const priorMonths = useMemo(
+    () =>
+      available
+        .map((item) => toMonthKey(item.period))
+        .filter((month) => period !== null && month < period)
+        .sort(),
+    [available, period],
+  )
+
+  // The two months travel only with the basis that uses them; the API refuses them with any other. An
+  // unfinished range asks for last month rather than asking for nothing, so the page never goes blank.
+  const request = basisRequest(selection)
+  const basisKey = `${request.basis}|${request.customStart ?? ''}|${request.customEnd ?? ''}`
   const query = useMemo(
-    () => ({ basis, search: search || undefined, historyCoverage, priceCoverage, hasCurrentRequest, sort, descending, page, pageSize }) as const,
-    [basis, search, historyCoverage, priceCoverage, hasCurrentRequest, sort, descending, page],
+    () => ({
+      ...request,
+      search: search || undefined,
+      historyCoverage,
+      priceCoverage,
+      hasCurrentRequest,
+      sort,
+      descending,
+      page,
+      pageSize,
+    }) as const,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [basisKey, search, historyCoverage, priceCoverage, hasCurrentRequest, sort, descending, page],
   )
 
   // One request per selection; the key keeps a re-render from repeating a fetch already in flight.
@@ -171,24 +202,14 @@ export function ManagementDashboardPage() {
           </select>
         </label>
 
-        <div className="text-xs text-slate-500">
-          <span id="basis-label">Müqayisə</span>
-          <div className="mt-1 flex flex-wrap gap-1" role="group" aria-labelledby="basis-label">
-            {basisOrder.map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={basis === option}
-                onClick={() => update({ basis: option })}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  basis === option ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {basisLabels[option]}
-              </button>
-            ))}
-          </div>
-        </div>
+        {period !== null && (
+          <BasisPicker
+            selection={selection}
+            onSelect={(next: BasisSelection) => update(basisParams(next))}
+            months={priorMonths}
+            currentPeriod={period}
+          />
+        )}
       </div>
 
       {periods.status === 'error' && <ErrorState message={periods.message} />}
@@ -201,7 +222,7 @@ export function ManagementDashboardPage() {
       {data && <DashboardSummary summary={data.summary} />}
 
       {/* Meaning first: which objects to read, and why. The full table follows and hides nothing. */}
-      {data && <AttentionSection attention={data.attention} />}
+      {data && <AttentionSection attention={data.attention} summary={data.summary} selection={selection} />}
 
       {data && <h2 className="mb-2 text-sm font-semibold text-slate-900">Bütün obyektlər</h2>}
 
@@ -276,7 +297,9 @@ export function ManagementDashboardPage() {
         <EmptyState>{filtered ? 'Bu filtrə uyğun obyekt tapılmadı.' : 'Bu dövr üzrə sifariş məlumatı yoxdur.'}</EmptyState>
       )}
 
-      {data && data.rows.items.length > 0 && <LocationRows rows={data.rows.items} summary={data.summary} />}
+      {data && data.rows.items.length > 0 && (
+        <LocationRows rows={data.rows.items} summary={data.summary} selection={selection} />
+      )}
 
       {data && data.rows.totalCount > pageSize && (
         <div className="mt-3 flex items-center justify-between text-xs text-slate-600">

@@ -1,5 +1,16 @@
 import type { LocationDashboardRow, ManagementDashboardSummary } from '../../api/dashboard'
-import { formatCount, formatMoney, formatMoneyDelta, formatMonth, formatPercent, unknownValue } from '../analytics/format'
+import type { BasisSelection } from '../../analytics/basisParams'
+import { missingPriceCount } from '../../pricing/labels'
+import {
+  describeBasis,
+  describeBasisWithRange,
+  formatMoney,
+  formatMoneyDelta,
+  formatMonth,
+  formatPercent,
+  signedToneClass,
+  unknownValue,
+} from '../analytics/format'
 import { DetailsLink } from './AttentionSection'
 import {
   causeHeadline,
@@ -13,6 +24,8 @@ import {
 interface LocationRowsProps {
   rows: LocationDashboardRow[]
   summary: ManagementDashboardSummary
+  /** Carried into every "Detallara bax", so the order answers about the same comparison. */
+  selection: BasisSelection
 }
 
 /**
@@ -24,7 +37,14 @@ interface LocationRowsProps {
  * of a list of twenty-six objects, and they crowded out the four that are asked. The counts still exist and
  * are one click away on the object's own screen.
  */
-export function LocationRows({ rows, summary }: LocationRowsProps) {
+export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
+  // The column is headed by whatever the comparison actually is, so the figure under it can never be read as
+  // last month's when six months are being averaged.
+  // The column stays short; the months it covers are a hover away, because a header that wraps onto three
+  // lines costs every row of the table below it.
+  const basisText = describeBasis(summary.basis, summary.baselinePeriods)
+  const basisDetail = describeBasisWithRange(summary.basis, summary.baselinePeriods)
+
   return (
     <>
       <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white lg:block">
@@ -36,7 +56,7 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
             <tr>
               <th scope="col" className="px-4 py-3">Obyekt</th>
               <th scope="col" className="px-3 py-3 text-right">Bu ay</th>
-              <th scope="col" className="px-3 py-3 text-right">Keçən ay</th>
+              <th scope="col" className="px-3 py-3 text-right" title={basisDetail}>{basisText}</th>
               <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
               <th scope="col" className="px-3 py-3">Əsas səbəb</th>
               <th scope="col" className="px-3 py-3">Məlumat vəziyyəti</th>
@@ -65,8 +85,12 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
                     <span className="text-slate-400">{unknownValue}</span>
                   ) : (
                     <>
-                      <p className="whitespace-nowrap text-slate-900">{formatMoneyDelta(row.knownAmountDelta)}</p>
-                      <p className="whitespace-nowrap text-xs text-slate-500">{formatPercent(row.knownAmountPercentChange)}</p>
+                      <p className={`whitespace-nowrap font-medium ${signedToneClass(row.knownAmountDelta)}`}>
+                        {formatMoneyDelta(row.knownAmountDelta)}
+                      </p>
+                      <p className={`whitespace-nowrap text-xs ${signedToneClass(row.knownAmountDelta)}`}>
+                        {formatPercent(row.knownAmountPercentChange)}
+                      </p>
                     </>
                   )}
                 </td>
@@ -75,7 +99,7 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
                 <td className="px-3 py-2.5"><DataState row={row} /></td>
 
                 <td className="px-3 py-2.5 text-right">
-                  <DetailsLink row={row} compact />
+                  <DetailsLink row={row} selection={selection} compact />
                 </td>
               </tr>
             ))}
@@ -97,10 +121,11 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
                   {formatMoney(row.current.knownAmount)}
                 </p>
                 {row.knownAmountDelta !== null && (
-                  <p className="whitespace-nowrap text-xs text-slate-500">
+                  <p className={`whitespace-nowrap text-xs font-medium ${signedToneClass(row.knownAmountDelta)}`}>
                     {formatMoneyDelta(row.knownAmountDelta)} {formatPercent(row.knownAmountPercentChange)}
                   </p>
                 )}
+                <p className="text-xs text-slate-400">{basisText}</p>
               </div>
             </div>
 
@@ -111,7 +136,7 @@ export function LocationRows({ rows, summary }: LocationRowsProps) {
             </div>
 
             <div className="mt-2 border-t border-slate-100 pt-2">
-              <DetailsLink row={row} compact />
+              <DetailsLink row={row} selection={selection} compact />
             </div>
           </li>
         ))}
@@ -136,7 +161,9 @@ function MainCause({ row }: { row: LocationDashboardRow }) {
   return (
     <span className="text-xs text-slate-700">
       {causeHeadline(row.primaryCause, row.primaryCauseAmount)}{' '}
-      <span className="whitespace-nowrap font-medium text-slate-900">{formatMoneyDelta(row.primaryCauseAmount)}</span>
+      <span className={`whitespace-nowrap font-medium ${signedToneClass(row.primaryCauseAmount)}`}>
+        {formatMoneyDelta(row.primaryCauseAmount)}
+      </span>
     </span>
   )
 }
@@ -173,7 +200,7 @@ function MissingPrices({ row }: { row: LocationDashboardRow }) {
 
   return (
     <p className="text-xs text-amber-800">
-      {formatCount(row.current.missingPriceItemCount)} qiymətsiz sətir
+      {missingPriceCount(row.current.missingPriceItemCount)}
     </p>
   )
 }

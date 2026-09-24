@@ -2,9 +2,9 @@ import { LineChart } from 'lucide-react'
 import type { ComparisonSummary, PriceCoverage, VariantComparison } from '../../api/analytics'
 import { formatNumber } from '../imports/labels'
 import {
-  basisLabels,
   coverageBadgeClass,
   coverageLabels,
+  describeBasis,
   formatAnalyticsAmount,
   formatAnalyticsPeriod,
   formatAnalyticsQuantity,
@@ -33,7 +33,7 @@ function BaselineHeading({ summary }: { summary: ComparisonSummary }) {
 
   return (
     <>
-      {basisLabels[summary.basis]}
+      {describeBasis(summary.basis, summary.baselineWindowPeriods)}
       {summary.basis !== 'PreviousMonth' && (
         <span className={`block font-normal ${partial ? 'text-amber-800' : 'text-slate-400'}`}>
           {formatBaselineBasisNote(summary.availableBaselinePeriodCount, summary.expectedBaselinePeriodCount)}
@@ -54,7 +54,7 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
       <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <caption className="sr-only">
-            {formatAnalyticsPeriod(summary.currentPeriod)} dövrünün {basisLabels[summary.basis].toLowerCase()} ilə
+            {formatAnalyticsPeriod(summary.currentPeriod)} dövrünün {describeBasis(summary.basis, summary.baselineWindowPeriods).toLowerCase()} ilə
             müqayisəsi
           </caption>
           <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
@@ -105,7 +105,7 @@ export function MaterialRows({ rows, summary, onTrend }: RowsProps) {
 
             <dl className="mt-2 grid grid-cols-4 gap-2 text-sm">
               <Figure label={formatAnalyticsPeriod(summary.currentPeriod)} value={formatAnalyticsQuantity(row.current.quantity)} strong />
-              <Figure label={basisLabels[summary.basis]} value={formatAnalyticsQuantity(row.baseline.quantity)} />
+              <Figure label={describeBasis(summary.basis, summary.baselineWindowPeriods)} value={formatAnalyticsQuantity(row.baseline.quantity)} />
               <Figure label="Fərq" value={formatDelta(row.delta.quantityDelta)} />
               <Figure label="Dəyişmə" value={formatPercent(row.delta.quantityPercentChange)} />
             </dl>
@@ -178,7 +178,7 @@ export function ServiceRows({ rows, summary, onTrend }: RowsProps) {
             <Product row={row} />
             <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
               <Figure label={formatAnalyticsPeriod(summary.currentPeriod)} value={formatAnalyticsAmount(row.current.knownAmount)} strong />
-              <Figure label={basisLabels[summary.basis]} value={formatAnalyticsAmount(row.baseline.knownAmount)} />
+              <Figure label={describeBasis(summary.basis, summary.baselineWindowPeriods)} value={formatAnalyticsAmount(row.baseline.knownAmount)} />
               <Figure label="Fərq" value={formatDelta(row.delta.amountDelta, (value) => formatAnalyticsAmount(value))} />
               <Figure label="Dəyişmə" value={formatPercent(row.delta.amountPercentChange)} />
             </dl>

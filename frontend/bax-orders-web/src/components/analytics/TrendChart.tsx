@@ -1,3 +1,4 @@
+import { internalSupplyShortLabel, missingPriceShortLabel } from '../../pricing/labels'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { VariantTrendPoint } from '../../api/analytics'
 import { formatNumber } from '../imports/labels'
@@ -87,10 +88,10 @@ function TrendTooltip({ active, payload, metric }: TooltipShape) {
           <Row label={metricLabels[metric]} value={formatTrendValue(row.value, metric)} />
           <Row label="Sətir" value={formatNumber(row.point.itemCount)} />
           {row.point.missingRequiredPriceItemCount > 0 && (
-            <Row label="Qiymətsiz sətir" value={formatNumber(row.point.missingRequiredPriceItemCount)} warn />
+            <Row label={missingPriceShortLabel} value={formatNumber(row.point.missingRequiredPriceItemCount)} warn />
           )}
           {row.point.priceNotRequiredItemCount > 0 && (
-            <Row label="Daxili təminat" value={formatNumber(row.point.priceNotRequiredItemCount)} />
+            <Row label={internalSupplyShortLabel} value={formatNumber(row.point.priceNotRequiredItemCount)} />
           )}
           <Row label="Versiya" value={String(row.point.version)} />
         </dl>

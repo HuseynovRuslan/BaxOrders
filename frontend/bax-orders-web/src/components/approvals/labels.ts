@@ -1,3 +1,4 @@
+import { missingPriceShortLabel } from '../../pricing/labels'
 import type {
   ApprovalActionability,
   ApprovalInboxSort,
@@ -46,7 +47,7 @@ export const sortLabels: Record<ApprovalInboxSort, string> = {
   LocationName: 'Obyekt adı',
   RequestPeriod: 'Dövr',
   KnownAmount: 'Məlum məbləğ',
-  MissingPriceItemCount: 'Qiymətsiz sətirlər',
+  MissingPriceItemCount: missingPriceShortLabel,
 }
 
 export const sortOrder: ApprovalInboxSort[] = [

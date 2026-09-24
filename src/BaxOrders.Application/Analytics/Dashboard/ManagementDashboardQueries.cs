@@ -1,4 +1,5 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
+using BaxOrders.Domain.Orders;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Orders;
@@ -71,7 +72,20 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var baselinePeriods = BaselineWindow.PeriodsFor(currentPeriod, query.Basis);
+        var selection = query.SelectionFor(currentPeriod);
+
+        // "Every prior month" is a fact about the data, not about the calendar, so it is asked for. The query
+        // is one row per month the company has ever ordered in, which is a handful of rows, and it is skipped
+        // entirely for every other basis.
+        var companyPeriods = BaselineWindow.NeedsCompanyPeriods(selection.Basis)
+            ? await db.OrderRequests.AsNoTracking()
+                .Where(request => request.RequestPeriod < currentPeriod)
+                .Select(request => request.RequestPeriod)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : null;
+
+        var baselinePeriods = BaselineWindow.PeriodsFor(currentPeriod, selection, companyPeriods);
         var wanted = baselinePeriods.Append(currentPeriod).ToArray();
 
         // Every location that has ever ordered is in the dashboard, so an object that ordered nothing this
@@ -106,11 +120,11 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var rows = new List<LocationDashboardRowDto>(locations.Count);
         foreach (var location in locations)
         {
-            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, query.Basis, snapshots, kinds));
+            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds));
         }
 
         rows = [.. rows.OrderBy(row => row.LocationName, StringComparer.OrdinalIgnoreCase)];
-        var summary = Summarize(currentPeriod, query.Basis, rows);
+        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows);
 
         var filtered = Sort(Filter(rows, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
@@ -131,7 +145,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         IEnumerable<RequestRef> requests,
         DateOnly currentPeriod,
         IReadOnlyList<DateOnly> baselinePeriods,
-        AnalyticsComparisonBasis basis,
+        ComparisonSelection selection,
         IReadOnlyDictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
         IReadOnlyDictionary<long, AnalyticsKind> kinds)
     {
@@ -145,32 +159,19 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             ? []
             : snapshots.GetValueOrDefault(current.OrderRequestId) ?? [];
 
-        var baselineByVariant = new Dictionary<long, List<VariantPeriodSnapshot>>();
-        foreach (var request in baseline)
-        {
-            if (!snapshots.TryGetValue(request.OrderRequestId, out var byVariant))
-            {
-                continue;
-            }
+        var baselineByVariant = PeriodComparison.GroupBaseline(
+            baseline.Select(request => request.OrderRequestId), snapshots);
 
-            foreach (var (variantId, snapshot) in byVariant)
-            {
-                if (!baselineByVariant.TryGetValue(variantId, out var list))
-                {
-                    baselineByVariant[variantId] = list = [];
-                }
+        // The same arithmetic the order screen runs, called from the same place. An object that did not order
+        // is not an object that ordered nothing, so a missing current month leaves its money unknown.
+        var comparison = PeriodComparison.Of(
+            current is null ? null : currentSnapshots, baselineByVariant, available, kinds);
 
-                list.Add(snapshot);
-            }
-        }
-
-        var currentTotals = OrderAnalyticsCalculator.Totals(currentSnapshots.Values);
-        var baselineTotals = OrderAnalyticsCalculator.Totals(baselineByVariant.Values.SelectMany(list => list));
-
-        // An object that did not order is not an object that ordered nothing, so its money stays unknown.
-        var currentAmount = current is null ? null : OrderAnalyticsCalculator.KnownAmount(currentTotals);
-        var baselineAmount = OrderAnalyticsCalculator.AverageKnownAmount(baselineTotals, available);
-        var (amountDelta, amountPercent) = OrderAnalyticsCalculator.AmountDifference(currentAmount, baselineAmount);
+        var currentTotals = comparison.CurrentTotals;
+        var baselineTotals = comparison.BaselineTotals;
+        var currentAmount = comparison.CurrentKnownAmount;
+        var baselineAmount = comparison.BaselineKnownAmount;
+        var (amountDelta, amountPercent) = (comparison.KnownAmountDelta, comparison.KnownAmountPercentChange);
 
         var coverage = available == 0
             ? HistoryCoverageState.Unavailable
@@ -184,18 +185,10 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 ? ComparisonAvailability.NoBaselineHistory
                 : ComparisonAvailability.Available;
 
-        // The same decomposition the decision screen uses, run here on snapshots this method already has.
         // It costs no query: the lines of every request in the window were fetched once, for every location.
-        var decomposition = current is null
-            ? null
-            : CauseDecomposition.Decompose(
-                currentSnapshots.Keys.Union(baselineByVariant.Keys).Select(variantId => new VariantCauseInput(
-                    variantId,
-                    kinds.GetValueOrDefault(variantId, AnalyticsKind.QuantityComparable),
-                    currentSnapshots.GetValueOrDefault(variantId),
-                    AverageBaseline(variantId, baselineByVariant.GetValueOrDefault(variantId), available))));
+        var decomposition = comparison.Decomposition;
 
-        var causes = decomposition is null || available == 0
+        var causes = decomposition is null
             ? []
             : decomposition.Categories
                 .Where(category => category.Amount != 0m)
@@ -273,7 +266,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             counts.Services,
             counts.Total,
             currentPeriod,
-            basis,
+            selection.Basis,
+            selection.CustomStart,
+            selection.CustomEnd,
             causes,
             primary?.Category,
             primary?.Amount,
@@ -281,52 +276,12 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             decomposition?.ExplanationIsComplete ?? true,
             causes
                 .Where(cause => cause.Category == CauseCategory.UnattributedDueToMissingPrice)
-                .Sum(cause => cause.Amount));
+                .Sum(cause => cause.Amount),
+            // Said out loud rather than folded into the causes: money that moved because a product stopped
+            // being bought and started coming out of the company's own store is not money the company saved.
+            available == 0 ? 0 : decomposition?.SupplyChangedVariantCount ?? 0);
     }
 
-    /// <summary>
-    /// A variant's baseline months folded into one average month, so the comparison is month against month.
-    /// </summary>
-    /// <remarks>
-    /// Divided by the months that exist, never by the months the basis asked for — the same rule the rest of
-    /// analytics follows. Nothing is rounded here: the figures go straight into the decomposition, which is
-    /// where the money is added up, and rounding each variant first would leave the total a few qəpik adrift.
-    /// <para>
-    /// The item counts are not averaged. They exist only to say whether a price was owed and not given, and
-    /// half a missing price is not a thing.
-    /// </para>
-    /// </remarks>
-    private static VariantPeriodSnapshot? AverageBaseline(
-        long variantId, List<VariantPeriodSnapshot>? months, int available)
-    {
-        if (available == 0 || months is not { Count: > 0 })
-        {
-            return null;
-        }
-
-        decimal quantity = 0m, pricedQuantity = 0m, pricedAmount = 0m;
-        int items = 0, known = 0, missingRequired = 0, notRequired = 0;
-        foreach (var month in months)
-        {
-            quantity += month.Quantity;
-            pricedQuantity += month.PricedQuantity;
-            pricedAmount += month.PricedAmount;
-            items += month.ItemCount;
-            known += month.KnownPriceItemCount;
-            missingRequired += month.MissingRequiredPriceItemCount;
-            notRequired += month.PriceNotRequiredItemCount;
-        }
-
-        return new VariantPeriodSnapshot(
-            variantId,
-            quantity / available,
-            items,
-            known,
-            missingRequired,
-            notRequired,
-            pricedQuantity / available,
-            pricedAmount / available);
-    }
 
     /// <summary>
     /// The short list of objects worth reading first.
@@ -407,13 +362,13 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 Quantity = group.Sum(item => item.Quantity),
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
-                // recorded property of the supplier and never a guess from its name. No supplier at all is
-                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                // A price is only missing when it was owed, and the line itself says whether it was — see
+                // PricingMode for why no property of the supplier can answer that. A line nobody has classified
+                // counts as owed: the cautious reading is the one that cannot hide a real gap.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedQuantity = group.Sum(item => item.UnitPrice == null ? 0m : item.Quantity),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
@@ -525,7 +480,10 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         (Math.Max(1, page), pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize));
 
     private static ManagementDashboardSummaryDto Summarize(
-        DateOnly currentPeriod, AnalyticsComparisonBasis basis, IReadOnlyList<LocationDashboardRowDto> rows)
+        DateOnly currentPeriod,
+        ComparisonSelection selection,
+        IReadOnlyList<DateOnly> baselinePeriods,
+        IReadOnlyList<LocationDashboardRowDto> rows)
     {
         var withCurrent = rows.Where(row => row.HasCurrentRequest).ToList();
 
@@ -548,7 +506,11 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
         return new ManagementDashboardSummaryDto(
             currentPeriod,
-            basis,
+            selection.Basis,
+            // The months the window actually covers, so the screen can name its basis instead of guessing it
+            // from the basis alone. For "every prior month" and a hand-picked range there is nothing to guess
+            // from: both depend on what the reader chose or on what the company has.
+            baselinePeriods,
             rows.Count,
             withCurrent.Count,
             rows.Count - withCurrent.Count,

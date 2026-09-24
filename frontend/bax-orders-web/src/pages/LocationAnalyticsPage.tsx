@@ -3,7 +3,6 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import {
   fetchAnalyticsPeriods,
   fetchComparison,
-  type AnalyticsComparisonBasis,
   type AnalyticsKind,
   type ComparisonState,
   type AnalyticsPeriods,
@@ -14,11 +13,10 @@ import { PageHeader } from '../components/PageHeader'
 import { AnalyticsSummary } from '../components/analytics/AnalyticsSummary'
 import { MaterialRows, ServiceRows } from '../components/analytics/ComparisonRows'
 import { TrendModal } from '../components/analytics/TrendModal'
+import { BasisPicker } from '../components/analytics/BasisPicker'
+import { basisParams, basisRequest, parseBasis, type BasisSelection } from '../analytics/basisParams'
 import {
-  basisLabels,
-  basisOrder,
   formatAnalyticsPeriod,
-  isBasis,
   isState,
   kindLabels,
   materialStates,
@@ -44,13 +42,15 @@ export function LocationAnalyticsPage() {
   const [trendRow, setTrendRow] = useState<VariantComparison | null>(null)
 
   // The view lives in the URL, so a refresh, a shared link and the browser's Back button all agree.
-  const basisParam = params.get('basis')
   const stateParam = params.get('state')
-  const basis: AnalyticsComparisonBasis = isBasis(basisParam) ? basisParam : 'PreviousMonth'
+  // The same query-string vocabulary the dashboard and the order screen use, so a link from either of them
+  // keeps its comparison when it lands here.
+  const selection = parseBasis(params)
   const kind: AnalyticsKind = params.get('kind') === 'AmountOrientedService' ? 'AmountOrientedService' : 'QuantityComparable'
   const state: ComparisonState | undefined = isState(stateParam) ? stateParam : undefined
   const search = params.get('search') ?? ''
   const page = Math.max(1, Number(params.get('page') ?? '1') || 1)
+
 
   const [searchInput, setSearchInput] = useState(search)
   useEffect(() => setSearchInput(search), [search])
@@ -75,9 +75,30 @@ export function LocationAnalyticsPage() {
     ? requested!
     : (available[0]?.period.slice(0, 7) ?? null)
 
+  // Oldest first, and never the selected month itself: a window that reached it would compare it with itself.
+  const priorMonths = useMemo(
+    () =>
+      available
+        .map((item) => item.period.slice(0, 7))
+        .filter((month) => period !== null && month < period)
+        .sort(),
+    [available, period],
+  )
+
+
+  const request = basisRequest(selection)
+  const basisKey = `${request.basis}|${request.customStart ?? ''}|${request.customEnd ?? ''}`
   const query = useMemo(
-    () => ({ basis, kind, state, search: search || undefined, page, pageSize }) as const,
-    [basis, kind, state, search, page],
+    () => ({
+      ...request,
+      kind,
+      state,
+      search: search || undefined,
+      page,
+      pageSize,
+    }) as const,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [basisKey, kind, state, search, page],
   )
 
   // One request per selection. The key stops a re-render from repeating a fetch that is already in flight.
@@ -176,26 +197,14 @@ export function LocationAnalyticsPage() {
           </select>
         </label>
 
-        <div className="text-xs text-slate-500">
-          <span id="basis-label">Müqayisə</span>
-          <div className="mt-1 flex flex-wrap gap-1" role="group" aria-labelledby="basis-label">
-            {basisOrder.map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={basis === option}
-                onClick={() => update({ basis: option })}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  basis === option
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {basisLabels[option]}
-              </button>
-            ))}
-          </div>
-        </div>
+        {period !== null && (
+          <BasisPicker
+            selection={selection}
+            onSelect={(next: BasisSelection) => update(basisParams(next))}
+            months={priorMonths}
+            currentPeriod={period}
+          />
+        )}
       </div>
 
       {periods.status === 'success' && available.length === 0 && (

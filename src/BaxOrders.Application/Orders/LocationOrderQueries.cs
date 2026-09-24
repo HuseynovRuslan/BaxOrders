@@ -1,4 +1,5 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Orders.Pricing;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Imports;
 using BaxOrders.Domain.Normalization;
@@ -87,13 +88,21 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 db.OrderRequestItems.Count(item => item.OrderRequest.LocationId == location.Id),
                 db.OrderRequestItems.Where(item => item.OrderRequest.LocationId == location.Id)
                     .Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
-                db.OrderRequestItems.Count(item => item.OrderRequest.LocationId == location.Id && item.UnitPrice == null)))
+                // Through the shared rule, never a raw "no price": material the company issues from its own
+                // store has no purchase price and never had one, and counting it as a gap said this object had
+                // problems it does not have.
+                db.OrderRequestItems.Where(item => item.OrderRequest.LocationId == location.Id)
+                    .Count(OrderLinePricingQueries.Warning),
+                db.OrderRequestItems.Where(item => item.OrderRequest.LocationId == location.Id)
+                    .Count(OrderLinePricingQueries.InternalSupply)))
             .ToListAsync(cancellationToken);
 
         // SQL sums an empty set to zero once EF wraps it; "no priced line at all" must stay unknown instead.
-        items = [.. items.Select(row => row.TotalItemCount - row.MissingPriceItemCount == 0
-            ? row with { KnownAmountTotal = null }
-            : row)];
+        // Counted from the lines that carry a price, so internal supply neither hides nor invents an amount.
+        items = [.. items.Select(row =>
+            row.TotalItemCount - row.MissingPriceItemCount - row.InternalSupplyItemCount == 0
+                ? row with { KnownAmountTotal = null }
+                : row)];
 
         items = await WithLatestOrderAsync(items, cancellationToken);
 
@@ -160,13 +169,13 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 OrderRequestId = group.Key,
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
-                // A price is only missing when it was owed. See SupplierPriceRequirement for why this is a
-                // recorded property of the supplier and never a guess from its name. No supplier at all is
-                // read as "bought": nothing has said otherwise, and assuming internal supply would hide a gap.
+                // A price is only missing when it was owed, and the line itself says whether it was — see
+                // PricingMode for why no property of the supplier can answer that. A line nobody has classified
+                // counts as owed: the cautious reading is the one that cannot hide a real gap.
                 MissingRequiredPriceItemCount = group.Count(item => item.UnitPrice == null
-                    && (item.Supplier == null || item.Supplier.PriceRequirement == SupplierPriceRequirement.Required)),
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
                 PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
-                    && item.Supplier != null && item.Supplier.PriceRequirement == SupplierPriceRequirement.NotRequired),
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
             .ToDictionaryAsync(row => row.OrderRequestId, cancellationToken);
@@ -235,8 +244,10 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 ItemCount = db.OrderRequestItems.Count(line => line.OrderRequest.LocationId == item.Id),
                 KnownAmount = db.OrderRequestItems.Where(line => line.OrderRequest.LocationId == item.Id)
                     .Sum(line => (decimal?)(line.Quantity * line.UnitPrice)),
-                MissingPrice = db.OrderRequestItems
-                    .Count(line => line.OrderRequest.LocationId == item.Id && line.UnitPrice == null),
+                MissingPrice = db.OrderRequestItems.Where(line => line.OrderRequest.LocationId == item.Id)
+                    .Count(OrderLinePricingQueries.Warning),
+                InternalSupply = db.OrderRequestItems.Where(line => line.OrderRequest.LocationId == item.Id)
+                    .Count(OrderLinePricingQueries.InternalSupply),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -279,8 +290,9 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 request.RequestDate,
                 request.Status,
                 request.Items.Count,
-                request.Items.Count(item => item.UnitPrice != null),
-                request.Items.Count(item => item.UnitPrice == null),
+                request.Items.AsQueryable().Count(OrderLinePricingQueries.Priced),
+                request.Items.AsQueryable().Count(OrderLinePricingQueries.Warning),
+                request.Items.AsQueryable().Count(OrderLinePricingQueries.InternalSupply),
                 request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
                 request.CreatedAtUtc))
             .ToListAsync(cancellationToken);
@@ -299,9 +311,11 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
             header.Earliest,
             header.Latest,
             header.ItemCount,
-            // SQL sums an empty set to zero; "no priced line at all" must stay unknown instead.
-            header.ItemCount - header.MissingPrice == 0 ? null : header.KnownAmount,
+            // SQL sums an empty set to zero; "no priced line at all" must stay unknown instead. Counted from
+            // the lines that carry a price, so internal supply neither hides nor invents an amount.
+            header.ItemCount - header.MissingPrice - header.InternalSupply == 0 ? null : header.KnownAmount,
             header.MissingPrice,
+            header.InternalSupply,
             years,
             new PagedResult<LocationOrderHistoryEntryDto>(requests, page, pageSize, totalCount));
     }

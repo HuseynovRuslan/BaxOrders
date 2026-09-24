@@ -1,4 +1,5 @@
-using BaxOrders.Application.Abstractions;
+using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Orders;
@@ -38,21 +39,32 @@ public sealed class OrdersController(
             : throw new NotFoundException($"Order request #{orderRequestId} was not found.");
 
     /// <summary>
-    /// What this order costs, how it differs from the month before it, and why.
+    /// What this order costs, how it differs from the months behind it, and why.
     /// </summary>
     /// <remarks>
     /// Answers about the version asked for, not about the newest one: the figures shown beside a decision have
-    /// to be the figures being decided. Reads only — nothing here changes an order, its status or its history.
+    /// to be the figures being decided. The comparison is whichever basis the caller asks for — the same one
+    /// the dashboard card was showing — and defaults to the previous month. Reads only.
     /// </remarks>
+    /// <response code="400">The basis, or one of its months, is not a value this API accepts.</response>
     /// <response code="404">No such order request.</response>
     [HttpGet("{orderRequestId:long}/decision-context")]
     [ProducesResponseType<OrderDecisionContextDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<OrderDecisionContextDto>> GetDecisionContext(
-        long orderRequestId, CancellationToken cancellationToken) =>
-        await decisions.GetAsync(orderRequestId, cancellationToken) is { } context
+        long orderRequestId, [FromQuery] DecisionContextQuery query, CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(query.Basis))
+        {
+            throw new ValidationException(
+                $"'basis' must be one of: {string.Join(", ", Enum.GetNames<AnalyticsComparisonBasis>())}.");
+        }
+
+        return await decisions.GetAsync(orderRequestId, query, cancellationToken) is { } context
             ? context
             : throw new NotFoundException($"Order request #{orderRequestId} was not found.");
+    }
 
     /// <summary>Where one request stands in approval, what its state allows, and everything done to it.</summary>
     /// <response code="404">No such order request.</response>
