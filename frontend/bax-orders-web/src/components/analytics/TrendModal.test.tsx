@@ -387,6 +387,167 @@ describe('how often it is ordered', () => {
   })
 })
 
+/**
+ * Brief (Task 19), requirement 4: "Son 9 ayın 1-də sifariş edilib" comes first, above the chart — a manager's first
+ * question is whether this is an ordinary order at all.
+ */
+describe('the order of the drawer', () => {
+  function follows(earlier: Node, later: Node): boolean {
+    return (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+  }
+
+  it('opens with how often the product is ordered, before the supplier, the comparison, the toggle and the chart', async () => {
+    await renderModal({ driver: driver() })
+
+    const sentence = screen.getByText('Son 9 ayın 6-da sifariş edilib')
+    expect(follows(sentence, screen.getByText('Təchizatçı qeyd olunmayıb'))).toBe(true)
+    expect(follows(sentence, screen.getByLabelText('Bu ayın müqayisəsi'))).toBe(true)
+    expect(follows(sentence, screen.getByRole('group', { name: 'Göstərici' }))).toBe(true)
+    expect(follows(sentence, await screen.findByTestId('chart'))).toBe(true)
+  })
+
+  it('keeps everything else in the order it had', async () => {
+    await renderModal({ driver: driver() })
+
+    const inOrder = [
+      screen.getByText('Təchizatçı qeyd olunmayıb'),
+      screen.getByLabelText('Bu ayın müqayisəsi'),
+      screen.getByRole('group', { name: 'Göstərici' }),
+      await screen.findByTestId('chart'),
+      screen.getByText(/Həmin aylar qrafikdə boşluqdur/),
+      primary().getByRole('columnheader', { name: 'Ay' }),
+      screen.getByText('Mənbə və versiya məlumatı'),
+    ]
+    for (let index = 1; index < inOrder.length; index += 1) {
+      expect(follows(inOrder[index - 1], inOrder[index]), String(index)).toBe(true)
+    }
+  })
+
+  it('starts with the supplier when the object has no month to count', async () => {
+    analyticsApi.fetchVariantTrend.mockResolvedValue(trend({
+      frequency: frequency({ availableMonthCount: 0, orderedMonthCount: 0, firstOrderedPeriod: null, lastOrderedPeriod: null }),
+    }))
+    await renderModal()
+
+    expect(screen.queryByLabelText('Sifariş tezliyi')).toBeNull()
+    const body = screen.getByText('Təchizatçı qeyd olunmayıb').parentElement!
+    expect(body.firstElementChild).toHaveTextContent('Təchizatçı qeyd olunmayıb')
+  })
+})
+
+/**
+ * Brief (Task 19), acceptance 5 and decision 19.3: a product ordered in a single month gets a sentence, not a chart of
+ * zeros and one spike. The sentence is the frequency the history already had; the figures stay in the table.
+ */
+describe('a product ordered in a single month', () => {
+  /**
+   * Shaped like the brief's "Ağac dirəyi metal": nine months with a request at the object, the product in one of them,
+   * and a month with no request at all in between.
+   */
+  function singleMonth(): VariantTrend {
+    const without = { quantity: 0, itemCount: 0, knownAmount: null, weightedUnitPrice: null, knownPriceItemCount: 0 }
+    return trend({
+      variant: variant({ productName: 'Ağac dirəyi metal' }),
+      from: '2025-12-01',
+      to: '2026-09-01',
+      points: [
+        ...['2025-12-01', '2026-01-01', '2026-02-01', '2026-03-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01']
+          .map((period) => point(period, without)),
+        point('2026-09-01', { quantity: 12, knownAmount: 180, weightedUnitPrice: 15, supplierNames: ['Aqro MMC'] }),
+      ],
+      frequency: frequency({
+        availableMonthCount: 9,
+        orderedMonthCount: 1,
+        firstOrderedPeriod: '2026-09-01',
+        lastOrderedPeriod: '2026-09-01',
+        monthsSinceLastOrder: 0,
+        intervalsInMonths: [],
+        typicalIntervalMonths: null,
+        shortestIntervalMonths: null,
+        longestIntervalMonths: null,
+      }),
+    })
+  }
+
+  beforeEach(() => analyticsApi.fetchVariantTrend.mockResolvedValue(singleMonth()))
+
+  it('says so in the frequency sentence, and draws no chart, offers no toggle and has no note about gaps', async () => {
+    await renderModal({ variant: variant({ productName: 'Ağac dirəyi metal' }), to: '2026-09' })
+
+    expect(screen.getByText('Son 9 ayın 1-də sifariş edilib')).toBeInTheDocument()
+    // Neither the chart nor the placeholder it is loaded behind.
+    expect(screen.queryByTestId('chart')).toBeNull()
+    expect(screen.getByRole('dialog').querySelector('.animate-pulse')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Göstərici' })).toBeNull()
+    for (const name of ['Miqdar', 'Məbləğ', 'Orta qiymət']) {
+      expect(screen.queryByRole('button', { name }), name).toBeNull()
+    }
+    expect(screen.queryByText(/qrafikdə boşluqdur/)).toBeNull()
+  })
+
+  it('keeps every figure in the table, and the month with no request says so', async () => {
+    await renderModal({ to: '2026-09' })
+
+    const september = primary().getByRole('row', { name: /Sentyabr 2026/ })
+    expect(within(september).getByText('12 ədəd')).toBeInTheDocument()
+    expect(within(september).getByText('15,00 ₼')).toBeInTheDocument()
+    expect(within(september).getByText('180,00 ₼')).toBeInTheDocument()
+    expect(within(september).getByText('Aqro MMC')).toBeInTheDocument()
+    expect(within(primary().getByRole('row', { name: /Aprel 2026/ })).getByText('sifariş yoxdur')).toBeInTheDocument()
+    expect(within(primary().getByRole('row', { name: /Avqust 2026/ })).getByText('0 ədəd')).toBeInTheDocument()
+  })
+
+  it('keeps the note on the weighted price, the period, the supplier, the comparison and the folded record', async () => {
+    await renderModal({ driver: driver(), to: '2026-09' })
+
+    expect(screen.getByRole('button', { name: 'Orta qiymət necə hesablanır?' })).toBeInTheDocument()
+    expect(screen.getByText(/Dekabr 2025 – Sentyabr 2026 · 9 dövr/)).toBeInTheDocument()
+    expect(screen.getByText('Təchizatçı: Aqro MMC')).toBeInTheDocument()
+    expect(screen.getByLabelText('Bu ayın müqayisəsi')).toBeInTheDocument()
+    expect(screen.getByText('Mənbə və versiya məlumatı').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText(/İlk sifariş: Sentyabr 2026/)).toBeInTheDocument()
+  })
+
+  it('claims nothing about what the one order means', async () => {
+    await renderModal({ to: '2026-09' })
+
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/qeyri-adi|adi sifariş|ilk dəfə|proqnoz|gözlənilir/i)
+  })
+})
+
+describe('a product ordered in any other number of months', () => {
+  it.each([0, 2, 6])('ordered in %i months, it keeps the chart and the toggle', async (orderedMonthCount) => {
+    analyticsApi.fetchVariantTrend.mockResolvedValue(trend({ frequency: frequency({ orderedMonthCount }) }))
+    await renderModal()
+
+    expect(await screen.findByTestId('chart')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Göstərici' })).toBeInTheDocument()
+  })
+
+  it('switches between all three measures', async () => {
+    const user = userEvent.setup()
+    await renderModal()
+
+    const tabs = within(screen.getByRole('group', { name: 'Göstərici' }))
+    expect(tabs.getByRole('button', { name: 'Miqdar' })).toHaveAttribute('aria-pressed', 'true')
+    for (const name of ['Məbləğ', 'Orta qiymət', 'Miqdar']) {
+      await user.click(tabs.getByRole('button', { name }))
+      expect(tabs.getByRole('button', { name }), name).toHaveAttribute('aria-pressed', 'true')
+    }
+  })
+
+  it('switches between money and the average price for a service, which has no quantity', async () => {
+    const user = userEvent.setup()
+    await renderModal({ isService: true })
+
+    const tabs = within(screen.getByRole('group', { name: 'Göstərici' }))
+    expect(tabs.queryByRole('button', { name: 'Miqdar' })).toBeNull()
+    expect(tabs.getByRole('button', { name: 'Məbləğ' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(tabs.getByRole('button', { name: 'Orta qiymət' }))
+    expect(tabs.getByRole('button', { name: 'Orta qiymət' })).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
 describe('the comparison it was opened from', () => {
   it('gives both sides of every figure and the split of the difference', async () => {
     await renderModal({ driver: driver() })

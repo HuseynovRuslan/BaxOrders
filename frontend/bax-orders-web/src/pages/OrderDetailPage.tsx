@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
-import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
+import {
+  fetchDecisionContext,
+  type DecisionDecomposition,
+  type DecisionDriver,
+  type OrderDecisionContext,
+} from '../api/decisions'
 import {
   basisParams,
   basisRequest,
@@ -9,7 +14,7 @@ import {
   pricingReviewLink,
   type BasisSelection,
 } from '../analytics/basisParams'
-import { parseCause, withCause } from '../analytics/decisionParams'
+import { parseCause, productParam, withCause, withProduct } from '../analytics/decisionParams'
 import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
@@ -118,6 +123,51 @@ export function OrderDetailPage() {
     }
   }
 
+  // The product whose history is open lives in the URL as well (19.2): Back closes the history instead of leaving
+  // the page, and a shared link opens the same history over the same comparison. Like the cause, it is a reading of
+  // what is already on the page, so opening and closing re-fetch nothing — `product` is in none of the keys below.
+  const location = useLocation()
+  const navigate = useNavigate()
+  const closedEntry = useRef<string | null>(null)
+  // An entry reached again — Forward brings back the very entry that was closed — may be closed again.
+  useEffect(() => {
+    closedEntry.current = null
+  }, [location.key])
+
+  /** A push, marked as this page's own, so that closing can take exactly that entry away again. */
+  function openProduct(driver: DecisionDriver) {
+    const next = withProduct(params, driver.variant.productVariantId)
+    if (next !== null) {
+      setParams(next, { state: { productDrawer: true } })
+    }
+  }
+
+  /**
+   * `Escape`, «Bağla», the background and Back all end in the same place: the entry without the product.
+   *
+   * Opened here, closing is Back itself, so it leaves no entry behind and the next Back leaves the page. Opened from a
+   * pasted link, there is no entry of ours to go back to, so the product is taken out of this one instead, and Back
+   * still goes wherever it went before the link.
+   */
+  function closeProduct() {
+    // Escape and a press on the background can both arrive before the browser's Back has landed, and a second Back
+    // would leave the page. One close per entry.
+    if (closedEntry.current === location.key) {
+      return
+    }
+
+    closedEntry.current = location.key
+    if (isProductDrawerEntry(location.state)) {
+      navigate(-1)
+      return
+    }
+
+    const next = withProduct(params, null)
+    if (next !== null) {
+      setParams(next, { replace: true })
+    }
+  }
+
   const id = Number(orderRequestId)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -130,7 +180,6 @@ export function OrderDetailPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [decision, setDecision] = useState<OrderDecisionContext | null>(null)
   const [decisionPending, setDecisionPending] = useState(true)
-  const [history, setHistory] = useState<DecisionDriver | null>(null)
 
   // Bumped after every change, so the lines, the correction state and both histories are re-read together
   // rather than each drifting on its own copy.
@@ -178,6 +227,15 @@ export function OrderDetailPage() {
 
   /** The months this object can be compared against, oldest first — the same list the object page offers. */
   const priorMonths = comparablePriorMonths(decision)
+
+  /**
+   * The product the address names, found among every product the comparison lists, whichever of them the list is
+   * showing — a link to a product opens it under any chip. Unknown, or no comparison to look in, is no history.
+   */
+  const shownProductId = productParam(params)
+  const product = shownProductId === null || !decision?.decomposition
+    ? null
+    : driverOf(decision.decomposition, shownProductId)
 
   /** What every dialog does when it succeeds, and what a 409 does: read everything again. */
   const afterChange = useCallback(
@@ -331,7 +389,7 @@ export function OrderDetailPage() {
                 filter={cause}
                 onFilter={selectCause}
                 headingRef={driversHeading}
-                onHistory={setHistory}
+                onHistory={openProduct}
               />
             )}
           </div>
@@ -545,24 +603,25 @@ export function OrderDetailPage() {
           buttons fixed to the bottom of the screen. */}
       {data && <div aria-hidden="true" className="h-24 lg:hidden" />}
 
-      {history && data && (
+      {/* No other dialog opens inside the history: one would have to open on a later render than it (Task 17). */}
+      {product && data && (
         <TrendModal
           locationId={data.locationId}
-          variant={history.variant}
-          isService={history.analyticsKind === 'AmountOrientedService'}
+          variant={product.variant}
+          isService={product.analyticsKind === 'AmountOrientedService'}
           from={monthKey(data.requestPeriod, -11)}
           to={monthKey(data.requestPeriod, 0)}
-          driver={history}
+          driver={product}
           // The same basis the page compares against (Task 1), with the two quantities its row already shows.
           quantityRatio={decision
             ? {
               basis: decision.primary.basis,
               windowPeriods: decision.primary.windowPeriods,
-              baseline: history.baselineQuantity,
-              current: history.currentQuantity,
+              baseline: product.baselineQuantity,
+              current: product.currentQuantity,
             }
             : null}
-          onClose={() => setHistory(null)}
+          onClose={closeProduct}
         />
       )}
 
@@ -769,6 +828,17 @@ function SupplierCell({ item }: { item: OrderRequestItem }) {
   return item.supplierName === null
     ? <span className="text-slate-500">{unknownSupplierLabel}</span>
     : <>{item.supplierName}</>
+}
+
+/** Whether this history entry was pushed by opening a product on this page, rather than arrived at by a link. */
+function isProductDrawerEntry(state: unknown): boolean {
+  return typeof state === 'object' && state !== null && (state as { productDrawer?: unknown }).productDrawer === true
+}
+
+/** A product of the comparison by its variant: among the products that moved first, then the steady ones. */
+function driverOf(decomposition: DecisionDecomposition, productVariantId: number): DecisionDriver | null {
+  const byVariant = (driver: DecisionDriver) => driver.variant.productVariantId === productVariantId
+  return decomposition.drivers.find(byVariant) ?? decomposition.steady.find(byVariant) ?? null
 }
 
 /**

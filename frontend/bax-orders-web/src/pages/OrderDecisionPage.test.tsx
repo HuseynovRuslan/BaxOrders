@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1928,5 +1928,390 @@ describe('from a reason to the products behind it', () => {
 
     expect(screen.getByRole('link', { name: 'Obyektin sifarişləri' })).toHaveAttribute('href', '/locations/21?basis=avg3')
     expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/106?basis=avg3')
+  })
+})
+
+/**
+ * Brief (Task 19): the product history is a drawer beside the decision, and it lives in the address. Back closes it
+ * before it leaves the page, `Escape` closes it too, the basis and the cause survive it, a shared address opens it,
+ * and opening it reloads nothing the page already has (19.1, 19.2).
+ */
+describe('the product history in the address', () => {
+  /** The router's own URL, so a test can watch what the page writes back to it. */
+  function Search() {
+    return <span data-testid="search">{useLocation().search}</span>
+  }
+
+  /** The browser's Back button, which a memory router has no other way to press. */
+  function Back() {
+    const navigate = useNavigate()
+    return <button type="button" onClick={() => navigate(-1)}>Brauzerdə geri</button>
+  }
+
+  function newProduct(productVariantId: number, productName: string, amount: number): DecisionDriver {
+    return driver({
+      variant: variant({ productVariantId, productName }),
+      category: 'NewOrders',
+      amountImpact: amount,
+      quantityImpact: null,
+      priceImpact: null,
+      baselineQuantity: 0,
+      currentQuantity: 10,
+      baselineUnitPrice: null,
+      currentUnitPrice: amount / 10,
+      unitPricePercentChange: null,
+      baselineKnownAmount: null,
+      currentKnownAmount: amount,
+      baselineItemCount: 0,
+      state: 'New',
+    })
+  }
+
+  /** Two new products behind "Yeni məhsullar", a price change, and one product whose money did not move. */
+  beforeEach(() => {
+    const base = context()
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      decomposition: {
+        ...base.decomposition!,
+        categories: [
+          { category: 'NewOrders', amount: 561, variantCount: 2 },
+          { category: 'QuantityChange', amount: 0, variantCount: 0 },
+          { category: 'PriceChange', amount: 39, variantCount: 1 },
+          { category: 'NoLongerOrdered', amount: 0, variantCount: 0 },
+          { category: 'Services', amount: 0, variantCount: 0 },
+          { category: 'UnattributedDueToMissingPrice', amount: 0, variantCount: 0 },
+        ],
+        drivers: [newProduct(31, 'Rosmarinus', 361), newProduct(32, 'Nərgiz', 200), driver()],
+        steady: [driver({
+          variant: variant({ productVariantId: 71, productName: 'Sabit mal' }),
+          category: 'QuantityChange',
+          amountImpact: 0,
+          quantityImpact: 0,
+          priceImpact: 0,
+          currentUnitPrice: 2.8,
+          unitPricePercentChange: 0,
+          currentKnownAmount: 84,
+        })],
+        products: { ...base.decomposition!.products, newCount: 2, listedCount: 3 },
+      },
+    }))
+  })
+
+  /** The entries before the last are where the reader came from; the last is where the page opens. */
+  async function renderAt(...entries: string[]) {
+    render(
+      <MemoryRouter initialEntries={entries}>
+        <Search />
+        <Back />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+          <Route path="/elsewhere" element={<p>Əvvəlki səhifə</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
+    // The order's own lines too: the history needs both the order and its comparison.
+    await within(screen.getByRole('list', { name: 'Sətirlər' })).findByText('York qatlama salfet')
+  }
+
+  function address(): URLSearchParams {
+    return new URLSearchParams(screen.getByTestId('search').textContent ?? '')
+  }
+
+  function drivers() {
+    return within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }))
+  }
+
+  function row(productName: string): HTMLElement {
+    return drivers().getByRole('button', { name: new RegExp(`^${productName}`) })
+  }
+
+  function listed(): string[] {
+    return drivers().getAllByRole('listitem').map((item) => item.querySelector('span.font-medium')?.textContent ?? '')
+  }
+
+  function chip(label: string): HTMLElement {
+    return within(screen.getByRole('group', { name: 'Dəyişiklik növü' })).getByRole('button', { name: new RegExp(label) })
+  }
+
+  function back(): HTMLElement {
+    return screen.getByRole('button', { name: 'Brauzerdə geri' })
+  }
+
+  function history(): Promise<HTMLElement> {
+    return screen.findByRole('dialog', { name: 'Məhsul tarixçəsi' })
+  }
+
+  /** Still on the order, with its decision on the page. */
+  function expectOnTheOrder() {
+    expect(screen.queryByText('Əvvəlki səhifə')).toBeNull()
+    expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
+  }
+
+  /** Brief acceptance 1. */
+  it('opens a clicked product as a drawer on the right, and writes the product beside the basis', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+
+    await user.click(row('Rosmarinus'))
+
+    const drawer = await history()
+    expect(drawer).toHaveAccessibleDescription(/^Rosmarinus · /)
+    expect(drawer.parentElement).toHaveClass('justify-end')
+    expect(address().get('product')).toBe('31')
+    expect(address().get('basis')).toBe('avg3')
+    // The decision it is read against is still on the page, unchanged.
+    expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
+    expect(within(headline()).getByText('+600,00 ₼')).toBeInTheDocument()
+  })
+
+  /** Brief acceptance 2 and 3. */
+  it('closes on Escape, keeps the basis and the cause, and adds no entry: the next Back leaves the page', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3&cause=new')
+
+    await user.click(row('Rosmarinus'))
+    await history()
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3&cause=new')
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz'])
+    expectOnTheOrder()
+
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  /** Brief acceptance 3: by any route. */
+  it('closes the same way by «Bağla» and by a press on the background', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3&cause=new')
+
+    await user.click(row('Rosmarinus'))
+    await user.click(within(await history()).getByRole('button', { name: 'Bağla' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3&cause=new')
+
+    await user.click(row('Nərgiz'))
+    await user.click((await history()).parentElement as HTMLElement)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3&cause=new')
+
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  /** Brief acceptance 2 and decision 19.2. */
+  it('closes on Back and stays on the order, with the basis and the cause; a second Back leaves the page', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3&cause=new')
+
+    await user.click(row('Rosmarinus'))
+    await history()
+    await user.click(back())
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3&cause=new')
+    expect(chip('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+    expectOnTheOrder()
+
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  /** Task 18's note: both are pushes, so Back undoes the history first and the filter second. */
+  it('undoes the history first and the filter second', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3')
+
+    await user.click(chip('Yeni məhsullar'))
+    await user.click(row('Nərgiz'))
+    await history()
+
+    await user.click(back())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3&cause=new')
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz'])
+
+    await user.click(back())
+    expect(address().toString()).toBe('basis=avg3')
+    expect(listed()).toHaveLength(3)
+
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  /** Brief acceptance 4. */
+  it('opens a shared address on the same order, basis, cause and product; closing it only takes the product out', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3&cause=new&product=31')
+
+    const drawer = await history()
+    expect(drawer).toHaveAccessibleDescription(/^Rosmarinus · /)
+    expect(within(within(headline()).getByRole('group', { name: 'Müqayisə' })).getByRole('button', { name: 'Son 3 ayın ortalaması' }))
+      .toHaveAttribute('aria-pressed', 'true')
+    expect(chip('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+    expect(within(screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' }))
+      .getByRole('button', { name: /^Yeni məhsullar, / })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3&cause=new')
+    expectOnTheOrder()
+    // Replaced, not pushed over: Back goes to where the reader was before the link.
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  it('opens a shared product whichever list the page is showing, the steady ones too', async () => {
+    await renderAt('/orders/105?cause=new&product=71')
+
+    expect(await history()).toHaveAccessibleDescription(/^Sabit mal · /)
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz'])
+  })
+
+  it.each(['999999', 'abc', '0', '-3'])('opens no history for product=%s, and leaves the address as it is', async (value) => {
+    await renderAt(`/orders/105?basis=avg3&product=${value}`)
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().get('product')).toBe(value)
+    expect(listed()).toHaveLength(3)
+    expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
+    expect(analyticsApi.fetchVariantTrend).not.toHaveBeenCalled()
+  })
+
+  it('opens no history when the comparison did not load', async () => {
+    decisionsApi.fetchDecisionContext.mockRejectedValue(new Error('500'))
+    render(
+      <MemoryRouter initialEntries={['/orders/105?product=31']}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await within(screen.getByRole('list', { name: 'Sətirlər' })).findByText('York qatlama salfet')
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Sifariş xülasəsi' })).toHaveTextContent('4.800,00 ₼')
+  })
+
+  /** Carried in from Task 18: the history opened from a filtered list gives the focus back to its row. */
+  it('gives the focus back to the row it was opened from, in a filtered list that stays filtered', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3&cause=new')
+    const product = row('Nərgiz')
+
+    await user.click(product)
+    await history()
+    const focus = vi.spyOn(product, 'focus')
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz'])
+    expect(row('Nərgiz')).toBe(product)
+    expect(product).toHaveFocus()
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+  })
+
+  /** Brief acceptance 6. */
+  it('reloads neither the order, nor its correction state, nor its comparison, opening or closing', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3&cause=new')
+    const calls = () => [
+      decisionsApi.fetchDecisionContext.mock.calls.length,
+      ordersApi.fetchOrder.mock.calls.length,
+      revisionsApi.fetchRevision.mock.calls.length,
+    ]
+    const before = calls()
+
+    await user.click(row('Rosmarinus'))
+    await within(await history()).findByText('Son 2 ayın 2-də sifariş edilib')
+    expect(calls()).toEqual(before)
+
+    await user.keyboard('{Escape}')
+    expect(calls()).toEqual(before)
+
+    await user.click(row('Nərgiz'))
+    await history()
+    await user.click(back())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(calls()).toEqual(before)
+    // Only the history itself was read, once per opening.
+    expect(analyticsApi.fetchVariantTrend).toHaveBeenCalledTimes(2)
+  })
+
+  /**
+   * Two closes before the first has landed — «Bağla» twice, or Escape and the background — are one close. Two Backs
+   * would leave the page.
+   */
+  it('closes once when two closes arrive before the first has landed', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?basis=avg3')
+
+    await user.click(row('Rosmarinus'))
+    const close = within(await history()).getByRole('button', { name: 'Bağla' })
+    act(() => {
+      fireEvent.click(close)
+      fireEvent.click(close)
+    })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3')
+    expectOnTheOrder()
+
+    await user.click(row('Nərgiz'))
+    const backdrop = (await history()).parentElement as HTMLElement
+    act(() => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.pointerDown(backdrop)
+      fireEvent.pointerUp(backdrop)
+      fireEvent.click(backdrop)
+    })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3')
+    expectOnTheOrder()
+
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  /** Back to an entry the page had already closed once — Forward, in a browser — closes again. */
+  it('closes again after Back and Forward return to the same entry', async () => {
+    function Forward() {
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate(1)}>Brauzerdə irəli</button>
+    }
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/elsewhere', '/orders/105?basis=avg3']}>
+        <Search />
+        <Back />
+        <Forward />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+          <Route path="/elsewhere" element={<p>Əvvəlki səhifə</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
+    await within(screen.getByRole('list', { name: 'Sətirlər' })).findByText('York qatlama salfet')
+
+    await user.click(row('Rosmarinus'))
+    await history()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Brauzerdə irəli' }))
+    await history()
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(address().toString()).toBe('basis=avg3')
+    await user.click(back())
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
   })
 })

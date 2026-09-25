@@ -1107,6 +1107,19 @@ describe('no retired word on the manager’s screens', () => {
     expect(dialog).not.toHaveTextContent(/yaxşı|pis/i)
   })
 
+  /** Task 19: the same drawer, opened from its address rather than by a click. */
+  it('the product history, opened through ?product=', async () => {
+    renderAt('/orders/105?basis=avg3&product=21', '/orders/:orderRequestId', <OrderDetailPage />)
+    const dialog = await screen.findByRole('dialog')
+    await screen.findByText('Son 9 ayın 3-də sifariş edilib')
+
+    expectNoOldTerms(dialog)
+    expect(dialog).toHaveAccessibleName('Məhsul tarixçəsi')
+    expect(dialog).toHaveAccessibleDescription(/^Zibil paketi · /)
+    expect(dialog).toHaveTextContent('71 ədəd')
+    expect(dialog).not.toHaveTextContent(/yaxşı|pis/i)
+  })
+
   it('the product history on its own', async () => {
     render(
       <TrendModal locationId={21} variant={variant()} isService={false} to="2026-07" onClose={() => {}} />,

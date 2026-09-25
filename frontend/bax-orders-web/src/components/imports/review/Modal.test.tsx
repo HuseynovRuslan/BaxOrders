@@ -319,6 +319,53 @@ describe('the focus', () => {
   })
 })
 
+/**
+ * Task 19 gave `Modal` a second placement for the product history's drawer. Every other dialog renders without one,
+ * so its markup is pinned here exactly as it was at Task 18's commit.
+ */
+describe('the centred dialog every other screen uses', () => {
+  function parts() {
+    const panel = screen.getByRole('dialog')
+    return { backdrop: panel.parentElement as HTMLElement, panel, body: panel.children[1] as HTMLElement }
+  }
+
+  it('has the markup it had before a placement existed, at the default width', () => {
+    render(dialog('Sətri sil'))
+
+    const { backdrop, panel, body } = parts()
+    expect(backdrop.className).toBe(
+      'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4',
+    )
+    expect(panel.className).toBe('mt-10 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-w-lg')
+    expect(body.className).toBe('px-4 py-4')
+  })
+
+  it('has the markup it had before a placement existed, wide', () => {
+    render(<Modal title="Mənbə" onClose={() => {}} width="wide"><p>Excel sətri</p></Modal>)
+
+    const { backdrop, panel, body } = parts()
+    expect(backdrop.className).toBe(
+      'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4',
+    )
+    expect(panel.className).toBe('mt-10 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-w-3xl')
+    expect(body.className).toBe('px-4 py-4')
+  })
+
+  it('is the same with the placement spelled out as the centre', () => {
+    const footer = <button type="button">İmtina</button>
+    const implicit = render(<Modal title="Mənbə" subtitle="Excel" onClose={() => {}} footer={footer}><p>Mətn</p></Modal>)
+    const before = implicit.container.innerHTML
+    implicit.unmount()
+    const explicit = render(
+      <Modal title="Mənbə" subtitle="Excel" onClose={() => {}} footer={footer} placement="center"><p>Mətn</p></Modal>,
+    )
+
+    // The ids React hands out differ between two renders; nothing else may.
+    const withoutIds = (html: string) => html.replace(/(id|aria-labelledby|aria-describedby)="[^"]*"/g, '$1=""')
+    expect(withoutIds(explicit.container.innerHTML)).toBe(withoutIds(before))
+  })
+})
+
 describe('what a screen reader calls it', () => {
   it('is named by its visible title and described by its subtitle', () => {
     render(<Modal title="Sətri sil" subtitle="Yay ayaqqabısı" onClose={() => {}}><p>Sətir</p></Modal>)

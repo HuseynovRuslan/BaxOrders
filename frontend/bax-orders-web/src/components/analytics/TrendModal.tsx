@@ -10,7 +10,7 @@ import type { DecisionDriver } from '../../api/decisions'
 import { productHistoryLabel } from '../../terminology/terms'
 import { MissingPriceMark } from '../dashboard/MissingPriceMark'
 import { formatNumber, formatOrderUnit } from '../imports/labels'
-import { Modal } from '../imports/review/Modal'
+import { Drawer } from '../imports/review/Drawer'
 import { DirectionWord } from './DirectionWord'
 import { InfoHint } from './InfoHint'
 import { costDirectionToneClass, formatMoneyDelta, formatPercent } from './format'
@@ -58,13 +58,14 @@ interface TrendModalProps {
 }
 
 /**
- * One product at one object, over time.
+ * One product at one object, over time, in a drawer beside the order it was opened from (19.1), so the figures it is
+ * being checked against stay in view.
  *
- * Read in the order a manager asks: who supplies it, what changed this month and whether that is an ordinary
- * month for it, how often the thing is ordered at all, and then the whole history as a chart and as a table. The
- * table is the figures a manager thinks in — month, quantity, price, amount, supplier — and the technical record of
- * which request and which version each month came from is folded away underneath, because it answers a different
- * question from a different job.
+ * Read in the order a manager asks: how often the thing is ordered at all — is this an ordinary order? — then who
+ * supplies it, what changed this month, and the whole history as a chart and as a table. The table is the figures a
+ * manager thinks in — month, quantity, price, amount, supplier — and the technical record of which request and which
+ * version each month came from is folded away underneath, because it answers a different question from a different
+ * job.
  */
 export function TrendModal({
   locationId,
@@ -110,13 +111,15 @@ export function TrendModal({
   const unit = formatOrderUnit(variant.orderUnitCode, variant.orderUnitName)
   // A service has no quantity to divide, so it has no ratio either.
   const ratio = !isService && quantityRatio ? quantityRatioLine(quantityRatio, unit) : null
+  // Ordered in one month only, a chart is a row of zeros and one spike: it says nothing the sentence at the top and
+  // the table do not (19.3). Decided by that count alone, never by the shape of the series.
+  const hasChart = trend?.frequency.orderedMonthCount !== 1
 
   return (
-    <Modal
+    <Drawer
       title={productHistoryLabel}
       subtitle={`${variant.productName} · ${describeVariant(variant)}`}
       onClose={onClose}
-      width="wide"
       // Read, never written in: a press on the background may close it (17.2).
       dismissOnBackdrop
     >
@@ -132,13 +135,14 @@ export function TrendModal({
 
       {trend !== null && slots.length > 0 && (
         <div className="space-y-3">
+          {/* The first question: is this an ordinary order for this object, or not? (Task 19, requirement 4) */}
+          <Frequency frequency={trend.frequency} />
+
           <p className="text-sm text-slate-700">{supplierLine(slots)}</p>
 
           {driver
             ? <ComparisonDetail driver={driver} isService={isService} unit={unit} ratio={ratio} />
             : ratio && <p className="text-sm font-medium text-slate-900">{ratio}</p>}
-
-          <Frequency frequency={trend.frequency} />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500">
@@ -147,8 +151,13 @@ export function TrendModal({
               {formatNumber(trend.points.length)} dövr
             </p>
 
-            <div className="flex items-center gap-1" role="group" aria-label="Göstərici">
-              {metrics.map((option) => (
+            {/* With no chart there is nothing to switch, but the note stays: it explains the table's price too. */}
+            <div
+              className="flex items-center gap-1"
+              role={hasChart ? 'group' : undefined}
+              aria-label={hasChart ? 'Göstərici' : undefined}
+            >
+              {hasChart && metrics.map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -167,11 +176,14 @@ export function TrendModal({
             </div>
           </div>
 
-          <Suspense fallback={<div className="h-64 animate-pulse rounded-md bg-slate-100" />}>
-            <TrendChart slots={slots} metric={metric} />
-          </Suspense>
+          {hasChart && (
+            <Suspense fallback={<div className="h-64 animate-pulse rounded-md bg-slate-100" />}>
+              <TrendChart slots={slots} metric={metric} />
+            </Suspense>
+          )}
 
-          {gaps > 0 && (
+          {/* It speaks about the chart's gaps; the table's own rows say which months had no request. */}
+          {hasChart && gaps > 0 && (
             <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
               {formatNumber(gaps)} ay üçün bu obyektin sifarişi yoxdur. Həmin aylar qrafikdə boşluqdur — sıfır kimi
               göstərilmir.
@@ -257,7 +269,7 @@ export function TrendModal({
           </details>
         </div>
       )}
-    </Modal>
+    </Drawer>
   )
 }
 

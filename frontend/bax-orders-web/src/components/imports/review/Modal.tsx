@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { useDialogLayer } from './dialogStack'
 
-interface ModalProps {
+export interface ModalProps {
   title: string
   subtitle?: string
   onClose: () => void
@@ -24,6 +24,12 @@ interface ModalProps {
    * (owner decision 17.2): a form or a confirmation closed by a stray click would lose what was typed into it.
    */
   dismissOnBackdrop?: boolean
+  /**
+   * Where the dialog sits. `'right'` is a panel against the right edge, full height, over a light scrim, so the page
+   * it was opened from stays readable beside it (owner decision 19.1); below `sm` it fills the screen. Only the
+   * layout differs: closing, the keyboard and the focus are the same dialog either way. Use `Drawer` for it.
+   */
+  placement?: 'center' | 'right'
 }
 
 /**
@@ -42,6 +48,7 @@ export function Modal({
   footer,
   width = 'default',
   dismissOnBackdrop = false,
+  placement = 'center',
 }: ModalProps) {
   const titleId = useId()
   const subtitleId = useId()
@@ -137,10 +144,17 @@ export function Modal({
     }
   }
 
+  const right = placement === 'right'
+
   return (
     // overscroll-contain: a scroll that reaches the dialog's end stops there instead of carrying on to the page.
+    // On the right, the background does not scroll at all — the panel's body does — and it stays the panel's direct
+    // parent, so a press on it is judged exactly as it is in the centre. Nothing here or below is transformed: a
+    // transform would become the box an ⓘ note's `position: fixed` is measured from, and the note would be misplaced.
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4"
+      className={right
+        ? 'fixed inset-0 z-50 flex justify-end bg-slate-900/20'
+        : 'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-4'}
       onPointerDown={onBackdropPointerDown}
       onPointerUp={onBackdropPointerUp}
       onClick={onBackdropClick}
@@ -152,9 +166,11 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`mt-10 w-full rounded-lg border border-slate-200 bg-white shadow-lg ${
-          width === 'wide' ? 'max-w-3xl' : 'max-w-lg'
-        }`}
+        className={right
+          ? 'flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-lg sm:w-[560px]'
+          : `mt-10 w-full rounded-lg border border-slate-200 bg-white shadow-lg ${
+            width === 'wide' ? 'max-w-3xl' : 'max-w-lg'
+          }`}
       >
         <div className="flex items-start gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0">
@@ -171,7 +187,10 @@ export function Modal({
           </button>
         </div>
 
-        <div className="px-4 py-4">{children}</div>
+        {/* On the right the header stays put and only the body scrolls, inside the panel. */}
+        <div className={right ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4' : 'px-4 py-4'}>
+          {children}
+        </div>
 
         {footer && <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3">{footer}</div>}
       </div>

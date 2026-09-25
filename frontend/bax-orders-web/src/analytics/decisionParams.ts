@@ -1,12 +1,13 @@
 import type { DriverFilter } from '../components/decisions/labels'
 
 /**
- * How an order page's reading of its own changes travels in a URL — today, which products "Əsas dəyişikliklər" is
- * showing.
+ * How an order page's reading of its own changes travels in a URL — which products "Əsas dəyişikliklər" is showing,
+ * and whose history is open over it.
  *
  * The same principle as the basis (`basisParams`): the query string is the single source of truth, so a reload,
  * Back and a pasted link all restore the list the reader was looking at, and one module owns the spelling. This one
- * owns `cause` and nothing else. The basis is `basisParams`'s; nothing here reads or writes `basis`, `from` or `to`.
+ * owns `cause` and `product` and nothing else. The basis is `basisParams`'s; nothing here reads or writes `basis`,
+ * `from` or `to`.
  */
 
 /** The driver filter as it travels in a URL. Short on purpose, like the basis: a person can read it aloud. */
@@ -69,6 +70,41 @@ export function withCause(params: URLSearchParams, filter: DriverFilter): URLSea
     next.delete(causeParamName)
   } else {
     next.set(causeParamName, value)
+  }
+
+  return next.toString() === params.toString() ? null : next
+}
+
+/** The parameter's name. `?product=812` is the history of the product variant 812, open over the page. */
+const productParamName = 'product'
+
+/**
+ * The product variant whose history is open, or null for none. Never throws.
+ *
+ * Only a plain positive whole number, in digits and nothing else, is an ID. Anything else is read as no product and,
+ * like an unknown `cause`, left in the address as it is: it opens nothing, so the page showing no history does not
+ * contradict it, and the next product the reader opens replaces it.
+ */
+export function productParam(params: URLSearchParams): number | null {
+  const value = params.get(productParamName)
+  if (value === null || !/^\d+$/.test(value)) {
+    return null
+  }
+
+  const id = Number(value)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+/**
+ * The same query string with `product` set to `id` (removed for null), every other parameter kept as it was — or null
+ * when that is the query string already, so a caller never pushes an entry identical to the current one.
+ */
+export function withProduct(params: URLSearchParams, id: number | null): URLSearchParams | null {
+  const next = new URLSearchParams(params)
+  if (id === null) {
+    next.delete(productParamName)
+  } else {
+    next.set(productParamName, String(id))
   }
 
   return next.toString() === params.toString() ? null : next
