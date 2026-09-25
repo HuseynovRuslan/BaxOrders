@@ -384,7 +384,1941 @@ Qeyd:
 
 ## B. Köhnə tapıntılar
 
+Bu bölmə ilk auditin tapıntılarıdır: `BRIEFS/TASK-04.md` … `TASK-14.md`-nin «Auditdə müşahidə edilən hazırkı problem»
+bölməsində hər bənd bir sətirdir, bənd bir neçə nümunə sayırsa, hər nümunə ayrıca sətirdir (protokol §6.1, §10 A2).
+`BRIEFS/TASK-16.md`-nin tapıntıları burada yox, C-dədir (protokol §6.1, son abzas). `Hökm:` sözləri: həll olunub /
+qismən / həll olunmayıb, və ya yoxlanıla bilmədi (səbəb). Prioritet yazmayın: «qismən» və «həll olunmayıb» sətrinə bu
+günün şkalası ilə prioriteti 15b verir (protokol §6.1, §7.1). Hər sətrə sübut lazımdır: ekran, en və bu gün görünən rəqəm
+və ya mətn, ilk auditin qeydinin yanında (protokol §6.1). `Rəqəm:` və `Göründü:` «baxdım» ilə qalmır.
+
+- Sətir başqa demirsə: real data, Rəhbər hesabı, Sentyabr 2026, «Keçən ay», 1366 × 768; sifariş səhifəsi E-nin
+  girişindəki kimi açılır. `Mənbə:`-nin sonunda tapıntını həll edən task yazılıb.
+- Məbləğ: brief "71,210.29" yazır, ekran "71.210,29 ₼" (`components/analytics/format.ts`:235, 243–245). Dəyəri müqayisə
+  edin, yazılışı yox. Söz sətirlərinin (B-29 … B-43) beş ekranı: İdarəetmə paneli; Heydər Əliyev Mərkəzinin Sentyabr
+  2026 sifarişi; onun obyekt səhifəsi; Aylıq hesabat; həmin sifarişdən açılan «Məhsul tarixçəsi» (`BRIEFS/TASK-05.md`:32).
+
+### B-01 — Task 04: «Təsdiq gözləyənlər» boş idi, qərar düymələri görünmədi
+Mənbə: `BRIEFS/TASK-04.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 7, sitat: ""Təsdiq gözləyənlər" boşdur: "Təsdiq gözləyən sifariş yoxdur. Yeni sifariş təsdiqə göndərildikdə burada görünəcək." Ona görə "Təsdiqlə" və "Düzəliş tələb et" düymələri auditdə heç görünmədi və qərar axını yoxlanılmadı." · həll edən task: Task 04
+Harada: real · «Təsdiq gözləyənlər» · `/approvals` (`layout/navigation.ts`:30) · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) menyuda «Təsdiq gözləyənlər»-i açın (başlıq: `pages/ApprovalInboxPage.tsx`:129); 2) siyahıdakı sifarişləri (obyekt və dövr) yazın; siyahı boşdursa, boş siyahının mətnini sözbəsöz yazın; 3) real sifarişdə «Təsdiqlə» və «Düzəliş tələb et»-i basmayın; 4) düymələrin görünməsi və qərar axını sınaqda yoxlanır: F-02 … F-06-nın hökmlərini aşağıya köçürün.
+Gözlənilən: "Real datadan ayrı test mühitində axın başdan sona sınanır: sifariş göndərilir → "Təsdiq gözləyənlər"də görünür → rəhbər təhlilə baxır → səbəb yazaraq "Düzəliş tələb et" → göndərən düzəldib yenidən göndərir → rəhbər təsdiqləyir. Sınaq Rəhbər rolu ilə aparılır." (`BRIEFS/TASK-04.md`:14); ""Təsdiqlə" və "Düzəliş tələb et" axtarılmadan tapılır və təhlilə baxarkən görünən qalır." (`BRIEFS/TASK-04.md`:20). Real növbədə neçə sifariş olmalıdır — brief rəqəm vermir.
+İlk auditdə: ""Təsdiq gözləyənlər" boşdur" və düymələr "auditdə heç görünmədi və qərar axını yoxlanılmadı" (`BRIEFS/TASK-04.md`:7)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (real növbədəki sifarişlər və ya boş siyahının mətni):
+  - F-02-nin hökmü:
+  - F-03-ün hökmü:
+  - F-04-ün hökmü:
+  - F-05-in hökmü:
+  - F-06-nın hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-02 — Task 04: axını təhlükəsiz sınamaq üçün mühit yox idi
+Mənbə: `BRIEFS/TASK-04.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 8, sitat: "Audit qaydası real sifarişləri təsdiqləməyi, qaytarmağı və dəyişməyi qadağan edir. Axını təhlükəsiz sınamaq üçün mühit yoxdur." · həll edən task: Task 04
+Harada: sınaq · sınaq mühiti: A-05 və F-01 … F-09 · `http://localhost:5174` · 1366 və 390
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması. Ayrıca addım yoxdur: 1) sınaq mühitinin sıfırlanıb açılması A-05-dədir; 2) axın F-01 … F-09-dadır (`04-sandbox.md`, Sınaq 1 və Sınaq 2); 3) A-05-in və F-09-un hökmlərini, və F-01 … F-09 arasında «keçdi» olmayan sətirlərin nömrələrini aşağıya köçürün.
+Gözlənilən: "Real datadan ayrı test mühitində axın başdan sona sınanır: …" (`BRIEFS/TASK-04.md`:14); "Real sifarişlər təsdiqlənmir, qaytarılmır və dəyişdirilmir; sınaq yalnız test mühitində aparılır." (`BRIEFS/TASK-04.md`:26)
+İlk auditdə: "Axını təhlükəsiz sınamaq üçün mühit yoxdur." (`BRIEFS/TASK-04.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - A-05-in hökmü:
+  - F-09-un hökmü:
+  - F-01 … F-09 arasında «keçdi» olmayanlar (yoxdursa «yoxdur»):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-03 — Task 04: təsdiqlənmiş sifarişdə status iki dəfə
+Mənbə: `BRIEFS/TASK-04.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 9, sitat: "Təsdiqlənmiş sifarişdə yan panel statusu təkrarlayır: "✓ Təsdiqlənib" həm başlıqda, həm yan paneldə var." · həll edən task: Task 04
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) sifariş səhifəsini açın (E-nin girişi, «Sifariş səhifəsini açmaq»); 2) səhifədə «Təsdiqlənib» sözünün (`components/workflow/labels.ts`:8) göründüyü hər yeri yazın: başlıqdakı nişan (`pages/OrderDetailPage.tsx`:194–195), qərar paneli və başqa yer; 3) neçə dəfə göründüyünü yazın. Koddan: panel statusu təkrarlamır, onu başlıq bir dəfə deyir (`components/workflow/WorkflowPanel.tsx`:42). Sınaqda təsdiqlənmiş test sifarişində eyni sual F-06-dadır ("səhifədə bir dəfə"): F-06-nın hökmünü də köçürün.
+Gözlənilən: "Qərar paneli statusu təkrarlamır." (`BRIEFS/TASK-04.md`:15); "status bir dəfə görünür." (`BRIEFS/TASK-04.md`:48)
+İlk auditdə: ""✓ Təsdiqlənib" həm başlıqda, həm yan paneldə var." (`BRIEFS/TASK-04.md`:9)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - «Təsdiqlənib» görülən yerlər:
+  - Neçə dəfə:
+  - F-06-nın hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-04 — Task 04: panelin mətni qərara kömək etmirdi (Fəvvarələr, Sentyabr 2026)
+Mənbə: `BRIEFS/TASK-04.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10, sitat: "Panelin qalan hissəsi qərara kömək etmir: "Məlum qiymətlər üzrə məbləğ: 10,949.67 ₼ · 76 sətir · Təqdim və təsdiq tarixi sistemdə qeyd olunmayıb" (Fəvvarələr meydanı, Sentyabr 2026)." · həll edən task: Task 04; paneldəki sözlər Task 05 (`BRIEFS/TASK-04.md`:41)
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, qərar paneli · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-03-ün səhifəsi; 2) qərar panelinin bütün mətnini sözbəsöz yazın; 3) paneldə göndərənin, tarixin və ya təsdiqləyənin adı olub-olmadığını yazın. Koddan: Excel-dən gəlmiş sifarişdə panel yalnız bir cümlə yazır (`components/workflow/WorkflowPanel.tsx`:199; `components/workflow/labels.ts`:68). "Məlum qiymətlər üzrə məbləğ" sözünün özü B-32-dədir.
+Gözlənilən: "Excel-dən gəlmiş keçmiş sifarişlərdə panel belə yazır: "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil." Göndərən, tarix və ya təsdiqləyən uydurulmur." (`BRIEFS/TASK-04.md`:23; qərar 4.1, `BRIEFS/TASK-04.md`:29). Paneldə məbləğ olmalıdırmı — brief rəqəm vermir.
+İlk auditdə: "Məlum qiymətlər üzrə məbləğ: 10,949.67 ₼ · 76 sətir · Təqdim və təsdiq tarixi sistemdə qeyd olunmayıb" (`BRIEFS/TASK-04.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (panelin mətni, sözbəsöz):
+  - Paneldə göndərən, tarix və ya təsdiqləyən adı (var / yox):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-05 — Task 04: qərar üçün beş fakt çatışmırdı
+Mənbə: `BRIEFS/TASK-04.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 11, sitat: "Qərar üçün bunlar çatışmır: sifarişi kim göndərib, nə vaxt, neçənci dəfə (düzəlişdən sonra?), əvvəlki düzəliş qeydi nə idi, kim və nə vaxt təsdiqləyib." · həll edən task: Task 04
+Harada: real və sınaq · qərar paneli: sınaqda F-01 … F-06, realda B-04-ün sifarişi · — · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması (sınaq hissəsi üçün). (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: 1) sınaqda panelin dörd faktı F-01 … F-06-da hər addımda yazılır (`04-sandbox.md`, Sınaq 1, «Hər addımda yazılacaq dörd fakt»; `components/workflow/labels.ts`:71–81); hər fakt üçün onun göründüyü F sətrini və dəyərini köçürün; 2) Excel-dən gəlmiş real sifarişdə faktların uydurulmaması B-04-dədir: B-04-ün hökmünü `Qeyd:`-ə yazın.
+Gözlənilən: "Qərar paneli statusu təkrarlamır. Əvəzində bunları göstərir:" "göndərən və göndərmə tarixi;" "neçənci dəfə göndərildiyi (biznes dilində, "Versiya 2" kimi yox);" "əvvəlki düzəliş səbəbi;" "təsdiqləyən və ya qaytaran şəxs və tarix." (`BRIEFS/TASK-04.md`:15–19)
+İlk auditdə: "sifarişi kim göndərib, nə vaxt, neçənci dəfə (düzəlişdən sonra?), əvvəlki düzəliş qeydi nə idi, kim və nə vaxt təsdiqləyib" (`BRIEFS/TASK-04.md`:11)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Göndərən (F sətri və dəyər):
+  - Göndərmə tarixi:
+  - Neçənci göndəriş:
+  - Əvvəlki düzəliş səbəbi:
+  - Təsdiqləyən və tarix:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-06 — Task 05: obyekt kodu (LOC-…) — panelin cədvəli
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 8, sitat: "Obyekt kodları görünür: LOC-000043 (panel cədvəli, Obyektlər, mobil kartlar, obyekt səhifəsinin başlığı)." · həll edən task: Task 05
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» cədvəli (`pages/ManagementDashboardPage.tsx`:304) · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə panelini açın və «Bütün obyektlər» cədvəlinə enin; 2) brauzerdə `Ctrl+F` ilə `LOC-` axtarın və neçə tapıldığını yazın (axtarış yalnız ekrandakı mətni oxuyur, heç nə dəyişmir); 3) obyekt adının yanında və ya altında hər hansı kod görünürsə, sözbəsöz yazın.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: panel, aylıq hesabat, obyektlər, sifariş, məhsul tarixçəsi." (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: "LOC-000043 (panel cədvəli, …)" (`BRIEFS/TASK-05.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (`LOC-` axtarışının nəticəsi və görülən kod):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-07 — Task 05: obyekt kodu (LOC-…) — «Obyektlər»
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 8, sitat: "Obyekt kodları görünür: LOC-000043 (panel cədvəli, Obyektlər, mobil kartlar, obyekt səhifəsinin başlığı)." · həll edən task: Task 05
+Harada: real · «Obyektlər» (`pages/LocationsPage.tsx`:70) · `/locations` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-06-nın 2–3-cü addımları, menyuda «Obyektlər»-i açaraq (`layout/navigation.ts`:34).
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: panel, aylıq hesabat, obyektlər, sifariş, məhsul tarixçəsi." (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: "LOC-000043 (…, Obyektlər, …)" (`BRIEFS/TASK-05.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (`LOC-` axtarışının nəticəsi və görülən kod):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-08 — Task 05: obyekt kodu (LOC-…) — mobil kartlar
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 8, sitat: "Obyekt kodları görünür: LOC-000043 (panel cədvəli, Obyektlər, mobil kartlar, obyekt səhifəsinin başlığı)." · həll edən task: Task 05
+Harada: real · İdarəetmə paneli və «Obyektlər» · `/dashboard`, `/locations` · 390 × 844
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) eni 390 × 844 edin (`01-hazirliq.md`, 6-cı bənd); 2) İdarəetmə panelində, sonra «Obyektlər»-də obyekt kartlarına qədər enin və B-06-nın 2–3-cü addımlarını edin; 3) brief ekranın adını vermir: kodu hansı ekranın kartında gördüyünüzü yazın.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: panel, aylıq hesabat, obyektlər, sifariş, məhsul tarixçəsi." (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: "LOC-000043 (…, mobil kartlar, …)" (`BRIEFS/TASK-05.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - İdarəetmə paneli, 390 (`LOC-` axtarışı):
+  - «Obyektlər», 390 (`LOC-` axtarışı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-09 — Task 05: obyekt kodu (LOC-…) — obyekt səhifəsinin başlığı
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 8, sitat: "Obyekt kodları görünür: LOC-000043 (panel cədvəli, Obyektlər, mobil kartlar, obyekt səhifəsinin başlığı)." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin obyekt səhifəsi, başlıq (`pages/LocationDetailPage.tsx`:139) · `/locations/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) «Obyektlər» → «Heydər Əliyev Mərkəzi»; 2) başlığı və onun altındakı sətri sözbəsöz yazın; 3) B-06-nın 2-ci addımı, bu səhifədə.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: panel, aylıq hesabat, obyektlər, sifariş, məhsul tarixçəsi." (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: "LOC-000043 (…, obyekt səhifəsinin başlığı)" (`BRIEFS/TASK-05.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (başlıq, sözbəsöz; `LOC-` axtarışı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-10 — Task 05: məhsul kodu (PRD-…) — sifariş sətirləri
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 9, sitat: "Məhsul kodları görünür: PRD-000110 (sifariş sətirləri)." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, «Sətirlər» (`pages/OrderDetailPage.tsx`:308–309) · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) sifariş səhifəsini açın (E-nin girişi, «Sifariş səhifəsini açmaq»); 2) «Sətirlər»-ə enin; 3) `Ctrl+F` ilə `PRD-` axtarın və neçə tapıldığını yazın; 4) məhsul adının yanında və ya altında kod görünürsə, sözbəsöz yazın.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: panel, aylıq hesabat, obyektlər, sifariş, məhsul tarixçəsi." (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: "PRD-000110 (sifariş sətirləri)" (`BRIEFS/TASK-05.md`:9)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (`PRD-` axtarışının nəticəsi və görülən kod):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-11 — Task 05: "Versiya 1" — sifarişin başlığı
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 10, sitat: ""Versiya 1" sifariş başlığında və obyekt səhifəsinin cədvəlində; "Sətir sayı" sütunu." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, başlıq (`pages/OrderDetailPage.tsx`:188–195) · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-10-un səhifəsi; 2) səhifənin başlığını və altındakı sətri sözbəsöz yazın; 3) `Ctrl+F` ilə `Versiya` axtarın və tapılan yerləri yazın.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: …" (`BRIEFS/TASK-05.md`:32); "Rəhbər ekranında texniki "Versiya" sözü göstərilmir (Task 5). Versiya məlumatı qərar panelində biznes dilində verilir." (`BRIEFS/TASK-04.md`:28)
+İlk auditdə: ""Versiya 1" sifariş başlığında" (`BRIEFS/TASK-05.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (başlıq, sözbəsöz; `Versiya` axtarışı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-12 — Task 05: "Versiya 1" — obyekt səhifəsinin cədvəli
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 10, sitat: ""Versiya 1" sifariş başlığında və obyekt səhifəsinin cədvəlində; "Sətir sayı" sütunu." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin obyekt səhifəsi, sifarişlər cədvəli · `/locations/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-09-un səhifəsi; 2) sifarişlər cədvəlinin sütun başlıqlarını sırası ilə yazın (koddan: «Dövr», «Məbləğ», «Status» və adsız sütun — `pages/LocationDetailPage.tsx`:264–268); 3) `Ctrl+F` ilə `Versiya` axtarın və tapılan yerləri yazın.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: …" (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: ""Versiya 1" … obyekt səhifəsinin cədvəlində" (`BRIEFS/TASK-05.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (sütun başlıqları; `Versiya` axtarışı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-13 — Task 05: "Sətir sayı" sütunu
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 10, sitat: ""Versiya 1" sifariş başlığında və obyekt səhifəsinin cədvəlində; "Sətir sayı" sütunu." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin obyekt səhifəsi və Sentyabr 2026 sifarişi · `/locations/<nömrə>`, `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) brief sütunun hansı ekranda olduğunu demir: B-12-nin cədvəlində və B-10-un səhifəsində `Ctrl+F` ilə `Sətir sayı` axtarın; 2) tapılan hər yeri ekranın adı ilə yazın.
+Gözlənilən: "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: …" (`BRIEFS/TASK-05.md`:32)
+İlk auditdə: ""Sətir sayı" sütunu" (`BRIEFS/TASK-05.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Obyekt səhifəsi (`Sətir sayı` axtarışı):
+  - Sifariş səhifəsi (`Sətir sayı` axtarışı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-14 — Task 05: "Server işləyir" başlıqda
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 11, sitat: ""Server işləyir" yazısı başlıqda daim durur." · həll edən task: Task 05
+Harada: real · auditin bütün ekranlarının yuxarı başlığı · — · bütün enlər
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) auditin gedişində hər ekranın yuxarı başlığına baxın; 2) «Server işləyir» görünən hər ekranı yazın; 3) başlıqda serverlə bağlı başqa yazı görsəniz, onu sözbəsöz və ekranı ilə yazın. Koddan: başlıq yalnız server əlçatan olmayanda «Server əlçatan deyil» yazır, qalan vaxt heç nə yazmır (`layout/Header.tsx`:33–50).
+Gözlənilən: ""Server işləyir" yalnız problem olanda görünür." (`BRIEFS/TASK-05.md`:33)
+İlk auditdə: ""Server işləyir" yazısı başlıqda daim durur." (`BRIEFS/TASK-05.md`:11)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (başlıqdakı server yazısı; yoxdursa «heç yerdə»):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-15 — Task 05: məhsul adının altında "2.8" (Rosmarinus)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 12, sitat: "Məhsul adının altında mənası bilinməyən kodlar var: "2.8" (Rosmarinus), "20078331" (Columbus 80 BM 100 Şotka), "M-101-S-2" (Yay ayaqqabısı)." · həll edən task: Task 05
+Harada: real · məhsulun olduğu Sentyabr 2026 sifarişi: brief sifarişi demir · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) açdığınız Sentyabr 2026 sifarişlərində (Heydər Əliyev Mərkəzi, Fəvvarələr meydanı, Nərimanov heykəli və başqaları) `Ctrl+F` ilə `Rosmarinus` axtarın, «Sətirlər»-də və «Əsas dəyişikliklər»-də; 2) tapsanız, sifarişi (obyekt və dövr) və məhsul adının altındakı yazını sözbəsöz yazın; 3) heç bir sifarişdə tapmasanız, `Hökm:`-ə «yoxlanıla bilmədi (mal tapılmadı)» yazın və baxdığınız sifarişləri `Qeyd:`-ə yazın.
+Gözlənilən: "Faydalı spesifikasiya qalır (5 L, 50 kq); mənası bilinməyən kodlar rəhbərə göstərilmir." (`BRIEFS/TASK-05.md`:36)
+İlk auditdə: ""2.8" (Rosmarinus)" (`BRIEFS/TASK-05.md`:12)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (adın altındakı yazı, sözbəsöz):
+  - Sifariş (obyekt və dövr):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-16 — Task 05: məhsul adının altında "20078331" (Columbus 80 BM 100 Şotka)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 12, sitat: "Məhsul adının altında mənası bilinməyən kodlar var: "2.8" (Rosmarinus), "20078331" (Columbus 80 BM 100 Şotka), "M-101-S-2" (Yay ayaqqabısı)." · həll edən task: Task 05
+Harada: real · məhsulun olduğu Sentyabr 2026 sifarişi: brief sifarişi demir · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-15-in 1–3-cü addımları, `Columbus` axtarışı ilə; sonra həmin səhifədə `20078331` axtarın.
+Gözlənilən: "Faydalı spesifikasiya qalır (5 L, 50 kq); mənası bilinməyən kodlar rəhbərə göstərilmir." (`BRIEFS/TASK-05.md`:36)
+İlk auditdə: ""20078331" (Columbus 80 BM 100 Şotka)" (`BRIEFS/TASK-05.md`:12)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (adın altındakı yazı, sözbəsöz):
+  - Sifariş (obyekt və dövr):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-17 — Task 05: məhsul adının altında "M-101-S-2" (Yay ayaqqabısı)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Texniki məlumat», sətir 12, sitat: "Məhsul adının altında mənası bilinməyən kodlar var: "2.8" (Rosmarinus), "20078331" (Columbus 80 BM 100 Şotka), "M-101-S-2" (Yay ayaqqabısı)." · həll edən task: Task 05
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Əsas dəyişikliklər» (`components/decisions/DriverList.tsx`:78) · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) sifariş səhifəsini açın (E-nin girişi), «Keçən ay»; 2) Yay ayaqqabısı bu sifarişdədir, "71 → 0 ədəd" (`BRIEFS/TASK-07.md`:10): «Əsas dəyişikliklər»-də «Bu ay yazılmayan məhsullar» düyməsini basın (`components/decisions/labels.ts`:131) və «Yay ayaqqabısı» sətrini tapın; 3) adın altındakı yazını sözbəsöz yazın; 4) `Ctrl+F` ilə `M-101-S-2` axtarın.
+Gözlənilən: "Faydalı spesifikasiya qalır (5 L, 50 kq); mənası bilinməyən kodlar rəhbərə göstərilmir." (`BRIEFS/TASK-05.md`:36)
+İlk auditdə: ""M-101-S-2" (Yay ayaqqabısı)" (`BRIEFS/TASK-05.md`:12)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (adın altındakı yazı, sözbəsöz; `M-101-S-2` axtarışı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-18 — Task 05: vahid ingiliscə — PCS
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Əsas dəyişikliklər»; başqa vahidlər üçün vahidin olduğu istənilən sifariş · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) bu vahidli bir sətir tapın: PCS üçün Fəvvarələr meydanının «Yay ayaqqabısı» sətri, "71 → 0" (`BRIEFS/TASK-05.md`:69; B-17-nin 2-ci addımı); 2) sətirdə miqdarın yanındakı vahid sözünü sözbəsöz yazın — «Əsas dəyişikliklər»-in yığcam sətrində (`components/decisions/DriverList.tsx`:207–231) və ya «Sətirlər»-də (`pages/OrderDetailPage.tsx`:308–309); 3) `Ctrl+F` ilə vahidin ingiliscə kodunu (burada `PCS`) axtarın və rəqəmdən sonra gəldiyi yeri yazın; 4) bu vahidli sətir tapmasanız, `Hökm:`-ə «yoxlanıla bilmədi (bu vahidli sətir tapılmadı)» yazın və baxdığınız sifarişləri `Qeyd:`-ə yazın. Koddan: kod ekranda Azərbaycan sözü ilə göstərilir (`terminology/units.ts`:8–16).
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — PCS üçün «ədəd» (`terminology/units.ts`:9); "Fəvvarələr sifarişində "71 → 0 PCS" əvəzinə "71 → 0 ədəd" … görürəm." (`BRIEFS/TASK-05.md`:69)
+İlk auditdə: "Vahidlər ingiliscədir: PCS, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-19 — Task 05: vahid ingiliscə — BAG
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · vahidi BAG olan sətri olan istənilən Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, BAG üçün: brief sifarişi demir; kisə ilə gələn malı Heydər Əliyev Mərkəzi, Fəvvarələr meydanı və Nərimanov heykəlinin Sentyabr sifarişlərində axtarın, axtarışda `BAG` və `kisə` yazın.
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — BAG üçün «kisə» (`terminology/units.ts`:10)
+İlk auditdə: "Vahidlər ingiliscədir: …, BAG, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-20 — Task 05: vahid ingiliscə — PACK
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · vahidi PACK olan sətri olan istənilən Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, PACK üçün; axtarışda `PACK` və `paket` yazın.
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — PACK üçün «paket» (`terminology/units.ts`:11)
+İlk auditdə: "Vahidlər ingiliscədir: …, PACK, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-21 — Task 05: vahid ingiliscə — PAIR
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · vahidi PAIR olan sətri olan istənilən Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, PAIR üçün; axtarışda `PAIR` və `cüt` yazın.
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — PAIR üçün «cüt» (`terminology/units.ts`:12)
+İlk auditdə: "Vahidlər ingiliscədir: …, PAIR, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-22 — Task 05: vahid ingiliscə — ROLL
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · vahidi ROLL olan sətri olan istənilən Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, ROLL üçün; axtarışda `ROLL` və `rulon` yazın.
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — ROLL üçün «rulon» (`terminology/units.ts`:13)
+İlk auditdə: "Vahidlər ingiliscədir: …, ROLL, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-23 — Task 05: vahid ingiliscə — L
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · vahidi L olan sətri olan istənilən Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, L üçün; axtarışda `litr` yazın. Tək `L` hərfi axtarışda çox yerdə tapılır: miqdarın yanındakı vahidə gözlə baxın. Məhsulun adındakı "5 L" kimi spesifikasiya vahid deyil və qala bilər (`BRIEFS/TASK-05.md`:36).
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — L üçün «litr» (`terminology/units.ts`:14)
+İlk auditdə: "Vahidlər ingiliscədir: …, L, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-24 — Task 05: vahid ingiliscə — M2
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · Nərimanov heykəlinin Sentyabr 2026 sifarişi, «Əsas dəyişikliklər»; və ya vahidi M2 olan başqa sətir · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, M2 üçün: «Mərmər bej qalınlığı 2 sm» sətri Nərimanov heykəlinin sifarişindədir, "7.36 → 0 m²" (`BRIEFS/TASK-07.md`:11), «Bu ay yazılmayan məhsullar» düyməsi altında; axtarışda `M2` və `m²` yazın.
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — M2 üçün «m²» (`terminology/units.ts`:15)
+İlk auditdə: "Vahidlər ingiliscədir: …, M2, …" (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-25 — Task 05: vahid ingiliscə — KG
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 15, sitat: "Vahidlər ingiliscədir: PCS, BAG, PACK, PAIR, ROLL, L, M2, KG." · həll edən task: Task 05
+Harada: real · vahidi KG olan sətri olan istənilən Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-18-in 1–4-cü addımları, KG üçün; axtarışda `KG` və `kq` yazın. Məhsulun adındakı "50 kq" kimi spesifikasiya qala bilər (`BRIEFS/TASK-05.md`:36).
+Gözlənilən: "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34) — KG üçün «kq» (`terminology/units.ts`:16)
+İlk auditdə: "Vahidlər ingiliscədir: …, KG." (`BRIEFS/TASK-05.md`:15)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (vahid sözü, sözbəsöz):
+  - Sifariş və sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-26 — Task 05: məbləğ ₼-dan ayrılır — 1366, sifariş sətirləri
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 16, sitat: "Məbləğ ₼-dan ayrılıb aşağı sətrə düşür: 1366-da sifariş sətirlərində "99.00 / ₼", mobildə "431,670.91 / ₼"." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, «Sətirlər» (brief sifarişi demir) · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-10-un səhifəsində «Sətirlər»-ə enin; 2) qiymət və məbləğ sütunlarında hər rəqəmin ₼ ilə eyni sətirdə olub-olmadığına baxın, sona qədər; 3) ₼ aşağı sətrə düşən hər halı məhsulun adı və rəqəmi ilə yazın. Koddan: ₼ rəqəmə qırılmayan boşluqla bağlanır (`components/analytics/format.ts`:20, 243–245).
+Gözlənilən: "Məbləğ heç vaxt ₼-dan ayrılmır; qiymətlər 2 onluqla göstərilir." (`BRIEFS/TASK-05.md`:35)
+İlk auditdə: "1366-da sifariş sətirlərində "99.00 / ₼"" (`BRIEFS/TASK-05.md`:16)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (₼-dan ayrılan məbləğlər; yoxdursa «yoxdur»):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-27 — Task 05: məbləğ ₼-dan ayrılır — telefon
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 16, sitat: "Məbləğ ₼-dan ayrılıb aşağı sətrə düşür: 1366-da sifariş sətirlərində "99.00 / ₼", mobildə "431,670.91 / ₼"." · həll edən task: Task 05
+Harada: real · «Aylıq hesabat» və İdarəetmə paneli · `/dashboard/monthly`, `/dashboard` · 390 × 844
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) eni 390 × 844 edin; 2) «Aylıq hesabat»-ı açın: 431,670.91 ilin cəmidir (`BRIEFS/TASK-08.md`:46); onu və cəmi sətrinin/kartının məbləğlərini tapın və ₼-ın rəqəmlə eyni sətirdə olub-olmadığını yazın; 3) İdarəetmə panelində başlığın, kartların və obyekt kartlarının məbləğlərində eyni şeyə baxın; 4) ₼ aşağı sətrə düşən hər halı ekranı və rəqəmi ilə yazın; 5) H-19-un (panel, 390) və H-21-in (hesabat, 390) hökmlərini köçürün.
+Gözlənilən: "Məbləğ heç vaxt ₼-dan ayrılmır; qiymətlər 2 onluqla göstərilir." (`BRIEFS/TASK-05.md`:35); "1366-da və telefonda heç bir məbləğ ₼-dan ayrılmır." (`BRIEFS/TASK-05.md`:70)
+İlk auditdə: "mobildə "431,670.91 / ₼"" (`BRIEFS/TASK-05.md`:16)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Aylıq hesabat, 390 (ilin cəmi və ₼-dan ayrılan məbləğlər):
+  - İdarəetmə paneli, 390 (₼-dan ayrılan məbləğlər):
+  - H-19-un hökmü:
+  - H-21-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-28 — Task 05: qiymət 4 onluqla — "32.1273 ₼" (Zibil paketi)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Vahidlər və format», sətir 17, sitat: "Qiymət 4 onluqla göstərilir: "32.1273 ₼" (Zibil paketi)." · həll edən task: Task 05
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) Fəvvarələr meydanının Sentyabr 2026 sifarişini açın (`BRIEFS/TASK-05.md`:69); 2) `Ctrl+F` ilə `Zibil paketi` axtarın, «Sətirlər»-də və «Əsas dəyişikliklər»-də; 3) onun qiymətini ekrandakı kimi yazın, onluqların sayı ilə; 4) səhifədə vergüldən sonra 3 və ya 4 rəqəmli başqa qiymət görsəniz, onu da yazın. Koddan: qiymət ekranda 2 onluğa yuvarlaqlaşdırılır (`components/analytics/format.ts`:247–253).
+Gözlənilən: "Məbləğ heç vaxt ₼-dan ayrılmır; qiymətlər 2 onluqla göstərilir." (`BRIEFS/TASK-05.md`:35); "Fəvvarələr sifarişində … "32.1273 ₼" əvəzinə 2 onluqlu qiymət görürəm." (`BRIEFS/TASK-05.md`:69). Yuvarlaqlaşdırılmış rəqəmi brief vermir (brief rəqəm vermir).
+İlk auditdə: ""32.1273 ₼" (Zibil paketi)" (`BRIEFS/TASK-05.md`:17)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (Zibil paketinin qiyməti, ekrandakı kimi):
+  - 2-dən çox onluqlu başqa qiymət (yoxdursa «yoxdur»):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-29 — Task 05: köhnə termin "Yeni sifarişlər"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · `/dashboard`, `/orders/<nömrə>`, `/locations/<nömrə>`, `/dashboard/monthly`, «Məhsul tarixçəsi» · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) beş ekranı növbə ilə açın: İdarəetmə paneli; Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi (E-nin girişi); onun obyekt səhifəsi («Obyektlər» → «Heydər Əliyev Mərkəzi»); «Aylıq hesabat»; həmin sifarişdə «Əsas dəyişikliklər»-in birinci sətrini basanda açılan «Məhsul tarixçəsi» pəncərəsi (`components/decisions/DriverList.tsx`:117–122); 2) hər ekranda `Ctrl+F` ilə köhnə sözü axtarın — burada `Yeni sifarişlər`; 3) köhnə sözün tapıldığı ekranları yazın, heç birində yoxdursa «heç yerdə»; 4) yeni sözün — burada «Yeni məhsullar» (`terminology/terms.ts`:14) — göründüyü yeri ekranı və bölməsi ilə yazın.
+Gözlənilən: "| Yeni sifarişlər | Yeni məhsullar |" (qərar 5.1, `BRIEFS/TASK-05.md`:43); "Bütün tətbiqdə təsdiqlənmiş söz siyahısı işlənir; eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""Yeni sifarişlər"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-30 — Task 05: köhnə termin "Artıq sifariş olunmayanlar"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `Artıq sifariş`, yeni söz «Bu ay yazılmayan məhsullar» (`terminology/terms.ts`:20).
+Gözlənilən: "| Artıq sifariş olunmayanlar / Artıq sifariş olunmur | Bu ay yazılmayan məhsullar |" (qərar 5.1, `BRIEFS/TASK-05.md`:44); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""Artıq sifariş olunmayanlar"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-31 — Task 05: köhnə termin "mövqe"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `mövqe`, yeni söz «məhsul» (`terminology/terms.ts`:23).
+Gözlənilən: "| mövqe | məhsul |" (qərar 5.1, `BRIEFS/TASK-05.md`:45); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""mövqe"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-32 — Task 05: köhnə termin "Məlum qiymətlər üzrə məbləğ / cəm"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `Məlum`, yeni söz «Qiyməti olan sətirlərin cəmi» (`terminology/terms.ts`:32); koddan: obyekt səhifəsinin «Bütün tarixçə» sətrində işlənir (`pages/LocationDetailPage.tsx`:190).
+Gözlənilən: "| Məlum qiymətlər üzrə məbləğ / cəm | Qiyməti olan sətirlərin cəmi (və ya gizlət) |" (qərar 5.1, `BRIEFS/TASK-05.md`:46); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""Məlum qiymətlər üzrə məbləğ / cəm"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-33 — Task 05: köhnə termin "Çəkili orta qiymət"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `Çəkili`, yeni söz «Orta qiymət» (`terminology/terms.ts`:35); koddan: «Məhsul tarixçəsi» pəncərəsinin sütunudur (`components/analytics/trend.ts`:25; `components/analytics/TrendModal.tsx`:159).
+Gözlənilən: "| Çəkili orta qiymət | Orta qiymət |" (qərar 5.1, `BRIEFS/TASK-05.md`:47); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""Çəkili orta qiymət"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-34 — Task 05: köhnə termin "Tarixçə natamam"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `natamam`, yeni söz «Müqayisə üçün data azdır» (`terminology/terms.ts`:38); koddan: paneldə çipin və cədvəlin sözüdür (`coverage/labels.ts`:199; `components/dashboard/labels.ts`:228). Çip yalnız sayı sıfırdan böyük olanda görünür (`components/dashboard/DashboardSummary.tsx`:215): başqa bazada da baxa bilərsiniz, amma sonra «Keçən ay»-a qayıdın.
+Gözlənilən: "| Tarixçə natamam | Müqayisə üçün data azdır |" (qərar 5.1, `BRIEFS/TASK-05.md`:48); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""Tarixçə natamam"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-35 — Task 05: köhnə termin "Son 9 mövcud aydan 3-də"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `mövcud aydan`, yeni söz «Son N ayın M-də sifariş edilib» (`components/analytics/trend.ts`:58–69). Pəncərənin tezlik sətri E-25-də sözbəsöz yazılır: E-25-in hökmünü də köçürün.
+Gözlənilən: "| Son 9 mövcud aydan 3-də | Son 9 ayın 3-də sifariş edilib |" (qərar 5.1, `BRIEFS/TASK-05.md`:49); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür. Bu məhsulun rəqəmlərini brief vermir (brief rəqəm vermir).
+İlk auditdə: ""Son 9 mövcud aydan 3-də"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+  - E-25-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-36 — Task 05: köhnə termin "Trend"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Köhnə və qeyri-dəqiq terminlər», sətir 19, sitat: "**Köhnə və qeyri-dəqiq terminlər:** "Yeni sifarişlər", "Artıq sifariş olunmayanlar", "mövqe", "Məlum qiymətlər üzrə məbləğ / cəm", "Çəkili orta qiymət", "Tarixçə natamam", "Son 9 mövcud aydan 3-də", "Trend"." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–4-cü addımları: köhnə söz `Trend`, yeni söz «Məhsul tarixçəsi» (`terminology/terms.ts`:41); koddan: pəncərənin başlığıdır (`components/analytics/TrendModal.tsx`:115).
+Gözlənilən: "| Trend | Məhsul tarixçəsi |" (qərar 5.1, `BRIEFS/TASK-05.md`:50); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31). Köhnə söz beş ekranın heç birində görünmür.
+İlk auditdə: ""Trend"" (`BRIEFS/TASK-05.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Yeni söz görülən yer:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-37 — Task 05: "Bütün dövr" (düymə) və "Bütün dövrün ortalaması" (nəticə mətni)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 22, sitat: ""Bütün dövr" (düymə) və "Bütün dövrün ortalaması" (nəticə mətni)." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, baza seçicisi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-10-un səhifəsi; 2) baza seçicisinin (`components/analytics/BasisPicker.tsx`:69–83) dördüncü düyməsinin yazısını sözbəsöz yazın (koddan: «Bütün dövrün ortalaması» — `components/analytics/format.ts`:41; `terminology/terms.ts`:44); 3) həmin düyməni basın və seçicinin altındakı «Müqayisə: …» cümləsini sözbəsöz yazın (`components/decisions/DecisionHeadline.tsx`:115); 4) seçicidə yenə «Keçən ay»-ı basın. Baza seçmək heç nə yazmır: baza ünvanda saxlanır (`analytics/basisParams.ts`:145).
+Gözlənilən: "Bütün tətbiqdə təsdiqlənmiş söz siyahısı işlənir; eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31): düymə və cümlə eyni adı daşıyır.
+İlk auditdə: ""Bütün dövr" (düymə) və "Bütün dövrün ortalaması" (nəticə mətni)" (`BRIEFS/TASK-05.md`:22)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Düymənin yazısı:
+  - Cümlənin yazısı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-38 — Task 05: "Artıq sifariş olunmur" (filtr) və "Artıq sifariş olunmayanlar" (nişan)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 23, sitat: ""Artıq sifariş olunmur" (filtr) və "Artıq sifariş olunmayanlar" (nişan)." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, «Əsas dəyişikliklər» (`components/decisions/DriverList.tsx`:78) · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-10-un səhifəsi, «Keçən ay»; 2) «Əsas dəyişikliklər»-in filtr düymələrini sırası ilə sözbəsöz yazın (`DriverList.tsx`:83–106); 3) bu ay yazılmayan məhsulların düyməsini basın və birinci sətrin nişanını (sətirdəki etiketi) sözbəsöz yazın (`DriverList.tsx`:242–252); 4) `Ctrl+F` ilə `Artıq sifariş` axtarın. Koddan: filtr «Bu ay yazılmayan məhsullar»-dır (`components/decisions/labels.ts`:131); nişan səbəbin adıdır, bu məhsullarda «Bu ay yazılmayan məhsullar» (`labels.ts`:17).
+Gözlənilən: "| Artıq sifariş olunmayanlar / Artıq sifariş olunmur | Bu ay yazılmayan məhsullar |" (qərar 5.1, `BRIEFS/TASK-05.md`:44); "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31)
+İlk auditdə: ""Artıq sifariş olunmur" (filtr) və "Artıq sifariş olunmayanlar" (nişan)" (`BRIEFS/TASK-05.md`:23)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Filtrin yazısı:
+  - Nişanın yazısı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-39 — Task 05: "Qiyməti olmayanlar" («Niyə dəyişib?») və "Qiymət yoxdur" (sətir)
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 24, sitat: ""Qiyməti olmayanlar" ("Niyə dəyişib?" hissəsi) və "Qiymət yoxdur" (sətir)." · həll edən task: Task 05
+Harada: real · Nərimanov heykəlinin Sentyabr 2026 sifarişi, «Niyə dəyişib?» və «Sətirlər» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) Nərimanov heykəlinin Sentyabr 2026 sifarişini açın (E-16-nın səhifəsi), «Keçən ay»; 2) «Niyə dəyişib?» bölməsində (`components/decisions/CauseSummary.tsx`:68) qiyməti olmayan sətirlərin hissəsinin adını sözbəsöz yazın; belə hissə yoxdursa, «hissə yoxdur» yazın; 3) «Sətirlər»-də qiyməti olmayan sətrin qiymət yerindəki yazını sözbəsöz yazın; 4) `Ctrl+F` ilə `Qiyməti olmayanlar` axtarın. Koddan: hissənin də, sətrin də sözü «Qiymət yoxdur»-dur (`components/decisions/labels.ts`:21; `pricing/labels.ts`:183). E-16-nın hökmünü də köçürün.
+Gözlənilən: "Bütün tətbiqdə təsdiqlənmiş söz siyahısı işlənir; eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31); Task 2-nin dəyişməyən sözü: ""Qiymət yoxdur" (kəhrəba)" (`BRIEFS/TASK-05.md`:53)
+İlk auditdə: ""Qiyməti olmayanlar" ("Niyə dəyişib?" hissəsi) və "Qiymət yoxdur" (sətir)" (`BRIEFS/TASK-05.md`:24)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - «Niyə dəyişib?»-dəki hissənin adı:
+  - Sətirdəki yazı:
+  - E-16-nın hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-40 — Task 05: Nərimanov heykəli obyekt səhifəsi — "məhsul" və "sətir"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 25, sitat: "Nərimanov heykəli obyekt səhifəsi: başlıqda "1 məhsulun qiyməti yoxdur", cədvəldə "1 sətirdə qiymət yoxdur"." · həll edən task: Task 05
+Harada: real · Nərimanov heykəlinin obyekt səhifəsi · `/locations/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) «Obyektlər» → «Nərimanov heykəli» (E-15-in səhifəsi); 2) səhifənin yuxarı hissəsində qiyməti olmayan sətirlər barədə yazını sözbəsöz yazın — koddan: «Bütün tarixçə (…):» sətrində «Qiymət yoxdur» və say (`pages/LocationDetailPage.tsx`:180–197; `pricing/labels.ts`:183); 3) sifarişlər cədvəlinin Sentyabr 2026 sətrində məbləğin altındakı yazını sözbəsöz yazın — koddan: «N sətirdə qiymət yoxdur» (`LocationDetailPage.tsx`:300–303; `pricing/labels.ts`:118–119); 4) `Ctrl+F` ilə `məhsulun qiyməti` axtarın. E-15-in hökmünü də köçürün.
+Gözlənilən: "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31); Task 2-nin dəyişməyən sözü: ""N sətirdə qiymət yoxdur"" (`BRIEFS/TASK-05.md`:53). Sayı brief bu gün üçün vermir (brief rəqəm vermir).
+İlk auditdə: "başlıqda "1 məhsulun qiyməti yoxdur", cədvəldə "1 sətirdə qiymət yoxdur"" (`BRIEFS/TASK-05.md`:25)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Yuxarı hissədəki yazı:
+  - Cədvəldəki yazı:
+  - E-15-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-41 — Task 05: sifarişin başlığında "sətir" iki dəfə
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 26, sitat: "Sifariş başlığında "40 sətir · 2 sətirdə qiymət yoxdur": "sətir" iki dəfə işlənir." · həll edən task: Task 05
+Harada: real · Heydər Əliyev Mərkəzi, Fəvvarələr meydanı və Nərimanov heykəlinin Sentyabr 2026 sifarişləri, başlıq · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) brief sifarişi demir: üç sifarişin hər birini açın; 2) başlıqda məbləğin altındakı sətri sözbəsöz yazın (`components/decisions/DecisionHeadline.tsx`:68–102); 3) sətirdə "sətir" sözünün neçə dəfə işləndiyini yazın. Koddan: başlıq sətir sayı ilə başlamır, yalnız qiyməti olmayan və daxili təminat sətirlərini sayır (`DecisionHeadline.tsx`:73–102).
+Gözlənilən: "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31); Task 2-nin dəyişməyən sözləri: ""N sətirdə qiymət yoxdur", "N sətir daxili təminat (ödənişsiz)"" (`BRIEFS/TASK-05.md`:53). Sayları brief bu gün üçün vermir (brief rəqəm vermir).
+İlk auditdə: ""40 sətir · 2 sətirdə qiymət yoxdur": "sətir" iki dəfə işlənir" (`BRIEFS/TASK-05.md`:26)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Heydər Əliyev Mərkəzi — başlıqdakı sətir:
+  - Fəvvarələr meydanı — başlıqdakı sətir:
+  - Nərimanov heykəli — başlıqdakı sətir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-42 — Task 05: köhnə ifadə "qiymətsiz sifarişlər"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 27, sitat: "Bəzi xülasələrdə köhnə "qiymətsiz sifarişlər" ifadəsi qalıb." · həll edən task: Task 05
+Harada: real · beş ekran (bölmənin girişi) · B-29 ilə eyni · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-29-un 1–3-cü addımları, `qiymətsiz` axtarışı ilə; 4) qiyməti olmayan sətirləri xülasədə hansı sözlərin dediyini, ekranı ilə yazın (məsələn paneldə `coverage/labels.ts`:189–196).
+Gözlənilən: "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31); Task 1b-nin dəyişməyən sözləri: ""Qiymət yoxdur · N obyekt", "10 obyektin sifarişində qiyməti olmayan sətir var"" (`BRIEFS/TASK-05.md`:54)
+İlk auditdə: "köhnə "qiymətsiz sifarişlər" ifadəsi qalıb" (`BRIEFS/TASK-05.md`:27)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Köhnə söz görülən ekranlar (yoxdursa «heç yerdə»):
+  - Xülasənin sözləri (ekran və söz):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-43 — Task 05: diqqət kartlarında "Məbləğin bir hissəsi izah edilə bilmir — qiymət məlumatı çatışmır"
+Mənbə: `BRIEFS/TASK-05.md`, «Auditdə müşahidə edilən hazırkı problem» — «Eyni anlayış üçün fərqli sözlər», sətir 28, sitat: "Diqqət kartlarındakı cümlə: "Məbləğin bir hissəsi izah edilə bilmir — qiymət məlumatı çatışmır" (Task 2-dən sonra hələ qalıbsa)." · həll edən task: Task 05; kartlarda xəbərdarlığın təkrarı və çəkisi Task 09 (`BRIEFS/TASK-05.md`:63)
+Harada: real · İdarəetmə paneli, diqqət kartları (`components/dashboard/AttentionSection.tsx`:61) · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə panelini açın, «Keçən ay»; 2) hər diqqət kartında qiymət xəbərdarlığı nə şəkildə görünür, yazın: cümlə, yoxsa məbləğin yanında qısa işarə və say (⚠ N); 3) `Ctrl+F` ilə `qiymət məlumatı` və `izah edilə bilmir` axtarın; 4) işarənin üzərinə gəlin və çıxan yazını sözbəsöz yazın. Koddan: kartda işarə «⚠ N»-dir, cümlə yalnız işarənin üzərinə gələndə çıxır (`components/dashboard/MissingPriceMark.tsx`:4–11, 22–30; `terminology/terms.ts`:50).
+Gözlənilən: "eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31); "Qiymət xəbərdarlığı kartda qısa işarə və say ilə verilir, hər kartda cümlə kimi təkrarlanmır." (`BRIEFS/TASK-09.md`:26)
+İlk auditdə: "Diqqət kartlarındakı cümlə: "Məbləğin bir hissəsi izah edilə bilmir — qiymət məlumatı çatışmır"" (`BRIEFS/TASK-05.md`:28)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Kartlarda xəbərdarlığın şəkli (cümlə / işarə və say):
+  - İşarənin üzərinə gələndə çıxan yazı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-44 — Task 06: hissələrin sırası sabit idi; Fəvvarələrdə əsas səbəb 4-cü sətirdə
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 7, sitat: "Hissələrin sırası sabitdir (Yeni, Miqdar, Qiymət, Artıq, Xidmətlər), böyüklüyə görə deyil. Fəvvarələr meydanında (Sentyabr 2026, Keçən ay) əsas səbəb, "Artıq sifariş olunmayanlar −8,093.70 ₼", dördüncü sətirdədir." · həll edən task: Task 06
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: hissələr E-09-da səhifədəki sırası ilə, adı və məbləği ilə yazılır (`components/decisions/CauseSummary.tsx`:46–51, 83–97). Onları buraya eyni sıra ilə köçürün. Brief-in hissə adları ekranda başqa cür yazılır: «Brief-in sözləri və ekranın sözləri».
+Gözlənilən: "Hissələr mütləq böyüklüyə görə sıralanır; ən böyüyü birinci və seçilmiş görünür." (`BRIEFS/TASK-06.md`:14); "Fəvvarələr sifarişində birinci sətir "Bu ay yazılmayan məhsullar −8,093.70 ₼"-dır …" (`BRIEFS/TASK-06.md`:38)
+İlk auditdə: "Hissələrin sırası sabitdir (Yeni, Miqdar, Qiymət, Artıq, Xidmətlər) … əsas səbəb, "Artıq sifariş olunmayanlar −8,093.70 ₼", dördüncü sətirdədir." (`BRIEFS/TASK-06.md`:7)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - 1-ci hissə (ad və məbləğ):
+  - 2-ci hissə:
+  - 3-cü hissə:
+  - 4-cü hissə:
+  - 5-ci hissə:
+  - 6-cı hissə (varsa):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-45 — Task 06: əsas səbəb vurğulanmır
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 8, sitat: "Əsas səbəb vurğulanmır; bütün sətirlər eyni çəkidədir." · həll edən task: Task 06
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-44-ün səhifəsi; 2) «Əsas səbəb» yazısının hansı hissənin üstündə olduğunu yazın (`components/decisions/CauseSummary.tsx`:128); 3) o hissə digərlərindən necə seçilir, yazın: çərçivə, yazının ölçüsü, zolağın qalınlığı (koddan: `CauseSummary.tsx`:125–133, 146, 173).
+Gözlənilən: "Hissələr mütləq böyüklüyə görə sıralanır; ən böyüyü birinci və seçilmiş görünür." (`BRIEFS/TASK-06.md`:14)
+İlk auditdə: "Əsas səbəb vurğulanmır; bütün sətirlər eyni çəkidədir." (`BRIEFS/TASK-06.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - «Əsas səbəb» yazılan hissə:
+  - Digərlərindən necə seçilir:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-46 — Task 06: mənfi zolaq boz idi — Fəvvarələr −8,093.70
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 9, sitat: "Mənfi zolaq boz rəngdədir, ona görə əsas səbəb görsənmir (Fəvvarələr −8,093.70; Nərimanov heykəli −1,601.06)." · həll edən task: Task 06
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-44-ün səhifəsi; 2) bu ay yazılmayan məhsulların hissəsinin (brief-də −8,093.70) zolağının rəngini yazın; 3) artan (müsbət) bir hissənin zolağının rəngini yazın; 4) bölmə başlığının altındakı istiqamət yazısını sözbəsöz yazın (`components/decisions/CauseSummary.tsx`:80). Koddan: zolaq xərcin istiqamətinə görə rənglənir (`CauseSummary.tsx`:173–175).
+Gözlənilən: "Bütün zolaqlar xərcin istiqamətinə görə rənglənir: artım qırmızı, azalma yaşıl (9.1)." (`BRIEFS/TASK-06.md`:15)
+İlk auditdə: "Mənfi zolaq boz rəngdədir … (Fəvvarələr −8,093.70; …)" (`BRIEFS/TASK-06.md`:9)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (azalan hissənin zolağının rəngi və məbləği):
+  - Artan hissənin zolağının rəngi:
+  - İstiqamət yazısı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-47 — Task 06: mənfi zolaq boz idi — Nərimanov heykəli −1,601.06
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 9, sitat: "Mənfi zolaq boz rəngdədir, ona görə əsas səbəb görsənmir (Fəvvarələr −8,093.70; Nərimanov heykəli −1,601.06)." · həll edən task: Task 06
+Harada: real · Nərimanov heykəlinin Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-46-nın 2–4-cü addımları, Nərimanov heykəlinin Sentyabr 2026 sifarişində (E-11-in səhifəsi); azalan hissə brief-də −1,601.06-dır.
+Gözlənilən: "Bütün zolaqlar xərcin istiqamətinə görə rənglənir: artım qırmızı, azalma yaşıl (9.1)." (`BRIEFS/TASK-06.md`:15)
+İlk auditdə: "Mənfi zolaq boz rəngdədir … (…; Nərimanov heykəli −1,601.06)." (`BRIEFS/TASK-06.md`:9)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (azalan hissənin zolağının rəngi və məbləği):
+  - Artan hissənin zolağının rəngi (varsa):
+  - İstiqamət yazısı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-48 — Task 06: cəm tam tutduğu halda xəbərdarlıq — Fəvvarələr
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10, sitat: "Xəbərdarlıq hesabla ziddiyyət təşkil edir. Hissələr cəmə dəqiq bərabərdir (Fəvvarələr: +5,133.27 + 648.98 + 17.00 − 8,093.70 − 290.00 = −2,584.45 ₼), amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır. Heydər Əliyev və Nərimanov sifarişlərində də belədir." · həll edən task: Task 06
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: bölmənin altındakı xəbərdarlıq və hissələrin cəmi E-09-da yazılır. E-09-un xəbərdarlıq sətrini və hökmünü buraya köçürün. Koddan: xəbərdarlıq yalnız izah olunmayan hissə olanda çıxır və həmin məhsulların adını deyir (`components/decisions/CauseSummary.tsx`:55–62, 100–104; `terminology/terms.ts`:63–74).
+Gözlənilən: "Xəbərdarlıq yalnız izah olunmayan hissə olanda çıxır və nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:16); "Hissələr cəmə tam bərabər olanda ziddiyyətli xəbərdarlıq görmürəm. Qiymətsiz sətir olanda xəbərdarlıq nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:40)
+İlk auditdə: "Hissələr cəmə dəqiq bərabərdir (Fəvvarələr: +5,133.27 + 648.98 + 17.00 − 8,093.70 − 290.00 = −2,584.45 ₼), amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır." (`BRIEFS/TASK-06.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (xəbərdarlıq sözbəsöz; yoxdursa «yoxdur»):
+  - E-09-un hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-49 — Task 06: cəm tam tutduğu halda xəbərdarlıq — Heydər Əliyev Mərkəzi
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10, sitat: "Xəbərdarlıq hesabla ziddiyyət təşkil edir. Hissələr cəmə dəqiq bərabərdir (Fəvvarələr: +5,133.27 + 648.98 + 17.00 − 8,093.70 − 290.00 = −2,584.45 ₼), amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır. Heydər Əliyev və Nərimanov sifarişlərində də belədir." · həll edən task: Task 06
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: E-07-nin xəbərdarlıq sətrini və hökmünü buraya köçürün. Koddan: B-48 ilə eyni.
+Gözlənilən: "Xəbərdarlıq yalnız izah olunmayan hissə olanda çıxır və nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:16); "Hissələr cəmə tam bərabər olanda ziddiyyətli xəbərdarlıq görmürəm. Qiymətsiz sətir olanda xəbərdarlıq nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:40)
+İlk auditdə: "amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır. Heydər Əliyev və Nərimanov sifarişlərində də belədir." (`BRIEFS/TASK-06.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (xəbərdarlıq sözbəsöz; yoxdursa «yoxdur»):
+  - E-07-nin hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-50 — Task 06: cəm tam tutduğu halda xəbərdarlıq — Nərimanov heykəli
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10, sitat: "Xəbərdarlıq hesabla ziddiyyət təşkil edir. Hissələr cəmə dəqiq bərabərdir (Fəvvarələr: +5,133.27 + 648.98 + 17.00 − 8,093.70 − 290.00 = −2,584.45 ₼), amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır. Heydər Əliyev və Nərimanov sifarişlərində də belədir." · həll edən task: Task 06
+Harada: real · Nərimanov heykəlinin Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: E-11-in xəbərdarlıq sətrini və hökmünü buraya köçürün. Bu sifarişdə qiyməti olmayan sətir var (E-16): xəbərdarlıq çıxırsa, onun məhsulun adını deyib-demədiyini yazın. Koddan: B-48 ilə eyni.
+Gözlənilən: "Xəbərdarlıq yalnız izah olunmayan hissə olanda çıxır və nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:16); "Hissələr cəmə tam bərabər olanda ziddiyyətli xəbərdarlıq görmürəm. Qiymətsiz sətir olanda xəbərdarlıq nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:40)
+İlk auditdə: "amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır. Heydər Əliyev və Nərimanov sifarişlərində də belədir." (`BRIEFS/TASK-06.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (xəbərdarlıq sözbəsöz; yoxdursa «yoxdur»):
+  - Xəbərdarlıq məhsulun adını deyir (bəli / xeyr / xəbərdarlıq yoxdur):
+  - E-11-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-51 — Task 06: baza məbləğinin adı yox idi — Heydər Əliyev, «Son 6 ayın ortalaması»
+Mənbə: `BRIEFS/TASK-06.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 11, sitat: "Əsas müqayisə sətrində baza məbləğinin adı yoxdur. Heydər Əliyev, Son 6 ay: "17,583.62 ₼" yanında böyük yaşıl fərq və faiz durur, hansı rəqəmin baza olduğu yazılmır." · həll edən task: Task 06
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, «Son 6 ayın ortalaması» (`components/analytics/format.ts`:40), başlıq · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-10-un səhifəsi; 2) baza seçicisində «Son 6 ayın ortalaması»-nı basın; 3) başlıqda müqayisə sətrini sözbəsöz yazın: «Müqayisə: …», sonra rəqəmlərin yanındakı adlar və rəqəmlər (koddan: «Baza» və «Fərq» — `components/decisions/DecisionHeadline.tsx`:114–138); 4) fərqin rəngini yazın; 5) seçicidə yenə «Keçən ay»-ı basın.
+Gözlənilən: "Müqayisə sətrində "baza" və "fərq" açıq yazılır." (`BRIEFS/TASK-06.md`:17). Bu gün üçün baza rəqəmini brief vermir (brief rəqəm vermir).
+İlk auditdə: "Heydər Əliyev, Son 6 ay: "17,583.62 ₼" yanında böyük yaşıl fərq və faiz durur, hansı rəqəmin baza olduğu yazılmır." (`BRIEFS/TASK-06.md`:11)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (müqayisə sətri, sözbəsöz):
+  - Bazanın adı və rəqəmi:
+  - Fərqin adı, rəqəmi, faizi və rəngi:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-52 — Task 07: Heydər Əliyev kartı yalnız kateqoriyanı deyirdi; artımın çoxu traktordur
+Mənbə: `BRIEFS/TASK-07.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 7, sitat: "Heydər Əliyev Mərkəzi, Sentyabr 2026, Keçən ay: kart "Əsas səbəb: Yeni sifarişlər +29,691.52 ₼" yazır. Artımın böyük hissəsi isə bir maldır: Traktor qazonbiçən RT-6127.1 ZL, 0 → 1 ədəd, +21,900.00 ₼ (ümumi fərq +23,852.70 ₼). İlk sifarişi Sentyabr 2026-dadır." · həll edən task: Task 07
+Harada: real · İdarəetmə paneli, Heydər Əliyev Mərkəzinin diqqət kartı, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə panelini açın, «Keçən ay»; 2) Heydər Əliyev Mərkəzinin kartını tapın; kartı yoxdursa, bunu yazın və `Hökm:`-ə «yoxlanıla bilmədi (kart yoxdur)» yazın; 3) kartın başlığını, «Əsas səbəb» sətrini (`components/dashboard/AttentionSection.tsx`:156–162) və onun altındakı mal sətrini — ad, məbləğ, pay — sözbəsöz yazın (`AttentionSection.tsx`:193–205; payın sözü `terminology/terms.ts`:143–154); 4) Sabun variant əlaqəsinin təsdiqlənib-təsdiqlənmədiyini A-07-dəki Əmr 2-nin Sabun sətrindən götürün: sərhəd buna görə 74 % və ya 76 %-dir.
+Gözlənilən: "Hər diqqət kartında əsas səbəbin yanında həmin səbəbdə ən böyük təsiri olan mal görünür: adı, məbləği və payı." (`BRIEFS/TASK-07.md`:14); "Heydər Əliyev (Keçən ay): "Traktor qazonbiçən RT-6127.1 ZL — +21,900 ₼ (artımların …%-i)". Təkcə yeni məhsulların cəmi 29,691.52 ₼ olduğu üçün pay 74%-dən çox ola bilməz." (`BRIEFS/TASK-07.md`:16); "(Task 13-də Sabun elano variant əlaqəsi təsdiqlənəndən sonra yeni məhsulların cəmi 28,941.52 ₼-a düşür və bu sərhəd 76%-ə qalxır.)" (`BRIEFS/TASK-07.md`:38)
+İlk auditdə: "kart "Əsas səbəb: Yeni sifarişlər +29,691.52 ₼" yazır. … Traktor qazonbiçən RT-6127.1 ZL, 0 → 1 ədəd, +21,900.00 ₼ (ümumi fərq +23,852.70 ₼)" (`BRIEFS/TASK-07.md`:7)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Kartın başlığı:
+  - «Əsas səbəb» sətri:
+  - Mal sətri (ad, məbləğ, pay):
+  - A-07-yə görə Sabun əlaqəsi təsdiqlənib (bəli / xeyr):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-53 — Task 07: traktoru görmək üçün sifarişə keçmək lazım idi
+Mənbə: `BRIEFS/TASK-07.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 8, sitat: "Traktoru görmək üçün sifarişə keçib "Əsas dəyişikliklər" siyahısında axtarmaq lazımdır." · həll edən task: Task 07
+Harada: real · İdarəetmə paneli, Heydər Əliyev Mərkəzinin kartı; sonra onun Sentyabr 2026 sifarişi · `/dashboard`, `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) kartda traktorun adının olub-olmadığını B-52-dən köçürün; 2) kartda «Detallara bax»-ı basın (`components/dashboard/AttentionSection.tsx`:211–236); 3) «Əsas dəyişikliklər»-də «Hamısı» seçilmiş halda birinci sətrin məhsulunu və məbləğini yazın (`components/decisions/DriverList.tsx`:78, 117–148); 4) brauzerin **Geri** düyməsi ilə panelə qayıdın.
+Gözlənilən: "Səbəbi sifarişə girmədən deyə bilirəm." (`BRIEFS/TASK-07.md`:38); "Sifariş səhifəsində traktor "Əsas dəyişikliklər" siyahısında birinci görünməyə davam edir (təsirə görə sıralama)." (`BRIEFS/TASK-07.md`:30)
+İlk auditdə: "Traktoru görmək üçün sifarişə keçib "Əsas dəyişikliklər" siyahısında axtarmaq lazımdır." (`BRIEFS/TASK-07.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Kartda traktorun adı (var / yox; B-52):
+  - «Əsas dəyişikliklər»-in 1-ci sətri (məhsul və məbləğ):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-54 — Task 07: Fəvvarələr meydanı — ən böyük mal Yay ayaqqabısı
+Mənbə: `BRIEFS/TASK-07.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10 (9-cu sətrin «Başqa nümunələr (Keçən ay):» bəndinin altında), sitat: "Fəvvarələr meydanı, −2,584.45: əsas səbəb "Artıq sifariş olunmayanlar −8,093.70"; ən böyük mal Yay ayaqqabısıdır, −1,988.00 (71 → 0 ədəd)." · həll edən task: Task 07
+Harada: real · İdarəetmə paneli, Fəvvarələr meydanının diqqət kartı, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-52-nin 1-ci addımı; 2) Fəvvarələr meydanının kartını tapın və B-52-nin 3-cü addımını edin; 3) kartı yoxdursa, bunu yazın, «Bütün obyektlər» cədvəlində onun sətrindəki əsas səbəbi yazın və `Hökm:`-ə «yoxlanıla bilmədi (kart yoxdur)» yazın. Koddan: cədvəl sətri yalnız səbəbin adını və məbləğini göstərir, malı göstərmir (`components/dashboard/LocationRows.tsx`:258–275); mal yalnız kartdadır (`components/dashboard/AttentionSection.tsx`:164).
+Gözlənilən: "Hər diqqət kartında əsas səbəbin yanında həmin səbəbdə ən böyük təsiri olan mal görünür: adı, məbləği və payı." (`BRIEFS/TASK-07.md`:14); "Fəvvarələr (Keçən ay): "Yay ayaqqabısı — −1,988 ₼ (azalmaların …%-i)". Təkcə bu ay yazılmayan məhsulların cəmi 8,093.70 ₼ olduğu üçün pay 25%-dən çox ola bilməz." (`BRIEFS/TASK-07.md`:17)
+İlk auditdə: "Fəvvarələr meydanı, −2,584.45: əsas səbəb "Artıq sifariş olunmayanlar −8,093.70"; ən böyük mal Yay ayaqqabısıdır, −1,988.00 (71 → 0 ədəd)." (`BRIEFS/TASK-07.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Kart (var / yox; varsa başlığı):
+  - «Əsas səbəb» sətri:
+  - Mal sətri (ad, məbləğ, pay):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-55 — Task 07: Nərimanov heykəli — ən böyük mal Mərmər bej qalınlığı 2 sm
+Mənbə: `BRIEFS/TASK-07.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 11 (9-cu sətrin «Başqa nümunələr (Keçən ay):» bəndinin altında), sitat: "Nərimanov heykəli, −1,166.42: əsas səbəb "Artıq sifariş olunmayanlar −1,601.06"; ən böyük mal Mərmər bej qalınlığı 2 sm, −883.20 (7.36 → 0 m²)." · həll edən task: Task 07
+Harada: real · İdarəetmə paneli, Nərimanov heykəlinin diqqət kartı, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) B-54-ün 1–3-cü addımları, Nərimanov heykəli üçün.
+Gözlənilən: "Hər diqqət kartında əsas səbəbin yanında həmin səbəbdə ən böyük təsiri olan mal görünür: adı, məbləği və payı." (`BRIEFS/TASK-07.md`:14). Bu kart üçün payı brief vermir (brief rəqəm vermir).
+İlk auditdə: "Nərimanov heykəli, −1,166.42: əsas səbəb "Artıq sifariş olunmayanlar −1,601.06"; ən böyük mal Mərmər bej qalınlığı 2 sm, −883.20 (7.36 → 0 m²)." (`BRIEFS/TASK-07.md`:11)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Kart (var / yox; varsa başlığı):
+  - «Əsas səbəb» sətri:
+  - Mal sətri (ad, məbləğ, pay):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-56 — Task 08: ayların cəmi sətri yox idi
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 7, sitat: "Ayların cəmi sətri yoxdur. Sentyabrın cəmini paneldəki 71,210.29 ₼ ilə yoxlamaq olmur." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat», 2026 · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) menyuda «Aylıq hesabat»-ı açın (`layout/navigation.ts`:28); 2) obyektlərin altında cəmi sətrinin olub-olmadığını və adını yazın (koddan: «Cəmi», axtarış varkən «Cəmi — bütün obyektlər» — `terminology/terms.ts`:101, 107; `components/reports/MonthlyReportTable.tsx`:150–169); 3) həmin sətirdə Sentyabrı yazın; 4) İdarəetmə panelində başlığın «Sentyabr 2026 sifarişlərinin məbləği» rəqəmini yazın (`components/dashboard/labels.ts`:210–212; `components/dashboard/DashboardSummary.tsx`:80–97). Ayların hamısı C-21-dədir.
+Gözlənilən: "Cədvəlin altında ay cəmləri və il cəmi olan sətir var; bu sətirdə faiz yoxdur (8.1)." (`BRIEFS/TASK-08.md`:17); "… Sentyabr 71,210.29 · … Sentyabr paneldəki rəqəmlə eynidir." (`BRIEFS/TASK-08.md`:46)
+İlk auditdə: "Ayların cəmi sətri yoxdur. Sentyabrın cəmini paneldəki 71,210.29 ₼ ilə yoxlamaq olmur." (`BRIEFS/TASK-08.md`:7)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Cəmi sətri (var / yox; adı):
+  - Sentyabr — hesabatda:
+  - Sentyabr — paneldə:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-57 — Task 08: qeyri-adi ay gözə çarpmırdı — Heydər Əliyev İyun
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 8, sitat: "Qeyri-adi ay gözə çarpmır: hər hücrədə faiz var, vurğu yoxdur. Heydər Əliyev İyun 36,010.19 ₼ (+85.48%) digər rəqəmlərin içində itir." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat», Heydər Əliyev Mərkəzinin İyun hücrəsi · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) Heydər Əliyev Mərkəzinin İyun hücrəsinin məbləğini və altındakı yazını yazın; 3) hücrənin qonşu hücrələrdən necə seçildiyini yazın: fon rəngi, qalın yazı (koddan: `components/reports/MonthlyReportTable.tsx`:262–276); 4) hücrənin üzərinə gəlin və çıxan yazını sözbəsöz yazın (koddan: «Qeyri-adi ay: əvvəlki 3 mövcud ayın ortalaması …, fərq …» — `terminology/terms.ts`:127–129; `MonthlyReportTable.tsx`:344–346); 5) cədvəlin üstündəki izahda «Qeyri-adi ay» yazısını yazın (`MonthlyReportTable.tsx`:422–428; `terms.ts`:118–121). Rəqəmlərin özü C-22-dədir.
+Gözlənilən: "Qeyri-adi ay: obyektin əvvəlki 3 mövcud ayının ortalamasından ±50%-dən çox fərqlənən ay rəqəmləri oxumadan seçilir. Əvvəlki 3 mövcud ay yoxdursa, vurğu olmur (8.2)." (`BRIEFS/TASK-08.md`:18); "Heydər Əliyevin İyun hücrəsi (36,010.19 ₼) vurğulanır: əvvəlki 3 mövcud ayın (Mart–May) ortalaması 14,458.58 ₼-dır, fərq +149%." (`BRIEFS/TASK-08.md`:47)
+İlk auditdə: "Heydər Əliyev İyun 36,010.19 ₼ (+85.48%) digər rəqəmlərin içində itir." (`BRIEFS/TASK-08.md`:8)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (hücrənin məbləği və altındakı yazı):
+  - Hücrə necə seçilir:
+  - Üzərinə gələndə çıxan yazı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-58 — Task 08: gələcək aylar keçmiş boş aylar kimi görünürdü
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 9, sitat: "Gələcək aylar (Oktyabr–Dekabr) keçmişdə sifariş olmayan aylarla eyni görünür: "—" və izahı "Oktyabr 2026: sifariş yoxdur"." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat», Oktyabr–Dekabr sütunları və keçmişdə boş bir hücrə · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) istənilən obyektin Oktyabr, Noyabr və Dekabr hücrələrinin görünüşünü və üzərinə gələndə çıxan yazını yazın (koddan: «Oktyabr 2026: gələcək ay» — `terminology/terms.ts`:109–115; `components/reports/MonthlyReportTable.tsx`:239–248); 3) keçmiş aylardan sifarişi olmayan bir hücrə tapın (obyekt və ay) və onun görünüşünü və yazısını yazın (koddan: "—" və «…: sifariş yoxdur» — `MonthlyReportTable.tsx`:251–258); 4) oxuduğunuz tarixi yazın. Koddan: ay yalnız oxuyanın təqvim ayından sonra gələcək sayılır; cari ay gələcək deyil (`components/analytics/format.ts`:225–232). Audit Oktyabr 2026-da aparılırsa, Oktyabr «Gələcək ay» olmayacaq.
+Gözlənilən: "Gələcək aylar keçmiş boş aylardan fərqlənir və "sifariş yoxdur" demir." (`BRIEFS/TASK-08.md`:19); "Oktyabr–Dekabr "sifariş yoxdur" demir və keçmiş boş aylardan fərqlənir." (`BRIEFS/TASK-08.md`:50)
+İlk auditdə: ""—" və izahı "Oktyabr 2026: sifariş yoxdur"" (`BRIEFS/TASK-08.md`:9)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Oktyabr, Noyabr, Dekabr — görünüş və yazı:
+  - Keçmiş boş hücrə (obyekt, ay) — görünüş və yazı:
+  - Oxuma tarixi:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-59 — Task 08: ⚠ faizi əvəz edirdi — Bayıl yolu, Sentyabr
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10, sitat: "⚠ işarəsi faizi əvəz edir. Bayıl yolunun Sentyabr hücrəsində yalnız "⚠1" var, panel isə eyni ay üçün +254.03% göstərir." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat», Bayıl yolunun Sentyabr hücrəsi; İdarəetmə paneli, «Keçən ay» · `/dashboard/monthly`, `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) Bayıl yolunun Sentyabr hücrəsində məbləğin altında görünən hər şeyi yazın: faiz, ⚠ N, nöqtə (koddan: faiz və ⚠ yan-yana çıxır — `components/reports/MonthlyReportTable.tsx`:283–313); 3) İdarəetmə panelində, «Keçən ay», «Bütün obyektlər» cədvəlində Bayıl yolunun fərqini və faizini yazın. Hesabatın faizi əvvəlki aya görədir (`terminology/terms.ts`:132), panelinki «Keçən ay» bazasına görə. Hücrənin özü C-26-dadır.
+Gözlənilən: "⚠ və faiz eyni hücrədə birlikdə görünür." (`BRIEFS/TASK-08.md`:20); "Bayıl yolunun Sentyabr hücrəsində həm ⚠1, həm faiz görünür." (`BRIEFS/TASK-08.md`:51). Bu gün üçün faizin rəqəmini brief vermir (brief rəqəm vermir).
+İlk auditdə: "Bayıl yolunun Sentyabr hücrəsində yalnız "⚠1" var, panel isə eyni ay üçün +254.03% göstərir." (`BRIEFS/TASK-08.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (hücrədə: məbləğ, faiz, ⚠ N):
+  - Paneldə Bayıl yolu, «Keçən ay» (fərq və faiz):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-60 — Task 08: status nöqtəsinin mənası yalnız siçanla
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 11, sitat: "Hücrədəki kiçik rəngli nöqtənin (status) mənası yalnız mouse ilə üzərinə gələndə aydın olur." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat», cədvəlin üstündəki izah · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) cədvəlin üstündə işarələrin izahı varmı, yazın (koddan: «Cədvəldəki işarələr» — `terminology/terms.ts`:135; `components/reports/MonthlyReportTable.tsx`:394–435); 3) izahın hər bəndini sözbəsöz yazın; 4) izahda status nöqtələrinin hansı vəziyyətləri dediyini yazın (`MonthlyReportTable.tsx`:403–408).
+Gözlənilən: "Status nöqtəsinin qısa izahı ekrandadır." (`BRIEFS/TASK-08.md`:21)
+İlk auditdə: "Hücrədəki kiçik rəngli nöqtənin (status) mənası yalnız mouse ilə üzərinə gələndə aydın olur." (`BRIEFS/TASK-08.md`:11)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - İzahın bəndləri, sözbəsöz:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-61 — Task 08: 12 aylıq cədvəl yalnız 1280 px-dən enli ekranda
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 12, sitat: "12 aylıq cədvəl yalnız 1280px-dən enli ekranda açılır. 1150–1279px noutbukda rəhbər yalnız bir ayın kart siyahısını görür." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat» · `/dashboard/monthly` · 1200 × 800
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) eni 1200 × 800 edin (`01-hazirliq.md`, 6-cı bənd); 2) «Aylıq hesabat»-ı açın; 3) 12 aylıq cədvəlin, yoxsa kart siyahısının göründüyünü yazın (koddan: cədvəl 1024 pikseldən enli ekranda göstərilir — `components/reports/MonthlyReportTable.tsx`:84, 447–453); 4) H-22-nin hökmünü köçürün. Eyni en C-27-dədir.
+Gözlənilən: "12 aylıq cədvəl təxminən 1024px-dən başlayaraq işləyir; məbləğlər sıxlaşmır, cədvəl səhifənin eninə uyğundur." (`BRIEFS/TASK-08.md`:23); "1200px enində də 12 aylıq cədvəli görürəm." (`BRIEFS/TASK-08.md`:52)
+İlk auditdə: "12 aylıq cədvəl yalnız 1280px-dən enli ekranda açılır. 1150–1279px noutbukda rəhbər yalnız bir ayın kart siyahısını görür." (`BRIEFS/TASK-08.md`:12)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (1200-də cədvəl / kart siyahısı):
+  - H-22-nin hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-62 — Task 08: beşrəqəmli məbləğlər sıx idi — Fəvvarələr
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 13, sitat: "Beşrəqəmli məbləğlər sıxdır: Fəvvarələr sətrində "23,449.32 ₼ 11,161.99 ₼" demək olar bitişik yazılır." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat», Fəvvarələr meydanının sətri · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) Fəvvarələr meydanının sətrində yan-yana duran iki beşrəqəmli məbləği tapın və ikisini də yazın; 3) aralarında aydın boşluq olub-olmadığını, məbləğin kəsilib-kəsilmədiyini və ya iki sətrə düşüb-düşmədiyini yazın.
+Gözlənilən: "12 aylıq cədvəl təxminən 1024px-dən başlayaraq işləyir; məbləğlər sıxlaşmır, cədvəl səhifənin eninə uyğundur." (`BRIEFS/TASK-08.md`:23). Bu gün üçün rəqəmi brief vermir (brief rəqəm vermir).
+İlk auditdə: "Fəvvarələr sətrində "23,449.32 ₼ 11,161.99 ₼" demək olar bitişik yazılır." (`BRIEFS/TASK-08.md`:13)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (iki qonşu məbləğ və aralarındakı boşluq):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-63 — Task 08: 1440-da cədvəl kartların hüdudundan çıxırdı
+Mənbə: `BRIEFS/TASK-08.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 14, sitat: "1440-da cədvəl yuxarıdakı kartların hüdudundan kənara çıxır." · həll edən task: Task 08
+Harada: real · «Aylıq hesabat» · `/dashboard/monthly` · 1440 × 900
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) eni 1440 × 900 edin; 2) «Aylıq hesabat»-ı açın; 3) cədvəlin sağ kənarının yuxarıdakı hissələrin sağ kənarından çıxıb-çıxmadığını və üfüqi sürüşdürmənin olub-olmadığını yazın; 4) H-04-ün hökmünü köçürün.
+Gözlənilən: "12 aylıq cədvəl təxminən 1024px-dən başlayaraq işləyir; məbləğlər sıxlaşmır, cədvəl səhifənin eninə uyğundur." (`BRIEFS/TASK-08.md`:23); "1366 və 1440-da Yanvar–Dekabr üfüqi sürüşdürmədən görünür; başlıq sətri yuxarıda sabit qalır." (`BRIEFS/TASK-08.md`:35)
+İlk auditdə: "1440-da cədvəl yuxarıdakı kartların hüdudundan kənara çıxır." (`BRIEFS/TASK-08.md`:14)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - H-04-ün hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-64 — Task 09: diqqət kartları birinci ekranın altında idi
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 7, sitat: "Birinci ekranda ay, məbləğ, istiqamət və baza görünür. "Hansı obyektə baxım" sualının cavabı, yəni diqqət kartları, isə birinci ekranın altında qalır." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, sürüşdürmədən · `/dashboard` · 1366 × 768
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) eni 1366 × 768 edin (`01-hazirliq.md`, 6-cı bənd); 2) İdarəetmə panelini açın və sürüşdürməyin; 3) birinci ekranda tam görünən ilk diqqət kartının başlığını və obyektini yazın; kart yoxdursa, «yoxdur» yazın; 4) H-01-in hökmünü köçürün. Eyni yoxlama C-28-dədir.
+Gözlənilən: "Birinci ekranda ən azı birinci diqqət obyekti görünür." (`BRIEFS/TASK-09.md`:24); "1366×768 ekranda paneli açanda aşağı sürüşdürmədən ən azı bir diqqət kartı görürəm." (`BRIEFS/TASK-09.md`:60)
+İlk auditdə: "diqqət kartları, isə birinci ekranın altında qalır" (`BRIEFS/TASK-09.md`:7)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (sürüşdürmədən görünən ilk kart: başlıq və obyekt):
+  - H-01-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-65 — Task 09: "Ən böyük məbləğ artımı" iki kartda
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 9 (8-ci sətrin «Kart başlıqları yanıldır:» bəndinin altında), sitat: ""Ən böyük məbləğ artımı" iki kartda təkrarlanır (Heydər Əliyev və Novxanı)." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, diqqət kartları · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə panelini açın, «Keçən ay» (brief bazanı demir; oxuduğunuz bazanı yazın); 2) hər kartın başlığını və obyektini sırası ilə sözbəsöz yazın (koddan: başlıqlar `components/dashboard/labels.ts`:137–152; eyni növün ikinci kartı «İkinci ən böyük …» yazır — `labels.ts`:157–168); 3) məhz «Ən böyük məbləğ artımı» yazan kartları sayın.
+Gözlənilən: "Kart başlıqları kartın niyə seçildiyini düzgün deyir: eyni başlıq təkrarlanmır, "ən böyük" yalnız həqiqətən ən böyük olana yazılır." (`BRIEFS/TASK-09.md`:25)
+İlk auditdə: ""Ən böyük məbləğ artımı" iki kartda təkrarlanır (Heydər Əliyev və Novxanı)." (`BRIEFS/TASK-09.md`:9)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Oxunan baza:
+  - Kartlar (başlıq — obyekt), sırası ilə:
+  - «Ən böyük məbləğ artımı» yazan kart sayı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-66 — Task 09: "Ən böyük faiz dəyişməsi" iki kartda
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 10 (8-ci sətrin «Kart başlıqları yanıldır:» bəndinin altında), sitat: ""Ən böyük faiz dəyişməsi" də iki kartdadır (Bayıl yolu +254.03% və Milli Konservatoriya +480.01%)." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, diqqət kartları · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-65-in 1–2-ci addımları (kart siyahısını oradan köçürə bilərsiniz); 2) məhz «Ən böyük faiz dəyişməsi» yazan kartları sayın, hər birinin obyektini və faizini yazın.
+Gözlənilən: "Kart başlıqları kartın niyə seçildiyini düzgün deyir: eyni başlıq təkrarlanmır, "ən böyük" yalnız həqiqətən ən böyük olana yazılır." (`BRIEFS/TASK-09.md`:25). Bu gün üçün faizləri brief vermir (brief rəqəm vermir).
+İlk auditdə: ""Ən böyük faiz dəyişməsi" də iki kartdadır (Bayıl yolu +254.03% və Milli Konservatoriya +480.01%)." (`BRIEFS/TASK-09.md`:10)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Oxunan baza:
+  - «Ən böyük faiz dəyişməsi» yazan kart sayı:
+  - Onların obyekti və faizi:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-67 — Task 09: «Son 3 ayın ortalaması» — faiz kartı ən böyük faizə verilməmişdi
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 11 (8-ci sətrin «Kart başlıqları yanıldır:» bəndinin altında), sitat: ""Son 3 ay" bazasında Novxanının artımı +268.05%-dir, amma "Ən böyük faiz dəyişməsi" kartı Milli Konservatoriyaya (+85.55%) verilib." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, «Son 3 ayın ortalaması» (`components/analytics/format.ts`:39) · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) panelin baza seçicisində (`pages/ManagementDashboardPage.tsx`:263; `components/analytics/BasisPicker.tsx`:69–83) «Son 3 ayın ortalaması»-nı basın; 2) «Ən böyük faiz dəyişməsi» kartının obyektini və faizini yazın; 3) kartın başlığının yanındakı ⓘ izahını açın və sözbəsöz yazın (`components/dashboard/AttentionSection.tsx`:101–103); 4) «Bütün obyektlər» cədvəlində Novxanının bazasını, fərqini və faizini yazın; 5) seçicidə yenə «Keçən ay»-ı basın.
+Gözlənilən: "Kart başlıqları kartın niyə seçildiyini düzgün deyir: eyni başlıq təkrarlanmır, "ən böyük" yalnız həqiqətən ən böyük olana yazılır." (`BRIEFS/TASK-09.md`:25). Koddan: "Faiz yalnız müqayisə bazası ən azı 100 ₼ olan və ən azı 50% dəyişən obyektlər arasında müqayisə olunur." (`components/dashboard/labels.ts`:185–186). Bu gün üçün faizləri brief vermir (brief rəqəm vermir).
+İlk auditdə: ""Son 3 ay" bazasında Novxanının artımı +268.05%-dir, amma "Ən böyük faiz dəyişməsi" kartı Milli Konservatoriyaya (+85.55%) verilib." (`BRIEFS/TASK-09.md`:11)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - «Ən böyük faiz dəyişməsi» kartı (obyekt və faiz):
+  - Kartın ⓘ izahı, sözbəsöz:
+  - Novxanı cədvəldə (baza, fərq, faiz):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-68 — Task 09: qiymət xəbərdarlığı hər kartda cümlə kimi; narıncı çox
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 12, sitat: "Qiymət xəbərdarlığı demək olar hər kartda cümlə kimi təkrarlanır; narıncı rəng çox işlənir və xəbərdarlığın təsiri itir." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, diqqət kartları · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) kartlarda xəbərdarlığın şəklini B-43-dən köçürün; 2) kartlarda narıncı (kəhrəba) rəngin harada işləndiyini yazın: başlıq, işarə, başqa yer (koddan: yalnız «Qiymət yoxdur» kartının başlığı və ⚠ işarəsi — `components/dashboard/labels.ts`:188–199; `components/dashboard/AttentionSection.tsx`:91, 98).
+Gözlənilən: "Qiymət xəbərdarlığı kartda qısa işarə və say ilə verilir, hər kartda cümlə kimi təkrarlanmır." (`BRIEFS/TASK-09.md`:26)
+İlk auditdə: "Qiymət xəbərdarlığı demək olar hər kartda cümlə kimi təkrarlanır; narıncı rəng çox işlənir" (`BRIEFS/TASK-09.md`:12)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Kartlarda xəbərdarlığın şəkli (B-43-dən):
+  - Narıncı görülən yerlər:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-69 — Task 09: yaşıl rəng xərcin artmasını göstərirdi
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 13, sitat: "Yaşıl rəng xərcin artmasını göstərir və "yaxşı" kimi oxunur." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, diqqət kartları və «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə paneli, «Keçən ay»; 2) artan bir kartda (məsələn Heydər Əliyev Mərkəzi) fərqin rəngini və altındakı cümləni sözbəsöz yazın (`components/dashboard/AttentionSection.tsx`:118–123; `terminology/terms.ts`:80–96); 3) azalan bir kartda (məsələn Fəvvarələr meydanı) eyni şeyi yazın; 4) cədvəldə artan və azalan bir sətrin fərqinin rəngini yazın. Eyni iki kart C-30-dadır.
+Gözlənilən: "Rənglər: xərc artımı qırmızı, azalma yaşıl. İzahı "xərc artıb / azalıb" kimi verilir, "yaxşı / pis" kimi yox (9.1). Bu qayda panel, aylıq hesabat, "Niyə dəyişib?" və obyektlər siyahısı üçün eynidir." (`BRIEFS/TASK-09.md`:27)
+İlk auditdə: "Yaşıl rəng xərcin artmasını göstərir və "yaxşı" kimi oxunur." (`BRIEFS/TASK-09.md`:13)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Artan kart (obyekt): rəng və cümlə:
+  - Azalan kart (obyekt): rəng və cümlə:
+  - Cədvəldə artım / azalma rəngi:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-70 — Task 09: çiplər klik olunmurdu
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 14, sitat: "Çiplər klik olunmur. Hansı obyektlərdə qiymət yoxdur və ya tarixçə natamamdır, bunu görmək üçün cədvəl filtrini əllə seçmək lazımdır. Sıfır saylı çip də görünür ("Tarixçə natamam 0"). Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid yoxdur." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, çiplər (`components/dashboard/DashboardSummary.tsx`:220–310) · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə paneli, «Keçən ay»; 2) çipləri adı və sayı ilə sırası ilə yazın; 3) hər çipi növbə ilə basın və «Bütün obyektlər» cədvəlində neçə sətir qaldığını yazın; sonra çipi yenə basıb süzgəci götürün. Çip süzgəcdir, heç nə yazmır (`DashboardSummary.tsx`:197–224).
+Gözlənilən: "Hər çip klik olunur və cədvəli həmin obyektlərə süzür; sıfır saylı çip görünmür. "Qiymət yoxdur · N obyekt" həmin obyektləri göstərir." (`BRIEFS/TASK-09.md`:28)
+İlk auditdə: "Çiplər klik olunmur. Hansı obyektlərdə qiymət yoxdur və ya tarixçə natamamdır, bunu görmək üçün cədvəl filtrini əllə seçmək lazımdır." (`BRIEFS/TASK-09.md`:14)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Çiplər (ad və say):
+  - Hər çip basılanda cədvəldə qalan sətir sayı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-71 — Task 09: sıfır saylı çip görünürdü ("Tarixçə natamam 0")
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 14, sitat: "Çiplər klik olunmur. Hansı obyektlərdə qiymət yoxdur və ya tarixçə natamamdır, bunu görmək üçün cədvəl filtrini əllə seçmək lazımdır. Sıfır saylı çip də görünür ("Tarixçə natamam 0"). Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid yoxdur." · həll edən task: Task 09; çipin sözü Task 05 (`BRIEFS/TASK-09.md`:55)
+Harada: real · İdarəetmə paneli, çiplər · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-70-in 2-ci addımındakı çip siyahısına baxın; 2) sayı 0 olan çip görünürsə, adını yazın; yoxdursa «yoxdur» yazın. Koddan: sayı sıfır olan çip göstərilmir (`components/dashboard/DashboardSummary.tsx`:215).
+Gözlənilən: "sıfır saylı çip görünmür." (`BRIEFS/TASK-09.md`:28)
+İlk auditdə: "Sıfır saylı çip də görünür ("Tarixçə natamam 0")." (`BRIEFS/TASK-09.md`:14)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (sayı 0 olan çip; yoxdursa «yoxdur»):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-72 — Task 09: qiymət xəbərdarlığından obyektlərə keçid yox idi
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 14, sitat: "Çiplər klik olunmur. Hansı obyektlərdə qiymət yoxdur və ya tarixçə natamamdır, bunu görmək üçün cədvəl filtrini əllə seçmək lazımdır. Sıfır saylı çip də görünür ("Tarixçə natamam 0"). Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid yoxdur." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, başlıqdakı qiymət qeydi və «Qiymət yoxdur · N obyekt» çipi · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) başlıqda məbləğin yuxarısındakı qiymət qeydini sözbəsöz yazın (koddan: «N obyektin sifarişində qiyməti olmayan sətir var» — `coverage/labels.ts`:189–191; `components/dashboard/DashboardSummary.tsx`:85–92); 2) onu basın və cədvəldə qalan obyektləri yazın; sonra süzgəci götürün; 3) çipin özü C-31-dədir: C-31-in hökmünü köçürün.
+Gözlənilən: ""Qiymət yoxdur · N obyekt" həmin obyektləri göstərir." (`BRIEFS/TASK-09.md`:28)
+İlk auditdə: "Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid yoxdur." (`BRIEFS/TASK-09.md`:14)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Başlıqdakı qiymət qeydi (sözbəsöz):
+  - Qeyd basılanda cədvəldə qalan obyektlər:
+  - C-31-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-73 — Task 09: cədvəlin varsayılan sırası obyekt adına görə idi
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 16 (15-ci sətrin «"Bütün obyektlər" cədvəli:» bəndinin altında), sitat: "varsayılan sıra obyekt adına görədir, dəyişməyə görə yox;" · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə panelini menyudan yenidən açın (ünvanda əlavə seçim olmadan); 2) cədvəlin sıralama seçimində nə seçildiyini yazın (koddan: «Ən çox dəyişən» — `components/dashboard/labels.ts`:88–97); 3) ilk beş sətrin obyektini və fərqini sırası ilə yazın.
+Gözlənilən: "varsayılan sıra dəyişmənin böyüklüyünə görədir;" (`BRIEFS/TASK-09.md`:31)
+İlk auditdə: "varsayılan sıra obyekt adına görədir, dəyişməyə görə yox" (`BRIEFS/TASK-09.md`:16)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (seçilmiş sıralama):
+  - İlk beş sətir (obyekt — fərq):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-74 — Task 09: 26 / 27 sətir iki səhifəyə bölünürdü
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 17 (15-ci sətrin «"Bütün obyektlər" cədvəli:» bəndinin altında), sitat: "26 sətir iki səhifəyə bölünürdü (ikinci səhifədə yalnız İDEA); 27 obyektlə də iki səhifədir;" · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) cədvəldə sətirləri sayın; 2) cədvəlin altında səhifələr və ya «Növbəti» düyməsi olub-olmadığını yazın (koddan: səhifədə 100 sətir göstərilir, düymələr yalnız sətir bundan çox olanda çıxır — `pages/ManagementDashboardPage.tsx`:38, 367–375). Eyni yoxlama C-32-dədir.
+Gözlənilən: "27 sətir bir səhifədədir;" (`BRIEFS/TASK-09.md`:30); "Obyekt sayı 24 / 27-dir (Task 3)." (`BRIEFS/TASK-09.md`:44)
+İlk auditdə: "26 sətir iki səhifəyə bölünürdü (ikinci səhifədə yalnız İDEA); 27 obyektlə də iki səhifədir" (`BRIEFS/TASK-09.md`:17)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (sətir sayı; səhifə düymələri var / yox):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-75 — Task 09: "Növbəti" basılanda səhifə yuxarı qalxırdı
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 18 (15-ci sətrin «"Bütün obyektlər" cədvəli:» bəndinin altında), sitat: ""Növbəti" basılanda səhifə ən yuxarı qalxır;" · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) cədvəlin altında «Növbəti» düyməsinin olub-olmadığını B-74-dən köçürün; 2) varsa, basın və səhifənin harada qaldığını yazın (düymə yalnız səhifəni dəyişir, heç nə yazmır); yoxdursa, «düymə yoxdur» yazın.
+Gözlənilən: "27 sətir bir səhifədədir;" (`BRIEFS/TASK-09.md`:30). Brief bu barədə ayrıca nəticə vermir; 27 sətir bir səhifədədirsə, düymə yoxdur.
+İlk auditdə: ""Növbəti" basılanda səhifə ən yuxarı qalxır" (`BRIEFS/TASK-09.md`:18)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən («Növbəti» var / yox; varsa, basılandan sonra səhifə harada qaldı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-76 — Task 09: "Detallara bax" iki sətrə sınırdı
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 19 (15-ci sətrin «"Bütün obyektlər" cədvəli:» bəndinin altında), sitat: ""Detallara bax" iki sətrə sınır, qiymət xəbərdarlığı 4 sətir tutur." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) cədvəlin hər sətrində «Detallara bax» düyməsinin (`components/dashboard/labels.ts`:231) bir sətirdə qalıb-qalmadığına baxın; 2) iki sətrə sınan varsa, obyektini yazın. Koddan: düymə sınmayan yazı ilə qurulub (`components/dashboard/AttentionSection.tsx`:229–231).
+Gözlənilən: "düymələr və xəbərdarlıqlar bir sətirə sığır." (`BRIEFS/TASK-09.md`:32)
+İlk auditdə: ""Detallara bax" iki sətrə sınır" (`BRIEFS/TASK-09.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (iki sətrə sınan düymələr; yoxdursa «yoxdur»):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-77 — Task 09: qiymət xəbərdarlığı cədvəldə 4 sətir tuturdu
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 19 (15-ci sətrin «"Bütün obyektlər" cədvəli:» bəndinin altında), sitat: ""Detallara bax" iki sətrə sınır, qiymət xəbərdarlığı 4 sətir tutur." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) cədvəldə qiyməti olmayan sətri olan obyektləri tapın (B-72-nin süzgəci ilə tapmaq olar); 2) onların sətrində xəbərdarlığın necə göründüyünü və neçə sətir tutduğunu yazın (koddan: məbləğin yanında «⚠ N», cümlə yalnız üzərinə gələndə — `components/dashboard/LocationRows.tsx`:310–330; `components/dashboard/MissingPriceMark.tsx`:4–11).
+Gözlənilən: "düymələr və xəbərdarlıqlar bir sətirə sığır." (`BRIEFS/TASK-09.md`:32); "Qiymət xəbərdarlığı kartda qısa işarə və say ilə verilir, hər kartda cümlə kimi təkrarlanmır." (`BRIEFS/TASK-09.md`:26)
+İlk auditdə: "qiymət xəbərdarlığı 4 sətir tutur" (`BRIEFS/TASK-09.md`:19)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (xəbərdarlığın şəkli və tutduğu sətir sayı):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-78 — Task 09: sifarişdən qayıdanda panel ən yuxarıdan açılırdı
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 20, sitat: "Sifarişdən geri qayıdanda panel ən yuxarıdan açılır və rəhbər baxdığı kartı itirir." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli → Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi → brauzerin **Geri** düyməsi · `/dashboard`, `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: yol C-33-dədir (kartdan «Detallara bax», sifarişdə bir az aşağı, sonra brauzerin **Geri** düyməsi; sifariş səhifəsində panelə qaytaran öz düyməsi yoxdur — «Brief-in sözləri və ekranın sözləri»). C-33-də yazılanı buraya köçürün. Koddan: panel qayıdanda açılan kartın yerinə dönür (`navigation/useScrollMemory.ts`:13, 26, 104; `components/dashboard/AttentionSection.tsx`:96–97).
+Gözlənilən: "Geri qayıdanda panel qaldığım yerdən açılır." (`BRIEFS/TASK-09.md`:33)
+İlk auditdə: "Sifarişdən geri qayıdanda panel ən yuxarıdan açılır və rəhbər baxdığı kartı itirir." (`BRIEFS/TASK-09.md`:20)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən (Geri-dən sonra panel harada açıldı):
+  - C-33-ün hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### B-79 — Task 09: EXPO olanda fərq ay cəminin altında dururdu
+Mənbə: `BRIEFS/TASK-09.md`, «Auditdə müşahidə edilən hazırkı problem», sətir 21, sitat: "Müqayisədən kənar obyekt olanda (Keçən ay: EXPO) fərq (+26,689.47) ay cəminin (71,210.29) altında durur, müqayisə olunan məbləğin (71,030.25) yanında yox. Rəhbər ay cəmindən çıxanda başqa rəqəm alır." · həll edən task: Task 09
+Harada: real · İdarəetmə paneli, başlıq, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə paneli, «Keçən ay»; 2) başlıqda ay cəmini yazın; 3) fərqin hansı rəqəmin yanında durduğunu yazın: ay cəminin altında, yoxsa müqayisə olunan məbləğlə çıxma kimi (koddan: `components/dashboard/DashboardSummary.tsx`:152–195); 4) EXPO-nun ayrıca göstərilməsi E-05-dədir, çıxmanın rəqəmləri C-34-dədir: E-05-in hökmünü köçürün.
+Gözlənilən: "İstisna olanda fərq müqayisə olunan məbləğin yanında görünür: 71,030.25 − 44,340.78 = +26,689.47." (`BRIEFS/TASK-09.md`:34)
+İlk auditdə: "fərq (+26,689.47) ay cəminin (71,210.29) altında durur, müqayisə olunan məbləğin (71,030.25) yanında yox" (`BRIEFS/TASK-09.md`:21)
+---- operator doldurur ----
+Göründü:
+  - Bu gün görünən:
+  - Ay cəmi:
+  - Fərq hansı rəqəmin yanındadır:
+  - E-05-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: həll olunub / qismən / həll olunmayıb / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
 ## C. Task 04–16 qəbul şərtləri
+
+Bu bölmə `BRIEFS/TASK-04.md` … `TASK-14.md` və `TASK-16.md`-nin «Acceptance — biznes dili ilə» bölməsinin hər bəndini
+yoxlayır: hər bənd bir sətirdir və `Mənbə:`-də sözbəsöz verilib (protokol §6.2). `Hökm:` sözləri: keçdi / keçmədi, və ya
+yoxlanıla bilmədi (səbəb). Yazma tələb edən yoxlama yalnız sınaqda, `04-sandbox.md` «Yekun cədvəl»-ə görə aparılır;
+sınaq onu apara bilmirsə, sətir «yoxlanıla bilmədi» olur və heç vaxt real datada aparılmır (protokol §6.2). Sentyabr
+datasını adlandıran şərt Sentyabrda oxunur (protokol §6.2). Sətir başqa demirsə, B-nin girişindəki kimi: real data,
+Rəhbər hesabı, Sentyabr 2026, «Keçən ay», 1366 × 768; məbləğin yazılışı da oradakı kimi. `İlk auditdə:` həmin brief-in
+ilk audit qeydini və onun B sətrini göstərir.
+
+### C-01 — Task 04: sınaqda növbədə bir test sifarişi; real 27 obyektdə heç nə dəyişməyib
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 45, sitat: "Test mühitində "Təsdiq gözləyənlər"də bir test sifarişi görürəm. Real 27 obyektin heç birində heç nə dəyişməyib."
+Harada: real və sınaq · sınaqda «Təsdiq gözləyənlər» (`http://localhost:5174/approvals`); realda Əmr 4 (A-09, J-04) · — · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması (sınaq hissəsi üçün). (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) sınaq: `04-sandbox.md`, Sınaq 1, addım 1 — `sinaq.rehber` ilə «Təsdiq gözləyənlər»-dəki sifarişləri yazın; bu oxunuş F-02-dədir, oradan köçürə bilərsiniz; 2) real: 27 obyektdə heç nəyin dəyişmədiyi Əmr 4-ün başlanğıc (A-09) və son (J-04) oxunuşlarının müqayisəsidir (`03-emrler.md`, Əmr 4; `04-sandbox.md`, «Yekun cədvəl», sətir 547): J-04-ün hökmünü köçürün.
+Gözlənilən: bəndin özü — sınaqda bir test sifarişi; real 27 obyektdə heç nə dəyişməyib. "Real sifarişlər təsdiqlənmir, qaytarılmır və dəyişdirilmir; sınaq yalnız test mühitində aparılır." (`BRIEFS/TASK-04.md`:26); "27 obyektlik real kataloqa test obyekti əlavə olunmur." (`BRIEFS/TASK-04.md`:27). `04-sandbox.md`, Sınaq 1, addım 1: "Gözlənilən: bir sifariş, Sınaq obyekti 1, Sentyabr 2026".
+İlk auditdə: ""Təsdiq gözləyənlər" boşdur" (`BRIEFS/TASK-04.md`:7) — B-01; "Axını təhlükəsiz sınamaq üçün mühit yoxdur." (`BRIEFS/TASK-04.md`:8) — B-02
+---- operator doldurur ----
+Göründü:
+  - Sınaqda növbədəki sifariş(lər):
+  - J-04-ün hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-02 — Task 04: qərar düymələri təhlilə baxarkən görünən qalır
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 46, sitat: "Sifarişi açanda qərar düymələrini axtarmıram; təhlilə baxarkən onlar görünən qalır."
+Harada: sınaq · Sınaq obyekti 1-in Sentyabr 2026 sifarişi, qərar paneli · `http://localhost:5174/orders/<nömrə>` · 1366 və 390 × 844
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması. 1) `04-sandbox.md`, Sınaq 1, addım 4 (1366): «Niyə dəyişib?»-i aşağı sürüşdürərək oxuyun və «Təsdiqlə» və «Düzəliş tələb et» olan panelin təhlilin yanında görünən qalıb-qalmadığını yazın (F-03); 2) Sınaq 2, addım 2 (390 × 844): qərar düymələrinin ekranın aşağısına bərkidilmiş zolaqda olub-olmadığını və sürüşdürərkən orada qalıb-qalmadığını yazın (F-09); 3) F-03-ün və F-09-un hökmlərini köçürün.
+Gözlənilən: bəndin özü — düymələr axtarılmır və görünən qalır. ""Təsdiqlə" və "Düzəliş tələb et" axtarılmadan tapılır və təhlilə baxarkən görünən qalır." (`BRIEFS/TASK-04.md`:20); "Yan panel səhifə aşağı sürüşəndə görünən qalır (auditdə yaxşı qiymətləndirilib)." (`BRIEFS/TASK-04.md`:36). `04-sandbox.md`: "«Təsdiqlə» və «Düzəliş tələb et» düymələri olan panel təhlilin yanında görünən qalırmı" (Sınaq 1, addım 4); "qərar düymələri ekranın aşağısına bərkidilmiş zolaqdadırmı, və «Niyə dəyişib?» sürüşdürülərkən orada qalırmı" (Sınaq 2, addım 2).
+İlk auditdə: ""Təsdiqlə" və "Düzəliş tələb et" düymələri auditdə heç görünmədi" (`BRIEFS/TASK-04.md`:7) — B-01
+---- operator doldurur ----
+Göründü:
+  - 1366 (Sınaq 1, addım 4; F-03):
+  - 390 × 844 (Sınaq 2, addım 2; F-09):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-03 — Task 04: səbəbsiz qaytarmaq olmur; səbəblə qaytarılır; ikinci göndəriş və səbəb görünür
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 47, sitat: "Səbəb yazmadan "Düzəliş tələb et" göndərə bilmirəm. Səbəblə qaytarıram; göndərən düzəldib yenidən göndərəndə panel bunun ikinci göndərmə olduğunu və mənim səbəbimi göstərir."
+Harada: sınaq · Sınaq obyekti 1-in Sentyabr 2026 sifarişi, qərar paneli · `http://localhost:5174/orders/<nömrə>` · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması. 1) `04-sandbox.md`, Sınaq 1, addım 5: səbəb sahəsi boşkən pəncərədəki «Düzəliş tələb et»-in basılmadığını və «Düzəliş tələb etmək üçün səbəb yazılmalıdır.» yazısını yazın (F-07); sonra səbəb yazıb qaytarın (F-04); 2) addım 6: koordinator düzəldib yenidən göndərir (F-05); 3) addım 7: Rəhbər panelində, təsdiqdən əvvəl, «Göndəriş» faktını (məsələn «İkinci göndəriş · düzəliş tələbindən sonra») və «Əvvəlki düzəliş səbəbi»-ni yazın (F-06; `components/workflow/labels.ts`:74–75, 83–119); 4) F-07, F-04, F-05 və F-06-nın hökmlərini `Qeyd:`-ə yazın.
+Gözlənilən: bəndin özü — səbəbsiz göndərilmir; səbəblə qaytarılır; panel ikinci göndərişi və Rəhbərin səbəbini göstərir. "**4.2:** Düzəliş tələb edəndə səbəb yazmaq məcburidir." (`BRIEFS/TASK-04.md`:30); "neçənci dəfə göndərildiyi (biznes dilində, "Versiya 2" kimi yox);" "əvvəlki düzəliş səbəbi;" (`BRIEFS/TASK-04.md`:17–18). `04-sandbox.md`, Sınaq 1, addım 5: "sahənin altında «Düzəliş tələb etmək üçün səbəb yazılmalıdır.» görünürmü"; addım 6: "panel bunun ikinci göndəriş olduğunu və Rəhbərin səbəbini göstərsin".
+İlk auditdə: "neçənci dəfə (düzəlişdən sonra?), əvvəlki düzəliş qeydi nə idi" (`BRIEFS/TASK-04.md`:11) — B-05
+---- operator doldurur ----
+Göründü:
+  - Səbəbsiz göndərmək (addım 5; F-07):
+  - Səbəblə qaytarmaq (addım 5; F-04):
+  - İkinci göndəriş və səbəb paneldə (addım 6–7; F-05, F-06):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-04 — Task 04: kim və nə vaxt təsdiqləyib; status bir dəfə
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 48, sitat: "Təsdiqləyəndən sonra panel kimin və nə vaxt təsdiqlədiyini göstərir; status bir dəfə görünür."
+Harada: sınaq · Sınaq obyekti 1-in düzəldilmiş Sentyabr 2026 sifarişi, təsdiqdən sonra · `http://localhost:5174/orders/<nömrə>` · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması. 1) `04-sandbox.md`, Sınaq 1, addım 7: təsdiqdən sonra panelin «Təsdiqləyən» və «Təsdiq tarixi» faktlarını yazın (`components/workflow/labels.ts`:79–80); 2) səhifədə «Təsdiqlənib» sözünün (`labels.ts`:8) neçə dəfə və harada göründüyünü yazın; 3) F-06-nın hökmünü köçürün.
+Gözlənilən: bəndin özü — kim və nə vaxt təsdiqləyib görünür; status bir dəfə görünür. "Qərar paneli statusu təkrarlamır." (`BRIEFS/TASK-04.md`:15); "təsdiqləyən və ya qaytaran şəxs və tarix." (`BRIEFS/TASK-04.md`:19). `04-sandbox.md`, Sınaq 1, addım 7: "vəziyyət «Təsdiqlənib» …, və səhifədə bir dəfə görünürmü"; "«Təsdiqləyən» və «Təsdiq tarixi»".
+İlk auditdə: ""✓ Təsdiqlənib" həm başlıqda, həm yan paneldə var." (`BRIEFS/TASK-04.md`:9) — B-03; "kim və nə vaxt təsdiqləyib" (`BRIEFS/TASK-04.md`:11) — B-05
+---- operator doldurur ----
+Göründü:
+  - Təsdiqləyən və tarix:
+  - «Təsdiqlənib» səhifədə neçə dəfə və harada:
+  - F-06-nın hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-05 — Task 04: təsdiq səlahiyyəti olmayan admin təsdiqləyə bilmir
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 49, sitat: "Təsdiq səlahiyyəti olmayan admin hesabı sifarişi təsdiqləyə bilmir."
+Harada: sınaq · «Təsdiq gözləyənlər» və Sınaq obyekti 1-in sifarişi, `sinaq.admin` ilə · `http://localhost:5174/approvals` · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması. 1) `04-sandbox.md`, Sınaq 1, addım 3: sətirlərdə «Təsdiq səlahiyyətiniz yoxdur. Qərarı Rəhbər rolu olan istifadəçi verir.» yazısının olub-olmadığını və «Təsdiqlə» / «Düzəliş tələb et» düymələrinin olmadığını yazın; 2) «Sifarişə bax»-dan sonra qərar panelində eyni yazını və «Təsdiqlə»-nin olmadığını yazın; 3) heç nəyi dəyişməyin; F-08-in hökmünü köçürün.
+Gözlənilən: bəndin özü — admin təsdiqləyə bilmir. "**4.3:** Təsdiqi yalnız Rəhbər rolu və ya təsdiq səlahiyyəti olan rol edə bilər. Admin olmaq avtomatik təsdiq hüququ vermir." (`BRIEFS/TASK-04.md`:31). `04-sandbox.md`, Sınaq 1, addım 3: "hər sətirdə «Təsdiq səlahiyyətiniz yoxdur. Qərarı Rəhbər rolu olan istifadəçi verir.» yazısı görünürmü"; "sətirlərdə «Təsdiqlə» və «Düzəliş tələb et» düymələri yoxdurmu".
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+  - Növbədə (yazı və düymələr):
+  - Qərar panelində (yazı və düymələr):
+  - F-08-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-06 — Task 04: Rəhbər təsdiqləyə bilir; ara dövr yoxdur
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 50, sitat: "Bu task canlıya çıxandan sonra real sifarişləri Rəhbər rolu ilə təsdiqləmək mümkündür; təsdiq edə bilən kimsənin olmadığı ara dövr yaranmır."
+Harada: real və sınaq · sınaqda Sınaq 1, addım 7 (F-06); realda aktiv Rəhbər (A-04) · — · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması (sınaq hissəsi üçün). (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: 1) Rəhbərin təsdiqləyə bildiyi sınaqda F-06-dadır (`04-sandbox.md`, Sınaq 1, addım 7): F-06-nın hökmünü köçürün; 2) real sistemdə aktiv Rəhbər istifadəçisinin olması A-04-dədir (`01-hazirliq.md`, 4-cü bənd): A-04-ün hökmünü köçürün; 3) real sifariş bu auditdə heç vaxt təsdiqlənmir (`04-sandbox.md`, «Yekun cədvəl», sətir 552): realda «Təsdiqlə»-ni basmayın.
+Gözlənilən: bəndin özü — Rəhbər təsdiqləyə bilir, təsdiq edə bilən kimsənin olmadığı dövr yoxdur. "**4.3a:** Rəhbər rolu bu taskın daxilində yaradılır. Task 14 sonradan həmin rolun menyu və görünüş qaydalarını tətbiq edir." (`BRIEFS/TASK-04.md`:32). `04-sandbox.md`, «Yekun cədvəl»: "sınaq: Sınaq 1, addım 7. Real sistemdə aktiv Rəhbərin olması: real data, yalnız oxuma … Real sifariş auditdə heç vaxt təsdiqlənmir."
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+  - F-06-nın hökmü:
+  - A-04-ün hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-07 — Task 04: köhnə Excel sifarişində "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil."
+Mənbə: `BRIEFS/TASK-04.md`, «Acceptance — biznes dili ilə», sətir 51, sitat: "Köhnə, Excel-dən gəlmiş sifarişdə panel "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil." yazır; uydurma ad və tarix yoxdur."
+Harada: real və sınaq · sınaqda Sınaq obyekti 1-in Avqust 2026 sifarişi; realda Fəvvarələr meydanının Sentyabr 2026 sifarişi (B-04) · `/orders/<nömrə>` · 1366
+Addımlar: `04-sandbox.md` §1-in üç yoxlaması (sınaq hissəsi üçün). (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) sınaq: `04-sandbox.md`, Sınaq 1, addım 8 — «Obyektlər» → «Sınaq obyekti 1» → Avqust 2026; qərar panelinin mətnini sözbəsöz yazın (yalnız oxuma); 2) real: B-04-də yazılan panel mətnini köçürün. Koddan: cümlə `components/workflow/labels.ts`:68-dədir və Excel-dən gəlmiş sifarişdə tək göstərilir (`components/workflow/WorkflowPanel.tsx`:199).
+Gözlənilən: bəndin özü — panel "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil." yazır; ad və tarix yoxdur. "**4.1:** Excel-dən gəlmiş keçmiş sifarişlərdə mətn: "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil." Saxta audit məlumatı (göndərən, tarix, təsdiqləyən) yaradılmır." (`BRIEFS/TASK-04.md`:29). `04-sandbox.md`, Sınaq 1, addım 8: "Qərar panelində yalnız bu cümlə olmalıdır … Göndərən, təsdiqləyən və tarix olmamalıdır".
+İlk auditdə: ""Məlum qiymətlər üzrə məbləğ: 10,949.67 ₼ · 76 sətir · Təqdim və təsdiq tarixi sistemdə qeyd olunmayıb" (Fəvvarələr meydanı, Sentyabr 2026)" (`BRIEFS/TASK-04.md`:10) — B-04
+---- operator doldurur ----
+Göründü:
+  - Sınaq (Sınaq obyekti 1, Avqust 2026) — panelin mətni:
+  - Real (Fəvvarələr meydanı, Sentyabr 2026; B-04) — panelin mətni:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-08 — Task 05: panel, sifariş və obyekt səhifəsində LOC/PRD kodu, "Versiya", "Server işləyir" yoxdur
+Mənbə: `BRIEFS/TASK-05.md`, «Acceptance — biznes dili ilə», sətir 68, sitat: "Panel, sifariş və obyekt səhifələrində heç bir LOC/PRD kodu, "Versiya" və "Server işləyir" görmürəm."
+Harada: real · İdarəetmə paneli; Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi; onun obyekt səhifəsi · `/dashboard`, `/orders/<nömrə>`, `/locations/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) üç ekranın hər birində `Ctrl+F` ilə `LOC-`, `PRD-`, `Versiya` və `Server işləyir` axtarın; 2) hər ekranda tapılanları yazın, yoxdursa «heç biri». Eyni oxunuşlar B-06, B-09, B-10, B-11, B-12 və B-14-dədir: oradan köçürə bilərsiniz.
+Gözlənilən: bəndin özü — üç ekranda heç biri yoxdur. "Rəhbərin ekranlarında obyekt və məhsul kodları, "Versiya" və "Sətir sayı" görünmür: panel, aylıq hesabat, obyektlər, sifariş, məhsul tarixçəsi." (`BRIEFS/TASK-05.md`:32); ""Server işləyir" yalnız problem olanda görünür." (`BRIEFS/TASK-05.md`:33)
+İlk auditdə: "Obyekt kodları görünür: LOC-000043 …" (`BRIEFS/TASK-05.md`:8) — B-06 … B-09; "Məhsul kodları görünür: PRD-000110 (sifariş sətirləri)." (`BRIEFS/TASK-05.md`:9) — B-10; ""Versiya 1" sifariş başlığında və obyekt səhifəsinin cədvəlində" (`BRIEFS/TASK-05.md`:10) — B-11, B-12; ""Server işləyir" yazısı başlıqda daim durur." (`BRIEFS/TASK-05.md`:11) — B-14
+---- operator doldurur ----
+Göründü:
+  - İdarəetmə paneli:
+  - Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi:
+  - Heydər Əliyev Mərkəzinin obyekt səhifəsi:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-09 — Task 05: Fəvvarələrdə "71 → 0 ədəd" və 2 onluqlu qiymət
+Mənbə: `BRIEFS/TASK-05.md`, «Acceptance — biznes dili ilə», sətir 69, sitat: "Fəvvarələr sifarişində "71 → 0 PCS" əvəzinə "71 → 0 ədəd", "32.1273 ₼" əvəzinə 2 onluqlu qiymət görürəm."
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) Yay ayaqqabısının «Əsas dəyişikliklər»-dəki yığcam sətrini sözbəsöz yazın (B-17-nin 2-ci addımı; B-18); 2) Zibil paketinin qiymətini ekrandakı kimi yazın (B-28).
+Gözlənilən: bəndin özü — "71 → 0 ədəd"; qiymət 2 onluqla. "Vahidlər: ədəd, kisə, paket, cüt, rulon, litr, m², kq və ekranda rast gəlinən digərləri." (`BRIEFS/TASK-05.md`:34); "Məbləğ heç vaxt ₼-dan ayrılmır; qiymətlər 2 onluqla göstərilir." (`BRIEFS/TASK-05.md`:35). Yuvarlaqlaşdırılmış qiymətin özünü brief vermir (brief rəqəm vermir).
+İlk auditdə: "Vahidlər ingiliscədir: PCS, …" (`BRIEFS/TASK-05.md`:15) — B-18; "Qiymət 4 onluqla göstərilir: "32.1273 ₼" (Zibil paketi)." (`BRIEFS/TASK-05.md`:17) — B-28
+---- operator doldurur ----
+Göründü:
+  - Yay ayaqqabısının sətri:
+  - Zibil paketinin qiyməti:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-10 — Task 05: 1366-da və telefonda məbləğ ₼-dan ayrılmır
+Mənbə: `BRIEFS/TASK-05.md`, «Acceptance — biznes dili ilə», sətir 70, sitat: "1366-da və telefonda heç bir məbləğ ₼-dan ayrılmır."
+Harada: real · İdarəetmə paneli; Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi; «Aylıq hesabat» · `/dashboard`, `/orders/<nömrə>`, `/dashboard/monthly` · 1366 və 390 × 844
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) 1366-da üç ekranın hər birində məbləğləri sona qədər gözdən keçirin və ₼-ın rəqəmlə eyni sətirdə olub-olmadığını yazın; 2) eni 390 × 844 edin və eyni üç ekranda təkrarlayın; 3) ₼ aşağı sətrə düşən hər halı ekranı, eni və rəqəmi ilə yazın. B-26 (1366, sifariş sətirləri) və B-27 (390, hesabat və panel) bunun bir hissəsidir: oradan köçürə bilərsiniz.
+Gözlənilən: bəndin özü — heç bir məbləğ ₼-dan ayrılmır. "Məbləğ heç vaxt ₼-dan ayrılmır; qiymətlər 2 onluqla göstərilir." (`BRIEFS/TASK-05.md`:35)
+İlk auditdə: "Məbləğ ₼-dan ayrılıb aşağı sətrə düşür: 1366-da sifariş sətirlərində "99.00 / ₼", mobildə "431,670.91 / ₼"." (`BRIEFS/TASK-05.md`:16) — B-26, B-27
+---- operator doldurur ----
+Göründü:
+  - 1366 — panel:
+  - 1366 — sifariş:
+  - 1366 — aylıq hesabat:
+  - 390 — panel:
+  - 390 — sifariş:
+  - 390 — aylıq hesabat:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-11 — Task 05: «Yeni məhsullar», «Bu ay yazılmayan məhsullar», «Müqayisə üçün data azdır»
+Mənbə: `BRIEFS/TASK-05.md`, «Acceptance — biznes dili ilə», sətir 71, sitat: "Sifariş səhifəsində "Yeni sifarişlər" əvəzinə "Yeni məhsullar", "Artıq sifariş olunmayanlar" əvəzinə "Bu ay yazılmayan məhsullar", paneldə "Tarixçə natamam" əvəzinə "Müqayisə üçün data azdır" görürəm."
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi; İdarəetmə paneli · `/orders/<nömrə>`, `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) sifarişdə «Niyə dəyişib?» hissələrinin və «Əsas dəyişikliklər» filtrlərinin arasında yeni və bu ay yazılmayan məhsulların adını sözbəsöz yazın (`components/decisions/labels.ts`:14, 17, 130–131); 2) paneldə tarixçəsi az olan obyektlərin sözünü yazın: çip (`coverage/labels.ts`:199) və cədvəlin «Məlumat vəziyyəti» sütunu (`components/dashboard/labels.ts`:228; `components/dashboard/LocationRows.tsx`:306–308). Çip yalnız sayı sıfırdan böyük olanda görünür (`components/dashboard/DashboardSummary.tsx`:215): «Keçən ay»-da görünmürsə, «Son 3 ayın ortalaması» və «Son 6 ayın ortalaması»-nda baxın, oxuduğunuz bazanı yazın və sonra «Keçən ay»-a qayıdın. Beş ekranda köhnə sözlərin axtarışı B-29, B-30 və B-34-dədir.
+Gözlənilən: bəndin özü. "| Yeni sifarişlər | Yeni məhsullar |" (`BRIEFS/TASK-05.md`:43); "| Artıq sifariş olunmayanlar / Artıq sifariş olunmur | Bu ay yazılmayan məhsullar |" (`BRIEFS/TASK-05.md`:44); "| Tarixçə natamam | Müqayisə üçün data azdır |" (`BRIEFS/TASK-05.md`:48)
+İlk auditdə: ""Yeni sifarişlər", "Artıq sifariş olunmayanlar", … "Tarixçə natamam"" (`BRIEFS/TASK-05.md`:19) — B-29, B-30, B-34
+---- operator doldurur ----
+Göründü:
+  - Sifariş — yeni məhsulların sözü:
+  - Sifariş — bu ay yazılmayan məhsulların sözü:
+  - Panel — tarixçəsi az olanların sözü (və baza):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-12 — Task 05: fərqli söz cütlərinin heç biri qalmayıb
+Mənbə: `BRIEFS/TASK-05.md`, «Acceptance — biznes dili ilə», sətir 72, sitat: "Yuxarıdakı fərqli söz cütlərinin heç biri qalmayıb."
+Harada: real · B-37 … B-43-ün ekranları · — · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: brief-in yeddi söz cütü B-37 … B-43-dədir. Onların hökmlərini aşağıya köçürün.
+Gözlənilən: bəndin özü — yeddi cütün heç biri qalmayıb. "Bütün tətbiqdə təsdiqlənmiş söz siyahısı işlənir; eyni anlayış hər yerdə eyni adla çıxır." (`BRIEFS/TASK-05.md`:31)
+İlk auditdə: "**Eyni anlayış üçün fərqli sözlər** (bir qismi Task 1–2-dən sonra aşkarlanıb):" (`BRIEFS/TASK-05.md`:21) — B-37 … B-43
+---- operator doldurur ----
+Göründü:
+  - B-37-nin hökmü:
+  - B-38-in hökmü:
+  - B-39-un hökmü:
+  - B-40-ın hökmü:
+  - B-41-in hökmü:
+  - B-42-nin hökmü:
+  - B-43-ün hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-13 — Task 05: Task 1b, 2 və 3-ün sözləri olduğu kimi qalıb
+Mənbə: `BRIEFS/TASK-05.md`, «Acceptance — biznes dili ilə», sətir 73, sitat: "Task 1b, 2 və 3-ün sözləri olduğu kimi qalıb."
+Harada: real · İdarəetmə paneli, sifariş, obyekt səhifəsi, «Obyektlər», «Aylıq hesabat» · — · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: sözlər E bölməsinin sətirlərində oxunur — Task 2-ninkilər E-12 … E-17-də, Task 1b-ninkilər E-04, E-05-də və paneldə (başlığın çıxma sətri, çiplər — B-70, B-72), Task 3-ünkülər E-19, E-20, E-21-də. Aşağıdakı hər söz üçün onu harada olduğu kimi gördüyünüzü (ekran) və ya «görmədim» yazın; söz dəyişibsə, ekrandakını sözbəsöz yazın.
+Gözlənilən: bəndin özü. "**Task 2:** "Qiymət yoxdur" (kəhrəba), "Daxili təminat" (neytral), "N sətirdə qiymət yoxdur", "N sətir daxili təminat (ödənişsiz)", "Daxili: Azpetrol baza"." (`BRIEFS/TASK-05.md`:53); "**Task 1b:** "Müqayisə olunan", "Sifariş qeydə alınmayıb", "Müqayisə bazası yoxdur", "Qiymət yoxdur · N obyekt", "10 obyektin sifarişində qiyməti olmayan sətir var"." (`BRIEFS/TASK-05.md`:54); "**Task 3:** "Sistemdə hələ sifarişi yoxdur" və obyektlərin tam adları: Heydər Əliyev Mərkəzi, Bakı Konqres Mərkəzi, Hökumət evi və ətrafı parklar, Space TV qarşısı, Təmir-tikinti (ərazidə olan dibçəklərə qulluq) və s." (`BRIEFS/TASK-05.md`:55)
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+  - "Qiymət yoxdur" (kəhrəba):
+  - "Daxili təminat" (neytral):
+  - "N sətirdə qiymət yoxdur":
+  - "N sətir daxili təminat (ödənişsiz)":
+  - "Daxili: Azpetrol baza" (E-17):
+  - "Müqayisə olunan":
+  - "Sifariş qeydə alınmayıb" (E-04):
+  - "Müqayisə bazası yoxdur" (E-05):
+  - "Qiymət yoxdur · N obyekt":
+  - "10 obyektin sifarişində qiyməti olmayan sətir var":
+  - "Sistemdə hələ sifarişi yoxdur" (E-20):
+  - Obyektlərin tam adları (E-21):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-14 — Task 06: Fəvvarələrdə birinci hissə «Bu ay yazılmayan məhsullar», yaşıl, seçilir
+Mənbə: `BRIEFS/TASK-06.md`, «Acceptance — biznes dili ilə», sətir 38, sitat: "Fəvvarələr sifarişində birinci sətir "Bu ay yazılmayan məhsullar −8,093.70 ₼"-dır, yaşıl rəngdədir (xərc azalıb) və digərlərindən seçilir."
+Harada: real · Fəvvarələr meydanının Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: birinci hissənin adı və məbləği B-44-dən, necə seçildiyi B-45-dən, rəngi B-46-dan köçürülür.
+Gözlənilən: bəndin özü — birinci hissə «Bu ay yazılmayan məhsullar −8,093.70 ₼», yaşıl, digərlərindən seçilir. "Hissələr mütləq böyüklüyə görə sıralanır; ən böyüyü birinci və seçilmiş görünür." (`BRIEFS/TASK-06.md`:14); "**9.1:** Xərc artımı qırmızı, azalma yaşıl." (`BRIEFS/TASK-06.md`:24)
+İlk auditdə: "əsas səbəb, "Artıq sifariş olunmayanlar −8,093.70 ₼", dördüncü sətirdədir" (`BRIEFS/TASK-06.md`:7) — B-44; "Mənfi zolaq boz rəngdədir" (`BRIEFS/TASK-06.md`:9) — B-46
+---- operator doldurur ----
+Göründü:
+  - Birinci hissə (ad və məbləğ; B-44):
+  - Necə seçilir (B-45):
+  - Rəngi (B-46):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-15 — Task 06: Heydər Əliyevdə birinci hissə «Yeni məhsullar», qırmızı
+Mənbə: `BRIEFS/TASK-06.md`, «Acceptance — biznes dili ilə», sətir 39, sitat: "Heydər Əliyevdə birinci sətir "Yeni məhsullar +29,691.52 ₼"-dır və qırmızıdır (xərc artıb)."
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) E-07-nin səhifəsi, «Keçən ay»; 2) «Niyə dəyişib?»-in birinci hissəsinin adını, məbləğini və zolağının rəngini yazın (hissələrin siyahısı E-07-dədir); 3) Sabun variant əlaqəsinin təsdiqlənib-təsdiqlənmədiyini A-07-dən götürün.
+Gözlənilən: bəndin özü — birinci hissə «Yeni məhsullar +29,691.52 ₼», qırmızı. "Task 13-də Sabun elano variant əlaqəsi təsdiqlənəndən sonra "Yeni məhsullar" və "Bu ay yazılmayan məhsullar" hissələrinin hər biri 750.00 ₼ azala bilər; cəmi dəyişmir." (`BRIEFS/TASK-06.md`:28)
+İlk auditdə: "Hissələrin sırası sabitdir (Yeni, Miqdar, Qiymət, Artıq, Xidmətlər), böyüklüyə görə deyil." (`BRIEFS/TASK-06.md`:7) — B-44
+---- operator doldurur ----
+Göründü:
+  - Birinci hissə (ad və məbləğ):
+  - Rəngi:
+  - A-07-yə görə Sabun əlaqəsi təsdiqlənib (bəli / xeyr):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-16 — Task 06: cəm tutanda ziddiyyətli xəbərdarlıq yoxdur; qiymətsiz sətir olanda konkret
+Mənbə: `BRIEFS/TASK-06.md`, «Acceptance — biznes dili ilə», sətir 40, sitat: "Hissələr cəmə tam bərabər olanda ziddiyyətli xəbərdarlıq görmürəm. Qiymətsiz sətir olanda xəbərdarlıq nəyin çatışmadığını konkret deyir."
+Harada: real · Fəvvarələr meydanı, Heydər Əliyev Mərkəzi və Nərimanov heykəlinin Sentyabr 2026 sifarişləri, «Keçən ay», «Niyə dəyişib?» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: 1) birinci yarı — Fəvvarələr meydanı (B-48) və Heydər Əliyev Mərkəzi (B-49): xəbərdarlığı və cəmin tutub-tutmadığını (E-09, E-07) köçürün; 2) ikinci yarı — Nərimanov heykəlinin sifarişində qiyməti olmayan sətir var (E-16): B-50-dən xəbərdarlığı və onun hansı məhsulu və məbləği dediyini köçürün.
+Gözlənilən: bəndin özü. "Xəbərdarlıq yalnız izah olunmayan hissə olanda çıxır və nəyin çatışmadığını konkret deyir." (`BRIEFS/TASK-06.md`:16)
+İlk auditdə: "Hissələr cəmə dəqiq bərabərdir (Fəvvarələr: +5,133.27 + 648.98 + 17.00 − 8,093.70 − 290.00 = −2,584.45 ₼), amma yenə "Bəzi məhsulların qiyməti bilinmədiyi üçün dəyişikliyin səbəbi tam izah edilə bilmir" yazılır. Heydər Əliyev və Nərimanov sifarişlərində də belədir." (`BRIEFS/TASK-06.md`:10) — B-48, B-49, B-50
+---- operator doldurur ----
+Göründü:
+  - Fəvvarələr meydanı — xəbərdarlıq (B-48) və E-09-un hökmü:
+  - Heydər Əliyev Mərkəzi — xəbərdarlıq (B-49) və E-07-nin hökmü:
+  - Nərimanov heykəli — xəbərdarlıq və dediyi (B-50):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-17 — Task 06: müqayisə sətrində baza oxunur
+Mənbə: `BRIEFS/TASK-06.md`, «Acceptance — biznes dili ilə», sətir 41, sitat: "Müqayisə sətrində hansı rəqəmin baza olduğunu oxuyuram."
+Harada: real · Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi, başlıq, «Keçən ay» və «Son 6 ayın ortalaması» · `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-10-un səhifəsi, «Keçən ay»: başlıqdakı müqayisə sətrini sözbəsöz yazın — «Müqayisə: …», rəqəmlərin adları və rəqəmlər (`components/decisions/DecisionHeadline.tsx`:114–138); 2) «Son 6 ayın ortalaması»-ndakı sətri B-51-dən köçürün.
+Gözlənilən: bəndin özü — hansı rəqəmin baza olduğu yazılıb. "Müqayisə sətrində "baza" və "fərq" açıq yazılır." (`BRIEFS/TASK-06.md`:17). «Keçən ay»-da fərq: "cəmi +23,852.70" (`BRIEFS/TASK-06.md`:28). Bazanın rəqəmini brief vermir (brief rəqəm vermir).
+İlk auditdə: "Heydər Əliyev, Son 6 ay: "17,583.62 ₼" yanında böyük yaşıl fərq və faiz durur, hansı rəqəmin baza olduğu yazılmır." (`BRIEFS/TASK-06.md`:11) — B-51
+---- operator doldurur ----
+Göründü:
+  - «Keçən ay» — müqayisə sətri:
+  - «Son 6 ayın ortalaması» — müqayisə sətri (B-51):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-18 — Task 07: Heydər Əliyev kartında traktor, məbləğ və pay; pay sərhədi keçmir
+Mənbə: `BRIEFS/TASK-07.md`, «Acceptance — biznes dili ilə», sətir 38, sitat: "Paneli açanda Heydər Əliyev kartında traktoru, məbləğini və "artımların …%-i" payını görürəm; pay 74%-dən çox deyil. Səbəbi sifarişə girmədən deyə bilirəm. (Task 13-də Sabun elano variant əlaqəsi təsdiqlənəndən sonra yeni məhsulların cəmi 28,941.52 ₼-a düşür və bu sərhəd 76%-ə qalxır.)"
+Harada: real · İdarəetmə paneli, Heydər Əliyev Mərkəzinin diqqət kartı, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: kartın mal sətri və Sabun əlaqəsinin vəziyyəti B-52-dədir (A-07). Onları köçürün və hansı sərhədin tətbiq olunduğunu yazın: əlaqə təsdiqlənməyibsə 74 %, təsdiqlənibsə 76 %.
+Gözlənilən: bəndin özü — traktor, məbləğ və "artımların …%-i"; pay 74 %-dən çox deyil, Sabun əlaqəsi təsdiqlənibsə 76 %-dən çox deyil. "Heydər Əliyev (Keçən ay): "Traktor qazonbiçən RT-6127.1 ZL — +21,900 ₼ (artımların …%-i)". Təkcə yeni məhsulların cəmi 29,691.52 ₼ olduğu üçün pay 74%-dən çox ola bilməz." (`BRIEFS/TASK-07.md`:16)
+İlk auditdə: "kart "Əsas səbəb: Yeni sifarişlər +29,691.52 ₼" yazır. … Traktor qazonbiçən RT-6127.1 ZL, 0 → 1 ədəd, +21,900.00 ₼" (`BRIEFS/TASK-07.md`:7) — B-52
+---- operator doldurur ----
+Göründü:
+  - Mal sətri (ad, məbləğ, pay; B-52):
+  - A-07-yə görə Sabun əlaqəsi təsdiqlənib (bəli / xeyr):
+  - Tətbiq olunan sərhəd (74 % / 76 %):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-19 — Task 07: Fəvvarələr kartında "Yay ayaqqabısı — −1,988 ₼ (azalmaların …%-i)"; pay ≤ 25 %
+Mənbə: `BRIEFS/TASK-07.md`, «Acceptance — biznes dili ilə», sətir 39, sitat: "Fəvvarələr kartında (Keçən ay) "Yay ayaqqabısı — −1,988 ₼ (azalmaların …%-i)" görünür; pay 25%-dən çox deyil."
+Harada: real · İdarəetmə paneli, Fəvvarələr meydanının diqqət kartı, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: kart və onun mal sətri B-54-dədir. Onları köçürün. Kart yoxdursa, bunu yazın və `Hökm:`-ə «yoxlanıla bilmədi (kart yoxdur)» yazın: koddan, cədvəl sətri malı göstərmir (`components/dashboard/LocationRows.tsx`:258–275).
+Gözlənilən: bəndin özü — "Yay ayaqqabısı — −1,988 ₼ (azalmaların …%-i)"; pay 25 %-dən çox deyil. "Təkcə bu ay yazılmayan məhsulların cəmi 8,093.70 ₼ olduğu üçün pay 25%-dən çox ola bilməz." (`BRIEFS/TASK-07.md`:17)
+İlk auditdə: "Fəvvarələr meydanı, −2,584.45: … ən böyük mal Yay ayaqqabısıdır, −1,988.00 (71 → 0 ədəd)." (`BRIEFS/TASK-07.md`:10) — B-54
+---- operator doldurur ----
+Göründü:
+  - Kart (var / yox; başlığı):
+  - Mal sətri (ad, məbləğ, pay; B-54):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-20 — Task 07: baza dəyişəndə pay yenilənir və heç yerdə 100 %-i keçmir
+Mənbə: `BRIEFS/TASK-07.md`, «Acceptance — biznes dili ilə», sətir 40, sitat: "Bazanı dəyişəndə pay yeni bazaya görə yenilənir və heç bir bazada, heç bir kartda 100%-i keçmir."
+Harada: real · İdarəetmə paneli, diqqət kartları, beş baza · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) panelin baza seçicisində (`pages/ManagementDashboardPage.tsx`:263; `components/analytics/format.ts`:37–43, 55–60) bazaları növbə ilə seçin: «Keçən ay», «Son 3 ayın ortalaması», «Son 6 ayın ortalaması», «Bütün dövrün ortalaması», «Xüsusi seçim»; 2) hər bazada hər kartın obyektini və mal sətrindəki payı — "(artımların N%-i)" və ya "(azalmaların N%-i)" — yazın (`components/dashboard/AttentionSection.tsx`:193–205); malı olmayan kartı «mal yoxdur» kimi yazın; 3) «Xüsusi seçim»-də Sentyabr 2026-dan əvvəlki bir neçə ay seçin və seçdiyiniz ayları yazın (`format.ts`:51–52); 4) sonda «Keçən ay»-a qayıdın. Baza seçmək heç nə yazmır.
+Gözlənilən: bəndin özü — pay bazaya görə dəyişir və heç bir kartda 100 %-i keçmir. "Artımda artan, azalmada azalan bütün məhsulların təsirləri toplanır, ona görə pay heç vaxt 100%-i keçmir." (`BRIEFS/TASK-07.md`:15); "Pay seçilmiş müqayisə bazasına görə hesablanır (Task 1)." (`BRIEFS/TASK-07.md`:18). Hər bazanın paylarını brief vermir (brief rəqəm vermir).
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+  - «Keçən ay» — hər kartın obyekti və payı:
+  - «Son 3 ayın ortalaması»:
+  - «Son 6 ayın ortalaması»:
+  - «Bütün dövrün ortalaması»:
+  - «Xüsusi seçim» (seçilən aylar və paylar):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-21 — Task 08: cəmi sətri — Yanvar … Sentyabr və İl; Sentyabr panellə eyni; faiz yoxdur
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 46, sitat: "Cəmi sətrində audit vaxtındakı data ilə bu rəqəmləri görürəm: Yanvar 11,084.35 · Fevral 25,652.22 · Mart 48,296.72 · Aprel 49,106.54 · May 62,556.61 · İyun 70,992.62 · İyul 48,430.78 · Avqust 44,340.78 · Sentyabr 71,210.29 · İl 431,670.91 ₼. Sentyabr paneldəki rəqəmlə eynidir. Bu sətirdə faiz yoxdur."
+Harada: real · «Aylıq hesabat», cəmi sətri; İdarəetmə paneli · `/dashboard/monthly`, `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) cəmi sətrində (`components/reports/MonthlyReportTable.tsx`:150–169) hər ayın rəqəmini Yanvardan Sentyabra qədər ekrandakı kimi yazın; 3) sətrin sonundakı ilin cəmini yazın («İl cəmi» sütunu — `MonthlyReportTable.tsx`:35, 165–169); 4) bu sətirdə hər hansı faiz görünürmü, yazın; 5) paneldəki Sentyabr rəqəmini B-56-dan köçürün.
+Gözlənilən: bəndin özü — Yanvar 11,084.35 · Fevral 25,652.22 · Mart 48,296.72 · Aprel 49,106.54 · May 62,556.61 · İyun 70,992.62 · İyul 48,430.78 · Avqust 44,340.78 · Sentyabr 71,210.29 · İl 431,670.91 ₼; Sentyabr = panel; faiz yoxdur. "**8.1:** Cəmi sətrində aydan-aya faiz göstərilmir." (`BRIEFS/TASK-08.md`:30)
+İlk auditdə: "Ayların cəmi sətri yoxdur. Sentyabrın cəmini paneldəki 71,210.29 ₼ ilə yoxlamaq olmur." (`BRIEFS/TASK-08.md`:7) — B-56
+---- operator doldurur ----
+Göründü:
+  - Yanvar:
+  - Fevral:
+  - Mart:
+  - Aprel:
+  - May:
+  - İyun:
+  - İyul:
+  - Avqust:
+  - Sentyabr:
+  - İl:
+  - Paneldə Sentyabr:
+  - Faiz var / yox:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-22 — Task 08: Heydər Əliyev İyun 36,010.19 vurğulanır
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 47, sitat: "Heydər Əliyevin İyun hücrəsi (36,010.19 ₼) vurğulanır: əvvəlki 3 mövcud ayın (Mart–May) ortalaması 14,458.58 ₼-dır, fərq +149%."
+Harada: real · «Aylıq hesabat», Heydər Əliyev Mərkəzinin İyun hücrəsi · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: hücrənin məbləği, necə seçildiyi və üzərinə gələndə çıxan yazı B-57-dədir. Onları köçürün və yazıdakı ortalamanı və fərqi ayrıca yazın (koddan: «Qeyri-adi ay: əvvəlki 3 mövcud ayın ortalaması …, fərq …» — `terminology/terms.ts`:127–129).
+Gözlənilən: bəndin özü — 36,010.19 ₼ vurğulanır; ortalama 14,458.58 ₼; fərq +149 %. "**8.2:** Anomaliya = əvvəlki 3 mövcud ayın ortalamasından ±50%-dən çox fərq. Yetərli tarixçə (3 mövcud ay) yoxdursa, anomaliya göstərilmir." (`BRIEFS/TASK-08.md`:31)
+İlk auditdə: "Heydər Əliyev İyun 36,010.19 ₼ (+85.48%) digər rəqəmlərin içində itir." (`BRIEFS/TASK-08.md`:8) — B-57
+---- operator doldurur ----
+Göründü:
+  - Hücrənin məbləği:
+  - Vurğulanır (bəli / xeyr; necə):
+  - Yazıdakı ortalama və fərq:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-23 — Task 08: Heydər Əliyev Avqust 11,985.02 vurğulanmır
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 48, sitat: "Heydər Əliyevin Avqust hücrəsi (11,985.02 ₼) vurğulanmır: əvvəlki 3 ayın (May–İyul) ortalamasından fərq −48%-dir."
+Harada: real · «Aylıq hesabat», Heydər Əliyev Mərkəzinin Avqust hücrəsi · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-56-nın səhifəsi; 2) Heydər Əliyev Mərkəzinin Avqust hücrəsinin məbləğini yazın; 3) hücrənin qonşularından fon rəngi və ya qalın yazı ilə seçilib-seçilmədiyini yazın; 4) üzərinə gəlin və çıxan yazını sözbəsöz yazın.
+Gözlənilən: bəndin özü — 11,985.02 ₼ vurğulanmır (fərq −48 %). "**8.2:** Anomaliya = əvvəlki 3 mövcud ayın ortalamasından ±50%-dən çox fərq." (`BRIEFS/TASK-08.md`:31)
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+  - Hücrənin məbləği:
+  - Vurğulanır (bəli / xeyr):
+  - Üzərinə gələndə çıxan yazı:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-24 — Task 08: Heydər Əliyev Yanvar, Fevral, Mart vurğulanmır
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 49, sitat: "Heydər Əliyevin Yanvar, Fevral və Mart hücrələri vurğulanmır: əvvəlki 3 mövcud ay yoxdur."
+Harada: real · «Aylıq hesabat», Heydər Əliyev Mərkəzinin Yanvar, Fevral və Mart hücrələri · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) C-23-ün 2–4-cü addımları, üç hücrənin hər biri üçün.
+Gözlənilən: bəndin özü — üç hücrə vurğulanmır. "Yetərli tarixçə (3 mövcud ay) yoxdursa, anomaliya göstərilmir." (`BRIEFS/TASK-08.md`:31)
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+  - Yanvar (məbləğ; vurğulanır bəli / xeyr):
+  - Fevral:
+  - Mart:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-25 — Task 08: Oktyabr–Dekabr "sifariş yoxdur" demir, fərqlənir
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 50, sitat: "Oktyabr–Dekabr "sifariş yoxdur" demir və keçmiş boş aylardan fərqlənir."
+Harada: real · «Aylıq hesabat», Oktyabr–Dekabr sütunları · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: gələcək ayların, keçmiş boş bir hücrənin və oxuma tarixinin oxunuşu B-58-dədir. Onları köçürün.
+Gözlənilən: bəndin özü — Oktyabr–Dekabr "sifariş yoxdur" demir və keçmiş boş aylardan fərqlənir. "Gələcək aylar keçmiş boş aylardan fərqlənir və "sifariş yoxdur" demir." (`BRIEFS/TASK-08.md`:19). Koddan: ay yalnız oxuyanın təqvim ayından sonra gələcək sayılır, cari ay gələcək deyil (`components/analytics/format.ts`:225–232); audit Oktyabr 2026-da aparılırsa, Oktyabr gələcək ay kimi görünməyəcək — oxuma tarixini `Göründü:`-də yazın.
+İlk auditdə: "Gələcək aylar (Oktyabr–Dekabr) keçmişdə sifariş olmayan aylarla eyni görünür: "—" və izahı "Oktyabr 2026: sifariş yoxdur"." (`BRIEFS/TASK-08.md`:9) — B-58
+---- operator doldurur ----
+Göründü:
+  - Oktyabr, Noyabr, Dekabr (B-58):
+  - Keçmiş boş hücrə (B-58):
+  - Oxuma tarixi:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-26 — Task 08: Bayıl yolu Sentyabr — həm ⚠1, həm faiz
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 51, sitat: "Bayıl yolunun Sentyabr hücrəsində həm ⚠1, həm faiz görünür."
+Harada: real · «Aylıq hesabat», Bayıl yolunun Sentyabr hücrəsi · `/dashboard/monthly` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: hücrənin oxunuşu B-59-dadır. Onu köçürün.
+Gözlənilən: bəndin özü — hücrədə həm ⚠1, həm faiz. "⚠ və faiz eyni hücrədə birlikdə görünür." (`BRIEFS/TASK-08.md`:20). Faizin rəqəmini brief vermir (brief rəqəm vermir).
+İlk auditdə: "Bayıl yolunun Sentyabr hücrəsində yalnız "⚠1" var, panel isə eyni ay üçün +254.03% göstərir." (`BRIEFS/TASK-08.md`:10) — B-59
+---- operator doldurur ----
+Göründü:
+  - Hücrədə (məbləğ, faiz, ⚠ N; B-59):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-27 — Task 08: 1200 px-də 12 aylıq cədvəl
+Mənbə: `BRIEFS/TASK-08.md`, «Acceptance — biznes dili ilə», sətir 52, sitat: "1200px enində də 12 aylıq cədvəli görürəm."
+Harada: real · «Aylıq hesabat» · `/dashboard/monthly` · 1200 × 800
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: 1200 endə cədvəlin oxunuşu B-61-dədir və H-22-dədir. B-61-in oxunuşunu və H-22-nin hökmünü köçürün.
+Gözlənilən: bəndin özü — 1200 endə 12 aylıq cədvəl görünür. "12 aylıq cədvəl təxminən 1024px-dən başlayaraq işləyir; məbləğlər sıxlaşmır, cədvəl səhifənin eninə uyğundur." (`BRIEFS/TASK-08.md`:23)
+İlk auditdə: "12 aylıq cədvəl yalnız 1280px-dən enli ekranda açılır. 1150–1279px noutbukda rəhbər yalnız bir ayın kart siyahısını görür." (`BRIEFS/TASK-08.md`:12) — B-61
+---- operator doldurur ----
+Göründü:
+  - 1200-də cədvəl / kart siyahısı (B-61):
+  - H-22-nin hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-28 — Task 09: 1366 × 768-də sürüşdürmədən ən azı bir diqqət kartı
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 60, sitat: "1366×768 ekranda paneli açanda aşağı sürüşdürmədən ən azı bir diqqət kartı görürəm."
+Harada: real · İdarəetmə paneli, sürüşdürmədən · `/dashboard` · 1366 × 768
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: eyni oxunuş B-64-dədir və H-01-dədir. B-64-ün oxunuşunu və H-01-in hökmünü köçürün.
+Gözlənilən: bəndin özü — sürüşdürmədən ən azı bir diqqət kartı görünür. "Birinci ekranda ən azı birinci diqqət obyekti görünür." (`BRIEFS/TASK-09.md`:24)
+İlk auditdə: ""Hansı obyektə baxım" sualının cavabı, yəni diqqət kartları, isə birinci ekranın altında qalır." (`BRIEFS/TASK-09.md`:7) — B-64
+---- operator doldurur ----
+Göründü:
+  - Sürüşdürmədən görünən ilk kart (B-64):
+  - H-01-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-29 — Task 09: kart başlığı təkrarlanmır; "ən böyük faiz" kartı həqiqətən ən böyük faizlidir
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 61, sitat: "Heç bir kart başlığı təkrarlanmır; "ən böyük faiz" yazılan kart həqiqətən ən böyük faizə malikdir."
+Harada: real · İdarəetmə paneli, diqqət kartları və «Bütün obyektlər», «Keçən ay» və «Son 3 ayın ortalaması» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) kart başlıqlarını B-65-dən köçürün və təkrarlanan başlıq olub-olmadığını yazın; 2) «Ən böyük faiz dəyişməsi» kartının obyektini və faizini yazın (B-66); 3) kartın ⓘ izahı hansı obyektlərin yarışa daxil olduğunu deyir (B-67): «Bütün obyektlər» cədvəlində hər sətrin bazasını və faizini oxuyun və bazası ən azı 100 ₼, dəyişməsi ən azı 50 % olan obyektlər arasında ən böyük faizi olanı yazın. Cədvəldə faizə görə sıralama yoxdur (`components/dashboard/labels.ts`:93–97): sütunu gözlə oxuyun; 4) 2–3-cü addımları «Son 3 ayın ortalaması»-nda təkrarlayın (B-67), sonra «Keçən ay»-a qayıdın.
+Gözlənilən: bəndin özü — başlıq təkrarlanmır; faiz kartı şərtə uyan obyektlər arasında ən böyük faizlidir. "Kart başlıqları kartın niyə seçildiyini düzgün deyir: eyni başlıq təkrarlanmır, "ən böyük" yalnız həqiqətən ən böyük olana yazılır." (`BRIEFS/TASK-09.md`:25). Koddan: "Faiz yalnız müqayisə bazası ən azı 100 ₼ olan və ən azı 50% dəyişən obyektlər arasında müqayisə olunur." (`components/dashboard/labels.ts`:185–186). Faizləri brief vermir (brief rəqəm vermir).
+İlk auditdə: ""Ən böyük məbləğ artımı" iki kartda təkrarlanır (Heydər Əliyev və Novxanı)." (`BRIEFS/TASK-09.md`:9) — B-65; ""Ən böyük faiz dəyişməsi" də iki kartdadır (Bayıl yolu +254.03% və Milli Konservatoriya +480.01%)." (`BRIEFS/TASK-09.md`:10) — B-66; ""Son 3 ay" bazasında Novxanının artımı +268.05%-dir, amma "Ən böyük faiz dəyişməsi" kartı Milli Konservatoriyaya (+85.55%) verilib." (`BRIEFS/TASK-09.md`:11) — B-67
+---- operator doldurur ----
+Göründü:
+  - Kart başlıqları (təkrar var / yox; B-65):
+  - «Keçən ay» — faiz kartı (obyekt, faiz) və cədvəldə şərtə uyan ən böyük faiz (obyekt, faiz):
+  - «Son 3 ayın ortalaması» — eyni:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-30 — Task 09: Heydər Əliyev kartında artım qırmızı, Fəvvarələrdə azalma yaşıl; "xərc artıb / azalıb"
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 62, sitat: "Heydər Əliyev kartında artım qırmızı, Fəvvarələr kartında azalma yaşıl görünür; izahda "xərc artıb / azalıb" yazılır."
+Harada: real · İdarəetmə paneli, Heydər Əliyev Mərkəzinin və Fəvvarələr meydanının kartları, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) B-69-un 2–3-cü addımlarını bu iki kart üçün edin (oradan köçürə bilərsiniz); 2) Fəvvarələr meydanının kartı yoxdursa, bunu yazın və `Hökm:`-ə «yoxlanıla bilmədi (Fəvvarələr meydanının kartı yoxdur)» yazın.
+Gözlənilən: bəndin özü — Heydər Əliyev: qırmızı, «xərc artıb»; Fəvvarələr: yaşıl, «xərc azalıb». "**9.1:** Xərc artımı qırmızı, azalma yaşıl; "yaxşı/pis" yox, xərcin istiqaməti kimi təqdim olunur." (`BRIEFS/TASK-09.md`:45)
+İlk auditdə: "Yaşıl rəng xərcin artmasını göstərir və "yaxşı" kimi oxunur." (`BRIEFS/TASK-09.md`:13) — B-69
+---- operator doldurur ----
+Göründü:
+  - Heydər Əliyev Mərkəzinin kartı: rəng və cümlə:
+  - Fəvvarələr meydanının kartı: rəng və cümlə:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-31 — Task 09: «Qiymət yoxdur · 10 obyekt» çipi cədvəldə həmin 10 obyekti saxlayır
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 63, sitat: ""Qiymət yoxdur · 10 obyekt" çipinə basanda cədvəldə həmin 10 obyekt qalır."
+Harada: real · İdarəetmə paneli, «Qiymət yoxdur · N obyekt» çipi (`coverage/labels.ts`:194–196) və «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə paneli, «Keçən ay»; 2) çipin yazısını və sayını yazın; 3) çipi basın (bu, cədvəlin süzgəcidir, heç nə yazmır — `components/dashboard/DashboardSummary.tsx`:197–224, 266–272); 4) cədvəldə qalan sətirləri sayın və obyektlərini yazın; 5) çipi yenə basıb süzgəci götürün.
+Gözlənilən: bəndin özü — çip 10 obyekt deyir və cədvəldə həmin 10 obyekt qalır. "Hər çip klik olunur və cədvəli həmin obyektlərə süzür; sıfır saylı çip görünmür. "Qiymət yoxdur · N obyekt" həmin obyektləri göstərir." (`BRIEFS/TASK-09.md`:28)
+İlk auditdə: "Çiplər klik olunmur. … Qiymət xəbərdarlığından həmin obyektlərə birbaşa keçid yoxdur." (`BRIEFS/TASK-09.md`:14) — B-70, B-72
+---- operator doldurur ----
+Göründü:
+  - Çipin sayı:
+  - Basılanda cədvəldə qalan sətirlər (say və obyektlər):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-32 — Task 09: 27 obyekt bir səhifədə, ən böyük dəyişmədən başlayır
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 64, sitat: "Cədvəldə 27 obyekt bir səhifədədir və ən böyük dəyişmədən başlayır."
+Harada: real · İdarəetmə paneli, «Bütün obyektlər» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) Ayrıca addım yoxdur: sətir sayı və səhifələr B-74-dədir, sıralama və ilk sətirlər B-73-dədir. Onları köçürün.
+Gözlənilən: bəndin özü — 27 obyekt bir səhifədə; birinci sətir ən böyük dəyişmədir. "27 sətir bir səhifədədir;" "varsayılan sıra dəyişmənin böyüklüyünə görədir;" (`BRIEFS/TASK-09.md`:30–31)
+İlk auditdə: "varsayılan sıra obyekt adına görədir, dəyişməyə görə yox;" (`BRIEFS/TASK-09.md`:16) — B-73; "26 sətir iki səhifəyə bölünürdü (ikinci səhifədə yalnız İDEA); 27 obyektlə də iki səhifədir;" (`BRIEFS/TASK-09.md`:17) — B-74
+---- operator doldurur ----
+Göründü:
+  - Sətir sayı və səhifələr (B-74):
+  - Sıralama və ilk sətirlər (B-73):
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-33 — Task 09: Heydər Əliyev kartından sifarişə keçib qayıdanda kartın yanına dönür
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 65, sitat: "Heydər Əliyev kartından sifarişə keçib qayıdanda həmin kartın yanına dönürəm."
+Harada: real · İdarəetmə paneli → Heydər Əliyev Mərkəzinin Sentyabr 2026 sifarişi → brauzerin **Geri** düyməsi · `/dashboard`, `/orders/<nömrə>` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə paneli, «Keçən ay»; Heydər Əliyev Mərkəzinin kartı ekranın ortasına gələnə qədər aşağı sürüşdürün; 2) kartda «Detallara bax»-ı basın (`components/dashboard/AttentionSection.tsx`:211–236); 3) sifariş səhifəsində bir az aşağı sürüşdürün; 4) brauzerin **Geri** düyməsini basın — sifariş səhifəsində panelə qaytaran öz düyməsi yoxdur («Brief-in sözləri və ekranın sözləri»); 5) panelin harada açıldığını yazın: Heydər Əliyev Mərkəzinin kartının yanında, yoxsa səhifənin başında; 6) bazanın qayıtması E-02-dədir: E-02-nin hökmünü köçürün.
+Gözlənilən: bəndin özü — Geri-dən sonra panel həmin kartın yanında açılır. "Geri qayıdanda panel qaldığım yerdən açılır." (`BRIEFS/TASK-09.md`:33)
+İlk auditdə: "Sifarişdən geri qayıdanda panel ən yuxarıdan açılır və rəhbər baxdığı kartı itirir." (`BRIEFS/TASK-09.md`:20) — B-78
+---- operator doldurur ----
+Göründü:
+  - Geri-dən sonra panel harada açıldı:
+  - E-02-nin hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### C-34 — Task 09: «Keçən ay»-da başlıqdakı çıxma göstərilən fərqə bərabərdir
+Mənbə: `BRIEFS/TASK-09.md`, «Acceptance — biznes dili ilə», sətir 66, sitat: ""Keçən ay" bazasında başlıqdakı çıxma (71,030.25 − 44,340.78) göstərilən fərqə bərabərdir."
+Harada: real · İdarəetmə paneli, başlıq, «Keçən ay» · `/dashboard` · 1366
+Addımlar: (Real: yalnız oxuyun; yazma düyməsini basmayın.) 1) İdarəetmə paneli, «Keçən ay»; 2) başlıqdakı çıxma sətrinin üç rəqəmini ekrandakı kimi yazın: müqayisə olunan məbləğ, baza və fərq (`components/dashboard/DashboardSummary.tsx`:152–185); 3) birincidən ikincini çıxın və nəticənin göstərilən fərqə bərabər olub-olmadığını yazın; 15b hesabı yenidən yoxlayır; 4) EXPO-nun ayrıca göstərilməsi E-05-dədir: E-05-in hökmünü köçürün.
+Gözlənilən: bəndin özü — 71,030.25 − 44,340.78 göstərilən fərqə bərabərdir. "İstisna olanda fərq müqayisə olunan məbləğin yanında görünür: 71,030.25 − 44,340.78 = +26,689.47." (`BRIEFS/TASK-09.md`:34)
+İlk auditdə: "Müqayisədən kənar obyekt olanda (Keçən ay: EXPO) fərq (+26,689.47) ay cəminin (71,210.29) altında durur, müqayisə olunan məbləğin (71,030.25) yanında yox. Rəhbər ay cəmindən çıxanda başqa rəqəm alır." (`BRIEFS/TASK-09.md`:21) — B-79
+---- operator doldurur ----
+Göründü:
+  - Müqayisə olunan məbləğ:
+  - Baza:
+  - Göstərilən fərq:
+  - E-05-in hökmü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
 
 ## D. Sahibin qərarları 4.1 … 16.1
 
