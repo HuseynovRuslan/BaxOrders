@@ -14,7 +14,7 @@ Auditin bütün nəticələri bu qovluqda qalır: `neticeler.md` faylında və `
 ## 2. Ekran şəkilləri
 
 - Şəkillər `ekranlar/` qovluğuna, PNG kimi qoyulur.
-- Ad: `<ID>-<ekran>-<en>.png`, məsələn `A-02-qiymet-tesnifati-1366.png`. `<ID>` yoxlamanın nömrəsidir
+- Ad: `<ID>-<ekran>-<en>.png`, məsələn `A-10-qiymet-tesnifati-1366.png`. `<ID>` yoxlamanın nömrəsidir
   (`<bölmənin hərfi>-<iki rəqəm>`), `<en>` — `1366`, `1440`, `390` və ya `1200`. Ətraflı: `01-hazirliq.md`, 7-ci bənd.
 - `neticeler.md`-də hər yoxlamanın yanında onun şəklinin adını yazın.
 

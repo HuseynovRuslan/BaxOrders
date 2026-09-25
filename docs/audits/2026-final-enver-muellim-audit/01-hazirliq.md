@@ -246,7 +246,7 @@ Hər rəqəmin yanında hansı endə oxunduğunu yazın.
 - Şəkillər bu dəstin yanında, `docs/audits/2026-final-enver-muellim-audit/ekranlar/` qovluğuna, PNG kimi qoyulur.
 - Ad: `<ID>-<ekran>-<en>.png`. `<ID>` yoxlamanın nömrəsidir (`A-02`, `C-17` kimi); `<ekran>` ekranın qısa adıdır,
   kiçik latın hərfləri ilə, sözlər tire ilə; `<en>` — `1366`, `1440`, `390` və ya `1200`. Nümunə:
-  `A-02-qiymet-tesnifati-1366.png`.
+  `A-10-qiymet-tesnifati-1366.png`.
 - Tərtibatçı alətlərində `Ctrl+Shift+P` → **Capture screenshot** yalnız səhifəni, seçilmiş endə çəkir.
 - **Heç bir şəkildə parol və ya token görünməməlidir.** Giriş formasını, tərtibatçı alətlərinin Network və Application
   bölmələrini çəkməyin.
