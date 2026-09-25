@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Modal } from '../imports/review/Modal'
 import { InfoHint } from './InfoHint'
 
 /**
@@ -169,6 +170,32 @@ describe('closing', () => {
     await user.tab()
 
     expect(note).not.toBeVisible()
+  })
+})
+
+describe('inside a dialog', () => {
+  /** Task 17 (17.1): one Escape closes only what is on top — first the note, then, with the next, the dialog. */
+  it('takes the first Escape for the note, and leaves the second to the dialog', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(
+      <Modal title="Məhsul tarixçəsi" onClose={onClose}>
+        <InfoHint label="Orta qiymət necə hesablanır?">{hint}</InfoHint>
+      </Modal>,
+    )
+    const button = screen.getByRole('button', { name: 'Orta qiymət necə hesablanır?' })
+    const note = screen.getByRole('note', { hidden: true })
+
+    await user.click(button)
+    expect(note).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    expect(note).not.toBeVisible()
+    expect(button).toHaveFocus()
+    expect(onClose).not.toHaveBeenCalled()
+
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
 

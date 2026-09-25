@@ -83,6 +83,9 @@ export function RowDetailDialog({ importId, rowId, onClose, onChanged }: RowDeta
           : undefined
       }
       onClose={onClose}
+      // Read-only until a correction, an exclusion reason or a clear is open, or a request is on its way. Only then
+      // does a press on the background close it, so nothing typed is lost to a stray click (17.2).
+      dismissOnBackdrop={editing === null && !askExclude && askClear === null && !busy}
       footer={
         <>
           <button type="button" onClick={onClose} disabled={busy} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm">

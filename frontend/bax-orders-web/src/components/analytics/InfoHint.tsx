@@ -47,6 +47,7 @@ export function InfoHint({ label, children }: InfoHintProps) {
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        event.preventDefault()
         setOpen(false)
         buttonRef.current?.focus()
       }
@@ -57,13 +58,15 @@ export function InfoHint({ label, children }: InfoHintProps) {
     }
 
     document.addEventListener('pointerdown', closeOnPointerOutside)
-    document.addEventListener('keydown', closeOnEscape)
+    // Capturing, and the Escape marked as used: the dialog around the ⓘ listens on the same document, and one
+    // Escape closes only the note on top of it (17.1).
+    document.addEventListener('keydown', closeOnEscape, { capture: true })
     // Capturing, so a box that scrolls inside the page closes it as well as the page itself.
     window.addEventListener('scroll', close, { capture: true })
     window.addEventListener('resize', close)
     return () => {
       document.removeEventListener('pointerdown', closeOnPointerOutside)
-      document.removeEventListener('keydown', closeOnEscape)
+      document.removeEventListener('keydown', closeOnEscape, { capture: true })
       window.removeEventListener('scroll', close, { capture: true })
       window.removeEventListener('resize', close)
     }

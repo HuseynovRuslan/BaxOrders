@@ -1072,8 +1072,10 @@ describe('no retired word on the manager’s screens', () => {
     await screen.findAllByRole('table')
 
     expectNoOldTerms(dialog)
-    // The subtitle keeps the useful specification and nothing else.
-    expect(dialog).toHaveAccessibleName('Məhsul tarixçəsi — Zibil paketi · 120 litr · ədəd')
+    // The subtitle keeps the useful specification and nothing else. Task 17: the dialog is named by its visible
+    // title and described by its subtitle, rather than labelled with the two joined.
+    expect(dialog).toHaveAccessibleName('Məhsul tarixçəsi')
+    expect(dialog).toHaveAccessibleDescription('Zibil paketi · 120 litr · ədəd')
     // The folded technical record is kept, versions and all (brief) — the sweep leaves it alone on purpose.
     const folded = dialog.querySelector('details')!
     expect(folded).toHaveTextContent('Mənbə və versiya məlumatı')

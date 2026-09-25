@@ -42,7 +42,8 @@ export function ItemSourceDrawer({ orderRequestItemId, productName, onClose }: I
   const manuallyAdded = provenance?.origin === 'ManuallyAdded'
 
   return (
-    <Modal title="Mənbə" subtitle={productName} onClose={onClose} width="wide">
+    // Read, never written in: a press on the background may close it (17.2).
+    <Modal title="Mənbə" subtitle={productName} onClose={onClose} width="wide" dismissOnBackdrop>
       {provenance === null && !error && <p className="py-6 text-center text-sm text-slate-500">Yüklənir…</p>}
 
       {provenance && provenance.lineage.length > 1 && <Lineage provenance={provenance} />}

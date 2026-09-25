@@ -112,7 +112,14 @@ export function TrendModal({
   const ratio = !isService && quantityRatio ? quantityRatioLine(quantityRatio, unit) : null
 
   return (
-    <Modal title={productHistoryLabel} subtitle={`${variant.productName} · ${describeVariant(variant)}`} onClose={onClose} width="wide">
+    <Modal
+      title={productHistoryLabel}
+      subtitle={`${variant.productName} · ${describeVariant(variant)}`}
+      onClose={onClose}
+      width="wide"
+      // Read, never written in: a press on the background may close it (17.2).
+      dismissOnBackdrop
+    >
       {trend === null && error === null && <p className="py-8 text-center text-sm text-slate-500">Yüklənir…</p>}
 
       {error !== null && (

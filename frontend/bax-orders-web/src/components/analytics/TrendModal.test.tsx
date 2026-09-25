@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity, VariantOrderFrequency, VariantTrend, VariantTrendPoint } from '../../api/analytics'
 import type { DecisionDriver } from '../../api/decisions'
@@ -134,6 +135,18 @@ function primary() {
 
 beforeEach(() => analyticsApi.fetchVariantTrend.mockReset().mockResolvedValue(trend()))
 afterEach(() => vi.clearAllMocks())
+
+describe('closing', () => {
+  /** Task 17 (17.2): the product history is only read, so a press on its background closes it. */
+  it('closes on a press on the background', async () => {
+    const onClose = vi.fn()
+    await renderModal({ onClose })
+
+    await userEvent.click(screen.getByRole('dialog').parentElement as HTMLElement)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('the name of the screen', () => {
   /** Owner decision 5.1: "Trend" is "Məhsul tarixçəsi". */

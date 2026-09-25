@@ -1581,3 +1581,46 @@ describe('an order carried in as already approved', () => {
     expect(within(panel).queryByText(/Sistem/)).toBeNull()
   })
 })
+
+/**
+ * Brief (Task 17): every dialog closes the same way. The product history closes on `Escape`, the page stays where
+ * it was, and the focus goes back to the product that opened it (acceptance 1). «Mənbə» is only read, so a press on
+ * its background closes it (acceptance 3).
+ */
+describe('closing the product history and the source', () => {
+  it('closes the product history on Escape, with the focus back on the product and the page where it was', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    const product = screen.getByRole('button', { name: /York qatlama salfet/ })
+
+    await user.click(product)
+    await screen.findByRole('dialog', { name: 'Məhsul tarixçəsi' })
+    const focus = vi.spyOn(product, 'focus')
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(product).toHaveFocus()
+    // A plain focus() would scroll the product into view; the page would move.
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+  })
+
+  it('closes «Mənbə» on a press on its background, and does nothing else', async () => {
+    const user = userEvent.setup()
+    ordersApi.fetchOrderItemSource.mockResolvedValue({
+      orderRequestItemId: 501,
+      orderRequestId: 105,
+      version: 2,
+      origin: 'ManuallyAdded',
+      lineage: [{ orderRequestItemId: 501, orderRequestId: 105, version: 2, status: 'Draft', isImported: false }],
+      source: null,
+    })
+    await renderPage()
+
+    await user.click(within(screen.getByRole('list', { name: 'Sətirlər' })).getByRole('button', { name: 'Mənbəyə bax' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Mənbə' })
+    await user.click(dialog.parentElement as HTMLElement)
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(ordersApi.fetchOrderItemSource).toHaveBeenCalledTimes(1)
+  })
+})
