@@ -1006,6 +1006,49 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).not.toHaveTextContent(/yaxşı|pis|Çəkili/i)
   })
 
+  /**
+   * Task 18: a reason pressed through the address, and the sentence that says what its list counts — a new product
+   * from the company's own store is under "Yeni məhsullar" while its money is in «Daxili təminat». The reasons'
+   * names, which carry their amounts, are swept with the rest.
+   */
+  it('the order page, with a reason s products selected and its list s count explained', async () => {
+    const context = decisionContext()
+    decisionsApi.fetchDecisionContext.mockResolvedValue({
+      ...context,
+      decomposition: {
+        ...context.decomposition!,
+        drivers: [
+          ...context.decomposition!.drivers,
+          driver({
+            variant: variant({ productVariantId: 26, productName: 'Qum', orderUnitCode: 'BAG', orderUnitName: 'Kisə' }),
+            category: 'InternalSupply',
+            amountImpact: 0,
+            currentQuantity: 4,
+            baselineQuantity: 0,
+            baselineUnitPrice: null,
+            baselineKnownAmount: null,
+            currentItemCount: 1,
+            baselineItemCount: 0,
+            priceNotRequiredItemCount: 1,
+            state: 'New',
+          }),
+        ],
+      },
+    })
+
+    const { container } = renderAt('/orders/105?basis=avg3&cause=new', '/orders/:orderRequestId', <OrderDetailPage />)
+    const causes = await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
+
+    expectNoOldTerms(container)
+    expect(causes).toHaveTextContent(
+      '«Yeni məhsullar» siyahısı 2 məhsulu sayır — məbləği «Daxili təminat» hissəsində olanları da.',
+    )
+    expect(within(causes).getByRole('button', { name: /^Yeni məhsullar, / })).toHaveAttribute('aria-pressed', 'true')
+    // "Yeni məhsullar", "Bu ay yazılmayan məhsullar" and "Qiymət yoxdur": each name swept above with its amount.
+    expect(within(causes).getAllByRole('button', { name: /, [+−]/ })).toHaveLength(3)
+    expect(within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' })).getAllByRole('listitem')).toHaveLength(2)
+  })
+
   /** Task 14: the price warning's way to Qiymət təsnifatı, swept where a Rəhbər meets it. */
   it('the order page, with the link from its price warning', async () => {
     const { container } = renderAt('/orders/105?basis=avg3', '/orders/:orderRequestId', <OrderDetailPage />)

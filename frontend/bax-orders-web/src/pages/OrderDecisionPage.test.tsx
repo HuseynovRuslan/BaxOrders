@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity, VariantTrend } from '../api/analytics'
 import type { DecisionComparison, DecisionDriver, OrderDecisionContext } from '../api/decisions'
@@ -1622,5 +1622,311 @@ describe('closing the product history and the source', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(ordersApi.fetchOrderItemSource).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * Brief (Task 18): the reader sees a reason and presses it to see the products behind it. The list below is filtered
+ * to that reason's chip, the choice is in the address bar beside the basis, Back undoes it, and no figure moves.
+ */
+describe('from a reason to the products behind it', () => {
+  /** The router's own URL, so a test can watch what the page writes back to it. */
+  function Search() {
+    return <span data-testid="search">{useLocation().search}</span>
+  }
+
+  /** The browser's Back button, which a memory router has no other way to press. */
+  function Back() {
+    const navigate = useNavigate()
+    return <button type="button" onClick={() => navigate(-1)}>Brauzerdə geri</button>
+  }
+
+  /** A product ordered this month and not in the window: ten of them, at a tenth of its money each. */
+  function newProduct(productVariantId: number, productName: string, amount: number): DecisionDriver {
+    return driver({
+      variant: variant({ productVariantId, productName }),
+      category: 'NewOrders',
+      amountImpact: amount,
+      quantityImpact: null,
+      priceImpact: null,
+      baselineQuantity: 0,
+      currentQuantity: 10,
+      baselineUnitPrice: null,
+      currentUnitPrice: amount / 10,
+      unitPricePercentChange: null,
+      baselineKnownAmount: null,
+      currentKnownAmount: amount,
+      baselineItemCount: 0,
+      state: 'New',
+    })
+  }
+
+  /**
+   * "Yeni məhsullar" as the main cause, with the two new products behind it, beside a quantity and a price change —
+   * the figures still add up to the +600,00 ₼ the headline shows.
+   */
+  function withNewProducts(): OrderDecisionContext {
+    const base = context()
+    return context({
+      decomposition: {
+        ...base.decomposition!,
+        categories: [
+          { category: 'NewOrders', amount: 511, variantCount: 2 },
+          { category: 'QuantityChange', amount: 50, variantCount: 1 },
+          { category: 'PriceChange', amount: 39, variantCount: 1 },
+          { category: 'NoLongerOrdered', amount: 0, variantCount: 0 },
+          { category: 'Services', amount: 0, variantCount: 0 },
+          { category: 'UnattributedDueToMissingPrice', amount: 0, variantCount: 0 },
+        ],
+        totalAmountImpact: 600,
+        drivers: [
+          newProduct(31, 'Rosmarinus', 311),
+          newProduct(32, 'Nərgiz', 200),
+          driver({
+            variant: variant({ productVariantId: 33, productName: 'Zibil paketi' }),
+            category: 'QuantityChange',
+            amountImpact: 50,
+            quantityImpact: 50,
+            priceImpact: 0,
+            baselineQuantity: 20,
+            currentQuantity: 30,
+            baselineUnitPrice: 5,
+            currentUnitPrice: 5,
+            unitPricePercentChange: 0,
+            state: 'Increased',
+          }),
+          driver(),
+        ],
+        products: { ...base.decomposition!.products, newCount: 2, listedCount: 4 },
+      },
+    })
+  }
+
+  let scrollIntoView = vi.fn()
+
+  beforeEach(() => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(withNewProducts())
+    scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+  })
+
+  afterEach(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView
+    delete (window as Partial<Window>).matchMedia
+  })
+
+  async function renderAt(url: string) {
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Search />
+        <Back />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
+  }
+
+  function address(): URLSearchParams {
+    return new URLSearchParams(screen.getByTestId('search').textContent ?? '')
+  }
+
+  function reason(label: string): HTMLElement {
+    return within(screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' }))
+      .getByRole('button', { name: new RegExp(`^${label}, `) })
+  }
+
+  function chip(label: string): HTMLElement {
+    return within(screen.getByRole('group', { name: 'Dəyişiklik növü' })).getByRole('button', { name: new RegExp(label) })
+  }
+
+  function listed(): string[] {
+    return within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' })).getAllByRole('listitem')
+      .map((row) => row.querySelector('span.font-medium')?.textContent ?? '')
+  }
+
+  /** Brief acceptance 1, 2 and 5. */
+  it('filters the list, writes the choice beside the basis, and brings the list into view — re-fetching nothing', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+    const fetches = decisionsApi.fetchDecisionContext.mock.calls.length
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz', 'Zibil paketi', 'York qatlama salfet'])
+
+    await user.click(reason('Yeni məhsullar'))
+
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz'])
+    expect(chip('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+    expect(reason('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+    expect(address().get('basis')).toBe('avg3')
+    expect(address().get('cause')).toBe('new')
+    expect(decisionsApi.fetchDecisionContext).toHaveBeenCalledTimes(fetches)
+
+    // The headline and the parts are exactly what the API sent.
+    expect(within(headline()).getByText('4.800,00 ₼')).toBeInTheDocument()
+    expect(within(headline()).getByText('+600,00 ₼')).toBeInTheDocument()
+    expect(within(headline()).getByText('+14,29%')).toBeInTheDocument()
+    const causes = within(screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' }))
+    expect(causes.getByText('+511,00 ₼')).toBeInTheDocument()
+    expect(causes.getByText('2 məhsuldan')).toBeInTheDocument()
+    expect(chip('Yeni məhsullar')).toHaveTextContent('Yeni məhsullar2')
+
+    // To the heading, not the first row, so the chips stay in view. No `matchMedia` here, so no motion.
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
+    expect(scrollIntoView.mock.contexts[0]).toHaveTextContent('Əsas dəyişikliklər')
+    expect((scrollIntoView.mock.contexts[0] as HTMLElement).tagName).toBe('H2')
+  })
+
+  it('moves smoothly when the reader has not asked for less motion', async () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia
+    await renderAt('/orders/105?basis=avg3')
+
+    await userEvent.click(reason('Yeni məhsullar'))
+
+    expect(window.matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' })
+  })
+
+  it('does not move when the reader has asked for less motion', async () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
+    await renderAt('/orders/105?basis=avg3')
+
+    await userEvent.click(reason('Yeni məhsullar'))
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
+  })
+
+  /** Brief acceptance 3. */
+  it('clears the filter on a second press, without scrolling again', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+
+    await user.click(reason('Yeni məhsullar'))
+    await user.click(reason('Yeni məhsullar'))
+
+    expect(address().has('cause')).toBe(false)
+    expect(address().get('basis')).toBe('avg3')
+    expect(chip('Hamısı')).toHaveAttribute('aria-pressed', 'true')
+    expect(reason('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'false')
+    expect(listed()).toHaveLength(4)
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+  })
+
+  /** Brief requirement 4: the chips drive the same thing, and write it the same way — but do not move the page. */
+  it('writes the choice from a chip too, marks its reason, and leaves the page where it is', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+
+    await user.click(chip('Qiymət dəyişən'))
+
+    expect(address().get('cause')).toBe('price')
+    expect(address().get('basis')).toBe('avg3')
+    expect(reason('Qiymət təsiri')).toHaveAttribute('aria-pressed', 'true')
+    expect(reason('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'false')
+    expect(listed()).toEqual(['York qatlama salfet'])
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  /** Brief acceptance 2: Back is the reader's undo, and the page is not left. */
+  it('goes back to the whole list on Back, on the same page', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+    const fetches = decisionsApi.fetchDecisionContext.mock.calls.length
+
+    await user.click(reason('Yeni məhsullar'))
+    await user.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
+
+    expect(address().toString()).toBe('basis=avg3')
+    expect(screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' })).toBeInTheDocument()
+    expect(chip('Hamısı')).toHaveAttribute('aria-pressed', 'true')
+    expect(listed()).toHaveLength(4)
+    expect(decisionsApi.fetchDecisionContext).toHaveBeenCalledTimes(fetches)
+    // Back restores; it does not move the page itself.
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+  })
+
+  /** Brief acceptance 2 (a reload) and §4.4 (a shared link): the address alone restores the view, and nothing scrolls. */
+  it('opens a link that carries the choice already filtered, and does not scroll', async () => {
+    await renderAt('/orders/105?basis=avg3&cause=price')
+
+    expect(chip('Qiymət dəyişən')).toHaveAttribute('aria-pressed', 'true')
+    expect(reason('Qiymət təsiri')).toHaveAttribute('aria-pressed', 'true')
+    expect(listed()).toEqual(['York qatlama salfet'])
+    expect(within(within(headline()).getByRole('group', { name: 'Müqayisə' })).getByRole('button', { name: 'Son 3 ayın ortalaması' }))
+      .toHaveAttribute('aria-pressed', 'true')
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('restores the same view on a reload of the address a reason wrote', async () => {
+    await renderAt('/orders/105?basis=avg3&cause=new')
+
+    expect(listed()).toEqual(['Rosmarinus', 'Nərgiz'])
+    expect(reason('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('reads an address it does not recognise as the whole list, and leaves it as it is', async () => {
+    await renderAt('/orders/105?basis=avg3&cause=bogus')
+
+    expect(chip('Hamısı')).toHaveAttribute('aria-pressed', 'true')
+    expect(listed()).toHaveLength(4)
+    expect(address().get('cause')).toBe('bogus')
+  })
+
+  /** Brief acceptance 5, the other way round: a new basis keeps the chip. */
+  it('keeps the choice when the basis changes', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+
+    await user.click(reason('Yeni məhsullar'))
+    await user.click(within(within(headline()).getByRole('group', { name: 'Müqayisə' }))
+      .getByRole('button', { name: 'Son 6 ayın ortalaması' }))
+
+    await waitFor(() => expect(address().get('basis')).toBe('avg6'))
+    expect(address().get('cause')).toBe('new')
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenLastCalledWith(
+      105,
+      { basis: 'Previous6MonthAverage' },
+      expect.anything(),
+    ))
+    expect(chip('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  /** Brief acceptance 4: "Xidmətlər" and the like have nothing to open and do not look as if they had. */
+  it('leaves a reason with no chip inert on the page', async () => {
+    const base = withNewProducts()
+    decisionsApi.fetchDecisionContext.mockResolvedValue({
+      ...base,
+      decomposition: {
+        ...base.decomposition!,
+        categories: [...base.decomposition!.categories.slice(0, 4), { category: 'Services', amount: -300, variantCount: 1 }],
+        totalAmountImpact: 300,
+      },
+    })
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3')
+
+    const services = within(screen.getByRole('region', { name: 'Dəyişikliyin səbəbləri' })).getByText('Xidmətlər').closest('li')!
+    expect(within(services).getAllByRole('button')).toHaveLength(1)
+    expect(services.className).toBe('')
+    await user.click(within(services).getByText('Xidmətlər'))
+    await user.click(services)
+
+    expect(address().has('cause')).toBe(false)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('keeps every link out of the page to the basis alone', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue({
+      ...withNewProducts(),
+      isLatestVersion: false,
+      latestOrderRequestId: 106,
+      latestVersion: 3,
+    })
+    await renderAt('/orders/105?basis=avg3&cause=new')
+
+    expect(screen.getByRole('link', { name: 'Obyektin sifarişləri' })).toHaveAttribute('href', '/locations/21?basis=avg3')
+    expect(screen.getByRole('link', { name: 'Ən son sifarişə bax' })).toHaveAttribute('href', '/orders/106?basis=avg3')
   })
 })

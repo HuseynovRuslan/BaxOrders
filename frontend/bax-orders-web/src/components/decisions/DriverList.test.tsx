@@ -1,3 +1,4 @@
+import { createRef, useState, type ComponentProps } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -5,6 +6,7 @@ import type { VariantIdentity } from '../../api/analytics'
 import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
 import { findOldTerms } from '../../test/oldTerms'
 import { DriverList } from './DriverList'
+import type { DriverFilter } from './labels'
 
 /**
  * The list a manager actually reads before deciding. Its job is to make each claim checkable: the two numbers
@@ -93,13 +95,24 @@ function productsOf(
   }
 }
 
+/**
+ * The page's side of the list. The chip that is on is the page's (Task 18: it lives in the URL), so the list is
+ * rendered the way the page renders it — holding the chip and handing it back — and a pressed chip is on.
+ */
+type ControlledProps = Omit<ComponentProps<typeof DriverList>, 'filter' | 'onFilter'> & { initialFilter?: DriverFilter }
+
+function Controlled({ initialFilter = 'All', ...props }: ControlledProps) {
+  const [filter, setFilter] = useState<DriverFilter>(initialFilter)
+  return <DriverList {...props} filter={filter} onFilter={setFilter} />
+}
+
 function renderList(
   drivers: DecisionDriver[],
   onHistory = vi.fn(),
   products = productsOf(drivers),
   steady: DecisionDriver[] = [],
 ) {
-  render(<DriverList drivers={drivers} steady={steady} products={products} onHistory={onHistory} />)
+  render(<Controlled drivers={drivers} steady={steady} products={products} onHistory={onHistory} />)
   return onHistory
 }
 
@@ -693,7 +706,7 @@ describe('an approved variant transition', () => {
 
   function renderFamily(drivers: DecisionDriver[] = [lavanda, sabun]) {
     render(
-      <DriverList
+      <Controlled
         drivers={drivers}
         steady={[]}
         products={productsOf(drivers)}
@@ -738,5 +751,185 @@ describe('an approved variant transition', () => {
     renderFamily()
 
     expect(findOldTerms(document.body)).toEqual([])
+  })
+})
+
+/**
+ * Task 18 (18.1): the chips and the reasons of "Niyə dəyişib?" are one control. The chip that is on is the page's,
+ * in the URL; a chip pressed here asks the page for it, as a reason does.
+ */
+describe('the chip, owned by the page', () => {
+  /** The Zibil paketi of the audit: 50 → 55 paket at 32,00 → 32,1273 ₼, +167,00 ₼ — 160 ₼ quantity, 7 ₼ price. */
+  const mixedBags = driver({
+    variant: variant({ productVariantId: 51, productName: 'Zibil paketi', orderUnitCode: 'PACK', orderUnitName: 'Paçka' }),
+    category: 'QuantityChange',
+    amountImpact: 167,
+    quantityImpact: 160,
+    priceImpact: 7,
+    baselineQuantity: 50,
+    currentQuantity: 55,
+    quantityPercentChange: 10,
+    baselineUnitPrice: 32,
+    currentUnitPrice: 32.1273,
+    unitPricePercentChange: 0.3978,
+    state: 'Increased',
+  })
+  const newTool = driver({
+    variant: variant({ productVariantId: 63, productName: 'Yeni alət' }),
+    category: 'NewOrders',
+    priceImpact: null,
+    quantityImpact: null,
+    baselineQuantity: 0,
+    state: 'New',
+  })
+  const droppedTool = driver({
+    variant: variant({ productVariantId: 64, productName: 'Köhnə alət' }),
+    category: 'NoLongerOrdered',
+    priceImpact: null,
+    quantityImpact: null,
+    currentQuantity: 0,
+    state: 'NoLongerOrdered',
+  })
+  const unpriced = driver({
+    variant: variant({ productVariantId: 65, productName: 'Qiyməti olmayan mal' }),
+    category: 'UnattributedDueToMissingPrice',
+    priceImpact: null,
+    quantityImpact: null,
+    missingPriceItemCount: 1,
+    priceIsComplete: false,
+  })
+
+  function list(filter: DriverFilter, drivers: DecisionDriver[], onFilter = vi.fn(), steady: DecisionDriver[] = []) {
+    return (
+      <DriverList
+        drivers={drivers}
+        steady={steady}
+        products={productsOf(drivers, {}, steady)}
+        filter={filter}
+        onFilter={onFilter}
+        onHistory={vi.fn()}
+      />
+    )
+  }
+
+  function chips(): HTMLElement[] {
+    return within(screen.getByRole('group', { name: 'Dəyişiklik növü' })).getAllByRole('button')
+  }
+
+  function chip(name: RegExp): HTMLElement {
+    return within(screen.getByRole('group', { name: 'Dəyişiklik növü' })).getByRole('button', { name })
+  }
+
+  it('shows the chip it is given as on, and only that chip s products', () => {
+    render(list('New', [driver(), bags, newTool, droppedTool]))
+
+    expect(chip(/Yeni məhsullar/)).toHaveAttribute('aria-pressed', 'true')
+    expect(chip(/Hamısı/)).toHaveAttribute('aria-pressed', 'false')
+    const rows = within(screen.getByRole('list')).getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Yeni alət')
+  })
+
+  it('asks the page for a pressed chip rather than keeping it to itself', async () => {
+    const onFilter = vi.fn()
+    render(list('All', [driver(), bags], onFilter))
+
+    await userEvent.click(chip(/Qiymət dəyişən/))
+
+    expect(onFilter).toHaveBeenCalledWith('PriceChange')
+    // The page did not take it up, so nothing moved: the list follows the page, not the press.
+    expect(chip(/Hamısı/)).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Zibil paketi')).toBeInTheDocument()
+  })
+
+  it('keeps the chips labels, order and counts as they were', () => {
+    render(list('All', [driver(), bags, newTool, droppedTool, unpriced], vi.fn(), [steadyGood]))
+
+    expect(chips().map((chip) => chip.textContent)).toEqual([
+      'Hamısı5',
+      'Qiymət dəyişən1',
+      'Miqdar dəyişən1',
+      'Yeni məhsullar1',
+      'Bu ay yazılmayan məhsullar1',
+      'Qiymət yoxdur1',
+      'Məbləği dəyişməyən1',
+    ])
+  })
+
+  /**
+   * A link, or a basis with other products, can turn on a chip with nothing under it. The chip is then still there,
+   * on and reading 0, so the screen agrees with the address bar; every other empty chip stays out as before.
+   */
+  it('offers the chip that is on even at 0, with the list saying there is nothing under it', () => {
+    render(list('New', [driver(), bags]))
+
+    const on = chip(/Yeni məhsullar/)
+    expect(on).toHaveAttribute('aria-pressed', 'true')
+    expect(on).toHaveTextContent('Yeni məhsullar0')
+    expect(screen.getByText('Bu növ üzrə dəyişiklik yoxdur.')).toBeInTheDocument()
+    // Every other chip with nothing under it stays out, as before.
+    expect(chips().map((button) => button.textContent))
+      .toEqual(['Hamısı2', 'Qiymət dəyişən1', 'Miqdar dəyişən1', 'Yeni məhsullar0'])
+  })
+
+  it('goes back to the first six whenever the chip changes from outside', async () => {
+    const many = Array.from({ length: 9 }, (_, index) =>
+      driver({ variant: variant({ productVariantId: 100 + index, productName: `Mal ${index}` }), amountImpact: 100 - index }))
+    const { rerender } = render(list('All', many))
+
+    await userEvent.click(screen.getByRole('button', { name: /Hamısına bax \(9\)/ }))
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(9)
+
+    // Every one of them moved its price, so "Qiymət dəyişən" holds the same nine — and starts at six.
+    rerender(list('PriceChange', many))
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(6)
+    expect(screen.getByRole('button', { name: /Hamısına bax \(9\)/ })).toBeInTheDocument()
+
+    // Back to "Hamısı" — through Back, say — is a new filter too; its opened list is not remembered.
+    rerender(list('All', many))
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(6)
+  })
+
+  it('still goes back to the first six when the chip that is on is pressed again', async () => {
+    const many = Array.from({ length: 9 }, (_, index) =>
+      driver({ variant: variant({ productVariantId: 100 + index, productName: `Mal ${index}` }), amountImpact: 100 - index }))
+    render(<Controlled drivers={many} steady={[]} products={productsOf(many)} initialFilter="PriceChange" onHistory={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Hamısına bax \(9\)/ }))
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(9)
+    await userEvent.click(chip(/Qiymət dəyişən/))
+
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(6)
+  })
+
+  it('keeps a filtered row s whole quantity and price decomposition', () => {
+    for (const filter of ['QuantityChange', 'PriceChange'] as const) {
+      const { unmount } = render(list(filter, [mixedBags, driver()]))
+
+      const row = screen.getByRole('button', { name: /Zibil paketi/ })
+      const compact = within(row).getByText(/50 → 55 paket · Qiymət 32,00 ₼ → 32,13 ₼/)
+      expect(visibleText(compact.nextElementSibling as HTMLElement), filter).toBe('Miqdar +160,00 ₼ · Qiymət +7,00 ₼')
+      expect(within(row).getByText('Miqdar və qiymət'), filter).toBeInTheDocument()
+      expect(within(row).getByText('+167,00 ₼'), filter).toHaveClass('text-red-700')
+      unmount()
+    }
+  })
+
+  it('hands its heading to the page, clear of the sticky header', () => {
+    const heading = createRef<HTMLHeadingElement>()
+    render(
+      <DriverList
+        drivers={[driver()]}
+        steady={[]}
+        products={productsOf([driver()])}
+        filter="All"
+        onFilter={vi.fn()}
+        headingRef={heading}
+        onHistory={vi.fn()}
+      />,
+    )
+
+    expect(heading.current).toHaveTextContent('Əsas dəyişikliklər')
+    expect(heading.current).toHaveClass('scroll-mt-20')
   })
 })

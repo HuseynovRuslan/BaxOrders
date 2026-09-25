@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
 import type {
   DecisionCause,
@@ -10,6 +11,7 @@ import type {
 } from '../../api/decisions'
 import { findOldTerms } from '../../test/oldTerms'
 import { CauseSummary } from './CauseSummary'
+import { causeListCountNote, type DriverFilter } from './labels'
 
 /**
  * "Niyə dəyişib?" has one duty above every other: whatever it shows must add up to the difference it claims
@@ -98,8 +100,18 @@ function renderSummary(
   value: DecisionDecomposition,
   basis: AnalyticsComparisonBasis = 'PreviousMonth',
   windowPeriods: string[] = ['2026-08-01'],
+  selected: DriverFilter = 'All',
+  onSelect: (filter: DriverFilter) => void = vi.fn(),
 ) {
-  return render(<CauseSummary decomposition={value} basis={basis} windowPeriods={windowPeriods} />)
+  return render(
+    <CauseSummary
+      decomposition={value}
+      basis={basis}
+      windowPeriods={windowPeriods}
+      selected={selected}
+      onSelect={onSelect}
+    />,
+  )
 }
 
 /** The rows as the reader meets them, each by its part's name. */
@@ -636,5 +648,375 @@ describe('the chosen basis', () => {
 
     expect(screen.getByText('Son 3 ayın ortalamasına görə məbləğ dəyişməyib.')).toBeInTheDocument()
     expect(screen.queryByText(/Keçən aya görə/)).toBeNull()
+  })
+})
+
+/**
+ * Task 18 (18.1, 18.2): a reason is the way to the products behind it. The five reasons with a chip of their own
+ * select it, and a second press clears it; the three without one look and behave exactly as before.
+ */
+describe('the way from a reason to its products', () => {
+  const nbsp = String.fromCharCode(0xa0)
+
+  /** A listed product, an ordinary priced one unless told otherwise. Each has its own id. */
+  function product(id: number, overrides: Partial<DecisionDriver> = {}): DecisionDriver {
+    const base = driver(`Mal ${id}`, 'QuantityChange', 0)
+    return { ...base, variant: { ...base.variant, productVariantId: id, productId: id }, ...overrides }
+  }
+
+  function times(count: number, from: number, overrides: Partial<DecisionDriver>): DecisionDriver[] {
+    return Array.from({ length: count }, (_, index) => product(from + index, overrides))
+  }
+
+  /**
+   * Heydər Əliyev, against Keçən ay — the brief's figures, with the products behind each part: under every chip as
+   * many products as the part counts, so no sentence is owed.
+   */
+  function heyderAliyevWithProducts(): DecisionDecomposition {
+    return {
+      ...heyderAliyev(),
+      drivers: [
+        ...times(14, 100, { category: 'NewOrders', amountImpact: 2000, state: 'New' }),
+        ...times(6, 200, { category: 'QuantityChange', amountImpact: -50, quantityImpact: -50, state: 'Decreased' }),
+        product(300, { category: 'PriceChange', amountImpact: 30, priceImpact: 30, state: 'Unchanged' }),
+        ...times(5, 400, { category: 'NoLongerOrdered', amountImpact: -1000, state: 'NoLongerOrdered' }),
+        product(500, { category: 'Services', analyticsKind: 'AmountOrientedService', amountImpact: -300, state: 'NotComparable' }),
+      ],
+    }
+  }
+
+  function reasonButton(label: string): HTMLElement {
+    return screen.getByRole('button', { name: new RegExp(`^${label}, `) })
+  }
+
+  /** Every figure a row shows, in the order the rows are shown: label, amount, count, bar. */
+  function figures(): string[][] {
+    return within(screen.getByRole('list')).getAllByRole('listitem').map((row) => [
+      row.querySelector('span.rounded-full')?.textContent ?? '',
+      row.querySelector('p.whitespace-nowrap')?.textContent ?? '',
+      row.querySelector('span.text-slate-400')?.textContent ?? '',
+      row.querySelector<HTMLElement>('.h-full')?.style.width ?? '',
+    ])
+  }
+
+  it('makes a reason with products under its chip one button, named by its label and its amount', () => {
+    renderSummary(heyderAliyevWithProducts())
+
+    const reason = screen.getByRole('button', { name: `Yeni məhsullar, +29.691,52${nbsp}₼` })
+    expect(reason).toHaveAttribute('aria-pressed', 'false')
+    // The pill is still the pill, with its own words and colour, now inside the button.
+    expect(within(reason).getByText('Yeni məhsullar')).toHaveClass('rounded-full', 'bg-slate-100', 'text-slate-700')
+    expect(rowOf('Yeni məhsullar')).toContainElement(reason)
+
+    for (const name of [
+      `Bu ay yazılmayan məhsullar, −5.259,62${nbsp}₼`,
+      `Miqdar təsiri, −309,20${nbsp}₼`,
+      `Qiymət təsiri, +30,00${nbsp}₼`,
+    ]) {
+      expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false')
+    }
+  })
+
+  it('stretches the button over the whole row, with the ⓘ above it, and marks the row as a target', () => {
+    renderSummary(heyderAliyevWithProducts())
+
+    const row = rowOf('Yeni məhsullar')
+    // The row is where the button's layer is placed; the layer covers it.
+    expect(row).toHaveClass('relative', 'cursor-pointer', 'hover:bg-slate-100')
+    expect(reasonButton('Yeni məhsullar')).toHaveClass('before:absolute', 'before:inset-0', 'cursor-pointer')
+    // The keyboard's outline is drawn on that layer, around the row; the button shows none of its own.
+    expect(reasonButton('Yeni məhsullar')).toHaveClass('focus-visible:outline-hidden', 'focus-visible:before:outline-2')
+    // The ⓘ is positioned after the layer, so it is above it — and outside the button. Its wrapper sets no z-index:
+    // one would cap the note's own z-[60] beneath the sticky header and the phone's decision bar (both z-20).
+    const hint = within(row).getByRole('button', { name: 'Yeni məhsullar nədir?' })
+    const wrapper = hint.parentElement!.parentElement!
+    expect(wrapper.tagName).toBe('SPAN')
+    expect(wrapper.className).toBe('relative inline-flex')
+    expect(wrapper.parentElement?.tagName).toBe('P')
+    expect(reasonButton('Yeni məhsullar')).not.toContainElement(hint)
+
+    // An ordinary row's hover is one step darker than its white; the main cause's than its slate-50.
+    expect(rowOf('Bu ay yazılmayan məhsullar')).toHaveClass('relative', 'cursor-pointer', 'hover:bg-slate-50', 'rounded-md')
+    expect(rowOf('Bu ay yazılmayan məhsullar')).not.toHaveClass('bg-slate-50')
+  })
+
+  it('leaves "Xidmətlər" as it was: no button but its ⓘ, no pointer, no hover, no layer', () => {
+    renderSummary(heyderAliyevWithProducts())
+
+    const row = rowOf('Xidmətlər')
+    expect(within(row).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Xidmətlər nədir?'])
+    expect(row.className).toBe('')
+    // The ⓘ keeps its own hover, as it has everywhere; nothing else in the row gains one.
+    expect(row.querySelector('[class*="before:"], .cursor-pointer')).toBeNull()
+  })
+
+  it('leaves "Daxili təminat" and "Variant dəyişib" inert too, even with new products behind them', async () => {
+    const onSelect = vi.fn()
+    renderSummary(decomposition({
+      categories: [cause('InternalSupply', 600, 1), cause('VariantChange', 125, 2)],
+      totalAmountImpact: 725,
+      drivers: [
+        product(1, { category: 'InternalSupply', priceNotRequiredItemCount: 1, state: 'New' }),
+        product(2, { category: 'VariantChange', amountImpact: 125, state: 'New' }),
+        product(3, { category: 'VariantChange', state: 'NoLongerOrdered' }),
+      ],
+      variantTransitions: [{
+        baseProductId: 9,
+        baseProductName: 'Sabun elano',
+        from: [{ productVariantId: 3, productId: 3, productName: 'Sabun elano', variantLabel: null }],
+        to: [{ productVariantId: 2, productId: 2, productName: 'Sabun elano lavanda ətirli', variantLabel: 'lavanda ətirli' }],
+        amountImpact: 125,
+        baselineKnownAmount: 750,
+        currentKnownAmount: 875,
+      }],
+    }), 'PreviousMonth', ['2026-08-01'], 'All', onSelect)
+
+    for (const label of ['Daxili təminat', 'Variant dəyişib']) {
+      const row = rowOf(label)
+      expect(within(row).getAllByRole('button'), label).toHaveLength(1)
+      expect(row.className, label).not.toMatch(/cursor-pointer|hover:|relative/)
+      await userEvent.click(row)
+      await userEvent.click(within(row).getByText(label))
+    }
+
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /, [+−]/ })).toBeNull()
+  })
+
+  it('leaves a reason inert when its chip would list nothing', () => {
+    // The default decomposition sends no products at all.
+    renderSummary(decomposition())
+
+    expect(within(rowOf('Yeni məhsullar')).getAllByRole('button')).toHaveLength(1)
+    expect(rowOf('Yeni məhsullar').className).toBe('')
+    expect(screen.queryByRole('button', { name: /^Yeni məhsullar, / })).toBeNull()
+  })
+
+  it('selects the reason s chip, and clears it when it is the chip already on', async () => {
+    const onSelect = vi.fn()
+    const { unmount } = renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], 'All', onSelect)
+
+    await userEvent.click(reasonButton('Yeni məhsullar'))
+    await userEvent.click(reasonButton('Miqdar təsiri'))
+    await userEvent.click(reasonButton('Qiymət təsiri'))
+    await userEvent.click(reasonButton('Bu ay yazılmayan məhsullar'))
+    expect(onSelect.mock.calls).toEqual([['New'], ['QuantityChange'], ['PriceChange'], ['NoLongerOrdered']])
+    unmount()
+
+    onSelect.mockClear()
+    renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], 'New', onSelect)
+    expect(reasonButton('Yeni məhsullar')).toHaveAttribute('aria-pressed', 'true')
+    expect(reasonButton('Miqdar təsiri')).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(reasonButton('Yeni məhsullar'))
+    expect(onSelect).toHaveBeenCalledWith('All')
+    // Another reason still selects its own chip rather than clearing.
+    await userEvent.click(reasonButton('Qiymət təsiri'))
+    expect(onSelect).toHaveBeenLastCalledWith('PriceChange')
+  })
+
+  it('opens "Qiymət yoxdur" on its chip, amber pill and all', async () => {
+    const onSelect = vi.fn()
+    renderSummary(decomposition({
+      categories: [cause('QuantityChange', 120, 1), cause('UnattributedDueToMissingPrice', -18.96, 1)],
+      explanationIsComplete: false,
+      drivers: [
+        product(1, { category: 'QuantityChange', amountImpact: 120, quantityImpact: 120 }),
+        driver('Əlcək', 'UnattributedDueToMissingPrice', -18.96),
+      ],
+    }), 'PreviousMonth', ['2026-08-01'], 'All', onSelect)
+
+    const reason = screen.getByRole('button', { name: `Qiymət yoxdur, −18,96${nbsp}₼` })
+    expect(within(reason).getByText('Qiymət yoxdur')).toHaveClass('bg-amber-50', 'text-amber-900')
+    await userEvent.click(reason)
+    expect(onSelect).toHaveBeenCalledWith('MissingPrice')
+  })
+
+  it('outlines the selected row, and keeps the main cause s ring as it is', () => {
+    renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], 'New')
+
+    const selected = rowOf('Yeni məhsullar')
+    expect(selected).toHaveClass('outline-2', 'outline-offset-2', 'outline-slate-900')
+    expect(selected).toHaveClass('bg-slate-50', 'ring-1', 'ring-inset', 'ring-slate-200', 'p-2')
+    expect(rowOf('Miqdar təsiri')).not.toHaveClass('outline-2')
+    // The pill keeps its colour: the outline says which is on, never a colour that could read as a direction.
+    expect(within(selected).getByText('Yeni məhsullar')).toHaveClass('bg-slate-100', 'text-slate-700')
+  })
+
+  it('opens the ⓘ inside a reason without selecting it', async () => {
+    const onSelect = vi.fn()
+    renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], 'All', onSelect)
+
+    const hint = within(rowOf('Yeni məhsullar')).getByRole('button', { name: 'Yeni məhsullar nədir?' })
+    await userEvent.click(hint)
+
+    expect(hint).toHaveAttribute('aria-expanded', 'true')
+    expect(within(rowOf('Yeni məhsullar')).getByRole('note')).toBeVisible()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('reaches a reason by Tab and presses it with Enter and Space', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], 'All', onSelect)
+
+    await user.tab()
+    expect(reasonButton('Yeni məhsullar')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    // Then its ⓘ, then the next reason.
+    await user.tab()
+    expect(within(rowOf('Yeni məhsullar')).getByRole('button', { name: 'Yeni məhsullar nədir?' })).toHaveFocus()
+    await user.tab()
+    expect(reasonButton('Bu ay yazılmayan məhsullar')).toHaveFocus()
+    await user.keyboard(' ')
+
+    expect(onSelect.mock.calls).toEqual([['New'], ['NoLongerOrdered']])
+  })
+
+  it('does not make an inert row a stop of its own; its ⓘ still is one', async () => {
+    const user = userEvent.setup()
+    renderSummary(heyderAliyevWithProducts())
+
+    // Yeni, ⓘ, Bu ay yazılmayan, ⓘ, Miqdar, ⓘ — and then Xidmətlər's ⓘ, never the row itself.
+    for (let step = 0; step < 7; step++) {
+      await user.tab()
+    }
+    expect(within(rowOf('Xidmətlər')).getByRole('button', { name: 'Xidmətlər nədir?' })).toHaveFocus()
+  })
+
+  /** Brief acceptance 5: choosing a reason moves no figure. The Heydər Əliyev figures, with a row selected and without. */
+  it('shows the same rows, order, caption, amounts, counts and bars whichever reason is selected', () => {
+    const expected = [
+      ['Yeni məhsullar', '+29.691,52 ₼, xərc artıb', '14 məhsuldan', '100%'],
+      ['Bu ay yazılmayan məhsullar', '−5.259,62 ₼, xərc azalıb', '5 məhsuldan', `${(5259.62 / 29691.52) * 100}%`],
+      ['Miqdar təsiri', '−309,20 ₼, xərc azalıb', '6 məhsuldan', `${(309.2 / 29691.52) * 100}%`],
+      ['Xidmətlər', '−300,00 ₼, xərc azalıb', '1 məhsuldan', `${(300 / 29691.52) * 100}%`],
+      ['Qiymət təsiri', '+30,00 ₼, xərc artıb', '1 məhsuldan', `${(30 / 29691.52) * 100}%`],
+    ].map((row) => row.map((value) => value.replace(/ ₼/, `${nbsp}₼`)))
+
+    for (const selected of ['All', 'New', 'QuantityChange'] as const) {
+      const { unmount } = renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], selected)
+
+      expect(figures(), selected).toEqual(expected)
+      expect(screen.getAllByText('Əsas səbəb'), selected).toHaveLength(1)
+      expect(within(rowOf('Yeni məhsullar')).getByText('Əsas səbəb'), selected).toBeInTheDocument()
+      expect(screen.getByText('+23.852,70 ₼'), selected).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('names no retired word, and puts the ₼ of its names after a space that cannot break', () => {
+    const { container } = renderSummary(heyderAliyevWithProducts(), 'PreviousMonth', ['2026-08-01'], 'New')
+
+    expect(findOldTerms(container)).toEqual([])
+  })
+})
+
+/**
+ * Task 18 (18.3): "58 məhsuldan" beside the part, "Yeni məhsullar 60" on the chip. Both are right — the part counts
+ * the products its money is filed under, the chip every new product — so neither changes, and a sentence under the
+ * part says what the list counts.
+ */
+describe('two counts under one label', () => {
+  function product(id: number, overrides: Partial<DecisionDriver> = {}): DecisionDriver {
+    const base = driver(`Mal ${id}`, 'QuantityChange', 0)
+    return { ...base, variant: { ...base.variant, productVariantId: id, productId: id }, ...overrides }
+  }
+
+  /** Heydər Əliyev's shape: 58 new products filed under "Yeni məhsullar", one from the store and one owing a price. */
+  function heyderAliyevSixty(): DecisionDecomposition {
+    return decomposition({
+      categories: [
+        cause('NewOrders', 29691.52, 58),
+        cause('NoLongerOrdered', -5259.62, 5),
+        cause('InternalSupply', 0, 1),
+        cause('UnattributedDueToMissingPrice', 0, 1),
+      ],
+      totalAmountImpact: 24431.9,
+      drivers: [
+        ...Array.from({ length: 58 }, (_, index) => product(100 + index, { category: 'NewOrders', amountImpact: 500, state: 'New' })),
+        product(200, { category: 'InternalSupply', priceNotRequiredItemCount: 1, state: 'New' }),
+        product(201, { category: 'UnattributedDueToMissingPrice', missingPriceItemCount: 1, priceIsComplete: false, state: 'New' }),
+        ...Array.from({ length: 5 }, (_, index) => product(300 + index, { category: 'NoLongerOrdered', amountImpact: -1000, state: 'NoLongerOrdered' })),
+      ],
+    })
+  }
+
+  it('keeps "58 məhsuldan" and says under it what the list of 60 counts, naming the parts the other two are in', () => {
+    renderSummary(heyderAliyevSixty())
+
+    const row = rowOf('Yeni məhsullar')
+    expect(within(row).getByText('58 məhsuldan')).toBeInTheDocument()
+    const note = within(row).getByText(
+      '«Yeni məhsullar» siyahısı 60 məhsulu sayır — məbləği «Daxili təminat» və «Qiymət yoxdur» hissələrində olanları da.',
+    )
+    expect(note.tagName).toBe('P')
+    expect(note).toHaveClass('mt-1', 'text-xs', 'text-slate-500')
+    // Under the label and the amount, before the bar.
+    expect(note.previousElementSibling).toHaveTextContent('+29.691,52 ₼')
+    expect(note.nextElementSibling?.querySelector('.h-full')).not.toBeNull()
+    // The figures are the API's, as they were.
+    expect(within(row).getByText('+29.691,52 ₼')).toBeInTheDocument()
+  })
+
+  it('adds nothing where the part and its list count the same products', () => {
+    renderSummary(heyderAliyevSixty())
+
+    // "Bu ay yazılmayan məhsullar": 5 and 5.
+    expect(within(rowOf('Bu ay yazılmayan məhsullar')).getByText('5 məhsuldan')).toBeInTheDocument()
+    expect(within(rowOf('Bu ay yazılmayan məhsullar')).queryByText(/siyahısı/)).toBeNull()
+    expect(screen.getAllByText(/siyahısı \d+ məhsulu sayır/)).toHaveLength(1)
+  })
+
+  it('names one part in the singular', () => {
+    renderSummary(decomposition({
+      categories: [cause('NoLongerOrdered', -750, 1), cause('VariantChange', 0, 2)],
+      totalAmountImpact: -750,
+      drivers: [
+        product(1, { category: 'NoLongerOrdered', amountImpact: -750, state: 'NoLongerOrdered' }),
+        product(2, { category: 'VariantChange', state: 'NoLongerOrdered' }),
+        product(3, { category: 'VariantChange', state: 'New' }),
+      ],
+    }))
+
+    expect(within(rowOf('Bu ay yazılmayan məhsullar')).getByText(
+      '«Bu ay yazılmayan məhsullar» siyahısı 2 məhsulu sayır — məbləği «Variant dəyişib» hissəsində olanları da.',
+    )).toBeInTheDocument()
+  })
+
+  /**
+   * A chip that selects by an effect names no part: a product that moved both ways has money in two parts, and
+   * naming "its" part would not be true.
+   */
+  it('names no part under a reason whose chip goes by an effect', () => {
+    renderSummary(decomposition({
+      categories: [cause('QuantityChange', 120, 3)],
+      totalAmountImpact: 120,
+      drivers: [
+        product(1, { category: 'QuantityChange', amountImpact: 70, quantityImpact: 50, priceImpact: 20 }),
+        product(2, { category: 'PriceChange', amountImpact: 50, quantityImpact: 70, priceImpact: -20 }),
+      ],
+    }))
+
+    expect(within(rowOf('Miqdar təsiri')).getByText('«Miqdar dəyişən» siyahısı 2 məhsulu sayır.')).toBeInTheDocument()
+    expect(within(rowOf('Miqdar təsiri')).getByText('3 məhsuldan')).toBeInTheDocument()
+  })
+
+  it('writes each form of the sentence, and a count in the thousands the way every count is written', () => {
+    expect(causeListCountNote('New', 60, [])).toBe('«Yeni məhsullar» siyahısı 60 məhsulu sayır.')
+    expect(causeListCountNote('New', 60, ['InternalSupply']))
+      .toBe('«Yeni məhsullar» siyahısı 60 məhsulu sayır — məbləği «Daxili təminat» hissəsində olanları da.')
+    expect(causeListCountNote('New', 60, ['InternalSupply', 'UnattributedDueToMissingPrice']))
+      .toBe('«Yeni məhsullar» siyahısı 60 məhsulu sayır — məbləği «Daxili təminat» və «Qiymət yoxdur» hissələrində olanları da.')
+    expect(causeListCountNote('NoLongerOrdered', 3, ['VariantChange', 'InternalSupply', 'UnattributedDueToMissingPrice']))
+      .toBe('«Bu ay yazılmayan məhsullar» siyahısı 3 məhsulu sayır — məbləği «Variant dəyişib», «Daxili təminat» və '
+        + '«Qiymət yoxdur» hissələrində olanları da.')
+    expect(causeListCountNote('QuantityChange', 1234, [])).toBe('«Miqdar dəyişən» siyahısı 1.234 məhsulu sayır.')
+  })
+
+  it('uses no retired word', () => {
+    const { container } = renderSummary(heyderAliyevSixty())
+
+    expect(findOldTerms(container)).toEqual([])
   })
 })

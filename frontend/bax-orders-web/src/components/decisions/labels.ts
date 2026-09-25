@@ -163,6 +163,35 @@ export function driverScopeLine(products: DecisionProductCounts): string {
 }
 
 /**
+ * Said under a reason whose list counts a different number of products than the reason does (18.3).
+ *
+ * The part counts the products its money is filed under ("58 məhsuldan"); the chip counts every product in the
+ * chip's state — a new product owing a price, or supplied from the store, is new, and its money sits in another
+ * part. Neither number is wrong and neither changes: each says what it counts.
+ *
+ * "«Yeni məhsullar» siyahısı 60 məhsulu sayır — məbləği «Daxili təminat» və «Qiymət yoxdur» hissələrində olanları
+ * da." The parts are named by their own names on the same screen, so the reader can find each of them above.
+ */
+export function causeListCountNote(
+  filter: DriverFilter,
+  listedCount: number,
+  otherParts: readonly CauseCategory[],
+): string {
+  const line = `«${driverFilterLabels[filter]}» siyahısı ${formatCount(listedCount)} ${productNoun}u sayır`
+  const parts = otherParts.map((category) => `«${causeLabels[category]}»`)
+
+  if (parts.length === 0) {
+    return `${line}.`
+  }
+
+  if (parts.length === 1) {
+    return `${line} — məbləği ${parts[0]} hissəsində olanları da.`
+  }
+
+  return `${line} — məbləği ${parts.slice(0, -1).join(', ')} və ${parts[parts.length - 1]} hissələrində olanları da.`
+}
+
+/**
  * "Artıb: 12 · Azalıb: 9 · Xidmətlər: 1" — how many compared products went up or down by quantity, and how many
  * are services, as the comparison page counted them. The counts are the backend's, over every compared product;
  * nothing is counted here. "Xidmətlər" only when there is one.

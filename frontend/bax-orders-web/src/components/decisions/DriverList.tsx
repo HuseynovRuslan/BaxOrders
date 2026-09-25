@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type Ref } from 'react'
 import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
 import { DirectionWord } from '../analytics/DirectionWord'
 import {
@@ -15,6 +15,7 @@ import { distinguishVariants, stateBadgeLabels } from '../analytics/labels'
 import { internalSupplyLabel, missingPriceCount } from '../../pricing/labels'
 import { variantTransitionNote } from '../../terminology/terms'
 import { formatOrderUnit } from '../imports/labels'
+import { rowsUnder } from './causeFilter'
 import {
   causeLabels,
   causeToneClass,
@@ -41,6 +42,14 @@ interface DriverListProps {
   products: DecisionProductCounts
   /** The approved variant transitions, so each of their products can say which switch it is part of (13.1a). */
   variantTransitions?: DecisionVariantTransition[]
+  /**
+   * The chip that is on. The page owns it, in the URL, because a reason in "Niyə dəyişib?" selects the same chip:
+   * the two are one control, and a chip pressed here writes the address the same way a reason does (18.1).
+   */
+  filter: DriverFilter
+  onFilter: (filter: DriverFilter) => void
+  /** The heading a reason brings into view when it selects a chip. */
+  headingRef?: Ref<HTMLHeadingElement>
   onHistory: (driver: DecisionDriver) => void
 }
 
@@ -59,9 +68,25 @@ interface DriverListProps {
  * The products of an approved variant transition stay two rows, each with its own figures and history (13.1). Their
  * pill says "Variant dəyişib" and a note says which switch they are part of; the chips still count them by state.
  */
-export function DriverList({ drivers, steady, products, variantTransitions = [], onHistory }: DriverListProps) {
-  const [filter, setFilter] = useState<DriverFilter>('All')
+export function DriverList({
+  drivers,
+  steady,
+  products,
+  variantTransitions = [],
+  filter,
+  onFilter,
+  headingRef,
+  onHistory,
+}: DriverListProps) {
   const [expanded, setExpanded] = useState(false)
+
+  // A new filter — from a chip, a reason, Back or a reload — starts at the first six. Adjusted while rendering, so
+  // the longer list is never drawn for the new filter, not even once.
+  const [expandedFilter, setExpandedFilter] = useState(filter)
+  if (expandedFilter !== filter) {
+    setExpandedFilter(filter)
+    setExpanded(false)
+  }
 
   const counts = Object.fromEntries(
     driverFilterOrder.map((option) => [option, rowsUnder(option, drivers, steady).length]),
@@ -75,22 +100,27 @@ export function DriverList({ drivers, steady, products, variantTransitions = [],
     <section className="rounded-lg border border-slate-200 bg-white" aria-label="Əsas dəyişikliklər">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
+          {/* Clear of the sticky 64-pixel header when a reason brings it into view. */}
+          <h2 ref={headingRef} className="scroll-mt-20 text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
           <p className="mt-0.5 text-xs text-slate-500">{driverScopeLine(products)}</p>
           {/* The comparison page's up / down / service counts, over every compared product — the backend's. */}
           <p className="mt-0.5 text-xs text-slate-500">{productStateLine(products)}</p>
         </div>
         <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="Dəyişiklik növü">
+          {/*
+            The chip that is on is always offered, even at 0: a link or a new basis can select one with nothing
+            under it, and the screen must then say so rather than contradict the address bar.
+          */}
           {driverFilterOrder
-            .filter((option) => option === 'All' || counts[option] > 0)
+            .filter((option) => option === 'All' || option === filter || counts[option] > 0)
             .map((option) => (
               <button
                 key={option}
                 type="button"
                 aria-pressed={filter === option}
                 onClick={() => {
-                  setFilter(option)
                   setExpanded(false)
+                  onFilter(option)
                 }}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium ${
                   filter === option
@@ -285,38 +315,4 @@ function isMixed(driver: DecisionDriver): boolean {
 function moneyIsUnknown(driver: DecisionDriver): boolean {
   return driver.amountImpact === 0
     && (!driver.priceIsComplete || (driver.currentKnownAmount === null && driver.baselineKnownAmount === null))
-}
-
-/**
- * The rows under a chip. Each chip's count is the number of rows this leaves, so the two can never disagree.
- * "Məbləği dəyişməyən" is the steady list itself; every other chip filters the drivers.
- */
-function rowsUnder(filter: DriverFilter, drivers: DecisionDriver[], steady: DecisionDriver[]): DecisionDriver[] {
-  return filter === 'Steady' ? steady : drivers.filter((driver) => matches(driver, filter))
-}
-
-/**
- * Whether a driver belongs under a chip. "Yeni məhsullar" and "Bu ay yazılmayan məhsullar" go by the product's
- * state — the comparison page's rule — rather than by where its money was filed, so both pages count the same
- * products; a new product with a missing price is therefore under both "Yeni məhsullar" and "Qiymət yoxdur".
- */
-function matches(driver: DecisionDriver, filter: DriverFilter): boolean {
-  switch (filter) {
-    case 'All':
-      return true
-    // A driver moved money, appeared, disappeared or owes a price — it is never steady.
-    case 'Steady':
-      return false
-    // A product that moved both ways appears under both, and its own effect is what each total counts.
-    case 'PriceChange':
-      return driver.priceImpact !== null && driver.priceImpact !== 0
-    case 'QuantityChange':
-      return driver.quantityImpact !== null && driver.quantityImpact !== 0
-    case 'New':
-      return driver.state === 'New'
-    case 'NoLongerOrdered':
-      return driver.state === 'NoLongerOrdered'
-    case 'MissingPrice':
-      return !driver.priceIsComplete
-  }
 }

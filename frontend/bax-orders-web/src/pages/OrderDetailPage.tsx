@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
 import {
@@ -9,6 +9,7 @@ import {
   pricingReviewLink,
   type BasisSelection,
 } from '../analytics/basisParams'
+import { parseCause, withCause } from '../analytics/decisionParams'
 import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
@@ -32,7 +33,7 @@ import {
 } from '../pricing/labels'
 import { TrendModal } from '../components/analytics/TrendModal'
 import { CauseSummary } from '../components/decisions/CauseSummary'
-import { comparablePriorMonths } from '../components/decisions/labels'
+import { comparablePriorMonths, type DriverFilter } from '../components/decisions/labels'
 import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
 import { DriverList } from '../components/decisions/DriverList'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
@@ -90,6 +91,33 @@ export function OrderDetailPage() {
 
     setParams(search)
   }
+
+  // Which products "Əsas dəyişikliklər" shows lives in the URL too, beside the basis and never part of it: a reason
+  // and a chip select the same thing, a reload or a shared link restores it, and Back — a push, never a replace — is
+  // the reader's undo. Choosing it re-fetches nothing; it is a reading of figures already on the page.
+  const cause = parseCause(params)
+  const driversHeading = useRef<HTMLHeadingElement>(null)
+
+  function selectCause(next: DriverFilter) {
+    const search = withCause(params, next)
+    if (search !== null) {
+      setParams(search)
+    }
+  }
+
+  /**
+   * A reason pressed: its products, with the list brought into view. Only this moves the page — a link, a reload,
+   * Back or a chip leave it where it is, and so does clearing the filter, which asked for no list.
+   */
+  function selectCauseFromReason(next: DriverFilter) {
+    selectCause(next)
+    if (next !== 'All') {
+      // Asked, not assumed: a screen that cannot say whether motion is welcome gets none.
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true
+      driversHeading.current?.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+    }
+  }
+
   const id = Number(orderRequestId)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -290,6 +318,8 @@ export function OrderDetailPage() {
               decomposition={decision.decomposition}
               basis={decision.primary.basis}
               windowPeriods={decision.primary.windowPeriods}
+              selected={cause}
+              onSelect={selectCauseFromReason}
             />
             {/* An order in which nothing moved still lists the products it was compared on. */}
             {decision.decomposition.drivers.length + decision.decomposition.steady.length > 0 && (
@@ -298,6 +328,9 @@ export function OrderDetailPage() {
                 steady={decision.decomposition.steady}
                 products={decision.decomposition.products}
                 variantTransitions={decision.decomposition.variantTransitions}
+                filter={cause}
+                onFilter={selectCause}
+                headingRef={driversHeading}
                 onHistory={setHistory}
               />
             )}
