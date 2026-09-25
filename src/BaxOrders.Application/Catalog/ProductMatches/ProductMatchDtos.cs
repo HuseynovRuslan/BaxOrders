@@ -94,6 +94,38 @@ public sealed record ProductMatchDecisionDto(
     string? UndoReason,
     bool IsLive);
 
+/// <summary>
+/// A base product and the products an administrator approved as its variants (13.1). A view of the decisions, not a
+/// change to the catalogue: every product here is still a product of its own, with its own lines and history.
+/// </summary>
+/// <param name="Usage">Where the base was ordered; null when it has no line in the versions every screen reads.</param>
+/// <param name="Variants">By label, in the Azerbaijani order.</param>
+public sealed record ProductFamilyDto(
+    long ProductId,
+    string ProductName,
+    MatchUsage? Usage,
+    IReadOnlyList<ProductFamilyMemberDto> Variants);
+
+/// <summary>One approved variant under its base, and who linked it when.</summary>
+/// <param name="DecisionId">The live approval behind the link — what "Geri al" takes back.</param>
+/// <param name="VariantLabel">The variant's short name under its base ("lavanda ətirli").</param>
+/// <param name="Usage">Where the variant product was ordered; null when it has no line the screens read.</param>
+public sealed record ProductFamilyMemberDto(
+    long DecisionId,
+    long ProductId,
+    string ProductName,
+    string VariantLabel,
+    string DecidedByDisplayName,
+    DateTime DecidedAtUtc,
+    MatchUsage? Usage);
+
+/// <param name="Search">Matches the base's or any variant's product name.</param>
+/// <param name="PageSize">Families per page.</param>
+public sealed record ProductFamilyQuery(
+    string? Search = null,
+    int Page = 1,
+    int PageSize = ProductMatchQueries.DefaultPageSize);
+
 /// <summary>Approving a suggested pair.</summary>
 /// <param name="SourceId">
 /// A spelling match: the variant that will count as the target. A variant link: the variant product.

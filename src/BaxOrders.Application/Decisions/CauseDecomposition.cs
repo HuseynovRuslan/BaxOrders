@@ -136,7 +136,9 @@ public sealed record CauseDecompositionResult(
 /// </para>
 /// <para>
 /// <b>Identity is the variant.</b> Never the product: 30 pieces and 30 packs of one glove are different things
-/// to order, and merging them by name would invent a price change out of a packaging difference.
+/// to order, and merging them by name would invent a price change out of a packaging difference. It is the variant
+/// after approved spelling matches are folded (<see cref="SpellingFold"/>), and that is still identity by order
+/// unit, because a spelling match never joins two units.
 /// </para>
 /// <para>
 /// <b>Unknown price is its own answer.</b> A variant with an unpriced line is not split at all — there is no

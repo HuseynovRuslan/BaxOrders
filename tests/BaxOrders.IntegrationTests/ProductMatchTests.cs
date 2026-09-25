@@ -330,9 +330,15 @@ public sealed class ProductMatchTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Acceptance 4 and 7, criterion 9: until 13b and 13c, nothing reads a decision — Heydər Əliyev's September order
-    /// and the dashboard read exactly the same before an approval, after it and after its undo, on every basis.
+    /// Acceptance 4 and 7, criterion 9: Heydər Əliyev's September order and the dashboard read exactly the same before an
+    /// approval, after it and after its undo, on every basis.
     /// </summary>
+    /// <remarks>
+    /// Since 13b an approved spelling match does fold in every analytics read, and this still holds for two reasons. A
+    /// variant link folds nothing (that is 13c's line). And the spelling match here is at the test object, which has no
+    /// September order: its row carries no comparison, no causes and no product counts, and its baseline money is a sum
+    /// that folding cannot change — so no September figure can move.
+    /// </remarks>
     [PostgresFact]
     public async Task The_order_page_and_the_dashboard_do_not_move_when_a_match_is_approved_or_undone()
     {

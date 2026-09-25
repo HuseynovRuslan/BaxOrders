@@ -74,7 +74,9 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             .Where(period => !baseline.Any(request => request.Period == period))
             .ToList();
 
-        var snapshots = await SnapshotsAsync([current, .. baseline], cancellationToken);
+        // An approved spelling match is one row from here on, named and searched by the kept spelling (13b).
+        var fold = await SpellingFold.ReadAsync(db, cancellationToken);
+        var snapshots = fold.Apply(await SnapshotsAsync([current, .. baseline], cancellationToken));
         var currentSnapshots = snapshots.TryGetValue(current.OrderRequestId, out var currentByVariant)
             ? currentByVariant
             : [];
@@ -186,6 +188,10 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
     }
 
     /// <summary>One variant's history at one location, one point per month the location actually ordered in.</summary>
+    /// <remarks>
+    /// An approved spelling match is one product here too (13b): the history is the kept spelling's, it covers the
+    /// lines of every spelling folded into it, and asking for a folded-away spelling answers with that same history.
+    /// </remarks>
     /// <returns>Null when the location or the variant does not exist.</returns>
     public async Task<VariantTrendDto?> GetTrendAsync(
         int locationId, long productVariantId, TrendQuery query, CancellationToken cancellationToken)
@@ -198,8 +204,12 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             return null;
         }
 
-        var variants = await VariantsAsync([productVariantId], cancellationToken);
-        if (!variants.TryGetValue(productVariantId, out var variant))
+        var fold = await SpellingFold.ReadAsync(db, cancellationToken);
+        var canonical = fold.CanonicalOf(productVariantId);
+        var members = fold.MembersOf(canonical).ToArray();
+
+        var variants = await VariantsAsync([canonical], cancellationToken);
+        if (!variants.TryGetValue(canonical, out var variant))
         {
             return null;
         }
@@ -235,7 +245,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
 
         var requestIds = periods.Select(period => period.OrderRequestId).ToArray();
         var byRequest = await db.OrderRequestItems.AsNoTracking()
-            .Where(item => requestIds.Contains(item.OrderRequestId) && item.ProductVariantId == productVariantId)
+            .Where(item => requestIds.Contains(item.OrderRequestId) && members.Contains(item.ProductVariantId))
             .GroupBy(item => item.OrderRequestId)
             .Select(group => new
             {
@@ -259,7 +269,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
         // supplier recorded names nobody rather than an empty name.
         var supplierRows = await db.OrderRequestItems.AsNoTracking()
             .Where(item => requestIds.Contains(item.OrderRequestId)
-                && item.ProductVariantId == productVariantId
+                && members.Contains(item.ProductVariantId)
                 && item.SupplierId != null)
             .Select(item => new { item.OrderRequestId, SupplierName = item.Supplier!.Name })
             .Distinct()

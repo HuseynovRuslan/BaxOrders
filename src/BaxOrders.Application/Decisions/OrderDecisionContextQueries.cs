@@ -12,9 +12,10 @@ namespace BaxOrders.Application.Decisions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Four queries regardless of how many products an order has: the request itself, the six months behind it,
-/// the lines of all seven, and the variants that appear in the two months being compared. Nothing iterates
-/// over products to fetch anything, and nothing here writes — not a row, not a counter, not a log.
+/// Six queries regardless of how many products an order has: the request itself, the months the company has
+/// orders for, the requests of every month any basis looks at, the approved spelling matches, the lines of all
+/// those requests, and the variants that appear in them. Nothing iterates over products to fetch anything, and
+/// nothing here writes — not a row, not a counter, not a log.
 /// </para>
 /// <para>
 /// <b>The comparison is whichever one the reader chose</b>, and it arrives with the request. A manager who
@@ -119,7 +120,11 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             .ToListAsync(cancellationToken);
 
         long[] requestIds = [order.OrderRequestId, .. baseline.Select(request => request.OrderRequestId)];
-        var snapshots = await SnapshotsAsync(requestIds, cancellationToken);
+
+        // An approved spelling match is one product from here on: the drivers, the steady products, the categories
+        // and the product counts all see the kept spelling only (13b). With none, the snapshots are as read.
+        var fold = await SpellingFold.ReadAsync(db, cancellationToken);
+        var snapshots = fold.Apply(await SnapshotsAsync(requestIds, cancellationToken));
 
         var currentSnapshots = snapshots.GetValueOrDefault(order.OrderRequestId) ?? [];
         var current = AmountOf(currentSnapshots.Values);

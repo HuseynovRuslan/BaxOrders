@@ -294,6 +294,42 @@ public sealed class CauseDecompositionTests
         Assert.All(result.Variants, variant => Assert.Equal(0m, variant.PriceImpact));
     }
 
+    /// <summary>
+    /// Task 13b, acceptance 5: an approved spelling match is one variant. "Lampa 15 W" 10 × 2.00 in August and
+    /// "Lampa 15W" 12 × 2.00 in September stop being a new product and a product no longer ordered, and become one
+    /// product whose quantity went up — with exactly the same difference.
+    /// </summary>
+    [Fact]
+    public void A_spelling_pair_folded_into_one_variant_is_one_increase_with_the_same_total()
+    {
+        const long withSpace = 11, kept = 12;
+        var snapshots = new Dictionary<long, Dictionary<long, VariantPeriodSnapshot>>
+        {
+            [2] = new() { [kept] = new VariantPeriodSnapshot(kept, 12m, 1, 1, 0, 0, 12m, 24m) },
+            [1] = new() { [withSpace] = new VariantPeriodSnapshot(withSpace, 10m, 1, 1, 0, 0, 10m, 20m) },
+        };
+
+        var apart = CompareSeptemberWithAugust(snapshots);
+        var folded = CompareSeptemberWithAugust(SpellingFold.Of([(withSpace, kept)]).Apply(snapshots));
+
+        Assert.Equal(
+            [(kept, CauseCategory.NewOrders, 24m), (withSpace, CauseCategory.NoLongerOrdered, -20m)],
+            apart.Decomposition!.Variants.Select(variant => (variant.ProductVariantId, variant.Category, variant.AmountImpact)));
+
+        var one = Assert.Single(folded.Decomposition!.Variants);
+        Assert.Equal((kept, CauseCategory.QuantityChange, 4m, 4m, 0m), (one.ProductVariantId, one.Category, one.AmountImpact, one.QuantityImpact, one.PriceImpact));
+        Assert.Equal(ComparisonState.Increased, OrderAnalyticsCalculator.StateOf(one.Kind, one.CurrentQuantity, one.BaselineQuantity, 1));
+        Assert.Equal(0m, Amount(folded.Decomposition, CauseCategory.NewOrders));
+        Assert.Equal(0m, Amount(folded.Decomposition, CauseCategory.NoLongerOrdered));
+
+        // The money is the same money: the fold only regrouped it.
+        Assert.Equal((24m, 20m, 4m), (apart.CurrentKnownAmount, apart.BaselineKnownAmount, apart.KnownAmountDelta));
+        Assert.Equal(
+            (apart.CurrentKnownAmount, apart.BaselineKnownAmount, apart.KnownAmountDelta, apart.Decomposition.TotalAmountImpact),
+            (folded.CurrentKnownAmount, folded.BaselineKnownAmount, folded.KnownAmountDelta, folded.Decomposition.TotalAmountImpact));
+        AssertCategoriesReconcile(folded.Decomposition);
+    }
+
     [Fact]
     public void Several_lines_of_one_variant_are_one_position_priced_by_weight()
     {
@@ -357,6 +393,11 @@ public sealed class CauseDecompositionTests
 
     private static CauseDecompositionResult Decompose(params VariantCauseInput[] inputs) =>
         CauseDecomposition.Decompose(inputs);
+
+    /// <summary>Request 2 against request 1, through the one comparison both screens call.</summary>
+    private static PeriodComparisonResult CompareSeptemberWithAugust(
+        Dictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots) =>
+        PeriodComparison.Of(snapshots[2], PeriodComparison.GroupBaseline([1], snapshots), 1, new Dictionary<long, AnalyticsKind>());
 
     private static VariantCauseInput Material(long variantId, VariantPeriodSnapshot? baseline, VariantPeriodSnapshot? current) =>
         new(variantId, AnalyticsKind.QuantityComparable, current, baseline);

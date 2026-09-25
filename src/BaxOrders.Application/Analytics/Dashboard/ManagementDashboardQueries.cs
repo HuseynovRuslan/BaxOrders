@@ -16,8 +16,9 @@ namespace BaxOrders.Application.Analytics.Dashboard;
 /// </summary>
 /// <remarks>
 /// This is not the location comparison run once per location. Every location's months are fetched together —
-/// four queries whatever the number of objects — and the comparison itself is the very same
-/// <see cref="OrderAnalyticsCalculator"/> the location screen uses, so the dashboard and the screen cannot
+/// six queries whatever the number of objects (the universe, the requests, the last orders, the approved spelling
+/// matches, the lines and the variants), and a seventh for "every prior month" — and the comparison itself is the
+/// very same <see cref="OrderAnalyticsCalculator"/> the location screen uses, so the dashboard and the screen cannot
 /// drift apart. Nothing here writes.
 /// <para>
 /// Three facts about a location are kept apart, because they are three different situations and collapsing
@@ -122,7 +123,10 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
         var requestIds = requests.Select(request => request.OrderRequestId).ToArray();
         var lastOrders = await LastOrdersBeforeAsync(currentPeriod, cancellationToken);
-        var snapshots = await SnapshotsAsync(requestIds, cancellationToken);
+
+        // An approved spelling match is one product from here on, so the cause names the kept spelling (13b).
+        var fold = await SpellingFold.ReadAsync(db, cancellationToken);
+        var snapshots = fold.Apply(await SnapshotsAsync(requestIds, cancellationToken));
         var (kinds, names) = await VariantsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
 
         var byLocation = requests.ToLookup(request => request.LocationId);

@@ -215,3 +215,31 @@ export function locativeSuffix(value: number): string {
   if (count % 1_000_000 !== 0) return 'də'
   return 'da'
 }
+
+// ---- product matches (Task 13) ---------------------------------------------------------------------------
+
+/** One item written two ways: "15 W" / "15W", "3/4" / "3\4". Once approved, one product in every report. */
+export const sameItemKindLabel = 'Yazılış fərqi'
+
+/** A scent, a colour or a size of a base product (13.1). Once approved, still two products — never merged. */
+export const variantKindLabel = 'Variant fərqi'
+
+/** What a spelling pair differs by, in words. Keyed by the API's `SpellingDifference`. */
+export const spellingDifferenceLabels = {
+  Whitespace: 'Boşluq fərqi',
+  Slash: '«/» və «\\» fərqi',
+  WhitespaceAndSlash: 'Boşluq və «/» — «\\» fərqi',
+} as const
+
+/** A decision's outcome, and a decision that was taken back. */
+export const matchApprovedLabel = 'Təsdiqlənib'
+export const matchRejectedLabel = 'Rədd edilib'
+export const matchUndoneLabel = 'Geri alınıb'
+
+/** Said under "Yazılış fərqi", so nobody approves one thinking it changes an order or an amount. */
+export const sameItemExplanation =
+  'Eyni mal fərqli yazılıb. Təsdiqlənsə, hesabatlarda bir mal sayılır; sifarişlər və məbləğlər dəyişmir.'
+
+/** Said under "Variant fərqi" and again in its approval dialog: the two products are not merged (13.1). */
+export const variantExplanation =
+  'Eyni əsas məhsulun variantı ola bilər. Təsdiqlənsə, iki məhsul birləşmir — hər biri öz adı, sətirləri və tarixçəsi ilə ayrıca variant kimi qalır.'

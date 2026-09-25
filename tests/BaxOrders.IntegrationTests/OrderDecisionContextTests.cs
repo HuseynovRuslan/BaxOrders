@@ -405,9 +405,10 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         }
 
         // The request; which months the company has ever ordered in, for "Bütün dövr"; this location's
-        // requests in every window; the lines of all of them; and the variants. Five, and five whatever the
-        // basis, however many products the order has, and however many bases are shown beside the chosen one.
-        Assert.Equal(5, counter.Count);
+        // requests in every window; the approved spelling matches (Task 13b); the lines of all of them; and the
+        // variants. Six, and six whatever the basis, however many products the order has, and however many bases
+        // are shown beside the chosen one.
+        Assert.Equal(6, counter.Count);
     }
 
     [PostgresFact]

@@ -106,6 +106,88 @@ public sealed class ProductMatchQueries(IBaxOrdersDbContext db)
     }
 
     /// <summary>
+    /// Each base product with the products approved as its variants — read from the live approved variant links, and
+    /// nothing else. Writes nothing.
+    /// </summary>
+    /// <remarks>
+    /// Three reads: the links, the product names, and the catalogue's usage. The usage is the one the suggestions
+    /// show, so a product's lines, locations and months read the same on both lists.
+    /// </remarks>
+    public async Task<PagedResult<ProductFamilyDto>> GetFamiliesAsync(
+        ProductFamilyQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var (page, pageSize) = PageOf(query.Page, query.PageSize);
+
+        var links = await db.ProductMatchDecisions.AsNoTracking()
+            .Where(decision => decision.Kind == ProductMatchKind.Variant
+                && decision.Outcome == ProductMatchOutcome.Approved
+                && decision.UndoneAtUtc == null)
+            .Select(decision => new
+            {
+                decision.Id,
+                decision.SourceProductId,
+                decision.TargetProductId,
+                decision.VariantLabel,
+                decision.DecidedByDisplayName,
+                decision.DecidedAtUtc,
+            })
+            .ToListAsync(cancellationToken);
+
+        if (links.Count == 0)
+        {
+            return new PagedResult<ProductFamilyDto>([], page, pageSize, 0);
+        }
+
+        var productIds = links
+            .SelectMany(link => new[] { link.SourceProductId, link.TargetProductId })
+            .Distinct()
+            .ToArray();
+        var names = await db.Products.AsNoTracking()
+            .Where(product => productIds.Contains(product.Id))
+            .ToDictionaryAsync(product => product.Id, product => product.Name, cancellationToken);
+
+        var catalog = await ProductMatchCatalog.ReadAsync(db, readDecisions: false, cancellationToken);
+        string NameOf(long productId) => names.GetValueOrDefault(productId) ?? string.Empty;
+        MatchUsage? UsageOf(long productId) => catalog.ProductUsage.GetValueOrDefault(productId);
+
+        IEnumerable<ProductFamilyDto> families = links
+            .GroupBy(link => link.TargetProductId)
+            .Select(group => new ProductFamilyDto(
+                group.Key,
+                NameOf(group.Key),
+                UsageOf(group.Key),
+                [.. group
+                    .Select(link => new ProductFamilyMemberDto(
+                        link.Id,
+                        link.SourceProductId,
+                        NameOf(link.SourceProductId),
+                        link.VariantLabel ?? string.Empty,
+                        link.DecidedByDisplayName,
+                        link.DecidedAtUtc,
+                        UsageOf(link.SourceProductId)))
+                    .OrderByName(member => member.VariantLabel)
+                    .ThenByName(member => member.ProductName)
+                    .ThenBy(member => member.ProductId)]))
+            .OrderByName(family => family.ProductName)
+            .ThenBy(family => family.ProductId);
+
+        // A family is found by any of its names, and is then shown whole.
+        if (Search.Of(query.Search) is { } needle)
+        {
+            families = families.Where(family =>
+                TextNormalizer.Normalize(family.ProductName).Contains(needle, StringComparison.Ordinal)
+                || family.Variants.Any(member =>
+                    TextNormalizer.Normalize(member.ProductName).Contains(needle, StringComparison.Ordinal)));
+        }
+
+        var filtered = families.ToList();
+        return new PagedResult<ProductFamilyDto>(
+            [.. filtered.Skip((page - 1) * pageSize).Take(pageSize)], page, pageSize, filtered.Count);
+    }
+
+    /// <summary>
     /// Every suggestion, in the order a list shows them: spelling matches by how much they are ordered, then by
     /// name; variant links by the base's name, then the variant's — both in the Azerbaijani order.
     /// </summary>

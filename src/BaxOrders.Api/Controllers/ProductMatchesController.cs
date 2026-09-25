@@ -39,6 +39,16 @@ public sealed class ProductMatchesController(ProductMatchQueries queries, Produc
         [FromQuery] ProductMatchDecisionQuery query, CancellationToken cancellationToken) =>
         queries.GetDecisionsAsync(query, cancellationToken);
 
+    /// <summary>
+    /// Each base product with the products approved as its variants. A view of the live variant links: every product
+    /// in it is still a product of its own.
+    /// </summary>
+    [HttpGet("families")]
+    [ProducesResponseType<PagedResult<ProductFamilyDto>>(StatusCodes.Status200OK)]
+    public Task<PagedResult<ProductFamilyDto>> GetFamilies(
+        [FromQuery] ProductFamilyQuery query, CancellationToken cancellationToken) =>
+        queries.GetFamiliesAsync(query, cancellationToken);
+
     /// <summary>Approves a suggested pair. The two stay two products or variants; only the decision is recorded.</summary>
     /// <response code="403">Only an administrator decides on product matches.</response>
     /// <response code="404">No such product or variant.</response>

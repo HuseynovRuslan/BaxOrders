@@ -482,8 +482,9 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
         var everyMonth = await CountAsync(counted => new ManagementDashboardQueries(counted).GetAsync(
             world.April, new DashboardQuery(AnalyticsComparisonBasis.AllPriorMonths, PageSize: 100), None));
 
-        Assert.Equal(5, fixedWindow);
-        Assert.Equal(6, everyMonth);
+        // Task 13b's read of the approved spelling matches is one of them, in both.
+        Assert.Equal(6, fixedWindow);
+        Assert.Equal(7, everyMonth);
     }
 
     [PostgresFact]
@@ -498,8 +499,8 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
                 AnalyticsComparisonBasis.CustomRange, PageSize: 100, CustomStart: "2026-01", CustomEnd: "2026-03"),
             None));
 
-        // The months were named by the reader, so there is nothing to look up.
-        Assert.Equal(5, count);
+        // The months were named by the reader, so there is nothing to look up: the fixed window's six.
+        Assert.Equal(6, count);
     }
 
     /// <summary>
@@ -531,9 +532,9 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
         var count = await CountAsync(counted => new OrderAnalyticsQueries(counted).GetTrendAsync(
             world.LocationId, world.VariantId, new TrendQuery(), None));
 
-        // The location, the variant, the months, the lines of those months, and who supplied them (Task 10's one
-        // extra query). The frequency still adds none.
-        Assert.Equal(5, count);
+        // The location, the approved spelling matches (Task 13b), the variant, the months, the lines of those
+        // months, and who supplied them (Task 10's one extra query). The frequency still adds none.
+        Assert.Equal(6, count);
     }
 
     private static async Task<int> CountAsync(Func<BaxOrdersDbContext, Task> work)
