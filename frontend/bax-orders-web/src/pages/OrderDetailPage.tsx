@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { fetchDecisionContext, type DecisionDriver, type OrderDecisionContext } from '../api/decisions'
-import { basisParams, basisRequest, locationLink, orderLink, type BasisSelection } from '../analytics/basisParams'
+import {
+  basisParams,
+  basisRequest,
+  locationLink,
+  orderLink,
+  pricingReviewLink,
+  type BasisSelection,
+} from '../analytics/basisParams'
 import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
@@ -20,6 +27,7 @@ import {
   missingPriceCount,
   missingPriceLabel,
   missingPriceShortLabel,
+  pricingReviewLinkLabel,
   unclassifiedHint,
 } from '../pricing/labels'
 import { TrendModal } from '../components/analytics/TrendModal'
@@ -230,7 +238,17 @@ export function OrderDetailPage() {
                   {formatAmount(data.knownAmountTotal)}
                 </p>
                 {data.missingPriceItemCount > 0 && (
-                  <p className="mt-0.5 text-xs text-amber-800">{missingPriceCount(data.missingPriceItemCount)}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    <span className="text-amber-800">{missingPriceCount(data.missingPriceItemCount)}</span>
+                    {' · '}
+                    {/* The same way to the lines as the headline offers, with the same basis (14.1). */}
+                    <Link
+                      to={pricingReviewLink(data.orderRequestId, selection)}
+                      className="underline hover:text-slate-900"
+                    >
+                      {pricingReviewLinkLabel}
+                    </Link>
+                  </p>
                 )}
                 {/* The comparison is still on its way, or did not come; the amount never waits for it. */}
                 {decisionPending && <p className="mt-2 h-4 w-48 animate-pulse rounded bg-slate-100" aria-hidden="true" />}

@@ -1,8 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PricingModeReview, PricingModeReviewRow } from '../api/pricing'
+import { findOldTerms } from '../test/oldTerms'
 import { PricingModeReviewPage } from './PricingModeReviewPage'
 
 /**
@@ -197,6 +198,153 @@ describe('a manager', () => {
 
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Şirkətdaxili təminat kimi qeyd et' })).toBeNull()
+  })
+
+  /** 14.1: read-only, and told so; the header describes the page instead of instructing a reader who may not act. */
+  it('is told the page is read-only, and is not given an instruction', async () => {
+    auth.canManageCatalog = false
+    await renderPage()
+
+    const note = screen.getByText('Yalnız baxış: bu bölmədə dəyişiklik etmək səlahiyyətiniz yoxdur.')
+    expect(note).toHaveAttribute('role', 'note')
+    expect(screen.getByText('Qiyməti olmayan sətirlər və onların təsnifatı')).toBeInTheDocument()
+    expect(screen.queryByText(/qeyd edin/)).toBeNull()
+    // "Alış qiyməti tələb olunur" names a filter as well as a decision; only the filter is here.
+    const [only] = screen.getAllByRole('button', { name: 'Alış qiyməti tələb olunur' })
+    expect(screen.getAllByRole('button', { name: 'Alış qiyməti tələb olunur' })).toHaveLength(1)
+    expect(only).toHaveAttribute('aria-pressed')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(findOldTerms(note)).toEqual([])
+  })
+
+  it('shows no such note to somebody who may decide', async () => {
+    await renderPage()
+
+    expect(screen.queryByText(/Yalnız baxış/)).toBeNull()
+    expect(screen.getByText(/alınan, yoxsa şirkətdaxili təmin olunan material olduğunu qeyd edin/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * 14.1: a Rəhbər opens this page from an order's price warning, not from the menu. It is then that order's unpriced
+ * lines — every state of them, because the warning counted every state that is a gap — with the way back.
+ */
+describe('opened from an order', () => {
+  function renderAt(url: string) {
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/pricing-modes" element={<PricingModeReviewPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  function scopeLine() {
+    return screen.getByLabelText('Sifarişin qiyməti olmayan sətirləri')
+  }
+
+  it('asks for that order only, and lists every state of its lines', async () => {
+    renderAt('/pricing-modes?order=42&basis=avg3')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    expect(pricingApi.fetchPricingModeReview).toHaveBeenCalledWith(
+      { mode: undefined, search: undefined, page: 1, pageSize: 50, orderRequestId: 42 },
+      expect.anything(),
+    )
+    expect(screen.getByRole('button', { name: 'Hamısı' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Təsnif edilməyib' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('names the object and the month the lines belong to', async () => {
+    renderAt('/pricing-modes?order=42')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    expect(within(scopeLine()).getByText('Fəvvarələr meydanı · May 2026 sifarişinin qiyməti olmayan sətirləri'))
+      .toBeInTheDocument()
+    expect(findOldTerms(scopeLine())).toEqual([])
+  })
+
+  it('counts the order’s lines, as the server narrowed them', async () => {
+    pricingApi.fetchPricingModeReview.mockResolvedValue(review({ unresolved: 1, missingRequiredPrice: 1, internalFreeSupply: 0 }))
+    renderAt('/pricing-modes?order=42')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    const totals = within(screen.getByLabelText('Qiyməti olmayan sətirlərin sayı'))
+    expect(totals.getByText('Təsnif edilməyib').closest('div')).toHaveTextContent('1')
+    expect(totals.getByText('Alış qiyməti tələb olunur').closest('div')).toHaveTextContent('1')
+  })
+
+  it('goes back to the order with the basis it was left with (Task 1)', async () => {
+    renderAt('/pricing-modes?order=42&basis=custom&from=2026-03&to=2026-05')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    expect(within(scopeLine()).getByRole('link', { name: 'Sifarişə qayıt' }))
+      .toHaveAttribute('href', '/orders/42?basis=custom&from=2026-03&to=2026-05')
+  })
+
+  it('offers the whole queue, which is the page exactly as it is without an order', async () => {
+    renderAt('/pricing-modes?order=42&basis=avg3')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    const all = within(scopeLine()).getByRole('link', { name: 'Bütün sətirlər' })
+    expect(all).toHaveAttribute('href', '/pricing-modes')
+    await userEvent.click(all)
+
+    await waitFor(() => expect(pricingApi.fetchPricingModeReview).toHaveBeenLastCalledWith(
+      { mode: 'Unresolved', search: undefined, page: 1, pageSize: 50 },
+      expect.anything(),
+    ))
+    expect(screen.queryByLabelText('Sifarişin qiyməti olmayan sətirləri')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Təsnif edilməyib' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('says once that an order has no unpriced line, rather than twice', async () => {
+    pricingApi.fetchPricingModeReview.mockResolvedValue(review({
+      rows: [],
+      unresolved: 0,
+      missingRequiredPrice: 0,
+      internalFreeSupply: 0,
+    }))
+    renderAt('/pricing-modes?order=42')
+
+    expect(await screen.findByText('Bu sifarişdə qiyməti olmayan sətir yoxdur.')).toBeInTheDocument()
+    expect(screen.queryByText('Təsnif edilməmiş sətir qalmayıb.')).toBeNull()
+    expect(screen.queryByText('Bu filtrə uyğun sətir tapılmadı.')).toBeNull()
+  })
+
+  it('is read-only for a manager here too', async () => {
+    auth.canManageCatalog = false
+    renderAt('/pricing-modes?order=42')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    expect(screen.getByText(/Yalnız baxış/)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Şirkətdaxili təminat kimi qeyd et' })).toBeNull()
+  })
+
+  it('reads an address with no usable order as the whole queue', async () => {
+    renderAt('/pricing-modes?order=abc')
+    await screen.findAllByText('Ağac dirəyi yaşıl rəngli faskalı')
+
+    expect(pricingApi.fetchPricingModeReview).toHaveBeenCalledWith(
+      { mode: 'Unresolved', search: undefined, page: 1, pageSize: 50 },
+      expect.anything(),
+    )
+    expect(screen.queryByLabelText('Sifarişin qiyməti olmayan sətirləri')).toBeNull()
+  })
+})
+
+describe('without an order', () => {
+  it('asks for the whole queue exactly as before, opening on the unclassified lines', async () => {
+    await renderPage()
+
+    expect(pricingApi.fetchPricingModeReview).toHaveBeenCalledWith(
+      { mode: 'Unresolved', search: undefined, page: 1, pageSize: 50 },
+      expect.anything(),
+    )
+    expect(screen.getByRole('button', { name: 'Təsnif edilməyib' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByLabelText('Sifarişin qiyməti olmayan sətirləri')).toBeNull()
   })
 })
 

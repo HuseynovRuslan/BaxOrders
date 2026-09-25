@@ -7,8 +7,15 @@ namespace BaxOrders.Api.Controllers;
 
 public sealed record ImportUploadResponse(ImportPreview Preview, IReadOnlyList<SheetDetection> Sheets);
 
+/// <summary>Staging an Excel workbook, and reading what was staged.</summary>
+/// <remarks>
+/// The whole controller is for the people who run imports, reads included. A Rəhbər is not offered the import
+/// screens, and typing their address — the page's or this API's — does not open them either (brief 14). The
+/// writes keep their own attribute, so they stay locked even if the class-level one is ever loosened.
+/// </remarks>
 [ApiController]
 [Route(ApiRoutes.V1 + "/imports")]
+[Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
 public sealed class ImportsController(ExcelImportService importService, ImportPreviewQueries queries) : ControllerBase
 {
     /// <summary>Stages an Excel workbook (.xlsx or .xls) and returns its validation preview.</summary>

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupplierList, SupplierListItem } from '../api/suppliers'
+import { findOldTerms } from '../test/oldTerms'
 import { SuppliersPage } from './SuppliersPage'
 
 /**
@@ -109,6 +110,24 @@ describe('who may change it', () => {
     await renderPage()
 
     expect(screen.queryByRole('button', { name: 'Dəyiş' })).toBeNull()
+  })
+
+  /** 14.1: "Təchizatçılarda heç nəyi dəyişə bilmirəm" — and the page says so rather than leaving it to be found out. */
+  it('tells a manager the page is theirs to read and not to change', async () => {
+    auth.canManageCatalog = false
+    await renderPage()
+
+    const note = screen.getByText('Yalnız baxış: bu bölmədə dəyişiklik etmək səlahiyyətiniz yoxdur.')
+    expect(note).toHaveAttribute('role', 'note')
+    expect(findOldTerms(note)).toEqual([])
+    // The list is all still there.
+    expect(screen.getByText('Qala baza')).toBeInTheDocument()
+  })
+
+  it('says nothing of the kind to somebody who may change it', async () => {
+    await renderPage()
+
+    expect(screen.queryByText(/Yalnız baxış/)).toBeNull()
   })
 })
 

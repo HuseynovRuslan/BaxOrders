@@ -460,6 +460,50 @@ describe('what the screen offers', () => {
   })
 })
 
+/**
+ * Task 14 closes what 05b left for it. The Coordinator's and the administrator's correction controls keep their
+ * words ("Düzəliş versiyası yarat" and the line dialogs); a Rəhbər never meets any of them. What the page shows is
+ * the server's answer, so a Rəhbər is what the server says to one: no correction to create, no line to edit, and
+ * the decision to make.
+ */
+describe('what a Rəhbər is shown', () => {
+  const deciding: OrderWorkflow = {
+    ...emptyWorkflow(),
+    status: 'PendingApproval',
+    allowedActions: {
+      canSubmit: false,
+      canApprove: true,
+      canReturn: true,
+      blockedBySelfApproval: false,
+      blockedByOwnContribution: false,
+      blockedByMissingAuthority: false,
+    },
+  }
+
+  it.each([
+    ['a corrected order waiting for the decision', 'PendingApproval', true],
+    ['an order returned for correction', 'ReturnedForCorrection', false],
+  ] as const)('%s: none of the correction controls, and no "versiya" anywhere', async (_, status, isRevision) => {
+    ordersApi.fetchOrder.mockResolvedValue(detail({ status, isRevision, canCreateRevision: false, canEditRevision: false }))
+    revisionsApi.fetchRevision.mockResolvedValue(revision({
+      status,
+      isRevision,
+      revisedFrom: isRevision ? revision().revisedFrom : null,
+      canCreateRevision: false,
+      canEditRevision: false,
+    }))
+    workflowApi.fetchWorkflow.mockResolvedValue({ ...deciding, status })
+    await renderPage()
+    await waitFor(() => expect(workflowApi.fetchWorkflow).toHaveBeenCalled())
+
+    expect(screen.queryByRole('button', { name: /düzəliş versiyası yarat/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Redaktə et' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sil' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sətir əlavə et' })).toBeNull()
+    expect(document.body).not.toHaveTextContent(/versiya/i)
+  })
+})
+
 // ---- editing a line --------------------------------------------------------------------------------
 
 describe('editing a line', () => {

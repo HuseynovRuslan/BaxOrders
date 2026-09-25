@@ -188,6 +188,17 @@ export function orderLink(orderRequestId: number, selection: BasisSelection): st
   return search ? `/orders/${orderRequestId}?${search}` : `/orders/${orderRequestId}`
 }
 
+/**
+ * Where an order's price warning goes: Qiymət təsnifatı, narrowed to that order's unpriced lines (14.1).
+ *
+ * It carries the basis the order page was showing — not for the pricing page, which compares nothing, but so its
+ * "Sifarişə qayıt" can hand the reader back the reading they left.
+ */
+export function pricingReviewLink(orderRequestId: number, selection: BasisSelection): string {
+  const search = basisSearch(selection)
+  return search ? `/pricing-modes?order=${orderRequestId}&${search}` : `/pricing-modes?order=${orderRequestId}`
+}
+
 /** The same for an object, so a row with no order this month still keeps the reading. */
 export function locationLink(locationId: number, selection: BasisSelection): string {
   const search = basisSearch(selection)

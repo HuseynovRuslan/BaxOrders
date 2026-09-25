@@ -41,8 +41,13 @@ public sealed record CreateProductVariantRequest(string SourceKey);
 /// Import review: distinct unresolved values and the decisions an operator makes about them.
 /// One decision is applied to every staged row of the batch with the same value.
 /// </summary>
+/// <remarks>
+/// Reads and writes alike belong to the people who run imports: a Rəhbər who types this address is refused, as
+/// on the import screen itself (brief 14). The writes keep their own attribute as well.
+/// </remarks>
 [ApiController]
 [Route(ApiRoutes.V1 + "/imports/{id:long}")]
+[Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
 public sealed class ImportReviewController(
     ImportReviewQueries queries,
     ImportResolutionService resolutions,

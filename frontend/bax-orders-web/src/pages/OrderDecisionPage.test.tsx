@@ -1425,6 +1425,82 @@ describe('internal supply on the decision screen', () => {
 })
 
 /**
+ * 14.1: Qiymət təsnifatı is not in a Rəhbər's menu; it opens from the price warning, narrowed to this order. The
+ * warning itself — its words, its colour, the internal-supply part beside it — is exactly what it was.
+ */
+describe('the way from the price warning to the lines behind it', () => {
+  const missing = (missingPriceItemCount: number, priceNotRequiredItemCount = 0) => context({
+    current: {
+      knownAmount: 4800,
+      itemCount: 40,
+      knownPriceItemCount: 40 - missingPriceItemCount - priceNotRequiredItemCount,
+      missingPriceItemCount,
+      priceNotRequiredItemCount,
+      isComplete: missingPriceItemCount === 0,
+    },
+  })
+
+  function renderAt(url: string) {
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('offers Qiymət təsnifatı beside the count, for this order and with the page’s basis', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(missing(2, 3))
+    renderAt('/orders/105?basis=avg3')
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+
+    const link = within(headline()).getByRole('link', { name: 'Qiymət təsnifatına bax' })
+    expect(link).toHaveAttribute('href', '/pricing-modes?order=105&basis=avg3')
+    expect(link).toHaveClass('underline')
+
+    // The warning is untouched: the same sentence, still amber, and the internal supply still beside it.
+    expect(within(headline()).getByText('2 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
+    expect(within(headline()).getByText('3 sətir daxili təminat (ödənişsiz)')).not.toHaveClass('text-amber-800')
+    expect(link.closest('p')).toHaveTextContent(
+      '2 sətirdə qiymət yoxdur · Qiymət təsnifatına bax · 3 sətir daxili təminat (ödənişsiz)',
+    )
+    expect(findOldTerms(link.closest('p')!)).toEqual([])
+  })
+
+  it('offers nothing when every price is known', async () => {
+    await renderPage()
+
+    expect(screen.queryByRole('link', { name: 'Qiymət təsnifatına bax' })).toBeNull()
+  })
+
+  it('offers nothing when the only unpriced lines come from our own store', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(missing(0, 3))
+    await renderPage()
+
+    expect(within(headline()).getByText('3 sətir daxili təminat (ödənişsiz)')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Qiymət təsnifatına bax' })).toBeNull()
+  })
+
+  it('offers it on the plain summary too, when the comparison could not be read', async () => {
+    decisionsApi.fetchDecisionContext.mockImplementation(() => Promise.reject(new Error('down')))
+    ordersApi.fetchOrder.mockResolvedValue(detail({ missingPriceItemCount: 2 }))
+    render(
+      <MemoryRouter initialEntries={['/orders/105']}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const fallback = await screen.findByRole('region', { name: 'Sifariş xülasəsi' })
+    await waitFor(() => expect(within(fallback).getByRole('link', { name: 'Qiymət təsnifatına bax' }))
+      .toHaveAttribute('href', '/pricing-modes?order=105&basis=last'))
+    expect(within(fallback).getByText('2 sətirdə qiymət yoxdur')).toHaveClass('text-amber-800')
+  })
+})
+
+/**
  * The whole screen for an order approved before this system existed.
  *
  * It is the one order state the domain cannot produce — Approved with neither moment recorded — so the risk is

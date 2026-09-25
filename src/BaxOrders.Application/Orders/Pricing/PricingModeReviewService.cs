@@ -33,6 +33,10 @@ public sealed class PricingModeReviewService(IBaxOrdersDbContext db, ICurrentUse
     /// Three queries: the counts over the whole queue, how many rows the filter and the search leave, then one
     /// page of them. The second is not free, and it is not optional either — a footer that counts the whole
     /// queue while the table shows one filtered row offers a "Növbəti" that leads to an empty page.
+    /// <para>
+    /// Opened from one order's price warning, "the whole queue" is that order's unpriced lines: the order is
+    /// narrowed before the counts, so the totals are the order's and add up to the warning's count.
+    /// </para>
     /// </remarks>
     public async Task<PricingModeReviewDto> GetAsync(
         PricingModeReviewQuery query, CancellationToken cancellationToken)
@@ -41,6 +45,11 @@ public sealed class PricingModeReviewService(IBaxOrdersDbContext db, ICurrentUse
 
         // Only unpriced lines are ever in question. A line with a price has answered the question by having one.
         var unpriced = db.OrderRequestItems.AsNoTracking().Where(item => item.UnitPrice == null);
+
+        if (query.OrderRequestId is { } orderRequestId)
+        {
+            unpriced = unpriced.Where(item => item.OrderRequestId == orderRequestId);
+        }
 
         var totals = await unpriced
             .GroupBy(item => item.PricingMode)

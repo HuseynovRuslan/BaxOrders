@@ -16,8 +16,13 @@ public sealed record ExcludeRowRequest(string Reason);
 /// Row-specific work on staged data: reading one row in full, correcting single cells, and keeping a row out of
 /// the future order import. Nothing here changes the workbook or its staged original values.
 /// </summary>
+/// <remarks>
+/// Reads and writes alike belong to the people who run imports: a Rəhbər who types this address is refused, as
+/// on the import screen itself (brief 14). The writes keep their own attribute as well.
+/// </remarks>
 [ApiController]
 [Route(ApiRoutes.V1 + "/imports/{id:long}")]
+[Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
 public sealed class ImportRowCorrectionsController(
     ImportRowDetailQueries rowQueries,
     ImportRowCorrectionService corrections,

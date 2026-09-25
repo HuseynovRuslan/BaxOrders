@@ -999,6 +999,16 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).not.toHaveTextContent(/yaxşı|pis|Çəkili/i)
   })
 
+  /** Task 14: the price warning's way to Qiymət təsnifatı, swept where a Rəhbər meets it. */
+  it('the order page, with the link from its price warning', async () => {
+    const { container } = renderAt('/orders/105?basis=avg3', '/orders/:orderRequestId', <OrderDetailPage />)
+    const link = await screen.findByRole('link', { name: 'Qiymət təsnifatına bax' })
+
+    expectNoOldTerms(container)
+    expect(link).toHaveAttribute('href', '/pricing-modes?order=105&basis=avg3')
+    expect(container).toHaveTextContent('2 sətirdə qiymət yoxdur · Qiymət təsnifatına bax')
+  })
+
   /** Task 06: the order page's warning names the products it is about — swept in its longest form. */
   it('the order page, with part of the change unexplained on several products', async () => {
     const context = decisionContext()

@@ -51,11 +51,17 @@ public sealed record PricingModeReviewDto(
 /// expressible. Defaulting this to <see cref="PricingMode.Unresolved"/> made "Hamısı" silently show the
 /// unresolved ones and count 94 of 95; the screen opens on that tab by asking for it, not by omitting it.
 /// </param>
+/// <param name="OrderRequestId">
+/// One order's unpriced lines only — what the order page's price warning opens (14.1). It narrows the totals
+/// as well as the rows, so the page counts the lines the warning counted. Null is the whole queue, exactly as
+/// before; an order that does not exist, or has no unpriced line, is an empty queue rather than a 404.
+/// </param>
 public sealed record PricingModeReviewQuery(
     PricingMode? Mode = null,
     string? Search = null,
     int Page = 1,
-    int PageSize = 50);
+    int PageSize = 50,
+    long? OrderRequestId = null);
 
 /// <param name="Reason">Why, in the decider's own words. Optional, and kept verbatim.</param>
 public sealed record SetPricingModeCommand(

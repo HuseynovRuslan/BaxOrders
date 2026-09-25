@@ -211,9 +211,11 @@ public sealed class AuthenticationTests(PostgresDatabaseFixture database) : IAsy
             (await PostAsync(client, "/api/v1/orders/999999/workflow/submit", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/admin/users")).StatusCode);
 
-        // A manager reads the imports but changes nothing in them.
+        // Brief 14: "Excel importlarının … linkini əllə yazsam da açılmır." A manager neither changes the imports
+        // nor reads them; the API refuses the typed address as the screen does.
         Assert.Equal(HttpStatusCode.Forbidden,
             (await PostAsync(client, "/api/v1/imports/1/rows/1/exclude", new { reason = "yox" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/imports/1")).StatusCode);
     }
 
     [PostgresFact]

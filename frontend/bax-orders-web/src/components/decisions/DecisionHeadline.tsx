@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { DecisionComparison, OrderDecisionContext } from '../../api/decisions'
-import { orderLink, type BasisSelection } from '../../analytics/basisParams'
+import { orderLink, pricingReviewLink, type BasisSelection } from '../../analytics/basisParams'
 import { BasisPicker } from '../analytics/BasisPicker'
 import { InfoHint } from '../analytics/InfoHint'
 import { WarningNote } from '../WarningNote'
@@ -21,6 +21,7 @@ import {
   internalSupplyCount,
   internalToneClass,
   missingPriceCount,
+  pricingReviewLinkLabel,
   warningToneClass,
 } from '../../pricing/labels'
 import { limitedComparisonDataLabel } from '../../terminology/terms'
@@ -78,6 +79,19 @@ export function DecisionHeadline({ context, selection, onSelect, priorMonths }: 
           {/* Only prices somebody owes are a shortfall. */}
           {current.missingPriceItemCount > 0 && (
             <span className={warningToneClass}>{missingPriceCount(current.missingPriceItemCount)}</span>
+          )}
+          {/* The lines behind the count, on Qiymət təsnifatı — read-only for a Rəhbər, who has it from here
+              rather than from the menu (14.1). The basis travels along, so the way back keeps it. */}
+          {current.missingPriceItemCount > 0 && (
+            <>
+              {' · '}
+              <Link
+                to={pricingReviewLink(context.orderRequestId, selection)}
+                className="underline hover:text-slate-900"
+              >
+                {pricingReviewLinkLabel}
+              </Link>
+            </>
           )}
           {current.missingPriceItemCount > 0 && current.priceNotRequiredItemCount > 0 && ' · '}
           {/* Material from our own store has no purchase price and never had one: context, not a problem,

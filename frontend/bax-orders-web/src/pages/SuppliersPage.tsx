@@ -8,6 +8,7 @@ import {
 } from '../api/suppliers'
 import type { SupplierPriceRequirement } from '../api/orders'
 import { useAuth } from '../auth/AuthProvider'
+import { readOnlyNote } from '../auth/labels'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { SummaryMetric } from '../components/SummaryMetric'
@@ -77,6 +78,13 @@ export function SuppliersPage() {
         title="Təchizatçılar"
         description="Materialların alındığı şirkətlər və hansının qiymət tələb etdiyi"
       />
+
+      {/* A Rəhbər reads this page and changes nothing on it (14.1), and is told so rather than left to find out. */}
+      {!mayManage && (
+        <p className="mb-3 rounded-md border border-sky-200 bg-sky-50 p-2 text-sm text-sky-900" role="note">
+          {readOnlyNote}
+        </p>
+      )}
 
       {notice && (
         <p className="mb-3 rounded-md border border-sky-200 bg-sky-50 p-2 text-sm text-sky-900" role="status">

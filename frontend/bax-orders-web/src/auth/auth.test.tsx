@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -328,5 +328,48 @@ describe('the navigation', () => {
   it('does not offer the approval inbox to a coordinator, who cannot decide anyway', async () => {
     await renderSidebar(person('Coordinator'))
     expect(screen.queryByRole('link', { name: /Təsdiq gözləyənlər/ })).toBeNull()
+  })
+
+  // ---- brief 14: each role's whole menu, in order -------------------------------------------------------
+
+  /** What the menu offers, top to bottom. The phone's menu is this same sidebar. */
+  function menu(): string[] {
+    return within(screen.getByRole('navigation')).getAllByRole('link').map((link) => link.textContent ?? '')
+  }
+
+  it('offers a Rəhbər exactly the five sections of the brief, in that order', async () => {
+    await renderSidebar(person('Manager'))
+
+    expect(menu()).toEqual(['İdarəetmə paneli', 'Aylıq hesabat', 'Təsdiq gözləyənlər', 'Obyektlər', 'Təchizatçılar'])
+  })
+
+  it('offers an administrator every section, as before', async () => {
+    await renderSidebar(person('Admin'))
+
+    expect(menu()).toEqual([
+      'İdarəetmə paneli',
+      'Aylıq hesabat',
+      'Təsdiq gözləyənlər',
+      'Excel importları',
+      'Obyektlər',
+      'Məhsullar',
+      'Təchizatçılar',
+      'Qiymət təsnifatı',
+      'İstifadəçilər',
+    ])
+  })
+
+  it('offers a coordinator the same seven sections as before', async () => {
+    await renderSidebar(person('Coordinator'))
+
+    expect(menu()).toEqual([
+      'İdarəetmə paneli',
+      'Aylıq hesabat',
+      'Excel importları',
+      'Obyektlər',
+      'Məhsullar',
+      'Təchizatçılar',
+      'Qiymət təsnifatı',
+    ])
   })
 })

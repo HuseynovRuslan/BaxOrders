@@ -14,9 +14,14 @@ namespace BaxOrders.Api.Controllers;
 /// The preview reads only. The confirmation writes once: it rebuilds the plan under the batch lock, so what
 /// the operator saw is checked against what is actually staged, and either the whole approved plan becomes
 /// orders or nothing does.
+/// <para>
+/// Both belong to the people who run imports. A Rəhbər who types the preview's address is refused, as on the
+/// import screen itself (brief 14).
+/// </para>
 /// </remarks>
 [ApiController]
 [Route(ApiRoutes.V1 + "/imports/{id:long}/confirmation")]
+[Authorize(Policy = BaxOrdersPolicies.CanManageImports)]
 [Produces("application/json")]
 public sealed class ImportConfirmationController(
     ImportConfirmationPlanner planner,

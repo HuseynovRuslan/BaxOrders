@@ -10,6 +10,7 @@ import {
   orderLink,
   parseBasis,
   previousMonth,
+  pricingReviewLink,
   toBasisParam,
   type BasisSelection,
 } from './basisParams'
@@ -133,6 +134,37 @@ describe('carrying the basis into an order', () => {
   it('carries a hand-picked range too', () => {
     expect(orderLink(154, { basis: 'CustomRange', from: '2026-05', to: '2026-08' }))
       .toBe('/orders/154?basis=custom&from=2026-05&to=2026-08')
+  })
+})
+
+/**
+ * 14.1: the price warning opens Qiymət təsnifatı for its order. The pricing page compares nothing, but it carries
+ * the basis so that its way back hands the reader the order exactly as they left it.
+ */
+describe('carrying the basis to an order’s unpriced lines', () => {
+  it('opens the pricing page on the order', () => {
+    expect(pricingReviewLink(154, defaultSelection)).toBe('/pricing-modes?order=154&basis=last')
+  })
+
+  it('carries the same basis parameters the order link carries, for every basis', () => {
+    const selections: BasisSelection[] = [
+      defaultSelection,
+      { basis: 'Previous3MonthAverage', from: null, to: null },
+      { basis: 'Previous6MonthAverage', from: null, to: null },
+      { basis: 'AllPriorMonths', from: null, to: null },
+      { basis: 'CustomRange', from: '2026-05', to: '2026-08' },
+    ]
+
+    for (const selection of selections) {
+      const pricing = new URL(pricingReviewLink(154, selection), 'http://x').searchParams
+      const order = new URL(orderLink(154, selection), 'http://x').searchParams
+
+      expect(pricing.get('order')).toBe('154')
+      pricing.delete('order')
+      expect(pricing.toString()).toBe(order.toString())
+      // And what the pricing page reads back is the selection it was given.
+      expect(parseBasis(pricing)).toEqual(selection)
+    }
   })
 })
 

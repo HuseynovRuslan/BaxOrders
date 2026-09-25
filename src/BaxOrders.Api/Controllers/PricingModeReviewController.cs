@@ -20,6 +20,10 @@ namespace BaxOrders.Api.Controllers;
 public sealed class PricingModeReviewController(PricingModeReviewService service) : ControllerBase
 {
     /// <summary>The unpriced lines, filtered by what has been said about them, with their provenance.</summary>
+    /// <remarks>
+    /// <c>?orderRequestId=</c> narrows the rows and the totals to one order: the order page's price warning opens
+    /// this read-only, for every role that can open the order (14.1). Without it, the whole queue as before.
+    /// </remarks>
     [HttpGet]
     [ProducesResponseType<PricingModeReviewDto>(StatusCodes.Status200OK)]
     public Task<PricingModeReviewDto> Get(

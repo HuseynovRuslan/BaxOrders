@@ -46,12 +46,15 @@ export function App() {
           {/* The comparison page is gone (11.1); its analysis is the order page's. A saved link still lands on
               the object, with its basis, rather than on "Səhifə tapılmadı". */}
           <Route path="locations/:locationId/analytics" element={<RetiredComparisonRedirect />} />
-          <Route path="products" element={<ProductsPage />} />
-          {/* Everybody signed in may look; only the catalogue policy may change what it says. */}
-          <Route path="products/categories" element={<ProductCategoriesPage />} />
+          {/* The catalogue's working screens, for the people who shape the catalogue. A Rəhbər is not offered
+              them, and typing the address does not open them either (brief 14). */}
+          <Route element={<RequirePermission permission="canManageCatalog" />}>
+            <Route path="products" element={<ProductsPage />} />
+            <Route path="products/categories" element={<ProductCategoriesPage />} />
+          </Route>
+          {/* A Rəhbər reads both of these and changes nothing on either (14.1): the suppliers from the menu, the
+              pricing queue from an order's price warning. The server refuses their attempt to change them. */}
           <Route path="suppliers" element={<SuppliersPage />} />
-          {/* A manager reads the queue — how much of the missing money is a real gap is the context behind
-              every price warning — and the server refuses their attempt to decide on it. */}
           <Route path="pricing-modes" element={<PricingModeReviewPage />} />
 
           {/* The import screens change data, so a manager does not get them. */}

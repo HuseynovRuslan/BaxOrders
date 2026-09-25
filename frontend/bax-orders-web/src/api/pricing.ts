@@ -46,6 +46,8 @@ export interface PricingModeReviewQuery {
   search?: string
   page: number
   pageSize: number
+  /** One order's unpriced lines, rows and totals alike — what an order's price warning opens. */
+  orderRequestId?: number
 }
 
 export interface SetPricingModeCommand {
@@ -67,6 +69,7 @@ export function fetchPricingModeReview(
   const params = new URLSearchParams({ page: String(query.page), pageSize: String(query.pageSize) })
   if (query.mode) params.set('mode', query.mode)
   if (query.search) params.set('search', query.search)
+  if (query.orderRequestId !== undefined) params.set('orderRequestId', String(query.orderRequestId))
   return getJson<PricingModeReview>(`/api/v1/pricing-mode-review?${params.toString()}`, signal)
 }
 

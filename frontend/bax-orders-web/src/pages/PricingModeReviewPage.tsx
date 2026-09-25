@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { orderLink, parseBasis, type BasisSelection } from '../analytics/basisParams'
 import { ApiError } from '../api/client'
 import type { PricingMode } from '../api/orders'
 import {
@@ -9,6 +10,7 @@ import {
   type PricingModeReviewRow,
 } from '../api/pricing'
 import { useAuth } from '../auth/AuthProvider'
+import { readOnlyNote } from '../auth/labels'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { InfoHint } from '../components/analytics/InfoHint'
@@ -48,10 +50,28 @@ type State =
  * Everybody signed in may read it — how much of the missing money is a real gap and how much is merely
  * unclassified is the context behind every warning on the dashboard. Only the catalogue policy may decide,
  * and the server refuses whatever this screen offers, so the hidden button is a courtesy and not the control.
+ *
+ * A Rəhbər does not find it in the menu. They open it from an order's price warning (14.1), and it is then that
+ * order's unpriced lines — `?order=` — with the way back to the order and the basis they left it with.
  */
 export function PricingModeReviewPage() {
+  const [params] = useSearchParams()
+  const order = orderScope(params.get('order'))
+
+  // Opening or leaving an order's lines starts the page afresh: its own filter, its own search, its own page.
+  return <PricingModeReview key={order ?? 'all'} order={order} basis={parseBasis(params)} />
+}
+
+/** The order an address is narrowed to, or null when it names none a reader could have been sent to. */
+function orderScope(raw: string | null): number | null {
+  const value = raw !== null && /^\d+$/.test(raw) ? Number(raw) : NaN
+  return Number.isSafeInteger(value) && value > 0 ? value : null
+}
+
+function PricingModeReview({ order, basis }: { order: number | null; basis: BasisSelection }) {
   const { user } = useAuth()
-  const [mode, setMode] = useState<PricingMode | 'All'>('Unresolved')
+  // One order's lines are listed whatever their state: the warning counted them all, not only the unclassified.
+  const [mode, setMode] = useState<PricingMode | 'All'>(order === null ? 'Unresolved' : 'All')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -60,6 +80,8 @@ export function PricingModeReviewPage() {
   const [deciding, setDeciding] = useState<PricingMode | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
+  // The order's object and month, kept once seen, so a filter that leaves no row still says whose lines these are.
+  const [scope, setScope] = useState<{ locationName: string; requestPeriod: string } | null>(null)
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
@@ -68,10 +90,21 @@ export function PricingModeReviewPage() {
     setState({ status: 'loading' })
 
     fetchPricingModeReview(
-      { mode: mode === 'All' ? undefined : mode, search: search || undefined, page, pageSize },
+      {
+        mode: mode === 'All' ? undefined : mode,
+        search: search || undefined,
+        page,
+        pageSize,
+        ...(order === null ? {} : { orderRequestId: order }),
+      },
       controller.signal,
     )
-      .then((data) => setState({ status: 'success', data }))
+      .then((data) => {
+        setState({ status: 'success', data })
+        if (order !== null && data.rows.length > 0) {
+          setScope({ locationName: data.rows[0].locationName, requestPeriod: data.rows[0].requestPeriod })
+        }
+      })
       .catch((problem: unknown) => {
         if (!controller.signal.aborted) {
           setState({ status: 'error', message: message(problem, 'Sətirlər yüklənmədi') })
@@ -79,7 +112,7 @@ export function PricingModeReviewPage() {
       })
 
     return () => controller.abort()
-  }, [mode, search, page, reloadToken])
+  }, [order, mode, search, page, reloadToken])
 
   // A selection belongs to the rows it was made on; changing the filter or the page leaves it behind.
   useEffect(() => setSelected(new Set()), [mode, search, page, reloadToken])
@@ -88,6 +121,9 @@ export function PricingModeReviewPage() {
   const rows = data?.rows ?? []
   const totalPages = data ? Math.max(1, Math.ceil(data.totalCount / pageSize)) : 1
   const canDecide = user?.canManageCatalog ?? false
+  // The order has no unpriced line at all: the scope line says so, and the empty table does not say it again.
+  const orderIsClear = order !== null && data !== null
+    && data.unresolved + data.missingRequiredPrice + data.internalFreeSupply === 0
 
   function toggle(id: number) {
     setSelected((current) => {
@@ -104,11 +140,44 @@ export function PricingModeReviewPage() {
     <>
       <PageHeader
         title="Qiymət təsnifatı"
-        description="Qiyməti olmayan sətirlərin alınan, yoxsa şirkətdaxili təmin olunan material olduğunu qeyd edin"
+        description={canDecide
+          ? 'Qiyməti olmayan sətirlərin alınan, yoxsa şirkətdaxili təmin olunan material olduğunu qeyd edin'
+          // An instruction to somebody who may not follow it reads as a fault; a reader is told what is here.
+          : 'Qiyməti olmayan sətirlər və onların təsnifatı'}
       />
+
+      {!canDecide && (
+        <p className="mb-3 rounded-md border border-sky-200 bg-sky-50 p-2 text-sm text-sky-900" role="note">
+          {readOnlyNote}
+        </p>
+      )}
 
       {notice && (
         <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>
+      )}
+
+      {order !== null && (data !== null || scope !== null) && (
+        <div
+          className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border border-slate-200 bg-white p-3 text-sm"
+          aria-label="Sifarişin qiyməti olmayan sətirləri"
+        >
+          <p className="font-medium text-slate-900">
+            {orderIsClear
+              ? 'Bu sifarişdə qiyməti olmayan sətir yoxdur.'
+              : scope
+                ? `${scope.locationName} · ${formatMonth(toMonthKey(scope.requestPeriod))} sifarişinin qiyməti olmayan sətirləri`
+                : 'Bu sifarişin qiyməti olmayan sətirləri'}
+          </p>
+          <div className="flex gap-3 text-slate-600">
+            {/* Back with the basis the reader left the order with (Task 1). */}
+            <Link to={orderLink(order, basis)} className="underline hover:text-slate-900">
+              Sifarişə qayıt
+            </Link>
+            <Link to="/pricing-modes" className="underline hover:text-slate-900">
+              Bütün sətirlər
+            </Link>
+          </div>
+        </div>
       )}
 
       {data && (
@@ -181,7 +250,7 @@ export function PricingModeReviewPage() {
       {state.status === 'loading' && <LoadingRows label="Sətirlər yüklənir" />}
       {state.status === 'error' && <ErrorState message={state.message} />}
 
-      {data && rows.length === 0 && (
+      {data && rows.length === 0 && !orderIsClear && (
         <EmptyState>
           {mode === 'Unresolved'
             ? 'Təsnif edilməmiş sətir qalmayıb.'

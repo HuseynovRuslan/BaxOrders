@@ -27,6 +27,9 @@ export const authErrors = {
   passwordMismatch: 'Yeni şifrələr uyğun gəlmir.',
 } as const
 
+/** Said on a page the reader may look at and not change — Təchizatçılar and Qiymət təsnifatı for a Rəhbər (14.1). */
+export const readOnlyNote = 'Yalnız baxış: bu bölmədə dəyişiklik etmək səlahiyyətiniz yoxdur.'
+
 /** Said where a request has no signed-in person behind it: imported before sign-in existed. */
 export const systemActorLabel = 'Sistem'
 

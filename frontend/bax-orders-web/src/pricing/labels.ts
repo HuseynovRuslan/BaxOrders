@@ -104,6 +104,9 @@ export function internalSupplyCount(count: number): string {
   return `${count} sətir daxili təminat (ödənişsiz)`
 }
 
+/** Beside an order's price warning: the unpriced lines themselves, on Qiymət təsnifatı, read-only for a Rəhbər (14.1). */
+export const pricingReviewLinkLabel = 'Qiymət təsnifatına bax'
+
 /** Said only where a price somebody owes is actually absent. */
 export const amountIncompleteLabel = 'Məbləğ tam deyil'
 
