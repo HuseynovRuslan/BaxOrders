@@ -84,9 +84,22 @@ export function MonthlyReportTable({ report, today = new Date() }: MonthlyReport
     <div className="hidden lg:block">
       <Legend />
 
-      {/* Scrolls sideways only while the twelve months cannot fit. From 1340 pixels they do, and the box must not
-          be a scroll container there: one would capture the sticky header and stop it following the page. */}
-      <div className="rounded-lg border border-slate-200 bg-white lg:overflow-x-auto min-[1340px]:overflow-x-visible">
+      {/* A scroll container captures position: sticky — inside one, the header sticks to the box rather than the
+          page, comes to rest in the middle of the table and lets rows pass over it. So the box may only be one
+          where scrolling is genuinely needed, and not one pixel wider.
+
+          It is needed in exactly one narrow band. The layout gives this table min(window, max-w-7xl) less lg:px-8,
+          so 1216 pixels at most and 960 at 1024, the narrowest width the twelve-month table is shown at all. The
+          table's own minimum is 1000 — 144 for the name, 64 for each of the twelve months, 88 for the year — which
+          is the owner's "at least 64 pixels a month". The two only disagree below a 1064-pixel window; from there
+          up, the table fits and nothing scrolls.
+
+          The rule used to read "scroll below 1340px", which made a scroll container across the whole of 1024–1339
+          whether or not anything overflowed — overflow-x: auto makes one even with nothing to scroll — and that is
+          what broke the header on an ordinary 1280-pixel laptop. Now the container exists only under 1064, where a
+          month would otherwise fall below its 64 pixels. There, and only there, the sticky header is given up so
+          the months keep their width. */}
+      <div className="rounded-lg border border-slate-200 bg-white max-[1063px]:overflow-x-auto">
         <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-[11px] min-[1440px]:text-xs">
           <caption className="sr-only">Obyektlər üzrə aylıq sifariş məbləğləri</caption>
           <colgroup>

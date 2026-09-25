@@ -503,22 +503,52 @@ describe('the loading it actually does', () => {
 describe('the panorama', () => {
   /**
    * Brief: "12 aylıq cədvəl təxminən 1024px-dən başlayaraq işləyir" and "1200px enində də 12 aylıq cədvəli görürəm".
-   * Below the width the twelve months need, the table scrolls inside its own box rather than becoming a list; from
-   * 1340 pixels it fits, and the box stops being a scroll container so the header can follow the page.
+   * Below the width the twelve months need, the table scrolls inside its own box rather than becoming a list.
+   *
+   * Where that box may exist is the point of this test. A scroll container captures position: sticky, so inside one
+   * the header stops following the page and settles in the middle of the table with rows passing over it. The rule
+   * used to start the container at 1024 and end it at 1340, which covered every ordinary laptop and broke the
+   * header on all of them, because overflow-x: auto makes a scroll container even when nothing overflows. The box
+   * is given min(window, max-w-7xl) less lg:px-8 and needs 1000, so the two disagree only below a 1064-pixel
+   * window. The container belongs there and nowhere else.
    */
-  it('shows the twelve months from 1024 pixels, scrolling inside its own box until the year fits', async () => {
+  it('scrolls inside its own box only below 1064 pixels, where a month would lose its 64', async () => {
     await renderPage()
 
     const panorama = table().closest('.lg\\:block')!
     expect(panorama.className).toContain('hidden')
+
     const box = table().closest('div')!
-    expect(box.className).toContain('lg:overflow-x-auto')
-    expect(box.className).toContain('min-[1340px]:overflow-x-visible')
+    expect(box.className).toContain('max-[1063px]:overflow-x-auto')
+    // From 1064 up there is nothing to scroll, so nothing may make this a scroll container: at 1280, the width the
+    // defect was reported at, the header must follow the page.
+    expect(box.className).not.toContain('lg:overflow-x-auto')
+    expect(box.className).not.toContain('min-[1340px]:overflow-x-visible')
 
     // Fixed layout: a long value can never push a month out. The minimum is what twelve readable months need.
     expect(table().className).toContain('table-fixed')
     expect(table().className).toContain('w-full')
     expect(table().className).toContain('min-w-[1000px]')
+  })
+
+  /**
+   * The header outranks every sticky cell in the body. Both axes are sticky here — the header along the top, the
+   * name and year columns along the sides — and whichever carries the higher z-index is the one that paints on top.
+   */
+  it('keeps the header above the rows that pass under it', async () => {
+    await renderPage()
+
+    const headerCells = [...table().querySelectorAll('thead th')]
+    expect(headerCells.length).toBeGreaterThan(0)
+    for (const cell of headerCells) {
+      expect(cell.className).toContain('sticky')
+      expect(cell.className).toMatch(/z-\[(2|3)\]/)
+    }
+
+    // Every sticky cell in the body sits below the header, never level with it.
+    for (const cell of [...table().querySelectorAll('tbody [class*="sticky"]')]) {
+      expect(cell.className).toContain('z-[1]')
+    }
   })
 
   it('gives every month at least 64 pixels, with the object and the year fixed', async () => {
