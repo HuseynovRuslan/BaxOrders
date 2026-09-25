@@ -33,7 +33,7 @@ müəllimə verilsəydi, o, bu sistemlə rahat və inamla təsdiq qərarı verə
 | `01-hazirliq.md` | Hazırlıq: tarix, commit, real sistemin işə salınması, Rəhbər hesabı, sınaq mühiti, ekran enləri, ekran şəkilləri. |
 | `02-yoxlama-siyahisi.md` | Yoxlama siyahısı, A … K bölmələri. |
 | `03-emrler.md` | Yalnız oxuyan əmrlər: auditin əvvəlində (A bölməsi) və sonunda (J bölməsi). |
-| `04-sandbox.md` | Sınaq mühitində təsdiq axınının addımları. |
+| `04-sandbox.md` | Sınaq mühitində yazma tələb edən yoxlamaların addımları: təsdiq axını (Task 4), importda qiymət təsnifatı (Task 16), məhsul uyğunluğunun təsdiqi və geri alınması (Task 13). |
 | `05-neticeler-qaytarilmasi.md` | Nəticələrin necə və hara qaytarılması. |
 | `06-hesabat-skeleti.md` | 15b-nin hesabatı üçün boş skelet. |
 
