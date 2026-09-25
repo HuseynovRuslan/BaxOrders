@@ -243,3 +243,44 @@ export const sameItemExplanation =
 /** Said under "Variant fərqi" and again in its approval dialog: the two products are not merged (13.1). */
 export const variantExplanation =
   'Eyni əsas məhsulun variantı ola bilər. Təsdiqlənsə, iki məhsul birləşmir — hər biri öz adı, sətirləri və tarixçəsi ilə ayrıca variant kimi qalır.'
+
+/** The part of "Niyə dəyişib?" an approved variant transition is told in (13.1a). */
+export const variantChangedLabel = 'Variant dəyişib'
+
+/** The base product itself, on either side of a transition — the brief's own word: "adi → lavanda ətirli". */
+export const baseVariantWord = 'adi'
+
+/**
+ * One side of a transition in words: its labels, the base as "adi", each said once — the base first, then as the
+ * API orders them.
+ */
+function variantSide(labels: readonly (string | null)[]): string {
+  const words = [
+    ...labels.filter((label) => label === null).map(() => baseVariantWord),
+    ...labels.filter((label): label is string => label !== null),
+  ]
+
+  return [...new Set(words)].join(', ')
+}
+
+/** "adi → lavanda ətirli": what the family switched from, and to. */
+export function variantChange(fromLabels: readonly (string | null)[], toLabels: readonly (string | null)[]): string {
+  return `${variantSide(fromLabels)} → ${variantSide(toLabels)}`
+}
+
+/** "Sabun elano — variant dəyişib: adi → lavanda ətirli" — the line in "Niyə dəyişib?", in the brief's own words. */
+export function variantTransitionLine(
+  baseName: string,
+  fromLabels: readonly (string | null)[],
+  toLabels: readonly (string | null)[],
+): string {
+  return `${baseName} — ${variantChangedLabel.toLowerCase()}: ${variantChange(fromLabels, toLabels)}`
+}
+
+/** "Variant dəyişib: adi → lavanda ətirli" — the note under each of the transition's products in "Əsas dəyişikliklər". */
+export function variantTransitionNote(
+  fromLabels: readonly (string | null)[],
+  toLabels: readonly (string | null)[],
+): string {
+  return `${variantChangedLabel}: ${variantChange(fromLabels, toLabels)}`
+}

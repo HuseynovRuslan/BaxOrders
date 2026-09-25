@@ -41,6 +41,17 @@ public enum CauseCategory
     /// quantity, so it is neither split nor blamed on a gap in the records.
     /// </remarks>
     InternalSupply = 7,
+
+    /// <summary>
+    /// "Variant dəyişib": one variant of a base product ordered in place of another — only where an administrator
+    /// approved the two as variants of that base (13.1a).
+    /// </summary>
+    /// <remarks>
+    /// Its money is the members' whole net, current minus baseline, and it is never split into a quantity and a price
+    /// effect: the members are different items (13.1). It only ever re-files money that was already new or no longer
+    /// ordered, so no total moves. Present only when a transition is.
+    /// </remarks>
+    VariantChange = 8,
 }
 
 /// <summary>One variant's two months, straight from the permanent items.</summary>
@@ -88,6 +99,23 @@ public sealed record VariantCauseResult(
 /// </param>
 public sealed record CauseCategoryTotal(CauseCategory Category, decimal Amount, int VariantCount);
 
+/// <summary>
+/// One approved variant transition: a family's members that stopped being ordered, and those ordered in their place.
+/// </summary>
+/// <param name="BaseProductId">The family: its base product.</param>
+/// <param name="FromVariantIds">The members no longer ordered, in id order.</param>
+/// <param name="ToVariantIds">The members new this month, in id order.</param>
+/// <param name="AmountImpact">The members' whole net, current minus baseline. Never split into quantity and price.</param>
+/// <param name="BaselineKnownAmount">The members' own baseline known money, summed; null when none of them has any.</param>
+/// <param name="CurrentKnownAmount">The members' own current known money, summed; null when none of them has any.</param>
+public sealed record VariantTransitionResult(
+    long BaseProductId,
+    IReadOnlyList<long> FromVariantIds,
+    IReadOnlyList<long> ToVariantIds,
+    decimal AmountImpact,
+    decimal? BaselineKnownAmount,
+    decimal? CurrentKnownAmount);
+
 /// <param name="TotalAmountImpact">The sum of every category, which is the month's known-money difference.</param>
 /// <param name="ExplanationIsComplete">
 /// False as soon as one variant is missing a price somebody owed. The money still adds up; what is incomplete
@@ -108,6 +136,9 @@ public sealed record CauseCategoryTotal(CauseCategory Category, decimal Amount, 
 /// month shows a money difference equal to everything it used to cost, and calling that a fall in spending
 /// without saying what changed would be a true number telling a false story.
 /// </remarks>
+/// <param name="Transitions">
+/// The approved variant transitions (13.1a), largest money first. Empty without a live approved variant link.
+/// </param>
 public sealed record CauseDecompositionResult(
     IReadOnlyList<CauseCategoryTotal> Categories,
     IReadOnlyList<VariantCauseResult> Variants,
@@ -115,7 +146,10 @@ public sealed record CauseDecompositionResult(
     bool ExplanationIsComplete,
     int UnattributedVariantCount,
     int InternalSupplyVariantCount,
-    int SupplyChangedVariantCount);
+    int SupplyChangedVariantCount)
+{
+    public IReadOnlyList<VariantTransitionResult> Transitions { get; init; } = [];
+}
 
 /// <summary>
 /// Splits the difference between two months into causes, arithmetically and with no judgement: no model, no
@@ -145,6 +179,12 @@ public sealed record CauseDecompositionResult(
 /// honest <c>Pb</c> for it — so its money goes to <see cref="CauseCategory.UnattributedDueToMissingPrice"/>
 /// and the whole explanation is marked incomplete.
 /// </para>
+/// <para>
+/// <b>An approved variant family is told as one transition.</b> Where an administrator approved two products as
+/// variants of one base, a month that ordered one of them in place of the other is one "Variant dəyişib" line
+/// rather than a new product and one no longer ordered (13.1a). The two stay two variants here — only where their
+/// money is filed changes, so no amount can move.
+/// </para>
 /// </remarks>
 public static class CauseDecomposition
 {
@@ -154,13 +194,17 @@ public static class CauseDecomposition
     /// </summary>
     public const int AmountScale = OrderRequestItem.QuantityScale + OrderRequestItem.UnitPriceScale;
 
-    /// <summary>Every category, in the order a reader should meet them.</summary>
+    /// <summary>
+    /// Every category, in the order a reader should meet them. <see cref="CauseCategory.VariantChange"/> is listed
+    /// only in a result that has a transition.
+    /// </summary>
     public static readonly IReadOnlyList<CauseCategory> Order =
     [
         CauseCategory.NewOrders,
         CauseCategory.QuantityChange,
         CauseCategory.PriceChange,
         CauseCategory.NoLongerOrdered,
+        CauseCategory.VariantChange,
         CauseCategory.Services,
         CauseCategory.InternalSupply,
         CauseCategory.UnattributedDueToMissingPrice,
@@ -171,7 +215,12 @@ public static class CauseDecomposition
         Order.Select((category, index) => (category, index))
             .ToDictionary(pair => pair.category, pair => pair.index);
 
-    public static CauseDecompositionResult Decompose(IEnumerable<VariantCauseInput> inputs)
+    /// <param name="roles">
+    /// Each variant's place in an approved variant family, keyed by variant (see <see cref="VariantFamilies"/>). With
+    /// null or none, the result is exactly what it was before variant families existed.
+    /// </param>
+    public static CauseDecompositionResult Decompose(
+        IEnumerable<VariantCauseInput> inputs, IReadOnlyDictionary<long, VariantFamilyRole>? roles = null)
     {
         ArgumentNullException.ThrowIfNull(inputs);
 
@@ -181,9 +230,16 @@ public static class CauseDecomposition
             variants.Add(Explain(input));
         }
 
+        var transitions = roles is { Count: > 0 } ? Transitions(variants, roles) : [];
+
         var categories = new List<CauseCategoryTotal>(Order.Count);
         foreach (var category in Order)
         {
+            if (category == CauseCategory.VariantChange && transitions.Count == 0)
+            {
+                continue;
+            }
+
             var (amount, count) = category switch
             {
                 // A split variant reaches both of these, so each total is the sum of exactly the variants the
@@ -213,7 +269,79 @@ public static class CauseDecomposition
             unattributed == 0,
             unattributed,
             internalSupply,
-            supplyChanged);
+            supplyChanged)
+        {
+            Transitions = transitions,
+        };
+    }
+
+    /// <summary>
+    /// Finds the approved variant transitions and re-files their members under
+    /// <see cref="CauseCategory.VariantChange"/>, in place (13.1a).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Who takes part.</b> Only a member of a family that is new this month or no longer ordered — a fully priced,
+    /// purchased, quantity-comparable product that appeared or disappeared. A member owing a price, supplied from the
+    /// company's own store or a service is already filed where Task 2 says it must be, and stays there: a transition
+    /// must never hide a price state.
+    /// </para>
+    /// <para>
+    /// <b>What a transition is.</b> A family with at least one member arriving and one leaving, where an arriving and a
+    /// leaving member are different products of it. Two stored variants of one product are not a transition: nobody
+    /// approved them as variants of each other. Every arriving and leaving member of such a family joins its one
+    /// transition, so the family is one line however many variants moved.
+    /// </para>
+    /// <para>
+    /// <b>Why no amount can move.</b> Only a member's category changes. Its money, quantities, prices and counts are
+    /// untouched, so every total, the sum of the categories and every per-variant impact are what they were without the
+    /// family — the money is only told under one line instead of two.
+    /// </para>
+    /// </remarks>
+    private static List<VariantTransitionResult> Transitions(
+        List<VariantCauseResult> variants, IReadOnlyDictionary<long, VariantFamilyRole> roles)
+    {
+        var eligible = variants
+            .Select((variant, index) => (Variant: variant, Index: index, Role: roles.GetValueOrDefault(variant.ProductVariantId)))
+            .Where(member => member.Role is not null
+                && member.Variant.Category is CauseCategory.NewOrders or CauseCategory.NoLongerOrdered)
+            .GroupBy(member => member.Role!.BaseProductId)
+            .ToList();
+
+        var transitions = new List<VariantTransitionResult>();
+        foreach (var family in eligible)
+        {
+            var arrived = family.Where(member => member.Variant.Category == CauseCategory.NewOrders).ToList();
+            var left = family.Where(member => member.Variant.Category == CauseCategory.NoLongerOrdered).ToList();
+
+            var isTransition = arrived.Any(to => left.Any(from => from.Role!.ProductId != to.Role!.ProductId));
+            if (!isTransition)
+            {
+                continue;
+            }
+
+            var amount = 0m;
+            decimal? baseline = null, current = null;
+            foreach (var member in family)
+            {
+                amount += member.Variant.AmountImpact;
+                baseline = Add(baseline, member.Variant.BaselineKnownAmount);
+                current = Add(current, member.Variant.CurrentKnownAmount);
+                variants[member.Index] = member.Variant with { Category = CauseCategory.VariantChange };
+            }
+
+            transitions.Add(new VariantTransitionResult(
+                family.Key,
+                [.. left.Select(member => member.Variant.ProductVariantId).Order()],
+                [.. arrived.Select(member => member.Variant.ProductVariantId).Order()],
+                amount,
+                baseline,
+                current));
+        }
+
+        return [.. transitions.OrderByDescending(transition => Math.Abs(transition.AmountImpact)).ThenBy(transition => transition.BaseProductId)];
+
+        static decimal? Add(decimal? sum, decimal? value) => value is null ? sum : (sum ?? 0m) + value;
     }
 
     /// <summary>
@@ -272,6 +400,9 @@ public static class CauseDecomposition
             Categories = categories,
             Variants = variants,
             TotalAmountImpact = total,
+            // A transition is a line of its own, like a driver, so it is rounded on its own.
+            Transitions = [.. result.Transitions.Select(transition =>
+                transition with { AmountImpact = Money.RoundCents(transition.AmountImpact) })],
         };
     }
 

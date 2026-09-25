@@ -16,8 +16,9 @@ namespace BaxOrders.Application.Analytics.Dashboard;
 /// </summary>
 /// <remarks>
 /// This is not the location comparison run once per location. Every location's months are fetched together —
-/// six queries whatever the number of objects (the universe, the requests, the last orders, the approved spelling
-/// matches, the lines and the variants), and a seventh for "every prior month" — and the comparison itself is the
+/// six queries whatever the number of objects (the universe, the requests, the last orders, the approved product
+/// matches of both kinds in one query, the lines and the variants), and a seventh for "every prior month" — and the
+/// comparison itself is the
 /// very same <see cref="OrderAnalyticsCalculator"/> the location screen uses, so the dashboard and the screen cannot
 /// drift apart. Nothing here writes.
 /// <para>
@@ -125,15 +126,18 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var lastOrders = await LastOrdersBeforeAsync(currentPeriod, cancellationToken);
 
         // An approved spelling match is one product from here on, so the cause names the kept spelling (13b).
-        var fold = await SpellingFold.ReadAsync(db, cancellationToken);
-        var snapshots = fold.Apply(await SnapshotsAsync(requestIds, cancellationToken));
-        var (kinds, names) = await VariantsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
+        var matches = await ApprovedMatches.ReadAsync(db, cancellationToken);
+        var snapshots = matches.Spelling.Apply(await SnapshotsAsync(requestIds, cancellationToken));
+        var (kinds, names, products) = await VariantsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
+
+        // An approved variant transition is one cause, "Variant dəyişib", named by its base (13.1a).
+        var families = new FamilyContext(matches.RolesOf(products), matches.Families);
 
         var byLocation = requests.ToLookup(request => request.LocationId);
         var rows = new List<LocationDashboardRowDto>(locations.Count);
         foreach (var location in locations)
         {
-            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds, names));
+            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds, names, families));
         }
 
         rows = [.. rows.OrderByName(row => row.LocationName)];
@@ -165,7 +169,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         ComparisonSelection selection,
         IReadOnlyDictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
         IReadOnlyDictionary<long, AnalyticsKind> kinds,
-        IReadOnlyDictionary<long, string> names)
+        IReadOnlyDictionary<long, string> names,
+        FamilyContext families)
     {
         var all = requests.ToList();
         var current = all.FirstOrDefault(request => request.Period == currentPeriod);
@@ -183,7 +188,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         // The same arithmetic the order screen runs, called from the same place. An object that did not order
         // is not an object that ordered nothing, so a missing current month leaves its money unknown.
         var comparison = PeriodComparison.Of(
-            current is null ? null : currentSnapshots, baselineByVariant, available, kinds);
+            current is null ? null : currentSnapshots, baselineByVariant, available, kinds, families.Roles);
 
         var currentTotals = comparison.CurrentTotals;
         var baselineTotals = comparison.BaselineTotals;
@@ -221,8 +226,12 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
         // The product behind that cause, so the card can name it (7.1, 7.1a). Chosen and summed by the one rule
         // the order page's list is also sorted by; the browser only divides the two figures.
+        // A transition is one product effect, and the product it is about is the family's base.
         var leader = CauseLeader.Of(decomposition, primary?.Category, primary?.Amount);
-        var primaryProduct = leader is not null && names.TryGetValue(leader.ProductVariantId, out var productName)
+        var productName = leader?.Transition is { } transition
+            ? families.Links.BaseNameOf(transition.BaseProductId)
+            : leader is not null ? names.GetValueOrDefault(leader.ProductVariantId) : null;
+        var primaryProduct = leader is not null && productName is not null
             ? new DashboardCauseProductDto(leader.ProductVariantId, productName, leader.Amount, leader.SameDirectionAmount)
             : null;
 
@@ -493,15 +502,16 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     }
 
     /// <summary>
-    /// What decides whether a variant is material or service, and its product's name — the dashboard names one
-    /// product per row, the one behind its primary cause. Read in the same query, so naming it costs none.
+    /// What decides whether a variant is material or service, its product's name — the dashboard names one
+    /// product per row, the one behind its primary cause — and its product, for the variant families. Read in the
+    /// same query, so naming it costs none.
     /// </summary>
-    private async Task<(Dictionary<long, AnalyticsKind> Kinds, Dictionary<long, string> Names)> VariantsAsync(
+    private async Task<(Dictionary<long, AnalyticsKind> Kinds, Dictionary<long, string> Names, Dictionary<long, long> Products)> VariantsAsync(
         long[] variantIds, CancellationToken cancellationToken)
     {
         if (variantIds.Length == 0)
         {
-            return ([], []);
+            return ([], [], []);
         }
 
         var rows = await db.ProductVariants.AsNoTracking()
@@ -509,6 +519,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             .Select(variant => new
             {
                 variant.Id,
+                variant.ProductId,
                 OrderUnitCode = variant.OrderUnit != null ? variant.OrderUnit.Code : null,
                 // Product.Name, the same name the order page's "Əsas dəyişikliklər" prints for this variant.
                 ProductName = variant.Product.Name,
@@ -517,7 +528,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
         return (
             rows.ToDictionary(row => row.Id, row => AnalyticsUnits.KindOf(row.OrderUnitCode)),
-            rows.ToDictionary(row => row.Id, row => row.ProductName));
+            rows.ToDictionary(row => row.Id, row => row.ProductName),
+            rows.ToDictionary(row => row.Id, row => row.ProductId));
     }
 
     // ---- shaping ------------------------------------------------------------------------------------
@@ -720,6 +732,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     }
 
     private sealed record LocationRef(int Id, string Code, string Name);
+
+    /// <summary>Each variant's place in an approved variant family, and the links that name each family's base.</summary>
+    private sealed record FamilyContext(IReadOnlyDictionary<long, VariantFamilyRole> Roles, VariantFamilies Links);
 
     /// <summary>The last month an object ordered in before the one being read, and that order's money.</summary>
     private sealed record LastOrderRef(int LocationId, DateOnly Period, decimal? KnownAmount);

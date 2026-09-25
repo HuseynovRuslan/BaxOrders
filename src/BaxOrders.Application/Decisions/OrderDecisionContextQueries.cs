@@ -13,9 +13,9 @@ namespace BaxOrders.Application.Decisions;
 /// <remarks>
 /// <para>
 /// Six queries regardless of how many products an order has: the request itself, the months the company has
-/// orders for, the requests of every month any basis looks at, the approved spelling matches, the lines of all
-/// those requests, and the variants that appear in them. Nothing iterates over products to fetch anything, and
-/// nothing here writes — not a row, not a counter, not a log.
+/// orders for, the requests of every month any basis looks at, the approved product matches of both kinds (spelling
+/// matches and variant links, in one query), the lines of all those requests, and the variants that appear in them.
+/// Nothing iterates over products to fetch anything, and nothing here writes — not a row, not a counter, not a log.
 /// </para>
 /// <para>
 /// <b>The comparison is whichever one the reader chose</b>, and it arrives with the request. A manager who
@@ -123,8 +123,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
 
         // An approved spelling match is one product from here on: the drivers, the steady products, the categories
         // and the product counts all see the kept spelling only (13b). With none, the snapshots are as read.
-        var fold = await SpellingFold.ReadAsync(db, cancellationToken);
-        var snapshots = fold.Apply(await SnapshotsAsync(requestIds, cancellationToken));
+        var matches = await ApprovedMatches.ReadAsync(db, cancellationToken);
+        var snapshots = matches.Spelling.Apply(await SnapshotsAsync(requestIds, cancellationToken));
 
         var currentSnapshots = snapshots.GetValueOrDefault(order.OrderRequestId) ?? [];
         var current = AmountOf(currentSnapshots.Values);
@@ -135,14 +135,19 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
         var variants = await VariantsAsync(variantIds, cancellationToken);
         var kinds = variants.ToDictionary(entry => entry.Key, entry => entry.Value.Kind);
 
+        // An approved variant link is one family: a month that ordered one of its products in place of another is
+        // one "Variant dəyişib" line (13.1a). The products themselves stay two, with their own rows and counts.
+        var roles = matches.RolesOf(variants.Select(entry =>
+            KeyValuePair.Create(entry.Key, entry.Value.Identity.ProductId)));
+
         var comparisons = windows
-            .Select(item => Compare(item.Selection, item.Periods, order, baseline, snapshots, currentSnapshots, kinds))
+            .Select(item => Compare(item.Selection, item.Periods, order, baseline, snapshots, currentSnapshots, kinds, roles))
             .ToList();
 
         var primary = comparisons[0];
         var decomposition = primary.Result.Decomposition is null
             ? null
-            : Explain(primary.Result.Decomposition, variants, primary.Dto.AvailablePeriodCount, currentSnapshots);
+            : Explain(primary.Result.Decomposition, variants, primary.Dto.AvailablePeriodCount, currentSnapshots, roles, matches.Families);
 
         return new OrderDecisionContextDto(
             order.OrderRequestId,
@@ -169,7 +174,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
         List<DecisionPeriodDto> baseline,
         Dictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
         Dictionary<long, VariantPeriodSnapshot> currentSnapshots,
-        Dictionary<long, AnalyticsKind> kinds)
+        Dictionary<long, AnalyticsKind> kinds,
+        IReadOnlyDictionary<long, VariantFamilyRole> roles)
     {
         var available = baseline
             .Where(request => periods.Contains(request.Period))
@@ -179,7 +185,7 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
         var baselineByVariant = PeriodComparison.GroupBaseline(
             available.Select(request => request.OrderRequestId), snapshots);
 
-        var result = PeriodComparison.Of(currentSnapshots, baselineByVariant, available.Count, kinds);
+        var result = PeriodComparison.Of(currentSnapshots, baselineByVariant, available.Count, kinds, roles);
 
         var dto = new DecisionComparisonDto(
             selection.Basis,
@@ -213,11 +219,15 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
     /// </remarks>
     /// <param name="availablePeriodCount">The primary window's months that have a request — the state rule's divisor.</param>
     /// <param name="currentSnapshots">The opened order's own products, counted for the screen.</param>
+    /// <param name="roles">Each variant's place in an approved variant family, for the transitions' labels.</param>
+    /// <param name="families">The live variant links, for the name of each transition's base.</param>
     private static DecisionDecompositionDto Explain(
         CauseDecompositionResult result,
         Dictionary<long, VariantRef> variants,
         int availablePeriodCount,
-        Dictionary<long, VariantPeriodSnapshot> currentSnapshots)
+        Dictionary<long, VariantPeriodSnapshot> currentSnapshots,
+        IReadOnlyDictionary<long, VariantFamilyRole> roles,
+        VariantFamilies families)
     {
         var drivers = new List<DecisionDriverDto>(result.Variants.Count);
         var steady = new List<DecisionDriverDto>();
@@ -298,7 +308,24 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             // Their money is zero, so impact cannot order them; the name can, as the comparison page did.
             [.. steady
                 .OrderBy(product => product.Variant.ProductName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(product => product.Variant.ProductVariantId)]);
+                .ThenBy(product => product.Variant.ProductVariantId)],
+            [.. result.Transitions.Select(transition => new DecisionVariantTransitionDto(
+                transition.BaseProductId,
+                // From the link itself, so the base is named even in a month neither side ordered it.
+                families.BaseNameOf(transition.BaseProductId) ?? string.Empty,
+                [.. transition.FromVariantIds.Select(Side)],
+                [.. transition.ToVariantIds.Select(Side)],
+                transition.AmountImpact,
+                transition.BaselineKnownAmount,
+                transition.CurrentKnownAmount))]);
+
+        // A member by its own name — the name its own row in "Əsas dəyişikliklər" carries — and its family label.
+        DecisionVariantSideDto Side(long variantId)
+        {
+            var identity = variants[variantId].Identity;
+            return new DecisionVariantSideDto(
+                variantId, identity.ProductId, identity.ProductName, roles.GetValueOrDefault(variantId)?.Label);
+        }
     }
 
 

@@ -196,6 +196,7 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
         serviceCount: 0,
       },
       steady: [],
+      variantTransitions: [],
     },
     ...overrides,
   }
@@ -1412,6 +1413,7 @@ describe('internal supply on the decision screen', () => {
           serviceCount: 0,
         },
         steady: [],
+        variantTransitions: [],
       },
     }))
     await renderPage()

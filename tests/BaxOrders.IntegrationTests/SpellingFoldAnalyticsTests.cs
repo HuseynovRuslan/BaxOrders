@@ -252,11 +252,17 @@ public sealed class SpellingFoldAnalyticsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Criteria 4 and 7 on 13a's Heydər Əliyev fixture: a variant link folds nothing (13c's line, not 13b's), and a
-    /// spelling match moves no amount — before, after and after the undo, on every basis.
+    /// Criteria 4 and 7 on 13a's Heydər Əliyev fixture: a variant link folds nothing, and a spelling match moves no
+    /// amount — before, after and after the undo, on every basis.
     /// </summary>
+    /// <remarks>
+    /// Since Task 13c (13.1a) the variant link is one "Variant dəyişib" line in "Niyə dəyişib?". So the comparison, both
+    /// histories and the monthly report are still exactly as before the link, and the order page and the dashboard differ
+    /// from before by that line alone: the categories' split, the drivers' category, the transition, and the card's
+    /// cause. Every amount, driver and count is as it was.
+    /// </remarks>
     [PostgresFact]
-    public async Task On_the_briefs_example_a_variant_link_folds_nothing_and_a_spelling_match_moves_no_amount()
+    public async Task On_the_briefs_example_a_variant_link_folds_nothing_and_is_only_a_line_and_a_spelling_match_moves_no_amount()
     {
         await using var db = _database!.CreateContext();
         var fixture = await ProductMatchFixture.CreateAsync(db);
@@ -285,11 +291,58 @@ public sealed class SpellingFoldAnalyticsTests : IAsyncLifetime
             return Json(pieces);
         }
 
-        // Criterion 7: the variant link, alone, changes nothing at all.
+        // The responses a variant link must leave exactly as they are: it keeps its two products apart (13.1).
+        async Task<string> UnfoldedAsync()
+        {
+            var pieces = new List<object?>();
+            foreach (var basis in Bases)
+            {
+                pieces.Add(await new OrderAnalyticsQueries(db).CompareAsync(hem, ProductMatchFixture.September, new ComparisonQuery(basis), None));
+            }
+
+            pieces.Add(await new OrderAnalyticsQueries(db).GetTrendAsync(hem, fixture.Variant("Sabun elano"), new TrendQuery(), None));
+            pieces.Add(await new OrderAnalyticsQueries(db).GetTrendAsync(hem, fixture.Variant("Sabun elano lavanda ətirli"), new TrendQuery(), None));
+            pieces.Add(await new MonthlyReportQueries(db).GetAsync(new MonthlyReportQuery(2026), None));
+            return Json(pieces);
+        }
+
+        async Task<List<OrderDecisionContextDto>> ContextsAsync()
+        {
+            var contexts = new List<OrderDecisionContextDto>();
+            foreach (var basis in Bases)
+            {
+                contexts.Add((await new OrderDecisionContextQueries(db).GetAsync(fixture.SeptemberOrderId, new DecisionContextQuery(basis), None))!);
+            }
+
+            return contexts;
+        }
+
+        async Task<List<ManagementDashboardDto>> DashboardsAsync()
+        {
+            var dashboards = new List<ManagementDashboardDto>();
+            foreach (var basis in Bases)
+            {
+                dashboards.Add((await new ManagementDashboardQueries(db).GetAsync(ProductMatchFixture.September, new DashboardQuery(basis, PageSize: ManagementDashboardQueries.MaxPageSize), None))!);
+            }
+
+            return dashboards;
+        }
+
+        // Criterion 7, as Task 13c changes it (13.1a): the variant link folds nothing, and is one line in the explanation.
         var before = await HemAsync();
+        var unfoldedBefore = await UnfoldedAsync();
+        var contextsBefore = await ContextsAsync();
+        var dashboardsBefore = await DashboardsAsync();
         var link = await service.ApproveAsync(
             new ApproveProductMatchCommand(ProductMatchKind.Variant, fixture.Product("Sabun elano lavanda ətirli"), fixture.Product("Sabun elano")), None);
-        Assert.Equal(before, await HemAsync());
+        Assert.Equal(unfoldedBefore, await UnfoldedAsync());
+
+        var contextsAfter = await ContextsAsync();
+        Assert.All(contextsBefore, item => Assert.Empty(item.Decomposition!.VariantTransitions));
+        Assert.All(contextsAfter, item => Assert.Equal(0.00m, Assert.Single(item.Decomposition!.VariantTransitions).AmountImpact));
+        // Put the line's own parts back as they were, and nothing else is left to differ.
+        Assert.Equal(Json(contextsBefore), Json(contextsAfter.Zip(contextsBefore, WithoutVariantLine)));
+        Assert.Equal(Json(dashboardsBefore), Json((await DashboardsAsync()).Zip(dashboardsBefore, WithoutVariantCause)));
 
         var context = await ContextAsync(db, fixture.SeptemberOrderId);
         Assert.Equal((750.00m, 750.00m, 0.00m), (context.Current.KnownAmount, context.Primary.BaselineKnownAmount, context.Primary.DeltaAmount));
@@ -377,6 +430,39 @@ public sealed class SpellingFoldAnalyticsTests : IAsyncLifetime
         context.Decomposition!.Categories.Single(item => item.Category == category).Amount;
 
     private static string Json(object? value) => JsonSerializer.Serialize(value);
+
+    /// <summary>
+    /// The order page with the parts a variant line may change (13c §4.2) — the categories, each driver's category and
+    /// the transitions — taken from <paramref name="before"/>. Everything else is left as <paramref name="after"/> has it.
+    /// </summary>
+    private static OrderDecisionContextDto WithoutVariantLine(OrderDecisionContextDto after, OrderDecisionContextDto before) =>
+        after with
+        {
+            Decomposition = after.Decomposition! with
+            {
+                Categories = before.Decomposition!.Categories,
+                Drivers = [.. after.Decomposition.Drivers.Zip(before.Decomposition.Drivers, (now, then) => now with { Category = then.Category })],
+                VariantTransitions = before.Decomposition.VariantTransitions,
+            },
+        };
+
+    /// <summary>The dashboard with each object's cause, primary cause and cause product taken from <paramref name="before"/>.</summary>
+    private static ManagementDashboardDto WithoutVariantCause(ManagementDashboardDto after, ManagementDashboardDto before)
+    {
+        static LocationDashboardRowDto Row(LocationDashboardRowDto now, LocationDashboardRowDto then) => now with
+        {
+            Causes = then.Causes,
+            PrimaryCause = then.PrimaryCause,
+            PrimaryCauseAmount = then.PrimaryCauseAmount,
+            PrimaryCauseProduct = then.PrimaryCauseProduct,
+        };
+
+        return after with
+        {
+            Attention = [.. after.Attention.Zip(before.Attention, (now, then) => now with { Location = Row(now.Location, then.Location) })],
+            Rows = after.Rows with { Items = [.. after.Rows.Items.Zip(before.Rows.Items, Row)] },
+        };
+    }
 
     /// <summary>
     /// Every money figure and every line count of these orders, their objects and the whole month, on every basis:

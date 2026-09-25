@@ -330,14 +330,15 @@ public sealed class ProductMatchTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Acceptance 4 and 7, criterion 9: Heydər Əliyev's September order and the dashboard read exactly the same before an
-    /// approval, after it and after its undo, on every basis.
+    /// Acceptance 4 and 7, criterion 9: Heydər Əliyev's September order and the dashboard keep every amount through an
+    /// approval, and read exactly the same after its undo, on every basis.
     /// </summary>
     /// <remarks>
-    /// Since 13b an approved spelling match does fold in every analytics read, and this still holds for two reasons. A
-    /// variant link folds nothing (that is 13c's line). And the spelling match here is at the test object, which has no
-    /// September order: its row carries no comparison, no causes and no product counts, and its baseline money is a sum
-    /// that folding cannot change — so no September figure can move.
+    /// Since 13b an approved spelling match folds in every analytics read, but the one here is at the test object, which
+    /// has no September order: its row carries no comparison, no causes and no product counts, and its baseline money is
+    /// a sum that folding cannot change — so no September figure can move. Since 13c (13.1a) the approved variant link is
+    /// one "Variant dəyişib" line in Heydər Əliyev's "Niyə dəyişib?": the money is as it was, and the line is the only
+    /// thing the approval adds. Its undo takes the line away again.
     /// </remarks>
     [PostgresFact]
     public async Task The_order_page_and_the_dashboard_do_not_move_when_a_match_is_approved_or_undone()
@@ -347,15 +348,32 @@ public sealed class ProductMatchTests : IAsyncLifetime
         var admin = await TestCurrentUser.AdminAsync(db);
 
         var before = await AnalyticsAsync(db, fixture);
+        var moneyBefore = await MoneyAsync(db, fixture);
         var approved = await Service(db, admin).ApproveAsync(
             new ApproveProductMatchCommand(ProductMatchKind.Variant, fixture.Product("Sabun elano lavanda ətirli"), fixture.Product("Sabun elano")), None);
         await Service(db, admin).ApproveAsync(
             new ApproveProductMatchCommand(ProductMatchKind.SameItem, fixture.Variant("Lampa 15 W"), fixture.Variant("Lampa 15W")), None);
-        var afterApproval = await AnalyticsAsync(db, fixture);
+        var moneyAfterApproval = await MoneyAsync(db, fixture);
+
+        // 13.1a: after the variant approval, one line of 0.00 — "Sabun elano — variant dəyişib: adi → lavanda ətirli".
+        foreach (var basis in Bases)
+        {
+            var decomposition = (await new OrderDecisionContextQueries(db).GetAsync(fixture.SeptemberOrderId, new DecisionContextQuery(basis), None))!.Decomposition!;
+            var transition = Assert.Single(decomposition.VariantTransitions);
+            Assert.Equal(("Sabun elano", 0.00m, 750.00m, 750.00m), (transition.BaseProductName, transition.AmountImpact, transition.BaselineKnownAmount, transition.CurrentKnownAmount));
+            Assert.Equal([("Sabun elano", (string?)null)], transition.From.Select(side => (side.ProductName, side.VariantLabel)));
+            Assert.Equal([("Sabun elano lavanda ətirli", (string?)"lavanda ətirli")], transition.To.Select(side => (side.ProductName, side.VariantLabel)));
+            Assert.Equal(
+                [(CauseCategory.NewOrders, 0.00m, 0), (CauseCategory.NoLongerOrdered, 0.00m, 0), (CauseCategory.VariantChange, 0.00m, 2)],
+                decomposition.Categories
+                    .Where(cause => cause.Category is CauseCategory.NewOrders or CauseCategory.NoLongerOrdered or CauseCategory.VariantChange)
+                    .Select(cause => (cause.Category, cause.Amount, cause.VariantCount)));
+        }
+
         await Service(db, admin).UndoAsync(approved.Id, new UndoProductMatchCommand(), None);
         var afterUndo = await AnalyticsAsync(db, fixture);
 
-        Assert.Equal(before, afterApproval);
+        Assert.Equal(moneyBefore, moneyAfterApproval);
         Assert.Equal(before, afterUndo);
 
         // The brief's figures are what the screens show today: 750.00 against 750.00, the two products apart.
@@ -419,6 +437,43 @@ public sealed class ProductMatchTests : IAsyncLifetime
         {
             pieces.Add(await contexts.GetAsync(fixture.SeptemberOrderId, new DecisionContextQuery(basis), None));
             pieces.Add(await dashboard.GetAsync(ProductMatchFixture.September, new DashboardQuery(basis, PageSize: ManagementDashboardQueries.MaxPageSize), None));
+        }
+
+        return Json(pieces);
+    }
+
+    /// <summary>
+    /// The same responses without what an approved variant link may change (13c): the categories' split, each driver's
+    /// category, the transitions and the dashboard's cause. Every amount, every count and every driver's own figures stay.
+    /// </summary>
+    private static async Task<string> MoneyAsync(BaxOrdersDbContext db, ProductMatchFixture fixture)
+    {
+        var contexts = new OrderDecisionContextQueries(db);
+        var dashboard = new ManagementDashboardQueries(db);
+        var pieces = new List<object?>();
+
+        foreach (var basis in Bases)
+        {
+            var context = (await contexts.GetAsync(fixture.SeptemberOrderId, new DecisionContextQuery(basis), None))!;
+            pieces.Add(context with
+            {
+                Decomposition = context.Decomposition! with
+                {
+                    Categories = [],
+                    Drivers = [.. context.Decomposition.Drivers.Select(driver => driver with { Category = default })],
+                    VariantTransitions = [],
+                },
+            });
+
+            var month = (await dashboard.GetAsync(ProductMatchFixture.September, new DashboardQuery(basis, PageSize: ManagementDashboardQueries.MaxPageSize), None))!;
+            pieces.Add(month.Summary);
+            pieces.AddRange(month.Rows.Items.Select(row => row with
+            {
+                Causes = [],
+                PrimaryCause = null,
+                PrimaryCauseAmount = null,
+                PrimaryCauseProduct = null,
+            }));
         }
 
         return Json(pieces);

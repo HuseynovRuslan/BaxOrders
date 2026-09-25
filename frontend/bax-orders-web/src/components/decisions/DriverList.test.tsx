@@ -2,7 +2,8 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity } from '../../api/analytics'
-import type { DecisionDriver, DecisionProductCounts } from '../../api/decisions'
+import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
+import { findOldTerms } from '../../test/oldTerms'
 import { DriverList } from './DriverList'
 
 /**
@@ -638,5 +639,104 @@ describe('the product history', () => {
     expect(onHistory).toHaveBeenCalledWith(expect.objectContaining({
       variant: expect.objectContaining({ productVariantId: 21 }),
     }))
+  })
+})
+
+/**
+ * Task 13c (13.1a, 13.1): the two products of an approved variant transition stay two rows, each with its own figures
+ * and history. Their pill says "Variant dəyişib" and a note names the switch; the chips still count them by state.
+ */
+describe('an approved variant transition', () => {
+  const sabun = driver({
+    variant: variant({ productVariantId: 81, productId: 181, productName: 'Sabun elano' }),
+    category: 'VariantChange',
+    amountImpact: -750,
+    quantityImpact: null,
+    priceImpact: null,
+    currentQuantity: 0,
+    baselineQuantity: 60,
+    quantityPercentChange: -100,
+    currentUnitPrice: null,
+    baselineUnitPrice: 12.5,
+    unitPricePercentChange: null,
+    currentKnownAmount: null,
+    baselineKnownAmount: 750,
+    currentItemCount: 0,
+    state: 'NoLongerOrdered',
+  })
+  const lavanda = driver({
+    variant: variant({ productVariantId: 82, productId: 182, productName: 'Sabun elano lavanda ətirli' }),
+    category: 'VariantChange',
+    amountImpact: 750,
+    quantityImpact: null,
+    priceImpact: null,
+    currentQuantity: 60,
+    baselineQuantity: 0,
+    quantityPercentChange: null,
+    currentUnitPrice: 12.5,
+    baselineUnitPrice: null,
+    unitPricePercentChange: null,
+    currentKnownAmount: 750,
+    baselineKnownAmount: null,
+    baselineItemCount: 0,
+    state: 'New',
+  })
+  const transitions: DecisionVariantTransition[] = [{
+    baseProductId: 181,
+    baseProductName: 'Sabun elano',
+    from: [{ productVariantId: 81, productId: 181, productName: 'Sabun elano', variantLabel: null }],
+    to: [{ productVariantId: 82, productId: 182, productName: 'Sabun elano lavanda ətirli', variantLabel: 'lavanda ətirli' }],
+    amountImpact: 0,
+    baselineKnownAmount: 750,
+    currentKnownAmount: 750,
+  }]
+
+  function renderFamily(drivers: DecisionDriver[] = [lavanda, sabun]) {
+    render(
+      <DriverList
+        drivers={drivers}
+        steady={[]}
+        products={productsOf(drivers)}
+        variantTransitions={transitions}
+        onHistory={vi.fn()}
+      />,
+    )
+  }
+
+  it('gives both products the pill and the note naming the switch, each with its own money', () => {
+    renderFamily()
+
+    for (const [name, money] of [['Sabun elano lavanda ətirli', '+750,00 ₼'], ['Sabun elano', '−750,00 ₼']]) {
+      const row = screen.getByText(name).closest('button')!
+      expect(within(row).getByText('Variant dəyişib'), name).toHaveClass('bg-slate-100', 'text-slate-700')
+      expect(within(row).getByText('Variant dəyişib: adi → lavanda ətirli'), name).toBeInTheDocument()
+      expect(within(row).getByText(money), name).toBeInTheDocument()
+    }
+  })
+
+  it('still counts both under "Yeni məhsullar" and "Bu ay yazılmayan", by their state', async () => {
+    renderFamily()
+
+    const filters = within(screen.getByRole('group', { name: 'Dəyişiklik növü' }))
+    expect(filters.getByRole('button', { name: /Yeni məhsullar/ })).toHaveTextContent('Yeni məhsullar1')
+    expect(filters.getByRole('button', { name: /Bu ay yazılmayan məhsullar/ })).toHaveTextContent('Bu ay yazılmayan məhsullar1')
+
+    await userEvent.click(filters.getByRole('button', { name: /Yeni məhsullar/ }))
+    const list = within(screen.getByRole('list'))
+    expect(list.getAllByRole('listitem')).toHaveLength(1)
+    expect(list.getByText('Sabun elano lavanda ətirli')).toBeInTheDocument()
+  })
+
+  it('says nothing of a switch on a product that is not part of one', () => {
+    renderFamily([lavanda, sabun, bags])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    expect(within(row).queryByText(/Variant dəyişib/)).toBeNull()
+  })
+
+  it('uses no retired word', () => {
+    renderFamily()
+
+    expect(findOldTerms(document.body)).toEqual([])
   })
 })

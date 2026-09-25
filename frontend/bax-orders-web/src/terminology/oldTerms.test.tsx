@@ -396,6 +396,7 @@ function decisionContext(): OrderDecisionContext {
           state: 'Unchanged',
         }),
       ],
+      variantTransitions: [],
     },
   }
 }

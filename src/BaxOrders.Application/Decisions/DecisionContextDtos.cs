@@ -128,6 +128,30 @@ public sealed record DecisionProductCountsDto(
     int DecreasedCount,
     int ServiceCount);
 
+/// <summary>One side of an approved variant transition: a member of the family, by its own name.</summary>
+/// <param name="VariantLabel">Its short name under the base ("lavanda ətirli"); null for the base itself ("adi").</param>
+public sealed record DecisionVariantSideDto(long ProductVariantId, long ProductId, string ProductName, string? VariantLabel);
+
+/// <summary>
+/// "Sabun elano — variant dəyişib: adi → lavanda ətirli": one approved variant transition, told as one line of "Niyə
+/// dəyişib?" (13.1a).
+/// </summary>
+/// <remarks>
+/// The members are still two products everywhere else (13.1): each is its own driver, with its own state, figures
+/// and history, and each is counted as it was. Only this line puts their money together.
+/// </remarks>
+/// <param name="From">The members no longer ordered.</param>
+/// <param name="To">The members ordered in their place.</param>
+/// <param name="AmountImpact">The members' whole net, current minus baseline. Never split into quantity and price.</param>
+public sealed record DecisionVariantTransitionDto(
+    long BaseProductId,
+    string BaseProductName,
+    IReadOnlyList<DecisionVariantSideDto> From,
+    IReadOnlyList<DecisionVariantSideDto> To,
+    decimal AmountImpact,
+    decimal? BaselineKnownAmount,
+    decimal? CurrentKnownAmount);
+
 /// <param name="TotalAmountImpact">The sum of every category, which is the difference against the month before.</param>
 /// <param name="ExplanationIsComplete">
 /// False when a variant's price is partly unknown, so its money is counted but its cause is not known. The
@@ -146,6 +170,10 @@ public sealed record DecisionProductCountsDto(
 /// <see cref="DecisionDriverDto.State"/> can still be up or down: an internally supplied material whose quantity
 /// moved costs nothing either way. With <see cref="Drivers"/> it is exactly the comparison page's rows.
 /// </param>
+/// <param name="VariantTransitions">
+/// The approved variant transitions behind the "Variant dəyişib" category, largest money first. Empty when there is
+/// none — always, until an administrator approves a variant link.
+/// </param>
 public sealed record DecisionDecompositionDto(
     IReadOnlyList<DecisionCauseDto> Categories,
     decimal TotalAmountImpact,
@@ -156,7 +184,8 @@ public sealed record DecisionDecompositionDto(
     int SupplyChangedVariantCount,
     IReadOnlyList<DecisionDriverDto> Drivers,
     DecisionProductCountsDto Products,
-    IReadOnlyList<DecisionDriverDto> Steady);
+    IReadOnlyList<DecisionDriverDto> Steady,
+    IReadOnlyList<DecisionVariantTransitionDto> VariantTransitions);
 
 /// <summary>
 /// Everything the first screenful of a decision needs, computed for <b>the version that was opened</b>.

@@ -5,6 +5,7 @@ import {
   alsoFirstLine,
   attentionReasonIsMissingPrice,
   attentionTitle,
+  causeHeadline,
   dashboardSortOption,
   dashboardSortOptions,
   isSort,
@@ -80,6 +81,23 @@ describe('the sorts the page offers', () => {
     expect(dashboardSortOption('KnownAmountDelta').sort).toBe('AbsoluteKnownAmountDelta')
     expect(dashboardSortOption('LocationName').sort).toBe('LocationName')
     expect(isSort('AbsoluteKnownAmountDelta')).toBe(true)
+  })
+})
+
+/** Task 13c (13.1a): an approved variant transition is a cause of its own, named the same whichever way it went. */
+describe('the cause of an approved variant transition', () => {
+  it('is "Variant dəyişib", with the direction left to the sign beside it', () => {
+    expect(causeHeadline('VariantChange', 125)).toBe('Variant dəyişib')
+    expect(causeHeadline('VariantChange', -125)).toBe('Variant dəyişib')
+    expect(causeHeadline('VariantChange', 0)).toBe('Variant dəyişib')
+  })
+
+  it('uses no retired word, and no verdict', () => {
+    const element = document.createElement('div')
+    element.textContent = causeHeadline('VariantChange', 125)
+
+    expect(findOldTerms(element)).toEqual([])
+    expect(element.textContent).not.toMatch(/yaxşı|pis|müsbət|mənfi/i)
   })
 })
 

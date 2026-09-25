@@ -11,7 +11,12 @@ namespace BaxOrders.Application.Decisions;
 /// Every variant's contribution that points the same way, whatever category it is filed under. Same sign as
 /// <paramref name="Amount"/> and never smaller in size, so the share it is the denominator of never passes 100%.
 /// </param>
-public sealed record CauseLeaderResult(long ProductVariantId, decimal Amount, decimal SameDirectionAmount);
+/// <param name="Transition">
+/// Set when the leader is an approved variant transition rather than one variant (13.1a). Its
+/// <paramref name="ProductVariantId"/> is then the transition's first arriving variant, and the card names the base.
+/// </param>
+public sealed record CauseLeaderResult(
+    long ProductVariantId, decimal Amount, decimal SameDirectionAmount, VariantTransitionResult? Transition = null);
 
 /// <summary>
 /// Names the one product behind a cause, so a card can say "this rise is the tractor" rather than only "new
@@ -28,6 +33,11 @@ public sealed record CauseLeaderResult(long ProductVariantId, decimal Amount, de
 /// with the same sign — every category, "Qiymət yoxdur" and "Daxili təminat" included — never the primary
 /// category's total. A category total is a net of rises and falls and can be smaller than the product inside
 /// it, which is how a share would come to read 140%.
+/// </para>
+/// <para>
+/// <b>An approved variant transition is one product effect.</b> Its net is counted once, filed under
+/// <see cref="CauseCategory.VariantChange"/>, and its members are not counted on their own — neither as candidates
+/// nor in the denominator. With no transition, nothing here differs from before.
 /// </para>
 /// <para>
 /// Pure arithmetic on a decomposition already in memory, and on the same cent figures the order page prints,
@@ -50,11 +60,16 @@ public static class CauseLeader
 
         var direction = Math.Sign(amount);
 
+        // A transition's members are its one effect; each is counted there, never again on its own.
+        var members = decomposition.Transitions
+            .SelectMany(transition => transition.FromVariantIds.Concat(transition.ToVariantIds))
+            .ToHashSet();
+
         VariantCauseResult? top = null;
         var sameDirection = 0m;
         foreach (var variant in decomposition.Variants)
         {
-            if (Math.Sign(variant.AmountImpact) != direction)
+            if (Math.Sign(variant.AmountImpact) != direction || members.Contains(variant.ProductVariantId))
             {
                 continue;
             }
@@ -71,6 +86,34 @@ public static class CauseLeader
             {
                 top = variant;
             }
+        }
+
+        VariantTransitionResult? topTransition = null;
+        foreach (var transition in decomposition.Transitions)
+        {
+            if (Math.Sign(transition.AmountImpact) != direction)
+            {
+                continue;
+            }
+
+            sameDirection += transition.AmountImpact;
+
+            // Only transitions are filed under VariantChange, so only they can lead it. Largest first, then the lowest
+            // base: the order Decompose lists them in.
+            if (category == CauseCategory.VariantChange
+                && (topTransition is null
+                    || Math.Abs(transition.AmountImpact) > Math.Abs(topTransition.AmountImpact)
+                    || (Math.Abs(transition.AmountImpact) == Math.Abs(topTransition.AmountImpact)
+                        && transition.BaseProductId < topTransition.BaseProductId)))
+            {
+                topTransition = transition;
+            }
+        }
+
+        if (topTransition is not null)
+        {
+            return new CauseLeaderResult(
+                topTransition.ToVariantIds[0], topTransition.AmountImpact, sameDirection, topTransition);
         }
 
         return top is null ? null : new CauseLeaderResult(top.ProductVariantId, top.AmountImpact, sameDirection);

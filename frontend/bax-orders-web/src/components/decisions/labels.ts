@@ -1,6 +1,6 @@
 import type { CauseCategory, DecisionProductCounts, OrderDecisionContext } from '../../api/decisions'
 import { missingPriceCount, missingPriceShortLabel } from '../../pricing/labels'
-import { newProductsLabel, notOrderedThisMonthLabel, productNoun } from '../../terminology/terms'
+import { newProductsLabel, notOrderedThisMonthLabel, productNoun, variantChangedLabel } from '../../terminology/terms'
 import { formatCount, formatMonth } from '../analytics/format'
 import { stateLabels } from '../analytics/labels'
 
@@ -19,6 +19,7 @@ export const causeLabels: Record<CauseCategory, string> = {
   InternalSupply: 'Daxili təminat',
   // The same two words the line itself says, not a third name for the same gap.
   UnattributedDueToMissingPrice: missingPriceShortLabel,
+  VariantChange: variantChangedLabel,
 }
 
 /**
@@ -33,6 +34,8 @@ export const causeHints: Record<CauseCategory, string> = {
   InternalSupply:
     'Daxili anbardan verilən material üçün alış qiyməti tələb olunmur, ona görə dəyişikliyin səbəbi miqdara və ya qiymətə ayrılmır.',
   UnattributedDueToMissingPrice: 'Qiyməti tam bilinmədiyi üçün səbəbi miqdara və qiymətə ayrıla bilməyən məbləğ.',
+  VariantChange:
+    'Eyni əsas məhsulun bir variantı əvəzinə başqası sifariş olunub (administrator təsdiqləyib). Məbləğ fərqi bir sətirdə göstərilir; məhsullar ayrı qalır.',
 }
 
 /**
@@ -49,6 +52,8 @@ export const causeToneClass: Record<CauseCategory, string> = {
   // Slate, never amber: this is how some material arrives, not something anybody has to put right.
   InternalSupply: 'bg-slate-100 text-slate-700 ring-slate-300',
   UnattributedDueToMissingPrice: 'bg-amber-50 text-amber-900 ring-amber-200',
+  // Slate: which products were switched is a fact about the order, not a direction and not a gap.
+  VariantChange: 'bg-slate-100 text-slate-700 ring-slate-300',
 }
 
 /** The order a reader should meet them, matching the one the backend returns. */
@@ -57,6 +62,7 @@ export const causeOrder: CauseCategory[] = [
   'QuantityChange',
   'PriceChange',
   'NoLongerOrdered',
+  'VariantChange',
   'Services',
   'InternalSupply',
   'UnattributedDueToMissingPrice',
@@ -66,9 +72,9 @@ export const causeOrder: CauseCategory[] = [
  * How two causes of the same size are ordered — the dashboard's order, not `causeOrder`.
  *
  * The dashboard card picks its "Əsas səbəb" in `ManagementDashboardQueries` as the largest cause, ties broken by
- * the backend's `CauseCategory` value, which puts "Qiymət yoxdur" before "Daxili təminat". The order page sorts
- * its parts by size and breaks ties the same way, so its first part and the card's "Əsas səbəb" are always the
- * same cause for the same order and basis.
+ * the backend's `CauseCategory` value, which puts "Qiymət yoxdur" before "Daxili təminat", and "Variant dəyişib" (8)
+ * after every other. The order page sorts its parts by size and breaks ties the same way, so its first part and the
+ * card's "Əsas səbəb" are always the same cause for the same order and basis.
  */
 export const causeTieOrder: CauseCategory[] = [
   'NewOrders',
@@ -78,6 +84,7 @@ export const causeTieOrder: CauseCategory[] = [
   'Services',
   'UnattributedDueToMissingPrice',
   'InternalSupply',
+  'VariantChange',
 ]
 
 /**

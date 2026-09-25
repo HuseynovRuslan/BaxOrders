@@ -279,6 +279,7 @@ export function OrderDetailPage() {
                 drivers={decision.decomposition.drivers}
                 steady={decision.decomposition.steady}
                 products={decision.decomposition.products}
+                variantTransitions={decision.decomposition.variantTransitions}
                 onHistory={setHistory}
               />
             )}

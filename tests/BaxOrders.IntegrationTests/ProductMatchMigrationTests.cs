@@ -14,7 +14,8 @@ namespace BaxOrders.IntegrationTests;
 /// <summary>
 /// The Task 13a migration tool against a real PostgreSQL: the migration goes in once and only once, <c>Down</c> takes
 /// it out again, a STOP condition changes nothing, and the figures <c>--verify</c> compares are captured the same way
-/// every time — whatever is decided about a match.
+/// every time. An approved variant link moves only the split of "Niyə dəyişib?" on the order page (13.1a), and
+/// undoing it puts every figure back.
 /// </summary>
 /// <remarks>
 /// Each test builds a database of its own from the migrations and drops it afterwards: stepping the schema back and
@@ -92,8 +93,13 @@ public sealed class ProductMatchMigrationTests : IAsyncLifetime
         Assert.DoesNotContain(MigrationPlan.Target, after.Applied);
     }
 
+    /// <summary>
+    /// Approving the Sabun variant link moves on HEM's September order page exactly what 13.1a asks for — the
+    /// categories' split, each driver's category and the new "variant dəyişib" line (TASK-13c §7) — and not one
+    /// amount, count or figure besides. Undoing it gives back every figure first captured.
+    /// </summary>
     [PostgresFact]
-    public async Task The_figures_are_captured_the_same_twice_and_no_decision_moves_them()
+    public async Task The_figures_are_captured_the_same_twice_and_a_variant_link_moves_only_the_split_of_niye_deyisib()
     {
         await using (var seed = _database!.CreateContext())
         {
@@ -111,13 +117,36 @@ public sealed class ProductMatchMigrationTests : IAsyncLifetime
             Assert.Contains("dashboard.2026-09.PreviousMonth.row.HEM.delta", first.Keys);
             Assert.Contains("report.2026.row.HEM.month.09.amount", first.Keys);
 
-            // Approving a match writes one decision and nothing that any figure is made of.
-            await new ProductMatchService(seed, admin, new PostgresProductMatchLock(seed)).ApproveAsync(
+            // The bases HEM's September order page is captured on, by the tool's own keys ("hem.2026-09.PreviousMonth", …).
+            var bases = first.Keys
+                .Where(key => key.StartsWith("hem.2026-09.", StringComparison.Ordinal) && key.Contains(".Decomposition.", StringComparison.Ordinal))
+                .Select(key => key[..key.IndexOf(".Decomposition.", StringComparison.Ordinal)])
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            Assert.Equal(4, bases.Count);
+
+            // Approving a variant link writes one decision. 13.1a then moves the split of "Niyə dəyişib?" — "Yeni" and
+            // "yazılmayan" each 750.00 smaller, one "variant dəyişib" line — and nothing else: every amount, count,
+            // driver figure, dashboard and report figure stays as it was.
+            var service = new ProductMatchService(seed, admin, new PostgresProductMatchLock(seed));
+            var approved = await service.ApproveAsync(
                 new ApproveProductMatchCommand(ProductMatchKind.Variant, fixture.Product("Sabun elano lavanda ətirli"), fixture.Product("Sabun elano")), None);
             var afterApproval = await CaptureAsync(services);
 
-            var (identical, differences) = Invariants.Compare(first, afterApproval);
-            Assert.Empty(differences);
+            var differences = Invariants.Compare(first, afterApproval).Differences;
+            Assert.Empty(differences.Where(difference => !IsTheSplit(KeyOf(difference), bases)).ToList());
+            foreach (var basis in bases)
+            {
+                Assert.Equal(0m, decimal.Parse(afterApproval[$"{basis}.Decomposition.VariantTransitions[0].AmountImpact"], CultureInfo.InvariantCulture));
+                Assert.DoesNotContain(afterApproval.Keys, key => key.StartsWith($"{basis}.Decomposition.VariantTransitions[1]", StringComparison.Ordinal));
+            }
+
+            // A wrong approval can be undone, and then every figure is what it was (acceptance 8).
+            await service.UndoAsync(approved.Id, new UndoProductMatchCommand(), None);
+            var afterUndo = await CaptureAsync(services);
+
+            var (identical, differencesAfterUndo) = Invariants.Compare(first, afterUndo);
+            Assert.Empty(differencesAfterUndo);
             Assert.Equal(first.Count, identical);
         }
     }
@@ -142,5 +171,32 @@ public sealed class ProductMatchMigrationTests : IAsyncLifetime
     {
         await using var scope = services.CreateAsyncScope();
         return await Invariants.CaptureAsync(scope.ServiceProvider, None);
+    }
+
+    /// <summary>The key a difference of <see cref="Invariants.Compare"/> is about: it reads "key: before → after".</summary>
+    private static string KeyOf(string difference) => difference[..difference.IndexOf(": ", StringComparison.Ordinal)];
+
+    /// <summary>
+    /// What 13.1a may move on one basis of HEM's September order page: the categories' split, a driver's
+    /// <c>Category</c> and the transition list (TASK-13c §7). By exact prefix, so that a driver's money —
+    /// <c>….Decomposition.Drivers[0].AmountImpact</c> — is never one of them.
+    /// </summary>
+    private static bool IsTheSplit(string key, IEnumerable<string> bases) => bases.Any(basis =>
+        key.StartsWith($"{basis}.Decomposition.Categories[", StringComparison.Ordinal)
+        || key.StartsWith($"{basis}.Decomposition.VariantTransitions[", StringComparison.Ordinal)
+        || IsDriverCategory(key, $"{basis}.Decomposition.Drivers["));
+
+    /// <summary>Exactly <c>{drivers}N].Category</c>, N being a driver's index.</summary>
+    private static bool IsDriverCategory(string key, string drivers)
+    {
+        const string category = "].Category";
+        if (!key.StartsWith(drivers, StringComparison.Ordinal)
+            || !key.EndsWith(category, StringComparison.Ordinal)
+            || key.Length <= drivers.Length + category.Length)
+        {
+            return false;
+        }
+
+        return key[drivers.Length..^category.Length].All(char.IsAsciiDigit);
     }
 }

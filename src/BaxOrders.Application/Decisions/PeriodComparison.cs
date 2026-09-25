@@ -98,11 +98,16 @@ public static class PeriodComparison
     /// <param name="baselineByVariant">Each variant's snapshots, one per available baseline month it appears in.</param>
     /// <param name="availablePeriodCount">Baseline months the location actually has a request for.</param>
     /// <param name="kinds">Whether each variant is material or a service; material is assumed when unknown.</param>
+    /// <param name="roles">
+    /// Each variant's place in an approved variant family, so an approved transition is one line of the explanation
+    /// (13.1a). It reaches the explanation only: the totals, the difference and the percentage never see it.
+    /// </param>
     public static PeriodComparisonResult Of(
         IReadOnlyDictionary<long, VariantPeriodSnapshot>? current,
         IReadOnlyDictionary<long, List<VariantPeriodSnapshot>> baselineByVariant,
         int availablePeriodCount,
-        IReadOnlyDictionary<long, AnalyticsKind> kinds)
+        IReadOnlyDictionary<long, AnalyticsKind> kinds,
+        IReadOnlyDictionary<long, VariantFamilyRole>? roles = null)
     {
         ArgumentNullException.ThrowIfNull(baselineByVariant);
         ArgumentNullException.ThrowIfNull(kinds);
@@ -127,7 +132,8 @@ public static class PeriodComparison
                     variantId,
                     kinds.GetValueOrDefault(variantId, AnalyticsKind.QuantityComparable),
                     current.GetValueOrDefault(variantId),
-                    AverageBaseline(variantId, baselineByVariant.GetValueOrDefault(variantId), availablePeriodCount))));
+                    AverageBaseline(variantId, baselineByVariant.GetValueOrDefault(variantId), availablePeriodCount))),
+                roles);
 
         // The reasons are worked out at full precision, because that is the only way the two effects
         // reconstruct a variant's difference, and are then allocated to the cents of the difference the screen

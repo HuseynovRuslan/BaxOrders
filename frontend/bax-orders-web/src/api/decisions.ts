@@ -2,7 +2,10 @@ import type { AnalyticsComparisonBasis, AnalyticsKind, ComparisonState, VariantI
 import { getJson } from './client'
 import type { OrderRequestStatus } from './orders'
 
-/** Where a month's money difference came from. The six together are the difference, with nothing left over. */
+/**
+ * Where a month's money difference came from. The categories an explanation lists are the difference together, with
+ * nothing left over.
+ */
 export type CauseCategory =
   | 'NewOrders'
   | 'QuantityChange'
@@ -12,6 +15,11 @@ export type CauseCategory =
   /** Supplied from the company's own store: real money, but no price to blame it on. Never a problem. */
   | 'InternalSupply'
   | 'UnattributedDueToMissingPrice'
+  /**
+   * One variant of a base product ordered in place of another, where an administrator approved the two as variants of
+   * that base (13.1a). Listed only when there is such a transition — then even at 0,00 ₼.
+   */
+  | 'VariantChange'
 
 export interface DecisionAmount {
   knownAmount: number | null
@@ -124,6 +132,32 @@ export interface DecisionProductCounts {
   serviceCount: number
 }
 
+/** One side of an approved variant transition: a member of the family, by its own name. */
+export interface DecisionVariantSide {
+  productVariantId: number
+  productId: number
+  productName: string
+  /** Its short name under the base ("lavanda ətirli"); null for the base itself, which reads "adi". */
+  variantLabel: string | null
+}
+
+/**
+ * "Sabun elano — variant dəyişib: adi → lavanda ətirli": one approved variant transition, told as one line (13.1a).
+ * The members are still two products everywhere else, each with its own row in "Əsas dəyişikliklər" (13.1).
+ */
+export interface DecisionVariantTransition {
+  baseProductId: number
+  baseProductName: string
+  /** The members no longer ordered. */
+  from: DecisionVariantSide[]
+  /** The members ordered in their place. */
+  to: DecisionVariantSide[]
+  /** The members' whole net, current minus baseline — never split into quantity and price. */
+  amountImpact: number
+  baselineKnownAmount: number | null
+  currentKnownAmount: number | null
+}
+
 export interface DecisionDecomposition {
   categories: DecisionCause[]
   totalAmountImpact: number
@@ -143,6 +177,8 @@ export interface DecisionDecomposition {
    * whose quantity moved costs nothing either way.
    */
   steady: DecisionDriver[]
+  /** The approved variant transitions behind "Variant dəyişib", largest money first. Empty when there is none. */
+  variantTransitions: DecisionVariantTransition[]
 }
 
 export interface OrderDecisionContext {

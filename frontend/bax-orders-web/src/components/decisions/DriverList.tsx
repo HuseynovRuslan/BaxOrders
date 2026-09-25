@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DecisionDriver, DecisionProductCounts } from '../../api/decisions'
+import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
 import { DirectionWord } from '../analytics/DirectionWord'
 import {
   costDirectionToneClass,
@@ -13,6 +13,7 @@ import {
 } from '../analytics/format'
 import { distinguishVariants, stateBadgeLabels } from '../analytics/labels'
 import { internalSupplyLabel, missingPriceCount } from '../../pricing/labels'
+import { variantTransitionNote } from '../../terminology/terms'
 import { formatOrderUnit } from '../imports/labels'
 import {
   causeLabels,
@@ -38,6 +39,8 @@ interface DriverListProps {
   steady: DecisionDriver[]
   /** What the counts count, so "Hamısı" can say it rather than leave the reader to guess. */
   products: DecisionProductCounts
+  /** The approved variant transitions, so each of their products can say which switch it is part of (13.1a). */
+  variantTransitions?: DecisionVariantTransition[]
   onHistory: (driver: DecisionDriver) => void
 }
 
@@ -52,8 +55,11 @@ interface DriverListProps {
  * The separate comparison page listed every compared product; this page is now the only one (11.1), so the
  * products that moved no money are here as well. They are not reasons, so "Hamısı" and the other chips still
  * leave them out (Task 10), and their pill names their state rather than a cause.
+ *
+ * The products of an approved variant transition stay two rows, each with its own figures and history (13.1). Their
+ * pill says "Variant dəyişib" and a note says which switch they are part of; the chips still count them by state.
  */
-export function DriverList({ drivers, steady, products, onHistory }: DriverListProps) {
+export function DriverList({ drivers, steady, products, variantTransitions = [], onHistory }: DriverListProps) {
   const [filter, setFilter] = useState<DriverFilter>('All')
   const [expanded, setExpanded] = useState(false)
 
@@ -122,7 +128,7 @@ export function DriverList({ drivers, steady, products, onHistory }: DriverListP
                     <Pill driver={driver} steady={filter === 'Steady'} />
                   </p>
                   <p className="text-xs text-slate-400">{descriptions[index]}</p>
-                  <Change driver={driver} />
+                  <Change driver={driver} transitions={variantTransitions} />
                 </div>
 
                 {/*
@@ -170,8 +176,20 @@ export function DriverList({ drivers, steady, products, onHistory }: DriverListP
  * split follows it on a line of its own. Everything else about the product — baseline amounts, the whole
  * history, how often it is ordered — is one click away and deliberately not here.
  */
-function Change({ driver }: { driver: DecisionDriver }) {
+function Change({ driver, transitions }: { driver: DecisionDriver; transitions: DecisionVariantTransition[] }) {
   const notes: string[] = []
+
+  // "Variant dəyişib: adi → lavanda ətirli" — the switch this product is one side of, in the section's own words.
+  const transition = driver.category === 'VariantChange'
+    ? transitions.find((item) => [...item.from, ...item.to]
+      .some((side) => side.productVariantId === driver.variant.productVariantId))
+    : undefined
+  if (transition) {
+    notes.push(variantTransitionNote(
+      transition.from.map((side) => side.variantLabel),
+      transition.to.map((side) => side.variantLabel),
+    ))
+  }
 
   if (!driver.priceIsComplete) {
     notes.push(missingPriceCount(driver.missingPriceItemCount))

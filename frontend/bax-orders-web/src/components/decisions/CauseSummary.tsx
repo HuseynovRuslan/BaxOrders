@@ -1,5 +1,10 @@
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
-import type { CauseCategory, DecisionCause, DecisionDecomposition } from '../../api/decisions'
+import type {
+  CauseCategory,
+  DecisionCause,
+  DecisionDecomposition,
+  DecisionVariantTransition,
+} from '../../api/decisions'
 import {
   costDirectionBarClass,
   costDirectionToneClass,
@@ -15,6 +20,7 @@ import {
   costIncreasedLabel,
   fromProductsNoun,
   unexplainedPartNote,
+  variantTransitionLine,
 } from '../../terminology/terms'
 import { causeHints, causeLabels, causeTieOrder, supplyChangedDriverNote } from './labels'
 
@@ -32,12 +38,18 @@ interface CauseSummaryProps {
  * from "how much did it change" straight to "mostly because of this". Every bar is a share of that largest part,
  * so the widths compare with one another directly. A cause that moved nothing is left out rather than drawn as
  * an empty row: six labelled zeros would be six things to read past before reaching the one that matters.
+ *
+ * The one exception is "Variant dəyişib" (13.1a). It is there whenever an approved variant transition is, even at
+ * 0,00 ₼, because that line is the answer to "why are there a new product and a dropped one?" — one line per
+ * family under its chip, in the brief's own words. A row of 0,00 ₼ is never the "Əsas səbəb".
  */
 export function CauseSummary({ decomposition, basis, windowPeriods }: CauseSummaryProps) {
-  const moved = decomposition.categories
-    .filter((category) => category.amount !== 0)
+  const transitions = decomposition.variantTransitions
+  const moved = decomposition.categories.filter((category) => category.amount !== 0)
+  const shown = decomposition.categories
+    .filter((category) => category.amount !== 0 || (category.category === 'VariantChange' && transitions.length > 0))
     .sort(bySizeThenDashboardOrder)
-  const largest = moved.length === 0 ? 0 : Math.abs(moved[0].amount)
+  const largest = shown.length === 0 ? 0 : Math.abs(shown[0].amount)
   const caption = describeBasisCaption(basis, windowPeriods)
 
   // The unexplained part is the money no price can be put to. Only that is worth a warning: a product priced
@@ -64,24 +76,25 @@ export function CauseSummary({ decomposition, basis, windowPeriods }: CauseSumma
       {moved.length === 0 ? (
         <p className="mt-3 text-sm text-slate-600">{`${caption} məbləğ dəyişməyib.`}</p>
       ) : (
-        <>
-          {/* Said once in words, so the colour is never the only thing carrying the direction. */}
-          <p className="mt-1 text-xs text-slate-500">{directionLegend}</p>
+        // Said once in words, so the colour is never the only thing carrying the direction.
+        <p className="mt-1 text-xs text-slate-500">{directionLegend}</p>
+      )}
 
-          <ul className="mt-3 space-y-2">
-            {moved.map((category, index) => (
-              <CauseRow
-                key={category.category}
-                cause={category}
-                isPrimary={index === 0}
-                largest={largest}
-                supplyChanged={
-                  category.category === 'InternalSupply' && decomposition.supplyChangedVariantCount > 0
-                }
-              />
-            ))}
-          </ul>
-        </>
+      {shown.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {shown.map((category, index) => (
+            <CauseRow
+              key={category.category}
+              cause={category}
+              isPrimary={index === 0 && category.amount !== 0}
+              largest={largest}
+              supplyChanged={
+                category.category === 'InternalSupply' && decomposition.supplyChangedVariantCount > 0
+              }
+              transitions={category.category === 'VariantChange' ? transitions : []}
+            />
+          ))}
+        </ul>
       )}
 
       {unexplained !== 0 && (
@@ -98,11 +111,14 @@ function CauseRow({
   isPrimary,
   largest,
   supplyChanged,
+  transitions,
 }: {
   cause: DecisionCause
   isPrimary: boolean
   largest: number
   supplyChanged: boolean
+  /** The approved variant transitions this part is made of — only ever under "Variant dəyişib". */
+  transitions: DecisionVariantTransition[]
 }) {
   return (
     <li
@@ -131,6 +147,27 @@ function CauseRow({
           <Amount value={cause.amount} />
         </p>
       </div>
+
+      {/*
+        One line per family, in the brief's own words: "Sabun elano — variant dəyişib: adi → lavanda ətirli". The
+        words wrap on a phone; the amount beside them never breaks.
+      */}
+      {transitions.map((transition) => (
+        <p
+          key={transition.baseProductId}
+          data-variant-transition=""
+          className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-slate-600"
+        >
+          <span className="min-w-0 break-words">
+            {variantTransitionLine(
+              transition.baseProductName,
+              transition.from.map((side) => side.variantLabel),
+              transition.to.map((side) => side.variantLabel),
+            )}
+          </span>
+          <Amount value={transition.amountImpact} className="whitespace-nowrap font-medium" />
+        </p>
+      ))}
 
       {/* Width is share of the largest cause, so the bars compare with one another and with nothing else. */}
       <div className={`mt-1 overflow-hidden rounded-full bg-slate-100 ${isPrimary ? 'h-2' : 'h-1.5'}`}>

@@ -8,7 +8,12 @@ import type {
 import type { PriceCoverageState } from '../../api/analytics'
 import { portfolioGroupLabels } from '../../coverage/labels'
 import { missingPriceShortLabel } from '../../pricing/labels'
-import { limitedComparisonDataLabel, newProductsLabel, notOrderedThisMonthLabel } from '../../terminology/terms'
+import {
+  limitedComparisonDataLabel,
+  newProductsLabel,
+  notOrderedThisMonthLabel,
+  variantChangedLabel,
+} from '../../terminology/terms'
 import { formatCount, formatMonth, manatSuffix } from '../analytics/format'
 
 export const historyCoverageLabels: Record<HistoryCoverageState, string> = {
@@ -116,6 +121,9 @@ export function causeHeadline(category: CauseCategory, amount: number): string {
       return 'Daxili təminat'
     case 'UnattributedDueToMissingPrice':
       return missingPriceShortLabel
+    // Said the same way whichever way the money went: the switch is the fact, and the sign says the rest.
+    case 'VariantChange':
+      return variantChangedLabel
   }
 }
 

@@ -222,12 +222,100 @@ public sealed class CauseLeaderTests
         Assert.Null(CauseLeader.Of(result, CauseCategory.NewOrders, 0m));
     }
 
+    // ---- an approved variant transition (13.1a) ----------------------------------------------------------
+
+    /// <summary>
+    /// "Sabun elano" 60 × 12,50 in August, "Sabun elano lavanda ətirli" 70 × 12,50 in September, approved as its
+    /// variant, and a price rise elsewhere. The transition is one product effect: its net +125,00, never its +875,00
+    /// member, and its members are not counted again in the denominator.
+    /// </summary>
+    [Fact]
+    public void A_transition_leads_its_cause_as_one_effect_by_its_net()
+    {
+        var result = ToCentsWith(
+            Roles((1, SabunBase), (2, Lavanda)),
+            Material(1, Priced(60m, 12.50m), null),
+            Material(2, null, Priced(70m, 12.50m)),
+            Material(3, Priced(10m, 5m), Priced(10m, 6m)));
+
+        Assert.Equal(CauseCategory.VariantChange, Primary(result));
+
+        var leader = CauseLeader.Of(result, CauseCategory.VariantChange, Amount(result, CauseCategory.VariantChange))!;
+
+        Assert.Equal(125m, leader.Amount);
+        Assert.Equal(125m + 10m, leader.SameDirectionAmount);
+        Assert.Equal(2, leader.ProductVariantId);
+        Assert.NotNull(leader.Transition);
+        Assert.Equal(Sabun, leader.Transition!.BaseProductId);
+    }
+
+    /// <summary>
+    /// Another cause is primary. The transition is still money moving the same way, so it is in the denominator —
+    /// once, by its net — and never a candidate for a cause it is not filed under.
+    /// </summary>
+    [Fact]
+    public void A_transition_is_counted_once_by_its_net_when_another_cause_is_primary()
+    {
+        var result = ToCentsWith(
+            Roles((1, SabunBase), (2, Lavanda)),
+            Material(1, Priced(60m, 12.50m), null),
+            Material(2, null, Priced(70m, 12.50m)),
+            Material(3, null, Priced(1m, 500m)));
+
+        Assert.Equal(CauseCategory.NewOrders, Primary(result));
+
+        var leader = CauseLeader.Of(result, CauseCategory.NewOrders, Amount(result, CauseCategory.NewOrders))!;
+
+        Assert.Equal((3L, 500m), (leader.ProductVariantId, leader.Amount));
+        // 500 + 125 — not 500 + 875, which is what counting the arriving member on its own would give.
+        Assert.Equal(625m, leader.SameDirectionAmount);
+        Assert.Null(leader.Transition);
+
+        // And a falling cause is not given the transition's leaving member either.
+        Assert.Null(CauseLeader.Of(result, CauseCategory.NoLongerOrdered, -1m));
+    }
+
+    /// <summary>Roles that make no transition: the leader is exactly the one without them.</summary>
+    [Fact]
+    public void With_no_transition_the_leader_is_unchanged()
+    {
+        VariantCauseInput[] inputs =
+        [
+            Material(1, Priced(60m, 12.50m), Priced(60m, 12.50m)),
+            Material(2, null, Priced(70m, 12.50m)),
+            Material(3, null, Priced(1m, 500m)),
+        ];
+
+        var without = ToCents(inputs);
+        var with = ToCentsWith(Roles((1, SabunBase), (2, Lavanda)), inputs);
+
+        Assert.Empty(with.Transitions);
+        Assert.Equal(
+            CauseLeader.Of(without, CauseCategory.NewOrders, Amount(without, CauseCategory.NewOrders)),
+            CauseLeader.Of(with, CauseCategory.NewOrders, Amount(with, CauseCategory.NewOrders)));
+    }
+
     // ---- helpers -------------------------------------------------------------------------------------
+
+    private const long Sabun = 100;
+    private static readonly VariantFamilyRole SabunBase = new(Sabun, Sabun, null);
+    private static readonly VariantFamilyRole Lavanda = new(Sabun, 200, "lavanda ətirli");
+
+    private static Dictionary<long, VariantFamilyRole> Roles(params (long VariantId, VariantFamilyRole Role)[] roles) =>
+        roles.ToDictionary(entry => entry.VariantId, entry => entry.Role);
 
     /// <summary>Decomposed and allocated to the cent exactly as the dashboard and the order page both do.</summary>
     private static CauseDecompositionResult ToCents(params VariantCauseInput[] inputs)
     {
         var result = CauseDecomposition.Decompose(inputs);
+        return CauseDecomposition.ToCents(result, Money.RoundCents(result.TotalAmountImpact));
+    }
+
+    /// <summary>The same, with the variant families both screens read.</summary>
+    private static CauseDecompositionResult ToCentsWith(
+        IReadOnlyDictionary<long, VariantFamilyRole> roles, params VariantCauseInput[] inputs)
+    {
+        var result = CauseDecomposition.Decompose(inputs, roles);
         return CauseDecomposition.ToCents(result, Money.RoundCents(result.TotalAmountImpact));
     }
 

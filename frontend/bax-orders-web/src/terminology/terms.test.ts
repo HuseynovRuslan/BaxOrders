@@ -15,6 +15,8 @@ import {
   unusualMonthHint,
   unusualMonthLabel,
   unusualMonthNote,
+  variantTransitionLine,
+  variantTransitionNote,
 } from './terms'
 
 /** U+00A0, by its code point: the no-break space the money formatter puts before ₼. */
@@ -241,5 +243,29 @@ describe('the locative ending of a number', () => {
   it('follows yüz and min for round hundreds and thousands', () => {
     expect(locativeSuffix(100)).toBe('də')
     expect(locativeSuffix(1000)).toBe('də')
+  })
+})
+
+/** Task 13c (13.1a): the brief's own line, "Sabun elano — variant dəyişib: adi → lavanda ətirli". */
+describe('an approved variant transition in words', () => {
+  it('writes the brief s line, the base as "adi"', () => {
+    expect(variantTransitionLine('Sabun elano', [null], ['lavanda ətirli']))
+      .toBe('Sabun elano — variant dəyişib: adi → lavanda ətirli')
+    expect(variantTransitionNote([null], ['lavanda ətirli'])).toBe('Variant dəyişib: adi → lavanda ətirli')
+  })
+
+  it('joins several labels on a side, the base first and each once', () => {
+    expect(variantTransitionLine('Qab yuma', ['limon', 'limon'], ['nanə', null]))
+      .toBe('Qab yuma — variant dəyişib: limon → adi, nanə')
+  })
+
+  it('uses no retired word', () => {
+    const element = document.createElement('div')
+    element.textContent = [
+      variantTransitionLine('Sabun elano', [null], ['lavanda ətirli']),
+      variantTransitionNote([null], ['lavanda ətirli']),
+    ].join('\n')
+
+    expect(findOldTerms(element)).toEqual([])
   })
 })

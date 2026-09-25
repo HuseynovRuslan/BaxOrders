@@ -1,7 +1,14 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
-import type { DecisionCause, DecisionDecomposition, DecisionDriver } from '../../api/decisions'
+import type {
+  DecisionCause,
+  DecisionDecomposition,
+  DecisionDriver,
+  DecisionVariantSide,
+  DecisionVariantTransition,
+} from '../../api/decisions'
+import { findOldTerms } from '../../test/oldTerms'
 import { CauseSummary } from './CauseSummary'
 
 /**
@@ -43,6 +50,7 @@ function decomposition(overrides: Partial<DecisionDecomposition> = {}): Decision
       serviceCount: 0,
     },
     steady: [],
+    variantTransitions: [],
     ...overrides,
   }
 }
@@ -474,6 +482,141 @@ describe('internal supply', () => {
     }))
 
     expect(screen.queryByText(/Təchizat forması dəyişib/)).toBeNull()
+  })
+})
+
+/**
+ * Task 13c, owner decision 13.1a: an approved variant transition is one "Variant dəyişib" line — "Sabun elano —
+ * variant dəyişib: adi → lavanda ətirli" — under its own part, shown even at 0,00 ₼, and never the main cause at 0,00.
+ */
+describe('an approved variant transition', () => {
+  function side(productName: string, variantLabel: string | null, id: number): DecisionVariantSide {
+    return { productVariantId: id, productId: id * 10, productName, variantLabel }
+  }
+
+  function transition(
+    from: DecisionVariantSide[],
+    to: DecisionVariantSide[],
+    amountImpact: number,
+    baseProductName = 'Sabun elano',
+  ): DecisionVariantTransition {
+    return {
+      baseProductId: 100 + baseProductName.length,
+      baseProductName,
+      from,
+      to,
+      amountImpact,
+      baselineKnownAmount: 750,
+      currentKnownAmount: 750 + amountImpact,
+    }
+  }
+
+  const sabun = side('Sabun elano', null, 1)
+  const lavanda = side('Sabun elano lavanda ətirli', 'lavanda ətirli', 2)
+
+  /** Heydər Əliyev, Sentyabr, after the approval — acceptance 3's figures. */
+  function heyderAliyevAfterApproval(): DecisionDecomposition {
+    return decomposition({
+      categories: [
+        cause('NewOrders', 0, 0),
+        cause('QuantityChange', 0, 0),
+        cause('PriceChange', 0, 0),
+        cause('NoLongerOrdered', 0, 0),
+        cause('VariantChange', 0, 2),
+        cause('Services', 0, 0),
+        cause('InternalSupply', 0, 0),
+        cause('UnattributedDueToMissingPrice', 0, 0),
+      ],
+      totalAmountImpact: 0,
+      variantTransitions: [transition([sabun], [lavanda], 0)],
+    })
+  }
+
+  it('shows Heydər Əliyev s line at 0,00 ₼ under the sentence that nothing changed, and never as the main cause', () => {
+    renderSummary(heyderAliyevAfterApproval())
+
+    expect(screen.getByText('Keçən aya görə məbləğ dəyişməyib.')).toBeInTheDocument()
+    expect(rowLabels()).toEqual(['Variant dəyişib'])
+
+    const row = rowOf('Variant dəyişib')
+    const line = row.querySelector<HTMLElement>('[data-variant-transition]')!
+    expect(within(line).getByText('Sabun elano — variant dəyişib: adi → lavanda ətirli')).toBeInTheDocument()
+    expect(within(line).getByText('0,00 ₼')).toBeInTheDocument()
+    expect(within(row).getByText('2 məhsuldan')).toBeInTheDocument()
+
+    expect(screen.queryByText('Əsas səbəb')).toBeNull()
+    expect(row).not.toHaveAttribute('data-primary')
+    // "Yeni məhsullar" and "Bu ay yazılmayan" are 750,00 ₼ smaller — here, nothing — so they are not listed.
+    expect(screen.queryByText('Yeni məhsullar')).toBeNull()
+    expect(screen.queryByText('Bu ay yazılmayan məhsullar')).toBeNull()
+  })
+
+  it('makes a transition that moved money the main cause, with its line under it', () => {
+    renderSummary(decomposition({
+      categories: [
+        cause('NewOrders', 0, 0),
+        cause('PriceChange', 40, 1),
+        cause('NoLongerOrdered', 0, 0),
+        cause('VariantChange', 125, 2),
+      ],
+      totalAmountImpact: 165,
+      variantTransitions: [transition([sabun], [lavanda], 125)],
+    }))
+
+    expect(rowLabels()).toEqual(['Variant dəyişib', 'Qiymət təsiri'])
+
+    const first = rowOf('Variant dəyişib')
+    expect(within(first).getByText('Əsas səbəb')).toBeInTheDocument()
+    expect(first).toHaveAttribute('data-primary', 'true')
+    const line = first.querySelector<HTMLElement>('[data-variant-transition]')!
+    expect(within(line).getByText('Sabun elano — variant dəyişib: adi → lavanda ətirli')).toBeInTheDocument()
+    // 9.1: the cost went up, so red, and said in words to a screen reader.
+    expect(within(line).getByText('+125,00 ₼')).toHaveClass('text-red-700')
+    expect(within(line).getByText('+125,00 ₼')).toHaveTextContent('+125,00 ₼, xərc artıb')
+    expect(barOf(first)).toHaveClass('bg-red-500')
+    // The legend is back once something moved.
+    expect(screen.getByText('Qırmızı — xərc artıb · Yaşıl — xərc azalıb')).toBeInTheDocument()
+  })
+
+  it('loses a tie in size to every other part, as the dashboard card does', () => {
+    renderSummary(decomposition({
+      categories: [cause('NewOrders', 125, 1), cause('VariantChange', -125, 2)],
+      totalAmountImpact: 0,
+      variantTransitions: [transition([sabun], [lavanda], -125)],
+    }))
+
+    expect(rowLabels()).toEqual(['Yeni məhsullar', 'Variant dəyişib'])
+  })
+
+  it('joins several labels on one side, the base first and each once', () => {
+    renderSummary(decomposition({
+      categories: [cause('VariantChange', 125, 3)],
+      totalAmountImpact: 125,
+      variantTransitions: [
+        transition([sabun], [lavanda, side('Sabun elano nanə', 'nanə', 3)], 125),
+        transition([side('Qab yuma limon', 'limon', 5)], [side('Qab yuma', null, 4), side('Qab yuma nanə', 'nanə', 6)], 0, 'Qab yuma'),
+      ],
+    }))
+
+    const lines = Array.from(rowOf('Variant dəyişib').querySelectorAll('[data-variant-transition]'))
+      .map((line) => line.firstElementChild?.textContent)
+    expect(lines).toEqual([
+      'Sabun elano — variant dəyişib: adi → lavanda ətirli, nanə',
+      'Qab yuma — variant dəyişib: limon → adi, nanə',
+    ])
+  })
+
+  it('renders exactly as before when there is no transition', () => {
+    const { container } = renderSummary(decomposition())
+
+    expect(container.querySelector('[data-variant-transition]')).toBeNull()
+    expect(screen.queryByText('Variant dəyişib')).toBeNull()
+  })
+
+  it('uses no retired word', () => {
+    const { container } = renderSummary(heyderAliyevAfterApproval())
+
+    expect(findOldTerms(container)).toEqual([])
   })
 })
 

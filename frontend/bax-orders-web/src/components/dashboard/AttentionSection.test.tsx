@@ -304,6 +304,32 @@ describe('the product behind the main cause', () => {
 
     expect(findOldTerms(container)).toEqual([])
   })
+
+  /**
+   * Task 13c (13.1a): an approved variant transition leads the month. The card's cause is "Variant dəyişib", and the
+   * product it names is the family's base, with the transition's net — one product effect (7.1a).
+   */
+  it('names the base product when an approved variant transition is the main cause', () => {
+    const { container } = renderCards(row({
+      locationName: 'Heydər Əliyev Mərkəzi',
+      current: amount({ knownAmount: 875 }),
+      baseline: amount({ knownAmount: 750 }),
+      knownAmountDelta: 125,
+      knownAmountPercentChange: 16.6667,
+      causes: [cause('VariantChange', 125, 2)],
+      primaryCause: 'VariantChange',
+      primaryCauseAmount: 125,
+      primaryCauseProduct: { productVariantId: 82, productName: 'Sabun elano', amount: 125, sameDirectionAmount: 125 },
+    }))
+    const article = card('Heydər Əliyev Mərkəzi')
+
+    expect(within(article).getByText('Əsas səbəb')).toBeInTheDocument()
+    expect(within(article).getByText('Variant dəyişib')).toBeInTheDocument()
+    const line = productLine(article, 'Sabun elano')
+    expect(line).toHaveTextContent('Sabun elano — +125,00 ₼')
+    expect(line).toHaveTextContent('(artımların 100%-i)')
+    expect(findOldTerms(container)).toEqual([])
+  })
 })
 
 describe('colour by direction on the card (9.1)', () => {
