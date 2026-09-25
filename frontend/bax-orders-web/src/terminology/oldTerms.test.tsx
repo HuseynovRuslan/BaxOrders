@@ -25,7 +25,14 @@ import { ManagementDashboardPage } from '../pages/ManagementDashboardPage'
 import { MonthlyReportPage } from '../pages/MonthlyReportPage'
 import { OrderDetailPage } from '../pages/OrderDetailPage'
 import { partition, partitionMember } from '../test/dashboardFixtures'
-import { findOldTerms, readableText } from '../test/oldTerms'
+import {
+  findOldPriceTerms,
+  findOldTerms,
+  oldPriceTermNames,
+  oldPriceTerms,
+  oldTerms,
+  readableText,
+} from '../test/oldTerms'
 
 /**
  * Owner decision 5.1 and the brief's pairs, checked where the manager reads them.
@@ -1292,5 +1299,49 @@ describe('the sweep itself', () => {
     `
 
     expect(findOldTerms(root)).toEqual(['product code', 'Versiya'])
+  })
+
+  /** Task 16: the import screens are swept for the price words among these, and for nothing else. */
+  it('finds each of the five old price words on its own', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <p>Qiyməti olmayanlar · Qiymət məlumatı çatışmır · Qiymət məlumatı natamamdır</p>
+      <p>Qiymətli / qiymətsiz · 1 məhsulun qiyməti yoxdur</p>
+    `
+
+    expect(findOldPriceTerms(root)).toEqual([
+      'Qiyməti olmayanlar',
+      'Qiymət məlumatı çatışmır',
+      'Qiymət məlumatı natamamdır',
+      'qiymətsiz',
+      'məhsulun qiyməti yoxdur',
+    ])
+  })
+
+  it('finds an old price word in an aria-label, a title or a placeholder too', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `<span title="Qiymətsiz sətirlər">—</span>`
+
+    expect(findOldPriceTerms(root)).toEqual(['qiymətsiz'])
+  })
+
+  it('does not report the technical words a Koordinator’s import screen legitimately shows', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <table><tr><th>Versiya</th><th>Ö/v</th></tr><tr><td>Versiya 2</td><td>PRD-000110 · LOC-000043</td></tr></table>
+      <p>7 sətirdə qiymət yoxdur · Təsnif edilməyib 5 · Alış qiyməti tələb olunur 2 · Daxili təminat 2</p>
+    `
+
+    expect(findOldPriceTerms(root)).toEqual([])
+    // The full list still reports them: it is the manager's sweep, and it is unchanged.
+    expect(findOldTerms(root)).toEqual(['Ö/v', 'object code', 'product code', 'Versiya'])
+  })
+
+  it('selects every price word it names, so a rename in the list cannot quietly shrink it', () => {
+    const names = oldTerms.map((term) => term.name)
+    for (const name of oldPriceTermNames) {
+      expect(names).toContain(name)
+    }
+    expect(oldPriceTerms.map((term) => term.name)).toEqual([...oldPriceTermNames])
   })
 })

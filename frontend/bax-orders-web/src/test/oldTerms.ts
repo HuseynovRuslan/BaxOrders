@@ -3,7 +3,7 @@
  *
  * Kept in one exported list so a later task that retires more words adds them here rather than writing a second
  * sweep. Task 05a filled it with the old terms; Task 05b added the technical identifiers — codes, "Versiya",
- * "Sətir sayı".
+ * "Sətir sayı". Task 16 sweeps the import screens with the price words among them (`findOldPriceTerms`).
  */
 
 export interface OldTerm {
@@ -89,4 +89,29 @@ export function findOldTerms(root: HTMLElement): string[] {
   }
 
   return found
+}
+
+/**
+ * The brief's price pairs (5.3), by name: the words the import screens must not say either (Task 16).
+ *
+ * Only these. The import screens are the Koordinator's working screens, and legitimately show what Task 05b took
+ * out of the manager's view — "Versiya", the workbook's own "Ö/v" header. Picked by name, so a rename in
+ * `oldTerms` fails `oldPriceTermNames`' test instead of quietly shrinking this list.
+ */
+export const oldPriceTermNames = [
+  'Qiyməti olmayanlar',
+  'Qiymət məlumatı çatışmır',
+  'Qiymət məlumatı natamamdır',
+  'qiymətsiz',
+  'məhsulun qiyməti yoxdur',
+] as const
+
+export const oldPriceTerms: OldTerm[] = oldTerms.filter((term) =>
+  (oldPriceTermNames as readonly string[]).includes(term.name),
+)
+
+/** The old price words found on a screen, by name. Empty when the screen is clean. */
+export function findOldPriceTerms(root: HTMLElement): string[] {
+  const text = readableText(root)
+  return oldPriceTerms.filter((term) => term.pattern.test(text)).map((term) => term.name)
 }

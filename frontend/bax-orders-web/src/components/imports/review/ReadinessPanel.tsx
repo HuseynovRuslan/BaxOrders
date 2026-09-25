@@ -1,21 +1,44 @@
-import { useEffect, useState } from 'react'
-import type { IssueType } from '../../../api/imports'
+import { Fragment, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import type { ImportStatus, IssueType } from '../../../api/imports'
 import { fetchReadiness, type ImportReadiness } from '../../../api/rows'
+import {
+  internalSupplyShortLabel,
+  internalToneClass,
+  missingPriceCount,
+  missingPriceShortLabel,
+  priceRequiredLabel,
+  pricingReviewLinkLabel,
+  pricingReviewPath,
+  unclassifiedBeforeImportNote,
+  unclassifiedLabel,
+  warningToneClass,
+} from '../../../pricing/labels'
 import { formatPeriod, issueTypeLabels } from '../labels'
+
+/** The area the price strip's «Təsnif et» navigates to: the review's «Qiymət təsnifatı» tab. Never a blocker's. */
+export const pricingArea = 'Pricing'
+
+/** A classification can still change only while the batch is under review; after that, on Qiymət təsnifatı. */
+export const reviewableStatuses: ImportStatus[] = ['NeedsReview', 'ReadyToImport']
 
 interface ReadinessPanelProps {
   importId: number
   /** Bumped after every decision, so the panel reflects the current state. */
   version: number
+  /** The batch's status as the page knows it: newer than the readiness read before the import was confirmed. */
+  batchStatus?: ImportStatus
   /** Opens the screen where a blocker is decided: a review tab, or the row corrections tab. */
   onNavigate: (area: string, issueType: IssueType) => void
+  /** Every readiness the panel reads, so the review can show its counts without asking again. */
+  onLoaded?: (readiness: ImportReadiness) => void
 }
 
 /**
  * Why this import can or cannot become order requests yet. It only explains — creating the orders themselves is
  * a separate step that does not exist yet.
  */
-export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanelProps) {
+export function ReadinessPanel({ importId, version, batchStatus, onNavigate, onLoaded }: ReadinessPanelProps) {
   const [readiness, setReadiness] = useState<ImportReadiness | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -25,6 +48,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
       .then((result) => {
         setReadiness(result)
         setError(null)
+        onLoaded?.(result)
       })
       .catch((problem: unknown) => {
         if (!controller.signal.aborted) {
@@ -32,6 +56,8 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
         }
       })
     return () => controller.abort()
+    // onLoaded is a report, not a reason to read again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importId, version])
 
   if (error) {
@@ -112,7 +138,7 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
         <Section
           title="Bloklamayanlar"
           rows={[
-            ['Qiymət yoxdur', readiness.warnings.missingPrice],
+            [missingPriceShortLabel, readiness.warnings.missingPrice],
             ['Yanlış qiymət', readiness.warnings.invalidPrice],
             ['Cəm uyğunsuzluğu', readiness.warnings.lineTotalMismatch],
             ['Mümkün təkrarlar', readiness.possibleDuplicateRows],
@@ -121,6 +147,12 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
           note="Bunlar importa mane olmur."
         />
       </div>
+
+      <PriceStrip
+        readiness={readiness}
+        underReview={reviewableStatuses.includes(batchStatus ?? readiness.batchStatus)}
+        onClassify={() => onNavigate(pricingArea, 'MissingPrice')}
+      />
 
       {readiness.existingRequestGroups.length > 0 && (
         <div className="border-t border-slate-200 px-4 py-3">
@@ -156,6 +188,67 @@ export function ReadinessPanel({ importId, version, onNavigate }: ReadinessPanel
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * The unpriced rows in Task 2's words (Task 16): «N sətirdə qiymət yoxdur», what the review has said about them so
+ * far, and what becomes of the rest once imported. Never a blocker: a classification neither stops an import nor
+ * lets one through, so nothing here reaches «Qalan maneələr».
+ */
+function PriceStrip({
+  readiness,
+  underReview,
+  onClassify,
+}: {
+  readiness: ImportReadiness
+  /** Once imported, the rows have landed: "will land" is no longer true, and they are classified on Qiymət təsnifatı. */
+  underReview: boolean
+  onClassify: () => void
+}) {
+  const { missingPrice, unclassifiedPrice, priceRequired, priceNotRequired } = readiness.warnings
+  if (unclassifiedPrice + priceRequired + priceNotRequired === 0) {
+    return null
+  }
+
+  // All three parts are shown, at 0 too, so the same rule holds for each. Daxili təminat is never amber.
+  const parts: [string, number, string][] = [
+    [unclassifiedLabel, unclassifiedPrice, unclassifiedPrice > 0 ? warningToneClass : 'text-slate-500'],
+    [priceRequiredLabel, priceRequired, priceRequired > 0 ? warningToneClass : 'text-slate-500'],
+    [internalSupplyShortLabel, priceNotRequired, internalToneClass],
+  ]
+
+  return (
+    <div className="space-y-1 border-t border-slate-200 px-4 py-3 text-xs" role="group" aria-label="Qiymət vəziyyəti">
+      {missingPrice > 0 && <p className={`font-medium ${warningToneClass}`}>{missingPriceCount(missingPrice)}</p>}
+      <p>
+        {parts.map(([label, value, tone], index) => (
+          <Fragment key={label}>
+            {index > 0 && <span className="text-slate-400"> · </span>}
+            <span className={tone}>
+              {label} {value}
+            </span>
+          </Fragment>
+        ))}
+      </p>
+      {underReview && unclassifiedPrice > 0 && (
+        <p className={warningToneClass}>{unclassifiedBeforeImportNote(unclassifiedPrice)}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-3 pt-0.5">
+        {underReview && (
+          <button
+            type="button"
+            onClick={onClassify}
+            className="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Təsnif et
+          </button>
+        )}
+        <Link to={pricingReviewPath} className="text-slate-600 underline hover:text-slate-900">
+          {pricingReviewLinkLabel}
+        </Link>
+      </div>
+    </div>
   )
 }
 

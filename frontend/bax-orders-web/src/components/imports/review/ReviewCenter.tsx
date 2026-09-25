@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import type { ImportPreview, IssueType } from '../../../api/imports'
+import type { ImportPreview, ImportStatus, IssueType } from '../../../api/imports'
 import {
   fetchUnresolvedSummary,
   type ResolutionKind,
   type UnresolvedSummaryItem,
 } from '../../../api/review'
+import { importPricingTabLabel } from '../../../pricing/labels'
 import { resolutionKindLabels } from '../labels'
 import { CorrectionCenter } from './CorrectionCenter'
-import { ReadinessPanel } from './ReadinessPanel'
+import { PricingClassificationTab } from './PricingClassificationTab'
+import { pricingArea, ReadinessPanel, reviewableStatuses } from './ReadinessPanel'
 import { UnresolvedList } from './UnresolvedList'
 
 // Products and variants come last: a variant is identified by the product and units decided before it.
@@ -24,20 +26,25 @@ const kinds: ResolutionKind[] = [...referenceKinds, 'Product', 'ProductVariant']
 
 // Row-specific problems live in their own tab: no distinct-value decision can settle them.
 const rowsTab = 'Rows' as const
-type ReviewTab = ResolutionKind | typeof rowsTab
+// The unpriced rows' classification (Task 16). Never a blocker, so no blocker ever opens it.
+const pricingTab = pricingArea
+type ReviewTab = ResolutionKind | typeof rowsTab | typeof pricingTab
 
 interface ReviewCenterProps {
   importId: number
+  batchStatus: ImportStatus
   /** Every decision — single or bulk — returns the refreshed preview of the batch. */
   onResolved: (result: { preview: ImportPreview }) => void
 }
 
-export function ReviewCenter({ importId, onResolved }: ReviewCenterProps) {
+export function ReviewCenter({ importId, batchStatus, onResolved }: ReviewCenterProps) {
   const [summary, setSummary] = useState<UnresolvedSummaryItem[] | null>(null)
   const [kind, setKind] = useState<ReviewTab>('Location')
   const [rowIssueFilter, setRowIssueFilter] = useState<IssueType | null>(null)
   const [version, setVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  // Taken from the readiness the panel already reads, so the tab's badge costs no request of its own.
+  const [unclassifiedPrice, setUnclassifiedPrice] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -56,6 +63,7 @@ export function ReviewCenter({ importId, onResolved }: ReviewCenterProps) {
 
   const active = summary?.find((item) => item.kind === kind)
   const showRows = kind === rowsTab
+  const showPricing = kind === pricingTab
   const totalDistinct = summary?.reduce((sum, item) => sum + item.distinctValues, 0) ?? 0
   const blockedRows = active?.dependencyBlockedRows ?? 0
   const variantBlockedRows = summary?.find((item) => item.kind === 'ProductVariant')?.dependencyBlockedRows ?? 0
@@ -73,7 +81,15 @@ export function ReviewCenter({ importId, onResolved }: ReviewCenterProps) {
       <ReadinessPanel
         importId={importId}
         version={version}
+        batchStatus={batchStatus}
+        onLoaded={(readiness) => setUnclassifiedPrice(readiness.warnings.unclassifiedPrice)}
         onNavigate={(area, issueType) => {
+          // The price strip's «Təsnif et» opens the classification tab.
+          if (area === pricingTab) {
+            setKind(pricingTab)
+            return
+          }
+
           // A blocker opens the screen where it is decided.
           if (kinds.includes(area as ResolutionKind)) {
             setKind(area as ResolutionKind)
@@ -169,6 +185,19 @@ export function ReviewCenter({ importId, onResolved }: ReviewCenterProps) {
         >
           Sətir düzəlişləri
         </button>
+
+        <button
+          type="button"
+          onClick={() => setKind(pricingTab)}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+            showPricing ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          {importPricingTabLabel}
+          <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ${showPricing ? 'bg-white/20' : 'bg-slate-100'}`}>
+            {unclassifiedPrice}
+          </span>
+        </button>
       </div>
 
       <div className="px-4 py-4">
@@ -176,20 +205,28 @@ export function ReviewCenter({ importId, onResolved }: ReviewCenterProps) {
 
         {showRows && <CorrectionCenter importId={importId} initialIssueType={rowIssueFilter} onChanged={refresh} />}
 
-        {!showRows && active && (
+        {showPricing && (
+          <PricingClassificationTab
+            importId={importId}
+            canClassify={reviewableStatuses.includes(batchStatus)}
+            onChanged={refresh}
+          />
+        )}
+
+        {!showRows && !showPricing && active && (
           <p className="mb-3 text-sm text-slate-700">
             {active.distinctValues} həll olunmamış dəyər · {active.affectedRows} sətrə təsir edir
           </p>
         )}
 
-        {!showRows && blockedRows > 0 && (
+        {!showRows && !showPricing && blockedRows > 0 && (
           <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
             {blockedRows} sətir hələ siyahıda görünmür: əvvəlcə həmin sətirlərin məhsulunu və ölçü vahidlərini həll
             edin. Variantın kimliyi məhz həmin qərarlardan qurulur.
           </p>
         )}
 
-        {showRows ? null : active?.distinctValues === 0 ? (
+        {showRows || showPricing ? null : active?.distinctValues === 0 ? (
           <p className="py-4 text-center text-sm text-slate-500">
             {blockedRows > 0 ? 'Bu bölmə asılı olduğu qərarları gözləyir.' : 'Bu bölmədə həll olunmamış dəyər yoxdur.'}
           </p>

@@ -269,7 +269,9 @@ export function RowDetailDialog({ importId, rowId, onClose, onChanged }: RowDeta
 
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
             <Fact label="Miqdar" value={row.parsedQuantity === null ? '—' : formatNumber(row.parsedQuantity)} />
-            <Fact label="Qiymət" value={row.parsedUnitPrice === null ? 'bilinmir' : formatNumber(row.parsedUnitPrice)} />
+            {/* No state word: the row detail does not carry the classification, and «Qiymət yoxdur» would be
+                false for a row classified «Daxili təminat». The review's «Qiymət təsnifatı» tab says the state. */}
+            <Fact label="Qiymət" value={row.parsedUnitPrice === null ? '—' : formatNumber(row.parsedUnitPrice)} />
             <Fact label="Hesablanmış cəm" value={row.calculatedLineTotal === null ? '—' : formatNumber(row.calculatedLineTotal)} />
             <Fact label="Excel cəmi" value={row.originalLineTotal ?? '—'} />
             <Fact label="Dövr" value={row.parsedRequestPeriod ? formatPeriod(row.parsedRequestPeriod) : '—'} />

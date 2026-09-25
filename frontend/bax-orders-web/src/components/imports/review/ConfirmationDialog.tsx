@@ -8,6 +8,15 @@ import {
   type ImportConfirmationPreview,
   type ImportConfirmationResult,
 } from '../../../api/imports'
+import {
+  classifyBeforeImportHint,
+  internalSupplyShortLabel,
+  missingPriceShortLabel,
+  pricingReviewLinkLabel,
+  pricingReviewPath,
+  unclassifiedBeforeImportNote,
+  unclassifiedLabel,
+} from '../../../pricing/labels'
 import { formatNumber, formatPeriod } from '../labels'
 import { Modal } from './Modal'
 
@@ -62,9 +71,16 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
     (group) => group.requiredDecision !== null && decisions[groupKey(group)] === undefined,
   )
   const skipped = Object.values(decisions).filter((decision) => decision.action === 'Skip')
-  const skippedRows = (preview?.groups ?? [])
-    .filter((group) => decisions[groupKey(group)]?.action === 'Skip')
-    .reduce((sum, group) => sum + group.sourceRowCount, 0)
+  const skippedGroups = (preview?.groups ?? []).filter((group) => decisions[groupKey(group)]?.action === 'Skip')
+  const skippedRows = skippedGroups.reduce((sum, group) => sum + group.sourceRowCount, 0)
+
+  // The price figures after the groups the operator will not import, the way skippedRows is taken: the preview's
+  // are before any skip. These are the figures the import writes, and the rise on Qiymət təsnifatı (Task 16).
+  const skippedSum = (count: (group: ConfirmationGroupPreview) => number) =>
+    skippedGroups.reduce((sum, group) => sum + count(group), 0)
+  const missingPrice = (preview?.missingPriceRows ?? 0) - skippedSum((group) => group.missingPriceItemCount)
+  const unclassifiedPrice = (preview?.unclassifiedPriceRows ?? 0) - skippedSum((group) => group.unclassifiedPriceItemCount)
+  const internalSupply = (preview?.internalSupplyRows ?? 0) - skippedSum((group) => group.internalSupplyItemCount)
   const missingReason = Object.values(decisions).some(
     (decision) => decision.action === 'Skip' && decision.reason.trim().length === 0,
   )
@@ -132,7 +148,10 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
             <Fact label="Sifarişə çevriləcək sətir" value={formatNumber(preview.rowsToImport)} />
             <Fact label="Yaradılacaq sifariş qrupu" value={formatNumber(preview.groupCount)} />
             <Fact label="İdxaldan çıxarılmış" value={formatNumber(preview.excludedRows)} />
-            <Fact label="Qiyməti olmayan" value={formatNumber(preview.missingPriceRows)} warn={preview.missingPriceRows > 0} />
+            <Fact label={missingPriceShortLabel} value={formatNumber(missingPrice)} warn={missingPrice > 0} />
+            <Fact label={unclassifiedLabel} value={formatNumber(unclassifiedPrice)} warn={unclassifiedPrice > 0} />
+            {/* Never amber: nothing is missing about material the company supplies itself. */}
+            <Fact label={internalSupplyShortLabel} value={formatNumber(internalSupply)} />
             <Fact label="Mümkün təkrar" value={formatNumber(preview.possibleDuplicateRows)} warn={preview.possibleDuplicateRows > 0} />
             <Fact label="Təchizatçısı məlum olmayan" value={formatNumber(preview.missingSupplierRows)} warn={preview.missingSupplierRows > 0} />
             <Fact label="Vahidsiz xidmət sətri" value={formatNumber(preview.unitlessVariantRows)} />
@@ -140,11 +159,24 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
             <Fact label="Mövcud sifarişi olan qrup" value={formatNumber(preview.existingRequestConflictGroups)} warn={preview.existingRequestConflictGroups > 0} />
           </dl>
 
-          {(preview.missingPriceRows > 0 || preview.possibleDuplicateRows > 0 || preview.missingSupplierRows > 0) && (
+          {(missingPrice > 0 || preview.possibleDuplicateRows > 0 || preview.missingSupplierRows > 0) && (
             <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-              Bu xəbərdarlıqlar idxalı dayandırmır, amma yox olmur: qiymətsiz sətirlər qiymətsiz qalır, mümkün
-              təkrarlar birləşdirilmir və təchizatçısı olmayan sətirlər boş təchizatçı ilə yazılır.
+              Bu xəbərdarlıqlar idxalı dayandırmır, amma yox olmur: qiyməti olmayan sətirlər Qiymət təsnifatında
+              görünür, mümkün təkrarlar birləşdirilmir və təchizatçısı olmayan sətirlər boş təchizatçı ilə yazılır.
             </p>
+          )}
+
+          {unclassifiedPrice > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+              <p className="font-medium">{unclassifiedBeforeImportNote(unclassifiedPrice)}</p>
+              <p className="mt-0.5">
+                {classifyBeforeImportHint}{' '}
+                {/* A new tab, so the group decisions and skip reasons made here are not lost. */}
+                <a href={pricingReviewPath} target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-950">
+                  {pricingReviewLinkLabel}
+                </a>
+              </p>
+            </div>
           )}
 
           {undecided.length > 0 && (
@@ -172,7 +204,7 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
                   <th className="pb-1 font-medium">Dövr</th>
                   <th className="pb-1 text-right font-medium">Sətir</th>
                   <th className="pb-1 text-right font-medium">Məbləğ</th>
-                  <th className="pb-1 text-right font-medium">Qiymətsiz</th>
+                  <th className="pb-1 text-right font-medium">{missingPriceShortLabel}</th>
                   <th className="pb-1 text-right font-medium">Təkrar</th>
                   <th className="pb-1 font-medium">Mövcud sifariş</th>
                   <th className="pb-1 font-medium">Versiya</th>

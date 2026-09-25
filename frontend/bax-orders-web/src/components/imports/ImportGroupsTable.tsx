@@ -1,4 +1,10 @@
 import type { ImportGroupPreview } from '../../api/imports'
+import {
+  internalSupplyShortLabel,
+  internalToneClass,
+  missingPriceShortLabel,
+  warningToneClass,
+} from '../../pricing/labels'
 import { formatPeriod } from './labels'
 
 interface ImportGroupsTableProps {
@@ -24,7 +30,8 @@ export function ImportGroupsTable({ groups, ungroupedRows }: ImportGroupsTablePr
                 <th className="px-4 py-2">Obyekt</th>
                 <th className="px-4 py-2">Dövr</th>
                 <th className="px-4 py-2 text-right">Sətir</th>
-                <th className="px-4 py-2 text-right">Qiymətli / qiymətsiz</th>
+                <th className="px-4 py-2 text-right">{missingPriceShortLabel}</th>
+                <th className="px-4 py-2 text-right">{internalSupplyShortLabel}</th>
                 <th className="px-4 py-2 text-right">Xəbərdarlıq</th>
                 <th className="px-4 py-2 text-right">Xəta</th>
                 <th className="px-4 py-2">Mövcud sorğu</th>
@@ -36,8 +43,21 @@ export function ImportGroupsTable({ groups, ungroupedRows }: ImportGroupsTablePr
                   <td className="px-4 py-2 font-medium text-slate-900">{group.locationName}</td>
                   <td className="px-4 py-2 text-slate-700">{formatPeriod(group.period)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{group.rowCount}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-slate-600">
-                    {group.pricedRows} / {group.unpricedRows}
+                  {/* Task 2's words over the group's included rows. `unpricedRows` also counts excluded rows,
+                      so it is neither shown here nor subtracted from these. */}
+                  <td
+                    className={`px-4 py-2 text-right tabular-nums ${
+                      group.missingPriceRows > 0 ? `font-medium ${warningToneClass}` : 'text-slate-400'
+                    }`}
+                  >
+                    {group.missingPriceRows || '—'}
+                  </td>
+                  <td
+                    className={`px-4 py-2 text-right tabular-nums ${
+                      group.internalSupplyRows > 0 ? internalToneClass : 'text-slate-400'
+                    }`}
+                  >
+                    {group.internalSupplyRows || '—'}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-amber-700">{group.warningCount}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-red-700">{group.errorCount}</td>

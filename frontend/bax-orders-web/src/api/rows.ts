@@ -139,11 +139,11 @@ export interface ImportReadiness {
     lineTotalMismatch: number
     cellsStoredAsDates: number
     /** Unpriced rows a reviewer said are supplied free. Never a warning. */
-    priceNotRequired?: number
+    priceNotRequired: number
     /** Unpriced rows nobody classified: «Təsnif edilməyib» once imported. */
-    unclassifiedPrice?: number
+    unclassifiedPrice: number
     /** Unpriced rows a reviewer said are bought: «Alış qiyməti tələb olunur». */
-    priceRequired?: number
+    priceRequired: number
   }
   possibleDuplicateRows: number
   existingRequestGroups: {

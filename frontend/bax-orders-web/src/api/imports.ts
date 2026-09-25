@@ -55,11 +55,11 @@ export interface ImportGroupPreview {
   suggestedAction: 'CreateNewRequest' | 'RequiresOperatorDecision'
   /**
    * Task 2's «qiymət yoxdur» over the group's included rows: unpriced, and unclassified or said to be bought.
-   * Optional so an API from before Task 16a still type-checks.
+   * `rowCount` / `unpricedRows` above still count excluded rows too, so the two families are never subtracted.
    */
-  missingPriceRows?: number
+  missingPriceRows: number
   /** Included unpriced rows a reviewer said are supplied free. Never a warning. */
-  internalSupplyRows?: number
+  internalSupplyRows: number
 }
 
 export interface ImportPreview {
@@ -190,11 +190,11 @@ export interface ConfirmationGroupPreview {
   conflictState: GroupConflictState
   requiredDecision: GroupDecisionAction | null
   /** Unpriced rows nobody classified: «Təsnif edilməyib» once imported. `missingPriceItemCount` = this + `priceRequiredItemCount`. */
-  unclassifiedPriceItemCount?: number
+  unclassifiedPriceItemCount: number
   /** Unpriced rows a reviewer said are bought. */
-  priceRequiredItemCount?: number
+  priceRequiredItemCount: number
   /** Unpriced rows a reviewer said are supplied free. Never a warning. */
-  internalSupplyItemCount?: number
+  internalSupplyItemCount: number
 }
 
 export interface ImportConfirmationResult {
@@ -212,11 +212,11 @@ export interface ImportConfirmationResult {
   knownAmountTotal: number | null
   durationMilliseconds: number
   /** Lines written as «Təsnif edilməyib», after skips: the work left on Qiymət təsnifatı. */
-  unclassifiedPriceItems?: number
+  unclassifiedPriceItems: number
   /** Unpriced lines written as bought, as a reviewer said, after skips. */
-  priceRequiredItems?: number
+  priceRequiredItems: number
   /** Unpriced lines written as supplied free, as a reviewer said, after skips. */
-  internalSupplyItems?: number
+  internalSupplyItems: number
 }
 
 export interface ImportConfirmationPreview {
@@ -244,11 +244,11 @@ export interface ImportConfirmationPreview {
    * Rows that will land on Qiymət təsnifatı as «Təsnif edilməyib», before any group is skipped (a skipped group's
    * share is its `unclassifiedPriceItemCount`). `missingPriceRows` = this + `priceRequiredRows`.
    */
-  unclassifiedPriceRows?: number
+  unclassifiedPriceRows: number
   /** Rows that will land as «Alış qiyməti tələb olunur», before any group is skipped. */
-  priceRequiredRows?: number
+  priceRequiredRows: number
   /** Rows that will land as «Ödənişsiz daxili təminat», before any group is skipped. */
-  internalSupplyRows?: number
+  internalSupplyRows: number
 }
 
 export interface ConfirmationGroupDecision {

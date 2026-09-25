@@ -18,21 +18,11 @@ import { formatCount, formatMonth, formatQuantity, toMonthKey } from '../compone
 import { internalSupplyHint } from '../components/analytics/labels'
 import { formatOrderUnit } from '../components/imports/labels'
 import { Modal } from '../components/imports/review/Modal'
+// What each state of a line is called here, where the whole screen is about telling them apart. The import
+// review's tab reads the same definition (Task 16).
+import { pricingModeChipClass as modeToneClass, pricingModeLabels as modeLabels } from '../pricing/labels'
 
 const pageSize = 50
-
-/** What each state of a line is called here, where the whole screen is about telling them apart. */
-const modeLabels: Record<PricingMode, string> = {
-  Unresolved: 'Təsnif edilməyib',
-  PriceRequired: 'Alış qiyməti tələb olunur',
-  InternalFreeSupply: 'Ödənişsiz daxili təminat',
-}
-
-const modeToneClass: Record<PricingMode, string> = {
-  Unresolved: 'bg-amber-50 text-amber-900 ring-amber-200',
-  PriceRequired: 'bg-slate-100 text-slate-700 ring-slate-300',
-  InternalFreeSupply: 'bg-sky-50 text-sky-900 ring-sky-200',
-}
 
 type State =
   | { status: 'loading' }
@@ -488,5 +478,3 @@ function message(problem: unknown, fallback: string): string {
 
   return problem instanceof Error && problem.message ? problem.message : fallback
 }
-
-export { modeLabels as pricingModeLabels }

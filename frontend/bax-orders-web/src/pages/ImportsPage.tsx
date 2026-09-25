@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { ApiError } from '../api/client'
 import {
   fetchImport,
@@ -17,6 +17,15 @@ import { ImportSummary } from '../components/imports/ImportSummary'
 import { formatNumber } from '../components/imports/labels'
 import { ConfirmationDialog } from '../components/imports/review/ConfirmationDialog'
 import { ReviewCenter } from '../components/imports/review/ReviewCenter'
+import {
+  changeAfterImportHint,
+  internalSupplyShortLabel,
+  missingPriceShortLabel,
+  pricingReviewLinkLabel,
+  pricingReviewPath,
+  unclassifiedAfterImportNote,
+  unclassifiedLabel,
+} from '../pricing/labels'
 
 type Phase = 'idle' | 'uploading' | 'processing'
 
@@ -150,6 +159,7 @@ export function ImportsPage() {
                 <ImportGroupsTable groups={preview.groups} ungroupedRows={preview.ungroupedRows} />
                 <ReviewCenter
                   importId={preview.batch.id}
+                  batchStatus={imported?.batchStatus ?? preview.batch.status}
                   onResolved={(result) => {
                     setPreview(result.preview)
                     setReviewVersion((current) => current + 1)
@@ -204,15 +214,23 @@ function ImportConfirmationSection({
               <Detail label="Yaradılan sətir" value={formatNumber(imported.createdItems)} />
               <Detail label="İdxal edilməyən qrup" value={formatNumber(imported.skippedGroups)} />
               <Detail label="İdxal edilməyən sətir" value={formatNumber(imported.skippedRows)} />
-              <Detail label="Qiyməti olmayan" value={formatNumber(imported.missingPriceItems)} />
+              {/* A replay returns zeros for the prices; "0" would be false about lines that exist. */}
+              {!imported.alreadyImported && (
+                <>
+                  <Detail label={missingPriceShortLabel} value={formatNumber(imported.missingPriceItems)} />
+                  <Detail label={unclassifiedLabel} value={formatNumber(imported.unclassifiedPriceItems)} />
+                  <Detail label={internalSupplyShortLabel} value={formatNumber(imported.internalSupplyItems)} />
+                </>
+              )}
               <Detail label="Mümkün təkrar" value={formatNumber(imported.possibleDuplicateItems)} />
               <Detail label="Təchizatçısız" value={formatNumber(imported.missingSupplierItems)} />
               <Detail label="Müddət" value={`${formatNumber(imported.durationMilliseconds)} ms`} />
             </dl>
-            <p className="mt-2 text-xs text-emerald-900">
-              Xəbərdarlıqlar yox olmayıb: qiymətsiz sətirlər qiymətsiz, mümkün təkrarlar ayrı-ayrı sətir olaraq
-              qalır. Sifariş siyahıları növbəti mərhələdə əlavə olunacaq.
-            </p>
+            {imported.alreadyImported ? (
+              <p className="mt-2 text-xs text-emerald-900">Bu idxal artıq sifarişlərə çevrilib.</p>
+            ) : (
+              <ImportedPriceNotes imported={imported} />
+            )}
           </>
         ) : (
           <p className="mt-1 text-sm text-emerald-900">Bu idxal artıq sifarişlərə çevrilib.</p>
@@ -256,6 +274,36 @@ function ImportConfirmationSection({
         />
       )}
     </section>
+  )
+}
+
+/**
+ * What the import left to do about prices (Task 16): the rows that landed on Qiymət təsnifatı unclassified, and
+ * the way there, where what the review decided can still be changed (16.1).
+ */
+function ImportedPriceNotes({ imported }: { imported: ImportConfirmationResult }) {
+  const classifiedOrNot = imported.unclassifiedPriceItems + imported.priceRequiredItems + imported.internalSupplyItems
+
+  return (
+    <>
+      <p className="mt-2 text-xs text-emerald-900">
+        Xəbərdarlıqlar yox olmayıb: qiyməti olmayan sətirlər Qiymət təsnifatında görünür, mümkün təkrarlar ayrı-ayrı
+        sətir olaraq qalır. Sifariş siyahıları növbəti mərhələdə əlavə olunacaq.
+      </p>
+      {imported.unclassifiedPriceItems > 0 && (
+        <p className="mt-1 text-xs font-medium text-emerald-900">
+          {unclassifiedAfterImportNote(imported.unclassifiedPriceItems)}
+        </p>
+      )}
+      {classifiedOrNot > 0 && (
+        <p className="mt-1 text-xs text-emerald-900">
+          <Link to={pricingReviewPath} className="font-medium underline hover:text-emerald-950">
+            {pricingReviewLinkLabel}
+          </Link>{' '}
+          · {changeAfterImportHint}
+        </p>
+      )}
+    </>
   )
 }
 

@@ -70,6 +70,19 @@ export const internalSupplyFullLabel = 'Ödənişsiz daxili təminat'
 /** A line nobody has classified. Still a warning; this only adds who can answer it. */
 export const unclassifiedLabel = 'Təsnif edilməyib'
 
+/** A line somebody said is bought: the price is owed. Still a warning. */
+export const priceRequiredLabel = 'Alış qiyməti tələb olunur'
+
+/**
+ * The three states of an unpriced line, where a screen is about telling them apart: Qiymət təsnifatı, and the
+ * import review's tab of the same name (Task 16). One definition, so the two can never drift.
+ */
+export const pricingModeLabels: Record<PricingMode, string> = {
+  Unresolved: unclassifiedLabel,
+  PriceRequired: priceRequiredLabel,
+  InternalFreeSupply: internalSupplyFullLabel,
+}
+
 // ---- the two colours -------------------------------------------------------------------------------
 
 /**
@@ -82,6 +95,13 @@ export const warningChipClass = 'bg-amber-50 text-amber-900 ring-amber-200'
 /** Slate, not amber. A fact about how the material arrives, not a problem with the records. */
 export const internalToneClass = 'text-slate-500'
 export const internalChipClass = 'bg-slate-100 text-slate-700 ring-slate-300'
+
+/** The chip of each state on the screens that list them by state. Internal supply is sky, never amber. */
+export const pricingModeChipClass: Record<PricingMode, string> = {
+  Unresolved: 'bg-amber-50 text-amber-900 ring-amber-200',
+  PriceRequired: 'bg-slate-100 text-slate-700 ring-slate-300',
+  InternalFreeSupply: 'bg-sky-50 text-sky-900 ring-sky-200',
+}
 
 export function lineToneClass(state: LinePricingState): string {
   return isPriceWarning(state) ? warningToneClass : internalToneClass
@@ -106,6 +126,55 @@ export function internalSupplyCount(count: number): string {
 
 /** Beside an order's price warning: the unpriced lines themselves, on Qiymət təsnifatı, read-only for a Rəhbər (14.1). */
 export const pricingReviewLinkLabel = 'Qiymət təsnifatına bax'
+
+/** Where Qiymət təsnifatı lives. Without `?order=` it opens on the lines nobody has classified. */
+export const pricingReviewPath = '/pricing-modes'
+
+// ---- the import review (Task 16) ---------------------------------------------------------------------
+
+/** Before the import: what happens to the rows nobody classifies in the review. */
+export function unclassifiedBeforeImportNote(count: number): string {
+  return `${count} sətir importdan sonra Qiymət təsnifatına «${unclassifiedLabel}» kimi düşəcək.`
+}
+
+/** After the import: the work it left on Qiymət təsnifatı. */
+export function unclassifiedAfterImportNote(count: number): string {
+  return `${count} sətir Qiymət təsnifatına «${unclassifiedLabel}» kimi düşdü.`
+}
+
+/** The review's tab, named like the page: it makes the same decision with the same words. */
+export const importPricingTabLabel = 'Qiymət təsnifatı'
+
+export const importPricingIntro =
+  'Qiyməti olmayan sətirlərin alınan, yoxsa şirkətdaxili təmin olunan material olduğunu burada, importdan əvvəl '
+  + `qeyd edə bilərsiniz. Təsnif edilməyən sətirlər importdan sonra Qiymət təsnifatına «${unclassifiedLabel}» kimi düşür.`
+
+/** What each of the tab's buttons says. Clearing takes a classification away; the row is unclassified again. */
+export const importPricingActionLabels: Record<PricingMode, string> = {
+  PriceRequired: `${priceRequiredLabel} kimi qeyd et`,
+  InternalFreeSupply: `${internalSupplyFullLabel} kimi qeyd et`,
+  Unresolved: 'Təsnifatı geri al',
+}
+
+/** After the tab saved: "3 sətir «Ödənişsiz daxili təminat» kimi qeyd edildi." */
+export function importPricingSavedNotice(count: number, mode: PricingMode): string {
+  return mode === 'Unresolved'
+    ? `${count} sətrin təsnifatı geri alındı.`
+    : `${count} sətir «${pricingModeLabels[mode]}» kimi qeyd edildi.`
+}
+
+export const importPricingNoneLeft = 'Təsnif edilməmiş sətir qalmayıb.'
+export const importPricingNoneMatching = 'Bu filtrə uyğun sətir tapılmadı.'
+export const importPricingNoUnpricedRows = 'Bu importda qiyməti olmayan sətir yoxdur.'
+export const importPricingReadOnlyNote =
+  'Bu import artıq təsdiqlənib. Təsnifatı Qiymət təsnifatında dəyişə bilərsiniz.'
+
+/** Beside the advance warning, in the confirmation dialog: there is still time. */
+export const classifyBeforeImportHint =
+  `İdxaldan əvvəl onları yoxlamanın «${importPricingTabLabel}» bölməsində təsnif edə bilərsiniz.`
+
+/** Beside the link after the import (16.1): what the review decided is not final. */
+export const changeAfterImportHint = 'Yoxlamada verilən təsnifatı orada dəyişə bilərsiniz.'
 
 /** Said only where a price somebody owes is actually absent. */
 export const amountIncompleteLabel = 'Məbləğ tam deyil'
