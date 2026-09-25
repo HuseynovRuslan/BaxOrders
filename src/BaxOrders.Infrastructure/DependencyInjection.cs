@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<ILocationCodeGenerator, PostgresLocationCodeGenerator>();
         services.AddScoped<IImportBatchLock, PostgresImportBatchLock>();
         services.AddScoped<IOrderRequestLock, PostgresOrderRequestLock>();
+        services.AddScoped<IProductMatchLock, PostgresProductMatchLock>();
         services.AddSingleton<IExcelWorkbookReader, ExcelDataReaderWorkbookReader>();
 
         return services;

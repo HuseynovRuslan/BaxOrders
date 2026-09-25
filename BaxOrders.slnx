@@ -9,6 +9,7 @@
     <Project Path="tools/BaxOrders.ApprovalSandbox/BaxOrders.ApprovalSandbox.csproj" />
     <Project Path="tools/BaxOrders.CatalogueMigration/BaxOrders.CatalogueMigration.csproj" />
     <Project Path="tools/BaxOrders.DataTransfer/BaxOrders.DataTransfer.csproj" />
+    <Project Path="tools/BaxOrders.ProductMatchMigration/BaxOrders.ProductMatchMigration.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BaxOrders.IntegrationTests/BaxOrders.IntegrationTests.csproj" />

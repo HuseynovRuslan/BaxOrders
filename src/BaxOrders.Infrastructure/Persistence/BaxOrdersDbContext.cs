@@ -42,6 +42,8 @@ public sealed class BaxOrdersDbContext(DbContextOptions<BaxOrdersDbContext> opti
 
     public DbSet<ProductCategoryDecision> ProductCategoryDecisions => Set<ProductCategoryDecision>();
 
+    public DbSet<ProductMatchDecision> ProductMatchDecisions => Set<ProductMatchDecision>();
+
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     public DbSet<SupplierAlias> SupplierAliases => Set<SupplierAlias>();

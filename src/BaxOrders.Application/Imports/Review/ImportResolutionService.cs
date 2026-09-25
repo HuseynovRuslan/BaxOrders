@@ -20,6 +20,11 @@ namespace BaxOrders.Application.Imports.Review;
 /// <see cref="ImportResolution"/>, re-match every staged row with that value, and refresh the batch summary.
 /// The batch row is locked first, so two decisions on the same batch cannot interleave. Nothing is matched
 /// automatically: the operator always chooses the target.
+/// <para>
+/// Saving a spelling as a product's alternative name is an administrator's decision (13.2, see
+/// <see cref="ProductMatchAuthority"/>); every other alias, and every decision for this import only, is the
+/// operator's as before.
+/// </para>
 /// </remarks>
 public sealed class ImportResolutionService(
     IBaxOrdersDbContext db,
@@ -28,6 +33,7 @@ public sealed class ImportResolutionService(
     ILocationCodeGenerator locationCodeGenerator,
     IProductCodeGenerator productCodeGenerator,
     IImportBatchLock batchLock,
+    ICurrentUserContext currentUser,
     ILogger<ImportResolutionService> logger)
 {
     public Task<ResolutionResult> ResolveLocationToExistingAsync(ResolveToExistingCommand command, CancellationToken cancellationToken) =>
@@ -289,6 +295,8 @@ public sealed class ImportResolutionService(
         {
             throw new NotFoundException("A source value is required.");
         }
+
+        EnsureMayNameProducts(currentUser, kind, scope);
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
@@ -942,6 +950,21 @@ public sealed class ImportResolutionService(
         if (kind is not (ImportResolutionKind.OrderUnit or ImportResolutionKind.SpecificationUnit))
         {
             throw new DomainException($"{kind} is not a unit column.");
+        }
+    }
+
+    /// <summary>
+    /// 13.2: an alternative product name is saved only by a role holding <see cref="ProductMatchAuthority"/>.
+    /// Checked before anything is read or written. A decision for this import only, and an alias of any other kind,
+    /// stay the operator's.
+    /// </summary>
+    internal static void EnsureMayNameProducts(ICurrentUserContext user, ImportResolutionKind kind, ResolutionScope scope)
+    {
+        if (kind == ImportResolutionKind.Product && scope == ResolutionScope.GlobalAlias
+            && !ProductMatchAuthority.IsHeldBy(user.Role))
+        {
+            throw new ForbiddenException(
+                "Only an administrator may save a spelling as a product's alternative name for future imports. Apply the decision to this import only.");
         }
     }
 

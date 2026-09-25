@@ -42,6 +42,8 @@ function person(role: BaxOrdersRole, overrides: Partial<CurrentUser> = {}): Curr
     canManageUsers: role === 'Admin',
     canManageCatalog: role !== 'Manager',
     canViewApprovals: role !== 'Coordinator',
+    // Only an administrator decides product matches and alternative product names (13.2).
+    canDecideProductMatches: role === 'Admin',
     ...overrides,
   }
 }
@@ -58,6 +60,7 @@ const anonymous: CurrentUser = {
   canManageUsers: false,
   canManageCatalog: false,
   canViewApprovals: false,
+  canDecideProductMatches: false,
 }
 
 beforeEach(() => {

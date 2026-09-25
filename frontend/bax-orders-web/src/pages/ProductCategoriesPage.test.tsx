@@ -49,6 +49,7 @@ function person(role: BaxOrdersRole): CurrentUser {
     canManageUsers: role === 'Admin',
     canManageCatalog: role !== 'Manager',
     canViewApprovals: role !== 'Coordinator',
+    canDecideProductMatches: role === 'Admin',
   }
 }
 

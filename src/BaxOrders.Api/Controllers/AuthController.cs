@@ -152,7 +152,7 @@ public sealed class AuthController(
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not { } userId)
         {
-            return new CurrentUserDto(false, null, null, null, null, false, false, false, false, false, false);
+            return new CurrentUserDto(false, null, null, null, null, false, false, false, false, false, false, false);
         }
 
         var stored = await directory.FindAsync(userId, HttpContext.RequestAborted);
@@ -169,7 +169,8 @@ public sealed class AuthController(
             CanDecideOrders: ApprovalAuthority.IsHeldBy(role),
             CanManageUsers: role is BaxOrdersRoles.Admin,
             CanManageCatalog: role is BaxOrdersRoles.Coordinator or BaxOrdersRoles.Admin,
-            CanViewApprovals: ApprovalAuthority.MayViewQueue(role));
+            CanViewApprovals: ApprovalAuthority.MayViewQueue(role),
+            CanDecideProductMatches: ProductMatchAuthority.IsHeldBy(role));
     }
 
     /// <summary>One answer for every bad sign-in, so it never says whether the name exists.</summary>

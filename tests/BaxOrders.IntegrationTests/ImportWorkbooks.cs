@@ -1,3 +1,4 @@
+using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
@@ -72,7 +73,18 @@ internal static class ImportWorkbooks
     public static BulkResolutionPlanner Planner(BaxOrdersDbContext db, int maxItems = 150) =>
         new(db, new ImportReviewQueries(db), Options.Create(new ImportOptions { MaxBulkResolutionItems = maxItems }));
 
-    public static BulkResolutionService BulkService(BaxOrdersDbContext db, int maxItems = 150) =>
+    /// <summary>
+    /// Who reviews an import when a test does not say: the Koordinator, whose work the review is. The review writes no
+    /// actor, so this person needs no row in the directory.
+    /// </summary>
+    public static readonly ICurrentUserContext ReviewingCoordinator =
+        new TestCurrentUser(Guid.NewGuid(), "Koordinator", BaxOrdersRoles.Coordinator);
+
+    /// <summary>The administrator, who alone saves a product's alternative name (13.2).</summary>
+    public static readonly ICurrentUserContext ReviewingAdmin =
+        new TestCurrentUser(Guid.NewGuid(), "Administrator", BaxOrdersRoles.Admin);
+
+    public static BulkResolutionService BulkService(BaxOrdersDbContext db, int maxItems = 150, ICurrentUserContext? user = null) =>
         new(
             db,
             Planner(db, maxItems),
@@ -81,6 +93,7 @@ internal static class ImportWorkbooks
             new PostgresLocationCodeGenerator(db),
             new PostgresProductCodeGenerator(db),
             new PostgresImportBatchLock(db),
+            user ?? ReviewingCoordinator,
             NullLogger<BulkResolutionService>.Instance);
 
     public static ImportRowCorrectionService CorrectionService(BaxOrdersDbContext db) =>
@@ -93,7 +106,7 @@ internal static class ImportWorkbooks
             TimeProvider.System,
             NullLogger<ImportRowCorrectionService>.Instance);
 
-    public static ImportResolutionService ResolutionService(BaxOrdersDbContext db) =>
+    public static ImportResolutionService ResolutionService(BaxOrdersDbContext db, ICurrentUserContext? user = null) =>
         new(
             db,
             new ImportRevalidator(db, new ImportCatalogLoader(db)),
@@ -101,6 +114,7 @@ internal static class ImportWorkbooks
             new PostgresLocationCodeGenerator(db),
             new PostgresProductCodeGenerator(db),
             new PostgresImportBatchLock(db),
+            user ?? ReviewingCoordinator,
             NullLogger<ImportResolutionService>.Instance);
 
     public static ImportConfirmationPlanner ConfirmationPlanner(BaxOrdersDbContext db) => new(db);

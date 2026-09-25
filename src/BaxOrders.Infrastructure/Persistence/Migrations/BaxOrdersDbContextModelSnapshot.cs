@@ -206,6 +206,105 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductMatchDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedByDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("DecidedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("SourceProductId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SourceVariantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TargetProductId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("TargetVariantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UndoReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("UndoneAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UndoneByDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("UndoneByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VariantLabel")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceProductId")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'Variant' AND \"Outcome\" = 'Approved' AND \"UndoneAtUtc\" IS NULL");
+
+                    b.HasIndex("SourceVariantId")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'SameItem' AND \"Outcome\" = 'Approved' AND \"UndoneAtUtc\" IS NULL");
+
+                    b.HasIndex("TargetProductId");
+
+                    b.HasIndex("TargetVariantId");
+
+                    b.HasIndex("SourceProductId", "TargetProductId")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'Variant' AND \"UndoneAtUtc\" IS NULL");
+
+                    b.HasIndex("SourceVariantId", "TargetVariantId")
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'SameItem' AND \"UndoneAtUtc\" IS NULL");
+
+                    b.ToTable("ProductMatchDecisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductMatchDecisions_DifferentSides", "(\"Kind\" = 'SameItem' AND \"SourceVariantId\" <> \"TargetVariantId\") OR (\"Kind\" = 'Variant' AND \"SourceProductId\" <> \"TargetProductId\")");
+
+                            t.HasCheckConstraint("CK_ProductMatchDecisions_KindShape", "(\"Kind\" = 'SameItem' AND \"SourceVariantId\" IS NOT NULL AND \"TargetVariantId\" IS NOT NULL) OR (\"Kind\" = 'Variant' AND \"SourceVariantId\" IS NULL AND \"TargetVariantId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_ProductMatchDecisions_Outcome", "\"Outcome\" IN ('Approved', 'Rejected')");
+
+                            t.HasCheckConstraint("CK_ProductMatchDecisions_Undo", "(\"UndoneByUserId\" IS NULL AND \"UndoneByDisplayName\" IS NULL AND \"UndoneAtUtc\" IS NULL AND \"UndoReason\" IS NULL) OR (\"UndoneByUserId\" IS NOT NULL AND \"UndoneByDisplayName\" IS NOT NULL AND \"UndoneAtUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ProductMatchDecisions_VariantLabel", "(\"VariantLabel\" IS NOT NULL) = (\"Kind\" = 'Variant' AND \"Outcome\" = 'Approved')");
+                        });
+                });
+
             modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductVariant", b =>
                 {
                     b.Property<long>("Id")
@@ -2133,6 +2232,31 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Navigation("NewCategory");
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductMatchDecision", b =>
+                {
+                    b.HasOne("BaxOrders.Domain.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("SourceProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Catalog.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("SourceVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BaxOrders.Domain.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("TargetProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaxOrders.Domain.Catalog.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("TargetVariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BaxOrders.Domain.Catalog.ProductVariant", b =>

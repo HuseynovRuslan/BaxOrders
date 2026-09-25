@@ -71,6 +71,20 @@ public static class ApprovalAuthority
 }
 
 /// <summary>
+/// Who may approve or reject a product match and undo one, and save an alternative product name (13.2). The one
+/// answer to that question: the endpoint policy, the services, the import review and <c>/auth/me</c> all ask this.
+/// </summary>
+/// <remarks>
+/// The owner's rule is "admin or data manager". There is no data-manager role, and deciding that some other role
+/// is one would be a business fact nobody stated, so today it is the administrator alone. Naming a data-manager
+/// role later is a change to this one line.
+/// </remarks>
+public static class ProductMatchAuthority
+{
+    public static bool IsHeldBy(string? role) => role is BaxOrdersRoles.Admin;
+}
+
+/// <summary>
 /// What each policy is called. Named for the capability rather than the role, so the roles behind one can
 /// change without every endpoint changing with them.
 /// </summary>
@@ -106,4 +120,10 @@ public static class BaxOrdersPolicies
     /// catalog needs no policy; only changing what it claims does.
     /// </summary>
     public const string CanManageCatalog = nameof(CanManageCatalog);
+
+    /// <summary>
+    /// Approving or rejecting a product match, and undoing one. Only a role holding
+    /// <see cref="ProductMatchAuthority"/>.
+    /// </summary>
+    public const string CanDecideProductMatches = nameof(CanDecideProductMatches);
 }

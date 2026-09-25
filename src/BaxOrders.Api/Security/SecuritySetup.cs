@@ -90,6 +90,11 @@ internal static class SecuritySetup
             // revising rather than with deciding on orders. A manager reads the catalog; they do not shape it.
             .AddPolicy(BaxOrdersPolicies.CanManageCatalog, policy =>
                 policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
+            // Deciding that two products are one, or a variant of one another, is 13.2's: built from the one
+            // definition of that authority, like CanDecideOrders, so the endpoint and the service cannot disagree.
+            .AddPolicy(BaxOrdersPolicies.CanDecideProductMatches, policy =>
+                policy.RequireAssertion(context =>
+                    BaxOrdersRoles.All.Any(role => ProductMatchAuthority.IsHeldBy(role) && context.User.IsInRole(role))))
             // Everything is closed unless it says otherwise. A new endpoint is private by forgetting to think
             // about it, which is the right way round.
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());

@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\src\BaxOrders.Api\BaxOrders.Api.csproj" />
     <ProjectReference Include="..\..\tools\BaxOrders.ApprovalSandbox\BaxOrders.ApprovalSandbox.csproj" />
     <ProjectReference Include="..\..\tools\BaxOrders.CatalogueMigration\BaxOrders.CatalogueMigration.csproj" />
+    <ProjectReference Include="..\..\tools\BaxOrders.ProductMatchMigration\BaxOrders.ProductMatchMigration.csproj" />
   </ItemGroup>
 
   <ItemGroup>

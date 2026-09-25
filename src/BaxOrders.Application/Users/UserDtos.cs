@@ -17,6 +17,10 @@ public sealed record UserDto(
 /// Whether they may open the queue of orders waiting for a decision — wider than deciding: an administrator
 /// sees the queue without the authority to act on it.
 /// </param>
+/// <param name="CanDecideProductMatches">
+/// Whether they may approve, reject or undo a product match and save an alternative product name (13.2). Only an
+/// administrator does.
+/// </param>
 public sealed record CurrentUserDto(
     bool IsAuthenticated,
     Guid? UserId,
@@ -28,7 +32,8 @@ public sealed record CurrentUserDto(
     bool CanDecideOrders,
     bool CanManageUsers,
     bool CanManageCatalog,
-    bool CanViewApprovals);
+    bool CanViewApprovals,
+    bool CanDecideProductMatches);
 
 /// <summary>Whether anybody can approve an order right now.</summary>
 /// <param name="ActiveApproverCount">Active users whose role holds approval authority. Zero means nobody can approve.</param>

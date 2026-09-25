@@ -101,7 +101,8 @@ public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
         var batchId = await StageAsync(db, new OrderLine(Product: spelling));
         var key = ImportSourceKeys.Name(spelling)!;
 
-        var result = await ResolutionService(db).ResolveProductToExistingAsync(
+        // 13.2: an alternative product name is the administrator's to save.
+        var result = await ResolutionService(db, ReviewingAdmin).ResolveProductToExistingAsync(
             new ResolveToExistingCommand(batchId, key, product.Id, ResolutionScope.GlobalAlias), CancellationToken.None);
 
         Assert.True(result.AliasSaved);
@@ -126,7 +127,9 @@ public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
         await AddProductAsync(db, spelling);
         var other = await AddProductAsync(db, $"Başqa mal {Unique()}");
         var key = ImportSourceKeys.Name(spelling)!;
-        var service = ResolutionService(db);
+
+        // 13.2: an alternative product name is the administrator's to save; the ambiguity is refused all the same.
+        var service = ResolutionService(db, ReviewingAdmin);
 
         var conflict = await Assert.ThrowsAsync<ConflictException>(() => service.ResolveProductToExistingAsync(
             new ResolveToExistingCommand(batchId, key, other.Id, ResolutionScope.GlobalAlias), CancellationToken.None));

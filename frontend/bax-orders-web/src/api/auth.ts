@@ -17,6 +17,11 @@ export interface CurrentUser {
   canManageCatalog: boolean
   /** May open "Təsdiq gözləyənlər": the Rəhbər, and an administrator, who sees it without deciding. */
   canViewApprovals: boolean
+  /**
+   * May approve, reject or undo a product match, and save an alternative product name for future imports (13.2).
+   * Only an administrator.
+   */
+  canDecideProductMatches: boolean
 }
 
 /** Whether anybody can approve an order right now. */
@@ -60,6 +65,7 @@ export const anonymousUser: CurrentUser = {
   canManageUsers: false,
   canManageCatalog: false,
   canViewApprovals: false,
+  canDecideProductMatches: false,
 }
 
 /**

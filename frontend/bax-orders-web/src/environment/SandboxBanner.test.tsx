@@ -36,6 +36,7 @@ const anonymous: CurrentUser = {
   canManageUsers: false,
   canManageCatalog: false,
   canViewApprovals: false,
+  canDecideProductMatches: false,
 }
 
 const rehber: CurrentUser = {
@@ -50,6 +51,7 @@ const rehber: CurrentUser = {
   canManageUsers: false,
   canManageCatalog: false,
   canViewApprovals: true,
+  canDecideProductMatches: false,
 }
 
 beforeEach(() => {

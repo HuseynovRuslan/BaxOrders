@@ -10,6 +10,7 @@ import {
   type UnresolvedValue,
   type VariantPlan,
 } from '../../../api/review'
+import { useAuth } from '../../../auth/AuthProvider'
 import { resolutionKindSingular, unitlessOrderUnitLabel } from '../labels'
 import { Modal } from './Modal'
 
@@ -22,6 +23,7 @@ interface MapExistingDialogProps {
 }
 
 export function MapExistingDialog({ importId, kind, value, onClose, onResolved }: MapExistingDialogProps) {
+  const { user } = useAuth()
   const isVariant = kind === 'ProductVariant'
   const [search, setSearch] = useState(isVariant ? '' : value.displayValue)
   const [options, setOptions] = useState<ReferenceOption[] | null>(null)
@@ -32,7 +34,10 @@ export function MapExistingDialog({ importId, kind, value, onClose, onResolved }
   const [error, setError] = useState<string | null>(null)
 
   // A category path and a variant are identified by this import's own decisions, so neither becomes an alias.
-  const aliasSupported = kind !== 'CategoryPath' && !isVariant
+  // A product's alternative name is saved only by whoever may decide product matches (13.2); the server refuses
+  // anybody else whatever this offers.
+  const aliasSupported =
+    kind !== 'CategoryPath' && !isVariant && (kind !== 'Product' || user.canDecideProductMatches)
 
   // The variant's product decides which variants may be offered at all.
   useEffect(() => {

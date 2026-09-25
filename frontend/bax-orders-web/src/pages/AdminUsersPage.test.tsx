@@ -40,6 +40,8 @@ const admin: CurrentUser = {
   canManageUsers: true,
   canManageCatalog: true,
   canViewApprovals: true,
+  // 13.2: product matches and alternative product names are the administrator's.
+  canDecideProductMatches: true,
 }
 
 function appUser(overrides: Partial<AppUser> = {}): AppUser {

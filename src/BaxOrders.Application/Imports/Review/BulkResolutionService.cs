@@ -19,6 +19,10 @@ namespace BaxOrders.Application.Imports.Review;
 /// same <see cref="ImportResolution"/> records, the same catalog entities, the same alias rules and the same
 /// re-matching. What it adds is doing them once for a set instead of once per value — one batch lock, one
 /// transaction, one re-match and one summary refresh — and refusing the whole set if any value is in conflict.
+/// <para>
+/// A set that would save any product's alternative name needs <see cref="ProductMatchAuthority"/> (13.2), and is
+/// refused as a whole without it — previewed or applied — before anything is read.
+/// </para>
 /// </remarks>
 public sealed class BulkResolutionService(
     IBaxOrdersDbContext db,
@@ -28,11 +32,15 @@ public sealed class BulkResolutionService(
     ILocationCodeGenerator locationCodeGenerator,
     IProductCodeGenerator productCodeGenerator,
     IImportBatchLock batchLock,
+    ICurrentUserContext currentUser,
     ILogger<BulkResolutionService> logger)
 {
     /// <summary>What the operation would do. Reads only: no record, alias or decision is written.</summary>
-    public async Task<BulkPreviewResult> PreviewAsync(long importBatchId, BulkResolutionRequest request, CancellationToken cancellationToken) =>
-        (await planner.PlanAsync(importBatchId, request, cancellationToken)).ToResult();
+    public async Task<BulkPreviewResult> PreviewAsync(long importBatchId, BulkResolutionRequest request, CancellationToken cancellationToken)
+    {
+        EnsureMayNameProducts(request);
+        return (await planner.PlanAsync(importBatchId, request, cancellationToken)).ToResult();
+    }
 
     /// <summary>
     /// Applies the selected decisions, all of them or none. The plan is built again under the batch lock, so a
@@ -41,6 +49,7 @@ public sealed class BulkResolutionService(
     public async Task<BulkApplyResult> ApplyAsync(long importBatchId, BulkResolutionRequest request, CancellationToken cancellationToken)
     {
         planner.Validate(request);
+        EnsureMayNameProducts(request);
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
@@ -372,4 +381,13 @@ public sealed class BulkResolutionService(
     };
 
     private static string Key(PlannedItem item) => $"{item.Request.Kind}|{item.Request.SourceKey}";
+
+    /// <summary>13.2, for the whole set: one product alias the caller may not save refuses all of it.</summary>
+    private void EnsureMayNameProducts(BulkResolutionRequest? request)
+    {
+        foreach (var item in request?.Items ?? [])
+        {
+            ImportResolutionService.EnsureMayNameProducts(currentUser, item.Kind, item.Scope);
+        }
+    }
 }

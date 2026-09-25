@@ -11,6 +11,7 @@ import {
   type ReferenceOption,
   type ResolutionKind,
 } from '../../../api/review'
+import { useAuth } from '../../../auth/AuthProvider'
 import { bulkStatusLabels, resolutionKindSingular } from '../labels'
 import { Modal } from './Modal'
 
@@ -30,6 +31,7 @@ interface BulkActionDialogProps {
  * shows; the operator sees every value, every conflict and the exact number of rows before anything is written.
  */
 export function BulkActionDialog({ importId, kind, sourceKeys, mode, onClose, onApplied }: BulkActionDialogProps) {
+  const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<ReferenceOption[] | null>(null)
   const [target, setTarget] = useState<ReferenceOption | null>(null)
@@ -40,7 +42,13 @@ export function BulkActionDialog({ importId, kind, sourceKeys, mode, onClose, on
   const [error, setError] = useState<string | null>(null)
   const [conflicts, setConflicts] = useState<BulkPreviewItem[] | null>(null)
 
-  const aliasSupported = mode === 'map' && kind !== 'CategoryPath' && kind !== 'ProductVariant'
+  // A product's alternative name is saved only by whoever may decide product matches (13.2); the server refuses
+  // the whole set for anybody else.
+  const aliasSupported =
+    mode === 'map' &&
+    kind !== 'CategoryPath' &&
+    kind !== 'ProductVariant' &&
+    (kind !== 'Product' || user.canDecideProductMatches)
 
   const items = useMemo<BulkResolutionItem[]>(
     () =>

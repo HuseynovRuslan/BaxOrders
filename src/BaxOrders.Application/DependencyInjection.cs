@@ -2,6 +2,7 @@
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Approvals;
 using BaxOrders.Application.Catalog;
+using BaxOrders.Application.Catalog.ProductMatches;
 using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
@@ -37,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<MonthlyReportQueries>();
         services.AddScoped<ProductCategoryQueries>();
         services.AddScoped<ProductCategoryService>();
+        services.AddScoped<ProductMatchQueries>();
+        services.AddScoped<ProductMatchService>();
         services.AddScoped<SupplierPricingService>();
         services.AddScoped<PricingModeReviewService>();
 

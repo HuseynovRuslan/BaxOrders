@@ -19,6 +19,7 @@ import {
   type UnresolvedValue,
   type VariantPlan,
 } from '../../../api/review'
+import { useAuth } from '../../../auth/AuthProvider'
 import { formatSpecification, resolutionKindSingular, unitlessOrderUnitLabel, unitTypeLabels } from '../labels'
 import { Modal } from './Modal'
 
@@ -33,6 +34,7 @@ interface CreateResolutionDialogProps {
 const unitTypes: UnitType[] = ['Count', 'Length', 'Area', 'Mass', 'Volume', 'Package', 'Pair', 'Other']
 
 export function CreateResolutionDialog({ importId, kind, value, onClose, onResolved }: CreateResolutionDialogProps) {
+  const { user } = useAuth()
   const [name, setName] = useState(value.displayValue)
   const [code, setCode] = useState('')
   const [symbol, setSymbol] = useState('')
@@ -50,6 +52,8 @@ export function CreateResolutionDialog({ importId, kind, value, onClose, onResol
   const isUnit = kind === 'OrderUnit' || kind === 'SpecificationUnit'
   const isProduct = kind === 'Product'
   const isVariant = kind === 'ProductVariant'
+  // A product's alternative name is saved only by whoever may decide product matches (13.2).
+  const aliasSupported = !isProduct || user.canDecideProductMatches
 
   useEffect(() => {
     if (!isCategory) return
@@ -104,7 +108,7 @@ export function CreateResolutionDialog({ importId, kind, value, onClose, onResol
   async function submit() {
     setBusy(true)
     setError(null)
-    const scope: ResolutionScope = saveAlias ? 'GlobalAlias' : 'BatchOnly'
+    const scope: ResolutionScope = saveAlias && aliasSupported ? 'GlobalAlias' : 'BatchOnly'
     const sourceKey = value.sourceKey
 
     try {
@@ -321,10 +325,12 @@ export function CreateResolutionDialog({ importId, kind, value, onClose, onResol
             </>
           )}
 
-          <label className="flex items-start gap-2 text-slate-700">
-            <input type="checkbox" checked={saveAlias} onChange={(event) => setSaveAlias(event.target.checked)} className="mt-0.5" />
-            Gələcək importlarda da bu uyğunluğu yadda saxla
-          </label>
+          {aliasSupported && (
+            <label className="flex items-start gap-2 text-slate-700">
+              <input type="checkbox" checked={saveAlias} onChange={(event) => setSaveAlias(event.target.checked)} className="mt-0.5" />
+              Gələcək importlarda da bu uyğunluğu yadda saxla
+            </label>
+          )}
         </div>
       )}
 

@@ -31,6 +31,7 @@ const currentUser: CurrentUser = {
   canManageUsers: false,
   canManageCatalog: true,
   canViewApprovals: false,
+  canDecideProductMatches: false,
 }
 
 beforeEach(() => {

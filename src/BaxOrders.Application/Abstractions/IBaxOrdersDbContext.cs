@@ -36,6 +36,9 @@ public interface IBaxOrdersDbContext
     /// <summary>Every decision about a product's canonical category. Append-only.</summary>
     DbSet<ProductCategoryDecision> ProductCategoryDecisions { get; }
 
+    /// <summary>Every decision about a product match. Never deleted; undone in place.</summary>
+    DbSet<ProductMatchDecision> ProductMatchDecisions { get; }
+
     DbSet<Supplier> Suppliers { get; }
 
     DbSet<SupplierAlias> SupplierAliases { get; }
