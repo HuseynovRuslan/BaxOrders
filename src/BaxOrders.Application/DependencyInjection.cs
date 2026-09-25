@@ -7,6 +7,7 @@ using BaxOrders.Application.Decisions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
+using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
@@ -58,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<ImportReadinessQueries>();
         services.AddScoped<ImportConfirmationPlanner>();
         services.AddScoped<ImportConfirmationService>();
+        services.AddScoped<ImportPricingService>();
 
         return services;
     }

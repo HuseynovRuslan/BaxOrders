@@ -31,7 +31,8 @@ public sealed class ProductMatchMigrationTests : IAsyncLifetime
     [PostgresFact]
     public async Task Once_migrated_nothing_is_pending_and_the_table_is_empty()
     {
-        await using var db = _database!.CreateContext();
+        await StandWhereTask13aFoundItAsync();
+        await using var db = MigrationsAsFound.Task13a(_database!.ConnectionString);
 
         var state = await MigrationState.ReadAsync(db, None);
         var plan = MigrationPlan.Of(state);
@@ -46,7 +47,8 @@ public sealed class ProductMatchMigrationTests : IAsyncLifetime
     [PostgresFact]
     public async Task Down_drops_the_table_and_the_tool_puts_it_back_once()
     {
-        await using var db = _database!.CreateContext();
+        await StandWhereTask13aFoundItAsync();
+        await using var db = MigrationsAsFound.Task13a(_database!.ConnectionString);
 
         // Down: back to the migration before Task 13a.
         await db.GetService<IMigrator>().MigrateAsync(MigrationPlan.Previous, None);
@@ -165,6 +167,18 @@ public sealed class ProductMatchMigrationTests : IAsyncLifetime
         {
             await _database.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// The fixture's starting point for the two tests that read "13a's migration is the latest": the database is
+    /// taken back to <see cref="MigrationPlan.Target"/>, and the tool then looks at it through the code as it stood
+    /// then (<see cref="MigrationsAsFound"/>). Later migrations — Task 16a's first — are a fact about later tasks,
+    /// not about this tool; every assertion stays as 13a wrote it.
+    /// </summary>
+    private async Task StandWhereTask13aFoundItAsync()
+    {
+        await using var current = _database!.CreateContext();
+        await current.GetService<IMigrator>().MigrateAsync(MigrationPlan.Target, None);
     }
 
     private static async Task<SortedDictionary<string, string>> CaptureAsync(ServiceProvider services)

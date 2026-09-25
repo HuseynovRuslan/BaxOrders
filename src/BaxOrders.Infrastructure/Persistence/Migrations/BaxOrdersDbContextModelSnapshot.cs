@@ -1124,6 +1124,20 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<string>("PricingClassification")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("PricingClassifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PricingClassifiedByDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("PricingClassifiedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("RowNumber")
                         .HasColumnType("integer");
 
@@ -1179,6 +1193,10 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.ToTable("ImportRows", null, t =>
                         {
                             t.HasCheckConstraint("CK_ImportRows_ParsedRequestPeriodIsMonthStart", "\"ParsedRequestPeriod\" IS NULL OR EXTRACT(DAY FROM \"ParsedRequestPeriod\") = 1");
+
+                            t.HasCheckConstraint("CK_ImportRows_PricingClassification", "\"PricingClassification\" IS NULL OR \"PricingClassification\" IN ('PriceRequired', 'InternalFreeSupply')");
+
+                            t.HasCheckConstraint("CK_ImportRows_PricingClassificationActor", "(\"PricingClassification\" IS NULL AND \"PricingClassifiedByUserId\" IS NULL AND \"PricingClassifiedByDisplayName\" IS NULL AND \"PricingClassifiedAtUtc\" IS NULL) OR (\"PricingClassification\" IS NOT NULL AND \"PricingClassifiedByUserId\" IS NOT NULL AND \"PricingClassifiedByDisplayName\" IS NOT NULL AND \"PricingClassifiedAtUtc\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ImportRows_RowNumber", "\"RowNumber\" > 0");
                         });

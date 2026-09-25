@@ -1,5 +1,6 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
+using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Normalization;
 using BaxOrders.Domain.Orders;
@@ -8,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace BaxOrders.Application.Imports;
 
 /// <summary>
-/// Read-side of the import preview. All counts are aggregated in SQL; rows are paged on the server.
+/// Read-side of the import preview. Counts are aggregated in SQL, except the price counts, which are read row by
+/// row through <see cref="ImportLinePricing"/> so they cannot drift from Task 2's rule; rows are paged on the server.
 /// </summary>
 public sealed class ImportPreviewQueries(IBaxOrdersDbContext db)
 {
@@ -50,6 +52,23 @@ public sealed class ImportPreviewQueries(IBaxOrdersDbContext db)
                 PricedRows = g.Count(r => r.ParsedUnitPrice != null),
             })
             .ToListAsync(cancellationToken);
+
+        // Task 2's price counts per group, through the one rule: each included row is read for its effective
+        // price and what the review said about it, and nothing else — never its supplier (brief 16).
+        var pricingRows = await db.ImportRows.AsNoTracking()
+            .Where(r => r.ImportBatchId == importBatchId && !r.IsExcluded && r.MatchedLocationId != null && r.ParsedRequestPeriod != null)
+            .Select(r => new
+            {
+                LocationId = r.MatchedLocationId!.Value,
+                Period = r.ParsedRequestPeriod!.Value,
+                r.ParsedUnitPrice,
+                r.PricingClassification,
+            })
+            .ToListAsync(cancellationToken);
+
+        var pricing = pricingRows
+            .GroupBy(r => (r.LocationId, r.Period))
+            .ToDictionary(g => g.Key, g => ImportPricingCounts.Of(g.Select(r => (r.ParsedUnitPrice, r.PricingClassification))));
 
         var issueGroups = await db.ImportRowIssues.AsNoTracking()
             .Where(i => i.ImportRow.ImportBatchId == importBatchId
@@ -94,6 +113,7 @@ public sealed class ImportPreviewQueries(IBaxOrdersDbContext db)
                     .Where(i => i.LocationId == g.LocationId && i.Period == g.Period && i.Severity == severity)
                     .Sum(i => i.Count);
                 int? latestVersion = existing.TryGetValue((g.LocationId, g.Period), out var version) ? version : null;
+                var groupPricing = pricing.GetValueOrDefault((g.LocationId, g.Period), ImportPricingCounts.Empty);
 
                 return new ImportGroupPreview(
                     g.LocationId,
@@ -106,7 +126,9 @@ public sealed class ImportPreviewQueries(IBaxOrdersDbContext db)
                     CountIssues(IssueSeverity.Error),
                     latestVersion is not null,
                     latestVersion,
-                    latestVersion is null ? GroupSuggestedAction.CreateNewRequest : GroupSuggestedAction.RequiresOperatorDecision);
+                    latestVersion is null ? GroupSuggestedAction.CreateNewRequest : GroupSuggestedAction.RequiresOperatorDecision,
+                    groupPricing.MissingPrice,
+                    groupPricing.InternalSupply);
             })
             .OrderBy(g => g.Period)
             .ThenBy(g => g.LocationName, AzerbaijaniCollation.Comparer)

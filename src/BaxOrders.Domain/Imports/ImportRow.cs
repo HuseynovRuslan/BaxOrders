@@ -188,6 +188,25 @@ public sealed class ImportRow
 
     public ImportRowValidationStatus ValidationStatus { get; private set; }
 
+    /// <summary>
+    /// What a person said in review about this row's missing price: bought, or supplied free from the company's
+    /// own store. Null means nobody has said, and the line is imported as <see cref="PricingMode.Unresolved"/>.
+    /// </summary>
+    /// <remarks>
+    /// Never <see cref="PricingMode.Unresolved"/> itself — "not classified" is the null — and never derived from
+    /// the supplier, the workbook's supplier text, the location or the product (brief 16: no classification by
+    /// source). Only <see cref="ClassifyPricing"/> sets it, and only for a row with no price. A correction that
+    /// later gives the row a price leaves it in place, where nothing reads it: a price has answered the question.
+    /// </remarks>
+    public PricingMode? PricingClassification { get; private set; }
+
+    public Guid? PricingClassifiedByUserId { get; private set; }
+
+    /// <summary>The classifier's name as it read then. A snapshot: never refreshed, never rewritten.</summary>
+    public string? PricingClassifiedByDisplayName { get; private set; }
+
+    public DateTime? PricingClassifiedAtUtc { get; private set; }
+
     public IReadOnlyCollection<ImportRowIssue> Issues => _issues;
 
     /// <summary>What an operator says single cells of this row should have said. Requires loading.</summary>
@@ -309,6 +328,65 @@ public sealed class ImportRow
         IsExcluded = false;
         ExclusionReason = null;
         ExcludedAtUtc = null;
+    }
+
+    /// <summary>
+    /// Records, during review, whether this unpriced row is bought or supplied free — and who said so.
+    /// </summary>
+    /// <remarks>
+    /// It touches nothing else on the row: not its values, its issues, its matches or its status. The line it
+    /// becomes carries the answer, with this person as the one who decided (brief 16.1).
+    /// </remarks>
+    /// <returns>False when the row already said exactly this; nothing, not even the time, is rewritten then.</returns>
+    public bool ClassifyPricing(PricingMode mode, WorkflowActor actor, DateTime utcNow)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        if (mode is not (PricingMode.PriceRequired or PricingMode.InternalFreeSupply))
+        {
+            // Unresolved is what an unclassified row already is; it is cleared, never stored.
+            throw new DomainException(
+                $"'{mode}' is not a classification a row can be given; it is bought ({PricingMode.PriceRequired}) or supplied free ({PricingMode.InternalFreeSupply}).");
+        }
+
+        var userId = actor.UserId
+                     ?? throw new DomainException("A pricing decision is made by a signed-in person.");
+
+        if (ParsedUnitPrice is not null)
+        {
+            // A price is the strongest possible statement that this was bought, so there is nothing to classify.
+            throw new DomainException("This row carries a price, so its supply is not in question.");
+        }
+
+        if (PricingClassification == mode)
+        {
+            return false;
+        }
+
+        var displayName = Guard.RequiredText(actor.DisplayName, OrderItemPricingDecision.ActorDisplayNameMaxLength, nameof(actor));
+        var classifiedAt = Guard.Utc(utcNow, nameof(utcNow));
+
+        PricingClassification = mode;
+        PricingClassifiedByUserId = userId;
+        PricingClassifiedByDisplayName = displayName;
+        PricingClassifiedAtUtc = classifiedAt;
+        return true;
+    }
+
+    /// <summary>Takes the review's classification away, so the row is imported as "Təsnif edilməyib" again.</summary>
+    /// <returns>False when nobody had classified it.</returns>
+    public bool ClearPricingClassification()
+    {
+        if (PricingClassification is null)
+        {
+            return false;
+        }
+
+        PricingClassification = null;
+        PricingClassifiedByUserId = null;
+        PricingClassifiedByDisplayName = null;
+        PricingClassifiedAtUtc = null;
+        return true;
     }
 
     public void SetParsedValues(decimal? quantity, decimal? unitPrice, decimal? lineTotal, DateOnly? requestPeriod, DateOnly? requestDate = null)

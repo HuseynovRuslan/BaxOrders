@@ -132,7 +132,19 @@ export interface ImportReadiness {
     ambiguousMatch: number
     otherErrors: number
   }
-  warnings: { missingPrice: number; invalidPrice: number; lineTotalMismatch: number; cellsStoredAsDates: number }
+  warnings: {
+    /** Task 2's «N sətirdə qiymət yoxdur»: always `unclassifiedPrice` + `priceRequired`. */
+    missingPrice: number
+    invalidPrice: number
+    lineTotalMismatch: number
+    cellsStoredAsDates: number
+    /** Unpriced rows a reviewer said are supplied free. Never a warning. */
+    priceNotRequired?: number
+    /** Unpriced rows nobody classified: «Təsnif edilməyib» once imported. */
+    unclassifiedPrice?: number
+    /** Unpriced rows a reviewer said are bought: «Alış qiyməti tələb olunur». */
+    priceRequired?: number
+  }
   possibleDuplicateRows: number
   existingRequestGroups: {
     locationId: number

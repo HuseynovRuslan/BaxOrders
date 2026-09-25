@@ -20,6 +20,17 @@ internal sealed class ImportRowConfiguration : IEntityTypeConfiguration<ImportRo
             table.HasCheckConstraint(
                 "CK_ImportRows_ParsedRequestPeriodIsMonthStart",
                 "\"ParsedRequestPeriod\" IS NULL OR EXTRACT(DAY FROM \"ParsedRequestPeriod\") = 1");
+
+            // "Not classified" is the null; Unresolved is never stored on a staged row.
+            table.HasCheckConstraint(
+                "CK_ImportRows_PricingClassification",
+                "\"PricingClassification\" IS NULL OR \"PricingClassification\" IN ('PriceRequired', 'InternalFreeSupply')");
+
+            // A classification always says who gave it and when, and clearing it clears all of that.
+            table.HasCheckConstraint(
+                "CK_ImportRows_PricingClassificationActor",
+                "(\"PricingClassification\" IS NULL AND \"PricingClassifiedByUserId\" IS NULL AND \"PricingClassifiedByDisplayName\" IS NULL AND \"PricingClassifiedAtUtc\" IS NULL) "
+                + "OR (\"PricingClassification\" IS NOT NULL AND \"PricingClassifiedByUserId\" IS NOT NULL AND \"PricingClassifiedByDisplayName\" IS NOT NULL AND \"PricingClassifiedAtUtc\" IS NOT NULL)");
         });
 
         builder.Property(row => row.SheetName).HasMaxLength(ImportRow.SheetNameMaxLength);
@@ -84,6 +95,11 @@ internal sealed class ImportRowConfiguration : IEntityTypeConfiguration<ImportRo
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(row => row.ExclusionReason).HasMaxLength(ImportRow.ExclusionReasonMaxLength);
+
+        // Stored by name, at the length the line's own PricingMode uses.
+        builder.Property(row => row.PricingClassification).HasConversion<string>().HasMaxLength(30);
+        builder.Property(row => row.PricingClassifiedByDisplayName)
+            .HasMaxLength(OrderItemPricingDecision.ActorDisplayNameMaxLength);
 
         // The possible-duplicate fingerprint is stored hashed, so one correction refreshes only its own groups.
         builder.Property(row => row.DuplicateFingerprint)

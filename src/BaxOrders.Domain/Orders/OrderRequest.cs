@@ -281,18 +281,23 @@ public sealed class OrderRequest
     }
 
     /// <summary>Adds a line while a request is being built. A correction version is changed through its audited edits instead.</summary>
+    /// <param name="pricingMode">
+    /// What the line starts as. An import always says (brief 16); null keeps the supplier's seed for a line built by
+    /// hand — see <see cref="OrderRequestItem"/>.
+    /// </param>
     public OrderRequestItem AddItem(
         ProductVariant productVariant,
         decimal quantity,
         decimal? unitPrice,
         Supplier? supplier = null,
         string? originalProductName = null,
-        string? notes = null)
+        string? notes = null,
+        PricingMode? pricingMode = null)
     {
         EnsureStatus("add items to", OrderRequestStatus.Draft);
         EnsureNotRevision();
 
-        var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName, notes);
+        var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName, notes, pricingMode);
         _items.Add(item);
         return item;
     }

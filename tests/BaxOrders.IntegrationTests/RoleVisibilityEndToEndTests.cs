@@ -280,6 +280,8 @@ public sealed class RoleVisibilityEndToEndTests(PostgresDatabaseFixture database
             $"/api/v1/imports/{batchId}/corrections/candidates",
             $"/api/v1/imports/{batchId}/readiness",
             $"/api/v1/imports/{batchId}/confirmation/preview",
+            // Brief 16: the review's pricing classification belongs to the import, and is refused with it.
+            $"/api/v1/imports/{batchId}/pricing",
         ];
     }
 

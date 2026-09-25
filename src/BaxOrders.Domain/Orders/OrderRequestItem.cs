@@ -20,6 +20,10 @@ public sealed class OrderRequestItem
     {
     }
 
+    /// <param name="pricingMode">
+    /// The mode the line starts with, used as given. An import always passes it (brief 16: nothing is classified by
+    /// source). Null is only for a line built by hand, which keeps the supplier's seed below.
+    /// </param>
     internal OrderRequestItem(
         OrderRequest orderRequest,
         ProductVariant productVariant,
@@ -27,7 +31,8 @@ public sealed class OrderRequestItem
         decimal quantity,
         decimal? unitPrice,
         string? originalProductName,
-        string? notes)
+        string? notes,
+        PricingMode? pricingMode = null)
     {
         ArgumentNullException.ThrowIfNull(productVariant);
 
@@ -49,11 +54,14 @@ public sealed class OrderRequestItem
         SupplierId = supplier is { Id: > 0 } ? supplier.Id : null;
         Quantity = ValidQuantity(quantity);
         UnitPrice = ValidUnitPrice(unitPrice);
-        // A supplier that is known never to charge seeds the line; from then on the line owns the answer,
-        // because one supplier can be both — see PricingMode for why this cannot live on the supplier.
-        PricingMode = supplier?.PriceRequirement == SupplierPriceRequirement.NotRequired
-            ? PricingMode.InternalFreeSupply
-            : PricingMode.PriceRequired;
+        // A supplier that is known never to charge seeds a line built by hand; from then on the line owns the
+        // answer, because one supplier can be both — see PricingMode for why this cannot live on the supplier.
+        // An import never reaches the seed: it always states the mode, and states it without reading the source.
+        PricingMode = pricingMode is { } given
+            ? ValidInitialMode(given, UnitPrice)
+            : supplier?.PriceRequirement == SupplierPriceRequirement.NotRequired
+                ? PricingMode.InternalFreeSupply
+                : PricingMode.PriceRequired;
         OriginalProductName = Guard.OptionalText(originalProductName, OriginalProductNameMaxLength, nameof(OriginalProductName));
         Notes = Guard.OptionalText(notes, NotesMaxLength, nameof(Notes));
     }
@@ -200,6 +208,23 @@ public sealed class OrderRequestItem
 
         Supplier = supplier;
         SupplierId = supplier is { Id: > 0 } ? supplier.Id : null;
+    }
+
+    private static PricingMode ValidInitialMode(PricingMode mode, decimal? unitPrice)
+    {
+        if (!Enum.IsDefined(mode))
+        {
+            throw new DomainException($"'{mode}' is not a pricing mode this system knows.");
+        }
+
+        if (unitPrice is not null && mode is PricingMode.InternalFreeSupply)
+        {
+            // The same refusal as SetPricingMode: a recorded price says this line was bought.
+            throw new DomainException(
+                "This line carries a price, so it cannot be recorded as supplied free of charge.");
+        }
+
+        return mode;
     }
 
     private static decimal ValidQuantity(decimal quantity)

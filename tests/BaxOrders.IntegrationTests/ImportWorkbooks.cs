@@ -2,6 +2,7 @@ using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
+using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Infrastructure.Persistence;
@@ -118,6 +119,18 @@ internal static class ImportWorkbooks
             NullLogger<ImportResolutionService>.Instance);
 
     public static ImportConfirmationPlanner ConfirmationPlanner(BaxOrdersDbContext db) => new(db);
+
+    public static ImportReadinessQueries ReadinessQueries(BaxOrdersDbContext db) => new(db, new ImportReviewQueries(db));
+
+    /// <summary>Pricing classification during review (brief 16.1), as <paramref name="user"/> — the Koordinator by default.</summary>
+    public static ImportPricingService PricingService(BaxOrdersDbContext db, ICurrentUserContext? user = null) =>
+        new(
+            db,
+            new ImportPreviewQueries(db),
+            new PostgresImportBatchLock(db),
+            user ?? ReviewingCoordinator,
+            TimeProvider.System,
+            NullLogger<ImportPricingService>.Instance);
 
     public static ImportConfirmationService ConfirmationService(BaxOrdersDbContext db, TimeProvider? clock = null) =>
         new(

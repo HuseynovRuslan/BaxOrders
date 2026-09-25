@@ -2,8 +2,8 @@ using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Evaluation;
 using BaxOrders.Application.Imports.Parsing;
+using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Domain.Imports;
-using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaxOrders.Application.Imports.Review;
@@ -32,20 +32,30 @@ public sealed record RowBlockers(
     int OtherErrors);
 
 /// <summary>Problems that are worth seeing but never keep an import back.</summary>
+/// <remarks>
+/// The four price counts are Task 2's, over the rows still part of the import, through
+/// <see cref="ImportLinePricing"/>: what each row's line will say once imported. No supplier is consulted — a
+/// supplier cannot say whether one of its lines was bought (brief 16) — and an unusable price counts as the
+/// missing price it will be imported as.
+/// </remarks>
 /// <param name="MissingPrice">
-/// Rows whose price is blank and whose supplier is expected to charge one. A row resolved to the company's own
-/// store is not here: no purchase price was ever owed for it, so the importer is not asked to invent one.
+/// «N sətirdə qiymət yoxdur»: unpriced rows nobody classified, plus those said to be bought. Always
+/// <see cref="UnclassifiedPrice"/> + <see cref="PriceRequired"/>.
 /// </param>
 /// <param name="PriceNotRequired">
-/// Rows with a blank price that are supplied internally. Stated so the reviewer can see they were considered
-/// and set aside, never as something to fix.
+/// Unpriced rows a reviewer said the company supplies itself. Stated so the reviewer can see they were
+/// considered and set aside, never as something to fix.
 /// </param>
+/// <param name="UnclassifiedPrice">Unpriced rows nobody classified: «Təsnif edilməyib» once imported.</param>
+/// <param name="PriceRequired">Unpriced rows a reviewer said are bought: «Alış qiyməti tələb olunur».</param>
 public sealed record ReadinessWarnings(
     int MissingPrice,
     int PriceNotRequired,
     int InvalidPrice,
     int LineTotalMismatch,
-    int CellsStoredAsDates);
+    int CellsStoredAsDates,
+    int UnclassifiedPrice,
+    int PriceRequired);
 
 /// <param name="LatestVersion">Highest version already stored for this location and period.</param>
 public sealed record ExistingRequestGroup(int LocationId, string LocationName, DateOnly Period, int RowCount, int LatestVersion);
@@ -103,19 +113,13 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
         int RowsWith(ImportIssueType type, IssueSeverity? severity = null) =>
             issueRows.Where(item => item.IssueType == type && (severity is null || item.Severity == severity)).Sum(item => item.Rows);
 
-        // A blank price is only a warning when somebody was going to be charged. The parse stage cannot know
-        // that — it runs long before a supplier is resolved — so the row's resolved supplier is consulted here,
-        // once, in its own query.
-        var priceNotRequiredRows = await db.ImportRowIssues.AsNoTracking()
-            .Where(issue => issue.ImportRow.ImportBatchId == importBatchId
-                && !issue.ImportRow.IsExcluded
-                && issue.IssueType == ImportIssueType.MissingPrice
-                && issue.ImportRow.MatchedSupplierId != null
-                && db.Suppliers.Any(supplier => supplier.Id == issue.ImportRow.MatchedSupplierId
-                    && supplier.PriceRequirement == SupplierPriceRequirement.NotRequired))
-            .Select(issue => issue.ImportRowId)
-            .Distinct()
-            .CountAsync(cancellationToken);
+        // Whether a missing price is a warning is what a person said in review, never what the supplier is:
+        // one supplier can be both. Each row is read for the two things the rule takes, and nothing else.
+        var pricing = ImportPricingCounts.Of((await db.ImportRows.AsNoTracking()
+                .Where(row => row.ImportBatchId == importBatchId && !row.IsExcluded)
+                .Select(row => new { row.ParsedUnitPrice, row.PricingClassification })
+                .ToListAsync(cancellationToken))
+            .Select(row => (row.ParsedUnitPrice, row.PricingClassification)));
 
         var blockers = issueRows
             .Where(item => ImportIssueRules.IsBlocking(item.IssueType, item.Severity))
@@ -157,11 +161,13 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
                 RowsWith(ImportIssueType.AmbiguousMatch, IssueSeverity.Error),
                 RowsWith(ImportIssueType.Other, IssueSeverity.Error)),
             new ReadinessWarnings(
-                Math.Max(0, RowsWith(ImportIssueType.MissingPrice) - priceNotRequiredRows),
-                priceNotRequiredRows,
+                pricing.MissingPrice,
+                pricing.InternalSupply,
                 RowsWith(ImportIssueType.InvalidPrice),
                 RowsWith(ImportIssueType.LineTotalMismatch),
-                RowsWith(ImportIssueType.Other, IssueSeverity.Warning)),
+                RowsWith(ImportIssueType.Other, IssueSeverity.Warning),
+                pricing.Unclassified,
+                pricing.PriceRequired),
             RowsWith(ImportIssueType.DuplicateRow),
             await ExistingRequestGroupsAsync(importBatchId, cancellationToken),
             blockers.Count == 0,

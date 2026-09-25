@@ -29,6 +29,13 @@ public enum GroupSuggestedAction
 /// <summary>
 /// Rows of one resolved location and request period. Warning and error counts are numbers of issues, not rows.
 /// </summary>
+/// <param name="MissingPriceRows">
+/// Task 2's «qiymət yoxdur» over the group's rows still part of the import (<c>ImportLinePricing</c>): unpriced,
+/// and either unclassified or said to be bought. An excluded row is never imported, so it is not counted here.
+/// </param>
+/// <param name="InternalSupplyRows">
+/// The group's included unpriced rows a reviewer said are supplied free. Never a warning.
+/// </param>
 public sealed record ImportGroupPreview(
     int LocationId,
     string LocationName,
@@ -40,7 +47,9 @@ public sealed record ImportGroupPreview(
     int ErrorCount,
     bool ExistingRequest,
     int? LatestVersion,
-    GroupSuggestedAction SuggestedAction);
+    GroupSuggestedAction SuggestedAction,
+    int MissingPriceRows,
+    int InternalSupplyRows);
 
 /// <param name="UngroupedRows">Rows without a resolved location or a valid date, so they belong to no group yet.</param>
 public sealed record ImportPreview(

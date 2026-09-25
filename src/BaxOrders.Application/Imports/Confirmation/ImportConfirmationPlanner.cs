@@ -1,5 +1,6 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
+using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,8 @@ namespace BaxOrders.Application.Imports.Confirmation;
 
 /// <summary>One staged row as the confirmation sees it: already resolved, already effective, ready to become an item.</summary>
 /// <param name="IsPossibleDuplicate">Informational only; the row still becomes an item of its own.</param>
+/// <param name="Classification">What a reviewer said about the missing price; null when nobody did.</param>
+/// <param name="ClassifiedByUserId">Who said it, answerable for it on the line's history.</param>
 internal sealed record PlannedRow(
     long ImportRowId,
     int LocationId,
@@ -19,7 +22,23 @@ internal sealed record PlannedRow(
     string? OriginalProductName,
     bool IsPossibleDuplicate,
     bool IsUnitlessVariant,
-    bool HasSpecificationDescriptor);
+    bool HasSpecificationDescriptor,
+    PricingMode? Classification,
+    Guid? ClassifiedByUserId,
+    string? ClassifiedByDisplayName)
+{
+    /// <summary>The mode the line is written with (<see cref="ImportLinePricing.ModeOf"/>).</summary>
+    public PricingMode PricingMode => ImportLinePricing.ModeOf(UnitPrice, Classification);
+
+    /// <summary>
+    /// The review's classification when it is what the line ends up saying — never for a row that carries a price,
+    /// where a classification left over from before a correction answers nothing.
+    /// </summary>
+    public PricingMode? EffectiveClassification => UnitPrice is null ? Classification : null;
+
+    public static ImportPricingCounts CountsOf(IEnumerable<PlannedRow> rows) =>
+        ImportPricingCounts.Of(rows.Select(row => (row.UnitPrice, row.Classification)));
+}
 
 /// <summary>Everything the confirmation needs about one location + period group.</summary>
 internal sealed record PlannedGroup(
@@ -110,6 +129,9 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 IsPossibleDuplicate = row.Issues.Any(issue => issue.IssueType == ImportIssueType.DuplicateRow),
                 IsUnitlessVariant = row.MatchedOrderUnitId == null,
                 HasSpecificationDescriptor = row.SpecificationDescriptor != null,
+                row.PricingClassification,
+                row.PricingClassifiedByUserId,
+                row.PricingClassifiedByDisplayName,
             })
             .ToListAsync(cancellationToken);
 
@@ -124,7 +146,10 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 row.OriginalProductName,
                 row.IsPossibleDuplicate,
                 row.IsUnitlessVariant,
-                row.HasSpecificationDescriptor))
+                row.HasSpecificationDescriptor,
+                row.PricingClassification,
+                row.PricingClassifiedByUserId,
+                row.PricingClassifiedByDisplayName))
             .ToList();
 
         var locationIds = planned.Select(row => row.LocationId).Distinct().ToList();
@@ -185,11 +210,13 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
         ConfirmationPlan plan, IReadOnlyDictionary<(int LocationId, DateOnly RequestPeriod), ConfirmationGroupDecision>? decisions)
     {
         var rows = plan.Groups.SelectMany(group => group.Rows).ToList();
+        var pricing = PlannedRow.CountsOf(rows);
 
         var groups = plan.Groups.Select(group =>
         {
             var decided = decisions?.GetValueOrDefault((group.LocationId, group.RequestPeriod));
             var required = RequiredDecision(group);
+            var groupPricing = PlannedRow.CountsOf(group.Rows);
 
             return new ConfirmationGroupPreview(
                 group.LocationId,
@@ -198,7 +225,7 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 group.RequestPeriod,
                 group.Rows.Count,
                 group.Rows.Count(row => row.UnitPrice is not null),
-                group.Rows.Count(row => row.UnitPrice is null),
+                groupPricing.MissingPrice,
                 group.Rows.Count(row => row.IsPossibleDuplicate),
                 group.KnownAmountTotal,
                 group.ExistingRequest,
@@ -206,7 +233,10 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 group.LatestVersion,
                 ProposedVersion(group, decided),
                 group.ConflictState,
-                required);
+                required,
+                groupPricing.Unclassified,
+                groupPricing.PriceRequired,
+                groupPricing.InternalSupply);
         }).ToList();
 
         var undecided = plan.Groups.Count(group =>
@@ -228,7 +258,7 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
             plan.Groups.Count,
             rows.Count,
             rows.Count(row => row.UnitPrice is not null),
-            rows.Count(row => row.UnitPrice is null),
+            pricing.MissingPrice,
             rows.Count(row => row.IsPossibleDuplicate),
             rows.Count(row => row.SupplierId is not null),
             rows.Count(row => row.SupplierId is null),
@@ -238,7 +268,10 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
             canConfirm,
             plan.Existing is not null,
             groups,
-            plan.Existing is null ? null : ResultOf(plan.Existing, plan.Batch, durationMilliseconds: 0));
+            plan.Existing is null ? null : ResultOf(plan.Existing, plan.Batch, durationMilliseconds: 0),
+            pricing.Unclassified,
+            pricing.PriceRequired,
+            pricing.InternalSupply);
     }
 
     /// <summary>A group with no existing request needs no decision; one with an existing request always does.</summary>
@@ -278,5 +311,8 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
             PossibleDuplicateItems: 0,
             MissingSupplierItems: 0,
             KnownAmountTotal: null,
-            durationMilliseconds);
+            durationMilliseconds,
+            UnclassifiedPriceItems: 0,
+            PriceRequiredItems: 0,
+            InternalSupplyItems: 0);
 }
