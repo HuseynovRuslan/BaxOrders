@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import type { LocationDashboardRow, ManagementDashboardSummary } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
 import {
@@ -12,7 +13,16 @@ import {
 } from '../analytics/format'
 import { DirectionWord } from '../analytics/DirectionWord'
 import type { DashboardPartitionMember } from '../../api/dashboard'
-import { DetailsLink } from './AttentionSection'
+import {
+  interactiveRowClass,
+  interactiveSurfaceClass,
+  interactiveTextClass,
+  openSurfaceLink,
+  rowLinkClass,
+  surfaceLinkAttribute,
+  surfaceLinkClass,
+} from '../interaction'
+import { DetailsCue, detailsName, detailsTarget } from './details'
 import {
   footerAllOrdersLine,
   footerComparedLabel,
@@ -29,7 +39,7 @@ import { MissingPriceMark } from './MissingPriceMark'
 interface LocationRowsProps {
   rows: LocationDashboardRow[]
   summary: ManagementDashboardSummary
-  /** Carried into every "Detallara bax", so the order answers about the same comparison. */
+  /** Carried into every row's link, so the order answers about the same comparison. */
   selection: BasisSelection
 }
 
@@ -75,15 +85,27 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
               <th scope="col" className="px-3 py-3 text-right">Dəyişmə</th>
               <th scope="col" className="px-3 py-3">Əsas səbəb</th>
               <th scope="col" className="px-3 py-3">Məlumat vəziyyəti</th>
-              <th scope="col" className="px-3 py-3"><span className="sr-only">Detallar</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => (
-              // The id is where Back returns the reader to: the row they opened.
-              <tr key={row.locationId} id={`row-${row.locationId}`} className="hover:bg-slate-50">
+              /*
+                The id is where Back returns the reader to: the row they opened. The whole row opens the object
+                (20.2): a click anywhere on it is handed to its one link, the object's name, so the reader no longer
+                crosses the screen to a button at the far edge.
+              */
+              <tr key={row.locationId} id={`row-${row.locationId}`} onClick={openSurfaceLink} className={interactiveRowClass}>
                 <th scope="row" className="px-4 py-2.5 text-left font-normal">
-                  <p className="font-medium text-slate-900">{row.locationName}</p>
+                  <p className="font-medium text-slate-900">
+                    <Link
+                      {...surfaceLinkAttribute}
+                      to={detailsTarget(row, selection)}
+                      aria-label={detailsName(row)}
+                      className={`${rowLinkClass} ${interactiveTextClass}`}
+                    >
+                      {row.locationName}
+                    </Link>
+                  </p>
                 </th>
 
                 {/* A missing price is a short mark on the amount's own line, not a sentence under it. */}
@@ -130,11 +152,6 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                     neverOrdered={neverOrdered.has(row.locationId)}
                   />
                 </td>
-
-                {/* Never squeezed: the button keeps its one line and the other columns give way. */}
-                <td className="w-px whitespace-nowrap px-3 py-2.5 text-right">
-                  <DetailsLink row={row} selection={selection} compact />
-                </td>
               </tr>
             ))}
           </tbody>
@@ -175,7 +192,7 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                 </p>
               </td>
 
-              <td colSpan={3} className="px-3 py-3 text-xs text-slate-500">
+              <td colSpan={2} className="px-3 py-3 text-xs text-slate-500">
                 {basisDetail}
               </td>
             </tr>
@@ -186,11 +203,25 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
       {/* A phone gets the same four answers, stacked. The table is never squeezed sideways to fit. */}
       <ul className="space-y-2 lg:hidden">
         {rows.map((row) => (
-          // Its own id, for Back on a phone, where the table and its row ids are hidden.
-          <li key={row.locationId} id={`row-${row.locationId}-phone`} className="rounded-lg border border-slate-200 bg-white p-3">
+          // Its own id, for Back on a phone, where the table and its row ids are hidden. Opened like a card (20.2).
+          <li
+            key={row.locationId}
+            id={`row-${row.locationId}-phone`}
+            onClick={openSurfaceLink}
+            className={`group rounded-lg border border-slate-200 bg-white p-3 ${interactiveSurfaceClass}`}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-medium text-slate-900">{row.locationName}</p>
+                <p className="font-medium text-slate-900">
+                  <Link
+                    {...surfaceLinkAttribute}
+                    to={detailsTarget(row, selection)}
+                    aria-label={detailsName(row)}
+                    className={`${surfaceLinkClass} ${interactiveTextClass}`}
+                  >
+                    {row.locationName}
+                  </Link>
+                </p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="whitespace-nowrap text-base font-semibold text-slate-900">
@@ -216,7 +247,7 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
             </div>
 
             <div className="mt-2 border-t border-slate-100 pt-2">
-              <DetailsLink row={row} selection={selection} compact />
+              <DetailsCue compact />
             </div>
           </li>
         ))}

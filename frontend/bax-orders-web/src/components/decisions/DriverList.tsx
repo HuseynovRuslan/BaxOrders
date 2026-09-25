@@ -1,3 +1,4 @@
+import { History } from 'lucide-react'
 import { useState, type Ref } from 'react'
 import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
 import { DirectionWord } from '../analytics/DirectionWord'
@@ -15,6 +16,7 @@ import { distinguishVariants, stateBadgeLabels } from '../analytics/labels'
 import { internalSupplyLabel, missingPriceCount } from '../../pricing/labels'
 import { variantTransitionNote } from '../../terminology/terms'
 import { formatOrderUnit } from '../imports/labels'
+import { interactiveTextClass } from '../interaction'
 import { rowsUnder } from './causeFilter'
 import {
   causeLabels,
@@ -146,15 +148,19 @@ export function DriverList({
               {/*
                 The whole row opens the product, not just its name: the name was a small target for the one
                 thing a reader wants to do from here, and the figures beside it are what makes them want to.
+                The name says so — it underlines with the row, and the clock beside it says "its history" without
+                a new word — and a screen reader hears that the row opens a dialog.
               */}
               <button
                 type="button"
+                aria-haspopup="dialog"
                 onClick={() => onHistory(driver)}
-                className="flex w-full flex-wrap items-start gap-x-4 gap-y-1 p-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-slate-900 sm:px-4"
+                className="group flex w-full flex-wrap items-start gap-x-4 gap-y-1 p-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-slate-900 sm:px-4"
               >
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="font-medium text-slate-900">{driver.variant.productName}</span>
+                    <span className={`font-medium text-slate-900 ${interactiveTextClass}`}>{driver.variant.productName}</span>
+                    <History className="size-3.5 shrink-0 text-slate-400 group-hover:text-slate-700" aria-hidden="true" />
                     <Pill driver={driver} steady={filter === 'Steady'} />
                   </p>
                   <p className="text-xs text-slate-400">{descriptions[index]}</p>

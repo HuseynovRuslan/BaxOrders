@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
 import type {
@@ -9,6 +10,8 @@ import type {
 } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
 import { partition, partitionMember } from '../../test/dashboardFixtures'
+import { expectInert } from '../../test/interaction'
+import { interactiveRowClass, interactiveSurfaceClass, rowLinkClass, surfaceLinkClass } from '../interaction'
 import { LocationRows } from './LocationRows'
 
 /**
@@ -122,7 +125,7 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
   }
 }
 
-/** What the dashboard was comparing against; the table carries it into every "Detallara bax". */
+/** What the dashboard was comparing against; the table carries it into every row's link. */
 const selection: BasisSelection = { basis: 'Previous3MonthAverage', from: null, to: null }
 
 function renderRows(rows: LocationDashboardRow[], basis: AnalyticsComparisonBasis = 'PreviousMonth') {
@@ -142,7 +145,8 @@ describe('the columns a manager reads', () => {
     renderRows([row()])
 
     const headers = table().getAllByRole('columnheader').map((cell) => cell.textContent)
-    expect(headers).toEqual(['Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti', 'Detallar'])
+    // No "Detallar" column: the whole row opens the object now (20.2).
+    expect(headers).toEqual(['Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti'])
   })
 
   /**
@@ -200,13 +204,22 @@ describe('the columns a manager reads', () => {
     expect(table().getByText('Fəvvarələr meydanı').closest('tr')).toHaveAttribute('id', 'row-21')
   })
 
-  /** Brief: "Detallara bax iki sətrə sınır". It keeps its one line, and its cell does not give way. */
-  it('keeps "Detallara bax" on one line', () => {
+  /**
+   * Task 20 (20.2): "keçid sətrin sağ kənarında bir düymə olaraq qalmır". The right-hand button and its column are
+   * gone — the row is the target — and the footer still spans the whole table.
+   */
+  it('has no right-hand button column, and its footer still spans the table', () => {
     renderRows([row()])
 
-    const link = table().getByRole('link', { name: /Detallara bax/ })
-    expect(link).toHaveClass('whitespace-nowrap')
-    expect(link.closest('td')).toHaveClass('whitespace-nowrap')
+    const cells = document.querySelector('tbody tr')!.children
+    expect(cells).toHaveLength(6)
+    expect(within(cells[cells.length - 1] as HTMLElement).queryByRole('link')).toBeNull()
+    expect(within(document.querySelector('tbody')!).queryAllByRole('button')).toHaveLength(0)
+    expect(within(document.querySelector('tbody')!).queryByText('Detallara bax')).toBeNull()
+
+    const footerCells = Array.from(document.querySelector('tfoot tr')!.children) as HTMLTableCellElement[]
+    expect(footerCells[footerCells.length - 1]).toHaveAttribute('colspan', '2')
+    expect(footerCells.reduce((sum, cell) => sum + cell.colSpan, 0)).toBe(6)
   })
 
   it('has dropped the line count nobody decided anything with', () => {
@@ -530,8 +543,9 @@ describe('the footer', () => {
   it('is not counted as an object row', () => {
     renderRows([row()])
 
+    // Six columns since Task 20 (20.2): the "Detallar" column went with its buttons.
     expect(table().getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
-      'Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti', 'Detallar',
+      'Obyekt', 'Bu ay', 'Keçən ay', 'Dəyişmə', 'Əsas səbəb', 'Məlumat vəziyyəti',
     ])
     expect(within(document.querySelector('tbody')!).queryByText(/Müqayisə olunan/)).toBeNull()
   })
@@ -635,5 +649,175 @@ describe('an object with no order this month', () => {
     expect(within(cadir).queryByText(/₼/)).toBeNull()
     expect(within(cadir).getAllByText('—').length).toBeGreaterThanOrEqual(3)
     expect(within(cadir).getByText('Sistemdə hələ sifarişi yoxdur')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Task 20 (20.2): the whole row opens the object, in the table and on a phone. Its one link is the object's name,
+ * going where the right-hand button went and named as it was, so nothing about where a reader lands has moved.
+ */
+describe('the whole row opens the object', () => {
+  /** The router's own address, so a test can see where a click went. */
+  function Where() {
+    const location = useLocation()
+    return <span data-testid="where">{location.pathname + location.search}</span>
+  }
+
+  function renderRoutes(rows: LocationDashboardRow[], summaryOf: ManagementDashboardSummary = summary()) {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Where />
+        <Routes>
+          <Route path="/dashboard" element={<LocationRows rows={rows} summary={summaryOf} selection={selection} />} />
+          <Route path="*" element={<p>Açıldı</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  function where(): string {
+    return screen.getByTestId('where').textContent ?? ''
+  }
+
+  function surfaces(locationId: number): [HTMLElement, HTMLElement] {
+    return [document.getElementById(`row-${locationId}`)!, document.getElementById(`row-${locationId}-phone`)!]
+  }
+
+  const bayil = row({ locationId: 22, locationName: 'Bayıl yolu', currentRequestId: 106, current: amount({ knownAmount: 2000 }) })
+
+  const noOrder = {
+    hasCurrentRequest: false,
+    currentRequestId: null,
+    current: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+    knownAmountDelta: null,
+    knownAmountPercentChange: null,
+    primaryCause: null,
+    primaryCauseAmount: null,
+  } as const
+
+  it('has one link per row, in the table and on a phone, going where it went and named as it was', () => {
+    renderRoutes([row(), bayil])
+
+    for (const [locationId, name, href] of [
+      [21, 'Fəvvarələr meydanı', '/orders/105?basis=avg3'],
+      [22, 'Bayıl yolu', '/orders/106?basis=avg3'],
+    ] as const) {
+      for (const surface of surfaces(locationId)) {
+        const links = within(surface).getAllByRole('link')
+        expect(links, surface.id).toHaveLength(1)
+        expect(links[0]).toHaveAttribute('data-surface-link')
+        expect(links[0]).toHaveTextContent(name)
+        expect(links[0]).toHaveAccessibleName(`${name} · Detallara bax`)
+        expect(links[0]).toHaveAttribute('href', href)
+        expect(within(surface).queryAllByRole('button')).toHaveLength(0)
+      }
+    }
+  })
+
+  it('keeps the ids Back returns to', () => {
+    renderRoutes([row(), bayil])
+
+    expect(table().getByText('Fəvvarələr meydanı').closest('tr')).toHaveAttribute('id', 'row-21')
+    expect(table().getByText('Bayıl yolu').closest('tr')).toHaveAttribute('id', 'row-22')
+    const phone = document.querySelector('ul.lg\\:hidden') as HTMLElement
+    expect(within(phone).getByText('Fəvvarələr meydanı').closest('li')).toHaveAttribute('id', 'row-21-phone')
+  })
+
+  it.each([
+    ['a table row\'s amount', () => within(surfaces(22)[0]).getByText('2.000,00 ₼')],
+    ['a table row\'s main reason', () => within(surfaces(22)[0]).getByText(/Yeni məhsullar/)],
+    ['a table row\'s empty cell', () => surfaces(22)[0].querySelectorAll('td')[4] as HTMLElement],
+    ['a phone row\'s amount', () => within(surfaces(22)[1]).getByText('2.000,00 ₼')],
+    ['a phone row\'s empty space', () => surfaces(22)[1]],
+    ['a phone row\'s "Detallara bax"', () => within(surfaces(22)[1]).getByText('Detallara bax')],
+  ])('opens the order from a click on %s', async (_part, target) => {
+    renderRoutes([row(), bayil])
+
+    await userEvent.click(target())
+
+    expect(where()).toBe('/orders/106?basis=avg3')
+  })
+
+  it('keeps a phone row\'s "Detallara bax" as a sign only: not a link, and not read out twice', () => {
+    renderRoutes([row()])
+
+    const cue = within(surfaces(21)[1]).getByText('Detallara bax')
+    expect(cue.tagName).toBe('SPAN')
+    expect(cue).toHaveAttribute('aria-hidden', 'true')
+    expect(cue.closest('a')).toBeNull()
+    // Under its divider, as the link it replaces was.
+    expect(cue.parentElement).toHaveClass('mt-2', 'border-t', 'border-slate-100', 'pt-2')
+  })
+
+  it('makes a row with no order this month a surface too, opening the object with the basis', async () => {
+    renderRoutes([row(noOrder)])
+
+    for (const surface of surfaces(21)) {
+      expect(within(surface).getByRole('link')).toHaveAttribute('href', '/locations/21?basis=avg3')
+    }
+    await userEvent.click(within(surfaces(21)[0]).getByText('Sifariş qeydə alınmayıb · son sifariş İyun 2026 (800,00 ₼)'))
+
+    expect(where()).toBe('/locations/21?basis=avg3')
+  })
+
+  it('makes a never-ordered row a surface too, opening the object with the basis', async () => {
+    renderRoutes([row({ ...noOrder, locationId: 77, locationName: 'Çadır' })], {
+      ...summary(),
+      partition: partition({
+        compared: Array.from({ length: 25 }, (_, index) => partitionMember(101 + index, `Obyekt ${index + 1}`)),
+        noHistory: [partitionMember(77, 'Çadır')],
+      }),
+    })
+
+    for (const surface of surfaces(77)) {
+      expect(within(surface).getByRole('link')).toHaveAttribute('href', '/locations/77?basis=avg3')
+    }
+    await userEvent.click(within(surfaces(77)[1]).getByText('Sistemdə hələ sifarişi yoxdur'))
+
+    expect(where()).toBe('/locations/77?basis=avg3')
+  })
+
+  it('changes a row as a whole under the cursor and the keyboard, and leaves its text inert (20.3)', () => {
+    renderRoutes([row({ current: amount({ missingPriceItemCount: 3, isComplete: false }) })])
+    const [tableRow, phoneRow] = surfaces(21)
+
+    expect(tableRow.className).toBe(interactiveRowClass)
+    expect(within(tableRow).getByRole('link').className).toContain(rowLinkClass)
+    expect(phoneRow.className).toContain(interactiveSurfaceClass)
+    expect(phoneRow).toHaveClass('group', 'rounded-lg', 'border', 'border-slate-200', 'bg-white', 'p-3')
+    expect(within(phoneRow).getByRole('link').className).toContain(surfaceLinkClass)
+
+    for (const surface of [tableRow, phoneRow]) {
+      // The name's own line keeps its resting look.
+      expect(within(surface).getByRole('link').closest('p')).toHaveClass('font-medium', 'text-slate-900')
+      for (const element of [
+        within(surface).getByText('1.000,00 ₼'),
+        within(surface).getByText(/\+200,00 ₼/),
+        within(surface).getByText(/Yeni məhsullar/),
+        within(surface).getByRole('img', { name: '3 sətirdə qiymət yoxdur' }),
+      ]) {
+        expectInert(element, surface)
+      }
+    }
+    expectInert(table().getByRole('columnheader', { name: 'Əsas səbəb' }))
+  })
+
+  it('leaves the footer and the phone list\'s summary as they were: not surfaces, and inert', async () => {
+    renderRoutes([row()])
+
+    const footer = document.querySelector('tfoot tr') as HTMLElement
+    const phone = document.querySelector('ul.lg\\:hidden') as HTMLElement
+    const phoneSummary = phone.lastElementChild as HTMLElement
+    expect(phoneSummary).toHaveTextContent('Müqayisə olunan 25 obyekt')
+
+    for (const element of [footer, phoneSummary]) {
+      expect(within(element).queryByRole('link')).toBeNull()
+      expect(element.className).not.toMatch(/cursor-pointer/)
+      for (const figure of [within(element).getByText('24.000,00 ₼'), within(element).getByText(/\+4\.000,00 ₼/)]) {
+        expectInert(figure)
+      }
+      await userEvent.click(within(element).getByText('24.000,00 ₼'))
+      expect(where()).toBe('/dashboard')
+    }
   })
 })

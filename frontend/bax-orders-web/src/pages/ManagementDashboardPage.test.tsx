@@ -336,6 +336,114 @@ describe('carrying the basis into the order', () => {
 })
 
 /**
+ * Task 20 (brief acceptance 6): tabbing through the dashboard stops once per card and once per row, in the order
+ * they are read. The one extra stop is the ⓘ on a percentage card, which explains and is not a link.
+ */
+describe('the keyboard through the cards and the table', () => {
+  function bayil(): LocationDashboardRow {
+    return {
+      ...row(),
+      locationId: 22,
+      locationName: 'Bayıl yolu',
+      currentRequestId: 155,
+      current: amount({ knownAmount: 300, missingPriceItemCount: 0, isComplete: true }),
+      baseline: amount({ knownAmount: 100, missingPriceItemCount: 0, isComplete: true }),
+      knownAmountDelta: 200,
+      knownAmountPercentChange: 200,
+    }
+  }
+
+  beforeEach(() => {
+    dashboardApi.fetchDashboard.mockImplementation((_period: string, query: { basis: string }) => {
+      const data = dashboard()
+      return Promise.resolve({
+        ...data,
+        summary: { ...data.summary, basis: query.basis },
+        attention: [
+          { reason: 'LargestIncrease', location: row(), rank: 1, alsoFirstIn: [] },
+          { reason: 'StrongPercentageChange', location: bayil(), rank: 1, alsoFirstIn: [] },
+        ],
+        rows: { ...data.rows, items: [row(), bayil()], totalCount: 2 },
+      })
+    })
+  })
+
+  /** What a keyboard stop is, in words: its role and its name. */
+  function describeStop(element: Element): string {
+    const role = element.tagName === 'A' ? 'link' : element.tagName.toLowerCase()
+    return `${role}: ${element.getAttribute('aria-label') ?? element.textContent}`
+  }
+
+  it('stops once per card and once per row, in reading order, with the ⓘ before its card\'s link', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+    const table = document.querySelector('table')!
+
+    // Every stop on the page, once round; jsdom draws no layout, so the hidden phone list is scoped out by hand.
+    const stops: Element[] = []
+    for (let press = 0; press < 200; press++) {
+      await user.tab()
+      const focused = document.activeElement
+      if (focused === null || focused === document.body || stops.includes(focused)) {
+        break
+      }
+      stops.push(focused)
+    }
+
+    const inCards = stops.filter((stop) => cards.contains(stop)).map(describeStop)
+    const inTable = stops.filter((stop) => table.contains(stop)).map(describeStop)
+    expect(inCards).toEqual([
+      'link: Fəvvarələr meydanı · Detallara bax',
+      'button: Faiz dəyişməsi necə seçilir?',
+      'link: Bayıl yolu · Detallara bax',
+    ])
+    expect(inTable).toEqual([
+      'link: Fəvvarələr meydanı · Detallara bax',
+      'link: Bayıl yolu · Detallara bax',
+    ])
+    // The cards come before the table, and each card's and row's stop is its one link.
+    expect(stops.indexOf(stops.find((stop) => table.contains(stop))!))
+      .toBeGreaterThan(stops.indexOf(stops.filter((stop) => cards.contains(stop)).at(-1)!))
+    for (const stop of stops.filter((element) => (cards.contains(element) || table.contains(element)) && element.tagName === 'A')) {
+      expect(stop).toHaveAttribute('data-surface-link')
+    }
+  })
+
+  it('gives the percentage card one link as well, carrying the basis', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=avg3')
+
+    const card = document.getElementById('attention-22')!
+    expect(within(card).getAllByRole('link')).toHaveLength(1)
+    expect(within(card).getByRole('link')).toHaveAttribute('href', '/orders/155?basis=avg3')
+  })
+
+  it('shows the figures it showed before, on the cards, in the table and in its footer', async () => {
+    await renderPage()
+
+    // The difference and the main cause are both +200,00 ₼ here.
+    const card = within(document.getElementById('attention-21')!)
+    expect(card.getByText('1.000,00 ₼')).toBeInTheDocument()
+    expect(card.getAllByText('+200,00 ₼')).toHaveLength(2)
+    expect(card.getByText('+25%')).toBeInTheDocument()
+    expect(card.getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+
+    const tableRow = within(document.getElementById('row-21')!)
+    expect(tableRow.getByText('1.000,00 ₼')).toBeInTheDocument()
+    expect(tableRow.getByText('800,00 ₼')).toBeInTheDocument()
+    expect(tableRow.getAllByText('+200,00 ₼')).toHaveLength(2)
+    expect(tableRow.getByText('+25%')).toBeInTheDocument()
+
+    const footer = within(document.querySelector('tfoot')!)
+    expect(footer.getByText('71.030,25 ₼')).toBeInTheDocument()
+    expect(footer.getByText('60.583,47 ₼')).toBeInTheDocument()
+    expect(footer.getByText('+10.626,82 ₼')).toBeInTheDocument()
+    expect(footer.getByText('+17,54%')).toBeInTheDocument()
+    expect(screen.getByText('71.210,29 ₼')).toBeInTheDocument()
+  })
+})
+
+/**
  * The product under a card's "Əsas səbəb" and its share are the chosen basis's (Task 07): another basis is
  * another comparison, so it can name another product and another share. Nothing is recomputed in the browser —
  * the new answer is asked for, and shown.
@@ -711,6 +819,36 @@ describe('coming back', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
     // And Back brought the comparison back with it (Task 1).
     expect(urlParams().get('period')).toBe('2026-09')
+  })
+
+  /**
+   * Task 20 (20.1, 20.2): a card or a row opened from its body, not its link, is still the one Back returns to —
+   * the surface hands the click to its link, so the page's memory sees the link it always saw.
+   */
+  it('returns to a card opened by a click on its body', async () => {
+    renderWithOrder()
+    const cards = within(await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' }))
+    await userEvent.click(cards.getByText('Keçən aya görə xərc artıb'))
+    await screen.findByRole('button', { name: 'Geri' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Geri' }))
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
+    expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'attention-21')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns to a table row opened by a click on its figures', async () => {
+    renderWithOrder()
+    await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+    await userEvent.click(within(document.querySelector('tbody')!).getByText('800,00 ₼'))
+    await screen.findByRole('button', { name: 'Geri' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Geri' }))
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
+    expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-21')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
   })
 
   it('restores nothing on a fresh arrival, even with a place remembered for another visit', async () => {

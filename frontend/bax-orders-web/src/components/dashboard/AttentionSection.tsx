@@ -1,4 +1,3 @@
-import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 import type {
   DashboardAttention,
@@ -6,7 +5,7 @@ import type {
   LocationDashboardRow,
   ManagementDashboardSummary,
 } from '../../api/dashboard'
-import { locationLink, orderLink, type BasisSelection } from '../../analytics/basisParams'
+import type { BasisSelection } from '../../analytics/basisParams'
 import { costDirectionSentence, productShareLabel } from '../../terminology/terms'
 import { DirectionWord } from '../analytics/DirectionWord'
 import { InfoHint } from '../analytics/InfoHint'
@@ -19,11 +18,18 @@ import {
 } from '../analytics/format'
 import { causeTieOrder } from '../decisions/labels'
 import {
+  interactiveSurfaceClass,
+  interactiveTextClass,
+  openSurfaceLink,
+  surfaceLinkAttribute,
+  surfaceLinkClass,
+} from '../interaction'
+import { DetailsCue, detailsName, detailsTarget } from './details'
+import {
   alsoFirstLine,
   attentionReasonIsMissingPrice,
   attentionTitle,
   causeHeadline,
-  detailsLabel,
   noComparisonCause,
   strongPercentageHint,
   supplyChangedNote,
@@ -93,8 +99,16 @@ function Card({
   const alsoFirst = alsoFirstLine(item.alsoFirstIn)
 
   return (
-    // The id is where Back returns the reader to: the card they opened.
-    <article id={`attention-${row.locationId}`} className="flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4">
+    /*
+      The id is where Back returns the reader to: the card they opened. The whole card opens the object (20.1): a
+      click anywhere on it is handed to its one link, the object's name, so there is no second link inside it and
+      the ⓘ beside the title keeps its own click.
+    */
+    <article
+      id={`attention-${row.locationId}`}
+      onClick={openSurfaceLink}
+      className={`group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4 ${interactiveSurfaceClass}`}
+    >
       <p className={`flex items-center gap-1 text-xs ${isMissingPrice ? 'font-medium text-amber-800' : 'text-slate-500'}`}>
         {attentionTitle(item.reason, item.rank)}
         {/* "The largest" is only checkable if the reader can see what it is the largest of. */}
@@ -102,7 +116,16 @@ function Card({
           <InfoHint label="Faiz dəyişməsi necə seçilir?">{strongPercentageHint}</InfoHint>
         )}
       </p>
-      <p className="mt-0.5 font-medium text-slate-900">{row.locationName}</p>
+      <p className="mt-0.5 font-medium text-slate-900">
+        <Link
+          {...surfaceLinkAttribute}
+          to={detailsTarget(row, selection)}
+          aria-label={detailsName(row)}
+          className={`${surfaceLinkClass} ${interactiveTextClass}`}
+        >
+          {row.locationName}
+        </Link>
+      </p>
       {alsoFirst && <p className="text-xs text-slate-500">{alsoFirst}</p>}
 
       {/* The amount itself is never coloured: it is a sum, not a direction. A missing price is marked beside it. */}
@@ -127,7 +150,7 @@ function Card({
       <Causes row={row} />
 
       <div className="mt-auto pt-3">
-        <DetailsLink row={row} selection={selection} />
+        <DetailsCue />
       </div>
     </article>
   )
@@ -187,7 +210,7 @@ function Causes({ row }: { row: LocationDashboardRow }) {
 
 /**
  * The product that did most of the main cause, and its share of every movement that way (7.1, 7.1a). Quieter
- * than the cause above it and louder than the causes below. Text, not a link: "Detallara bax" already opens the
+ * than the cause above it and louder than the causes below. Text, not a link: the card itself already opens the
  * order, where this product is the first row of its cause in "Əsas dəyişikliklər".
  */
 function CauseProduct({ product }: { product: DashboardCauseProduct }) {
@@ -201,38 +224,5 @@ function CauseProduct({ product }: { product: DashboardCauseProduct }) {
       </span>{' '}
       <span className="whitespace-nowrap">({productShareLabel(product.amount, product.sameDirectionAmount)})</span>
     </p>
-  )
-}
-
-/**
- * Straight to the order this month's figures came from, which is the screen that answers the next question.
- * An object with no request this month has nothing to open, so it offers its own history instead.
- */
-export function DetailsLink({
-  row,
-  selection,
-  compact = false,
-}: {
-  row: LocationDashboardRow
-  /** Carried into the order, so the page the reader lands on answers about the same comparison. */
-  selection: BasisSelection
-  compact?: boolean
-}) {
-  const to = row.currentRequestId === null
-    ? locationLink(row.locationId, selection)
-    : orderLink(row.currentRequestId, selection)
-
-  return (
-    <Link
-      to={to}
-      aria-label={`${row.locationName} · ${detailsLabel}`}
-      // One line, always: "Detallara bax" broken over two lines doubled the height of every table row.
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-200 font-medium text-slate-700 hover:bg-slate-50 ${
-        compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
-      }`}
-    >
-      {detailsLabel}
-      <ArrowRight className="size-3.5" aria-hidden="true" />
-    </Link>
   )
 }

@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router'
 import type { DecisionComparison, OrderDecisionContext } from '../../api/decisions'
 import { orderLink, pricingReviewLink, type BasisSelection } from '../../analytics/basisParams'
@@ -240,6 +240,10 @@ function WindowMonths({ comparison, selection }: { comparison: DecisionCompariso
 /**
  * Another basis, kept deliberately small: it is context for the comparison above, never a second verdict.
  * Clicking it makes it the comparison, which is the whole point of having it in view.
+ *
+ * It looks like what it is (Task 20): an available basis sits in a button's box, and the whole line — its name as
+ * well as its figure — is the button, through a layer the button draws over the box. A screen reader hears the
+ * line as one name. A basis with nothing in its window has nothing to select, so it has no box.
  */
 function Secondary({
   comparison,
@@ -248,15 +252,24 @@ function Secondary({
   comparison: DecisionComparison
   onSelect: (selection: BasisSelection) => void
 }) {
+  const termId = useId()
+  const buttonId = useId()
+
   return (
-    <div className="flex items-baseline gap-1.5">
-      <dt className="text-slate-500">{describeBasis(comparison.basis, comparison.windowPeriods)}</dt>
+    <div
+      className={comparison.available
+        ? 'relative flex cursor-pointer items-baseline gap-1.5 rounded-md border border-slate-200 px-2 py-0.5 hover:border-slate-300 hover:bg-slate-50'
+        : 'flex items-baseline gap-1.5'}
+    >
+      <dt id={termId} className="text-slate-500">{describeBasis(comparison.basis, comparison.windowPeriods)}</dt>
       <dd className="whitespace-nowrap text-slate-700">
         {comparison.available ? (
           <button
+            id={buttonId}
             type="button"
+            aria-labelledby={`${termId} ${buttonId}`}
             onClick={() => onSelect({ basis: comparison.basis, from: null, to: null })}
-            className="rounded hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-900"
+            className="rounded hover:underline after:absolute after:inset-0 after:rounded-md focus-visible:outline-hidden focus-visible:after:outline-2 focus-visible:after:outline-offset-1 focus-visible:after:outline-slate-900"
           >
             {formatMoney(comparison.baselineKnownAmount)}
             <span className={`ml-1.5 ${costDirectionToneClass(comparison.deltaAmount)}`}>

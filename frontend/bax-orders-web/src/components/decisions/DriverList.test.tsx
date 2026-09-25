@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity } from '../../api/analytics'
 import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
 import { findOldTerms } from '../../test/oldTerms'
+import { interactiveTextClass } from '../interaction'
 import { DriverList } from './DriverList'
 import type { DriverFilter } from './labels'
 
@@ -652,6 +653,68 @@ describe('the product history', () => {
     expect(onHistory).toHaveBeenCalledWith(expect.objectContaining({
       variant: expect.objectContaining({ productVariantId: 21 }),
     }))
+  })
+})
+
+/**
+ * Task 20 (brief requirement 3): the product name opened the history but read as ordinary black text, and nobody
+ * found it. The row stays the one button Task 19 opens the drawer from; only what it says about itself changes.
+ */
+describe('the product name says it opens something', () => {
+  it('is still one button per row, found by its product, that says it opens a dialog', () => {
+    renderList([bags, driver()])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    expect(row).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(row).toHaveClass('group')
+    expect(row).toHaveAccessibleName(/^Zibil paketi/)
+    // Nothing else in the row is a control: the name, the marker and the figures are all this one button.
+    expect(row.querySelector('button, a')).toBeNull()
+    expect(within(screen.getByRole('list')).getAllByRole('button')).toHaveLength(2)
+  })
+
+  it('underlines the name with its row, and keeps the name\'s resting look', () => {
+    renderList([bags])
+
+    const name = within(screen.getByRole('button', { name: /Zibil paketi/ })).getByText('Zibil paketi')
+    expect(name.tagName).toBe('SPAN')
+    // Its resting classes as they were, and only the hover and focus underline added.
+    expect(name.className).toBe(`font-medium text-slate-900 ${interactiveTextClass}`)
+  })
+
+  it('puts a history marker right after the name, for the eye only', () => {
+    renderList([bags])
+
+    const name = within(screen.getByRole('button', { name: /Zibil paketi/ })).getByText('Zibil paketi')
+    const marker = name.nextElementSibling!
+    expect(marker.tagName.toLowerCase()).toBe('svg')
+    expect(marker).toHaveAttribute('aria-hidden', 'true')
+    expect(marker).toHaveClass('size-3.5', 'shrink-0', 'text-slate-400', 'group-hover:text-slate-700')
+    expect(marker.parentElement).toBe(name.parentElement)
+  })
+
+  it('opens the history with the product, from the name and from the marker alike', async () => {
+    const onHistory = renderList([bags])
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+
+    await userEvent.click(within(row).getByText('Zibil paketi'))
+    await userEvent.click(within(row).getByText('Zibil paketi').nextElementSibling!)
+
+    expect(onHistory).toHaveBeenCalledTimes(2)
+    expect(onHistory).toHaveBeenNthCalledWith(1, bags)
+    expect(onHistory).toHaveBeenNthCalledWith(2, bags)
+  })
+
+  it('leaves the pill, the figures and their colours as they were', () => {
+    renderList([bags])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    expect(within(row).getByText('Miqdar təsiri')).toBeInTheDocument()
+    expect(within(row).getByText(/20 → 60 ədəd/)).toBeInTheDocument()
+    expect(within(row).getByText('+120,00 ₼')).toHaveClass('text-red-700')
+    // The marker adds no word: what a reader sees in the row is the name, the pill and the figures, as before.
+    expect(visibleText(row)).not.toMatch(/tarixçə/i)
+    expect(within(row).getByText('Miqdar təsiri')).toHaveClass('rounded-full', 'text-xs', 'font-medium')
   })
 })
 

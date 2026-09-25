@@ -7,6 +7,7 @@ import type { DecisionComparison, DecisionDriver, OrderDecisionContext } from '.
 import type { OrderRequestDetail, OrderRequestItem } from '../api/orders'
 import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
+import { expectInert } from '../test/interaction'
 import { findOldTerms } from '../test/oldTerms'
 import { OrderDetailPage } from './OrderDetailPage'
 
@@ -502,6 +503,143 @@ describe('the first screenful', () => {
     expect(screen.getByText('Niyə dəyişib?')).toBeInTheDocument()
     // The decision panel loads on its own; what matters is that it arrives beside the explanation.
     expect(await screen.findByRole('button', { name: 'Təsdiqlə' })).toBeInTheDocument()
+  })
+
+  /** Task 20 (20.3): the headline's figures are read, not clicked, and nothing about them changes under the cursor. */
+  it('leaves the amount, the basis and the difference inert', async () => {
+    await renderPage()
+
+    const basisLabel = within(headline()).getByText('Baza')
+    const differenceLabel = within(headline()).getByText('Fərq')
+    for (const element of [
+      within(headline()).getByText('4.800,00 ₼'),
+      basisLabel,
+      basisLabel.nextElementSibling!,
+      differenceLabel,
+      within(headline()).getByText('+600,00 ₼'),
+      within(headline()).getByText('+14,29%'),
+    ]) {
+      expectInert(element)
+    }
+  })
+})
+
+/**
+ * Task 20 (brief requirement 4, acceptance 4): "Son 6 ayın ortalaması 17.583,62 ₼" switched the basis and nothing
+ * said it could. An available other basis is now a button's box, its name and its figure alike; one with nothing in
+ * its window has nothing to select, and no box.
+ */
+describe('the other bases, as buttons', () => {
+  /** The router's own URL, so a test can watch what the page writes back to it. */
+  function Search() {
+    return <span data-testid="search">{useLocation().search}</span>
+  }
+
+  async function renderWithAddress() {
+    render(
+      <MemoryRouter initialEntries={['/orders/105']}>
+        <Search />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+  }
+
+  function others() {
+    return within(within(headline()).getByLabelText('Digər müqayisə bazaları'))
+  }
+
+  /** The whole line as a screen reader hears it: the parts in order, whatever spacing lies between them. */
+  function wholeLine(...parts: string[]): RegExp {
+    const escaped = parts.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s'))
+    return new RegExp(`^${escaped.join('\\s?')}$`)
+  }
+
+  it('names each basis by its whole line — its name, its amount and its difference — with no new word', async () => {
+    await renderWithAddress()
+
+    expect(others().getByRole('button', { name: /^Son 3 ayın ortalaması/ }))
+      .toHaveAccessibleName(wholeLine('Son 3 ayın ortalaması', '4.000,00 ₼', '+800,00 ₼', '(2/3 ay)'))
+    expect(others().getByRole('button', { name: /^Son 6 ayın ortalaması/ }))
+      .toHaveAccessibleName(wholeLine('Son 6 ayın ortalaması', '3.800,00 ₼', '+1.000,00 ₼', '(3/6 ay)'))
+    expect(others().getByRole('button', { name: /^Bütün dövrün ortalaması/ }))
+      .toHaveAccessibleName(wholeLine('Bütün dövrün ortalaması', '3.700,00 ₼', '+1.100,00 ₼', '(3/6 ay)'))
+    // The picker's own buttons keep their exact names, and are still the only ones with them.
+    expect(within(headline()).getAllByRole('button', { name: 'Son 6 ayın ortalaması' })).toHaveLength(1)
+  })
+
+  it('switches the basis on a click, writes it to the address, and asks for that comparison', async () => {
+    await renderWithAddress()
+
+    await userEvent.click(others().getByRole('button', { name: /^Son 6 ayın ortalaması/ }))
+
+    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('search').textContent ?? '').get('basis')).toBe('avg6'))
+    await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenLastCalledWith(
+      105,
+      { basis: 'Previous6MonthAverage' },
+      expect.anything(),
+    ))
+  })
+
+  it('sits in a button\'s box that changes under the cursor, the whole box being the button', async () => {
+    await renderWithAddress()
+
+    const button = others().getByRole('button', { name: /^Son 6 ayın ortalaması/ })
+    const box = button.closest('dd')!.parentElement!
+    expect(box).toHaveClass(
+      'relative', 'flex', 'items-baseline', 'gap-1.5', 'rounded-md', 'border', 'border-slate-200', 'px-2', 'py-0.5',
+      'cursor-pointer', 'hover:border-slate-300', 'hover:bg-slate-50',
+    )
+    // The button's layer covers the box, so a click on the basis name lands on the button too, and the keyboard's
+    // outline is drawn around the whole box.
+    expect(button).toHaveClass(
+      'hover:underline', 'after:absolute', 'after:inset-0', 'after:rounded-md', 'focus-visible:outline-hidden',
+      'focus-visible:after:outline-2', 'focus-visible:after:outline-offset-1', 'focus-visible:after:outline-slate-900',
+    )
+    // The list keeps its term-and-value structure.
+    expect(box.parentElement!.tagName).toBe('DL')
+    expect(box.querySelector('dt')).toHaveTextContent('Son 6 ayın ortalaması')
+    expect(box.querySelector('dt')!.id).not.toBe('')
+    expect(button.getAttribute('aria-labelledby')).toBe(`${box.querySelector('dt')!.id} ${button.id}`)
+  })
+
+  it('keeps the figures and their colours (9.1)', async () => {
+    await renderWithAddress()
+
+    const button = others().getByRole('button', { name: /^Son 3 ayın ortalaması/ })
+    expect(within(button).getByText('+800,00 ₼')).toHaveClass('text-red-700')
+    expect(within(button).getByText(/2\/3 ay/)).toHaveClass('text-slate-400')
+    expect(button.closest('dd')).toHaveClass('whitespace-nowrap', 'text-slate-700')
+  })
+
+  it('gives a basis with nothing in its window no button and no box', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      secondary: [
+        comparison({ basis: 'Previous3MonthAverage', baselineKnownAmount: 4000, deltaAmount: 800, deltaPercent: 20 }),
+        comparison({
+          basis: 'Previous6MonthAverage',
+          windowPeriods: [],
+          expectedPeriodCount: 6,
+          availablePeriodCount: 0,
+          available: false,
+          baselineKnownAmount: null,
+          deltaAmount: null,
+          deltaPercent: null,
+        }),
+      ],
+    }))
+    await renderWithAddress()
+
+    const box = others().getByText(/^Son 6 ayın ortalaması/).parentElement!
+    expect(box.className).toBe('flex items-baseline gap-1.5')
+    expect(within(box).queryByRole('button')).toBeNull()
+    const dash = within(box).getByText('—')
+    expect(dash).toHaveClass('text-slate-400')
+    expectInert(dash)
+    // The available one beside it still is a button.
+    expect(others().getAllByRole('button')).toHaveLength(1)
   })
 })
 

@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import type {
   DashboardAmount,
@@ -8,8 +9,11 @@ import type {
   LocationDashboardRow,
   ManagementDashboardSummary,
 } from '../../api/dashboard'
+import type { BasisSelection } from '../../analytics/basisParams'
 import { comparedOnly } from '../../test/dashboardFixtures'
+import { expectInert } from '../../test/interaction'
 import { findOldTerms } from '../../test/oldTerms'
+import { interactiveSurfaceClass } from '../interaction'
 import { AttentionSection } from './AttentionSection'
 
 /**
@@ -261,7 +265,7 @@ describe('the product behind the main cause', () => {
     }
   })
 
-  it('is text, not a link: "Detallara bax" already opens the order', () => {
+  it('is text, not a link: the card itself already opens the order', () => {
     renderCards(heyderAliyev())
     const article = card('Heydər Əliyev Mərkəzi')
 
@@ -583,5 +587,159 @@ describe('the two causes after the main one', () => {
     expect(secondary).toHaveLength(2)
     expect(secondary[0]).toMatch(/^Xidmətlər/)
     expect(secondary[1]).toMatch(/^Qiymət yoxdur/)
+  })
+})
+
+/**
+ * Task 20 (20.1): the whole card is one click target, and its one link is the object's name. The audit clicked the
+ * card's heading, then its body, and only the third click — on the small button at its foot — opened anything.
+ */
+describe('the whole card opens the object', () => {
+  const avg3: BasisSelection = { basis: 'Previous3MonthAverage', from: null, to: null }
+
+  /** The router's own address, so a test can see where a click went. */
+  function Where() {
+    const location = useLocation()
+    return <span data-testid="where">{location.pathname + location.search}</span>
+  }
+
+  function renderRoutes(attention: DashboardAttention[]) {
+    return render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Where />
+        <Routes>
+          <Route
+            path="/dashboard"
+            element={<AttentionSection attention={attention} summary={summary()} selection={avg3} />}
+          />
+          <Route path="*" element={<p>Açıldı</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  function where(): string {
+    return screen.getByTestId('where').textContent ?? ''
+  }
+
+  function increase(location: LocationDashboardRow): DashboardAttention {
+    return { reason: 'LargestIncrease', location, rank: 1, alsoFirstIn: [] }
+  }
+
+  /** Heydər Əliyev with three lines owing a price, so the ⚠ mark is on the card too. */
+  function withMark(): LocationDashboardRow {
+    return { ...heyderAliyev(), current: amount({ knownAmount: 49_000, missingPriceItemCount: 3, isComplete: false }) }
+  }
+
+  it('has one link, the object\'s name, marked as the card\'s and holding nothing clickable', () => {
+    renderRoutes([increase(heyderAliyev())])
+    const article = card('Heydər Əliyev Mərkəzi')
+
+    const links = within(article).getAllByRole('link')
+    expect(links).toHaveLength(1)
+    const [link] = links
+    expect(link).toHaveAttribute('data-surface-link')
+    expect(link).toHaveTextContent('Heydər Əliyev Mərkəzi')
+    expect(link).toHaveAccessibleName('Heydər Əliyev Mərkəzi · Detallara bax')
+    expect(link).toHaveAttribute('href', '/orders/154?basis=avg3')
+    expect(link.querySelector('a, button')).toBeNull()
+    // Not a percentage card, so nothing else in it takes a click of its own.
+    expect(within(article).queryAllByRole('button')).toHaveLength(0)
+    expect(article).toHaveAttribute('id', 'attention-1')
+  })
+
+  it('opens an object with no order this month at the object, with the basis', () => {
+    renderRoutes([{
+      reason: 'NoComparisonHistory',
+      location: row({
+        locationName: 'Puşkin parkı',
+        hasCurrentRequest: false,
+        currentRequestId: null,
+        knownAmountDelta: null,
+        knownAmountPercentChange: null,
+        causes: [],
+        primaryCause: null,
+        primaryCauseAmount: null,
+      }),
+      rank: 1,
+      alsoFirstIn: [],
+    }])
+
+    expect(within(card('Puşkin parkı')).getByRole('link')).toHaveAttribute('href', '/locations/21?basis=avg3')
+  })
+
+  it.each([
+    ['its title', () => screen.getByText('Ən böyük məbləğ artımı')],
+    ['its "Əsas səbəb" caption', () => screen.getByText('Əsas səbəb')],
+    ['its amount', () => screen.getByText('49.000,00 ₼')],
+    ['its direction sentence', () => screen.getByText('Keçən aya görə xərc artıb')],
+    ['the "Detallara bax" at its foot', () => screen.getByText('Detallara bax')],
+    ['its empty space', () => card('Heydər Əliyev Mərkəzi')],
+  ])('opens the order from a click on %s', async (_part, target) => {
+    renderRoutes([increase(heyderAliyev())])
+
+    await userEvent.click(target())
+
+    expect(where()).toBe('/orders/154?basis=avg3')
+    expect(screen.getByText('Açıldı')).toBeInTheDocument()
+  })
+
+  it('keeps "Detallara bax" at its foot as a sign only: not a link, and not read out twice', () => {
+    renderRoutes([increase(heyderAliyev())])
+
+    const cue = within(card('Heydər Əliyev Mərkəzi')).getByText('Detallara bax')
+    expect(cue.tagName).toBe('SPAN')
+    expect(cue).toHaveAttribute('aria-hidden', 'true')
+    expect(cue.closest('a')).toBeNull()
+    expect(cue).not.toHaveAttribute('tabindex')
+  })
+
+  it('changes as a whole under the cursor and the keyboard, and at rest looks as it did', () => {
+    renderRoutes([increase(heyderAliyev())])
+    const article = card('Heydər Əliyev Mərkəzi')
+
+    expect(article.className).toContain(interactiveSurfaceClass)
+    expect(article).toHaveClass('group', 'rounded-lg', 'border', 'border-slate-200', 'bg-white', 'p-4')
+    expect(within(article).getByRole('link').closest('p')).toHaveClass('mt-0.5', 'font-medium', 'text-slate-900')
+  })
+
+  it('leaves the text inside it inert: the surface changes, the words themselves never do (20.3)', () => {
+    renderRoutes([increase(withMark())])
+    const article = card('Heydər Əliyev Mərkəzi')
+
+    for (const element of [
+      article.querySelector('p')!,
+      within(article).getByText('Əsas səbəb'),
+      within(article).getByText('Yeni məhsullar'),
+      productLine(article, 'Traktor qazonbiçən RT-6127.1 ZL'),
+      ...within(article).getAllByRole('listitem'),
+      within(article).getByText('49.000,00 ₼'),
+      within(article).getByText('+23.852,70 ₼'),
+      within(article).getByText('Keçən aya görə xərc artıb'),
+      within(article).getByRole('img', { name: '3 sətirdə qiymət yoxdur' }),
+    ]) {
+      expectInert(element, article)
+    }
+  })
+
+  it('still says the direction in words on every card with a difference (9.1)', () => {
+    renderRoutes([increase(heyderAliyev()), { ...increase(fevvareler()), reason: 'LargestDecrease' }])
+
+    expect(within(card('Heydər Əliyev Mərkəzi')).getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+    expect(within(card('Fəvvarələr meydanı')).getByText('Keçən aya görə xərc azalıb')).toBeInTheDocument()
+  })
+
+  it('lets the ⓘ on a percentage card open its note, and opens nothing else', async () => {
+    renderRoutes([{ reason: 'StrongPercentageChange', location: row({ locationName: 'Bayıl yolu' }), rank: 1, alsoFirstIn: [] }])
+    const article = card('Bayıl yolu')
+
+    await userEvent.click(within(article).getByRole('button', { name: 'Faiz dəyişməsi necə seçilir?' }))
+    expect(within(article).getByRole('note')).toBeVisible()
+    expect(where()).toBe('/dashboard')
+
+    await userEvent.click(within(article).getByRole('note'))
+    expect(where()).toBe('/dashboard')
+    // The ⓘ is not a second link: the card still has one.
+    expect(within(article).getAllByRole('link')).toHaveLength(1)
   })
 })
