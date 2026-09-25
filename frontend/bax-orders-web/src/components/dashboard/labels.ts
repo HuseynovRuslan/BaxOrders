@@ -223,6 +223,21 @@ export function supplyChangedNote(count: number): string {
   return `${formatCount(count)} məhsulun təchizat forması dəyişib (alınan / şirkətdaxili)`
 }
 
+/**
+ * The three words a comparison is read in, the same ones the order page labels its figures with (Task 06) and the
+ * table heads its first money column with: this month, what it is set against, and the difference (21.2a).
+ */
+export const thisMonthLabel = 'Bu ay'
+export const baselineLabel = 'Baza'
+export const deltaLabel = 'Fərq'
+
+/**
+ * "Baza 2/6 ay" beside a difference over a partial baseline. Slate, as the order page states partial coverage:
+ * it is a fact about how much history the figure rests on — not a direction (9.1), and not a missing price, which
+ * is the only thing amber means.
+ */
+export const baselineCoverageClass = 'whitespace-nowrap text-xs font-normal text-slate-500'
+
 export const noComparisonNote = 'Əvvəlki ay üçün məlumat yoxdur'
 /** An object averaged over fewer months than the basis asked for — the same words as the chip above. */
 export const partialHistoryNote = limitedComparisonDataLabel

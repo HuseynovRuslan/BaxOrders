@@ -16,12 +16,13 @@ import {
   historyHint,
   knownAmountHint,
 } from '../analytics/format'
+import { warningToneClass } from '../../pricing/labels'
 import {
-  comparedAmountLine,
   coverageHeading,
   coverageTotalNote,
   excludedFromComparisonLine,
   exceptionsHeading,
+  footerComparedLabel,
   memberNote,
   missingPriceChipLabel,
   missingPriceLocationsNote,
@@ -33,7 +34,7 @@ import {
   type PortfolioGroup,
   type PortfolioGroupView,
 } from '../../coverage/labels'
-import { monthAmountHeading, ordersThisMonthLabel } from './labels'
+import { baselineLabel, deltaLabel, monthAmountHeading, ordersThisMonthLabel, thisMonthLabel } from './labels'
 
 /**
  * The company's month in about three seconds, read top to bottom in the order a decision needs it: how much,
@@ -42,10 +43,11 @@ import { monthAmountHeading, ordersThisMonthLabel } from './labels'
  * Everything below the first number is deliberately quieter than it. The earlier version gave the amount, the
  * baseline and the difference three cards of equal weight, which made the reader do the ranking themselves.
  *
- * The rule this screen exists to respect: the difference is over a cohort, and the cohort is named. The
- * month's own total and the compared total are different figures whenever an object ordered with nothing to
- * be set against, and then the difference is written beside the amount it is the difference of — as the
- * subtraction it is — rather than under a total it cannot be subtracted from.
+ * The rule this screen exists to respect: the month's real total and the compared cohort are two figures, and
+ * neither stands in for the other (21.2). The total is the headline. Under it, as a block of its own, is the
+ * cohort — named, with its own this month, baseline and difference — and the percentage sits inside that block,
+ * beside "Fərq", so it can only be read as the cohort's (21.2a). It is one arrangement for every basis and every
+ * month: when nothing was left out, the cohort's "Bu ay" simply equals the headline, which says so plainly.
  *
  * It is one of three parts the page places separately (the objects left out, and the chips, are the others),
  * so the attention cards can sit directly under it on the first screen.
@@ -55,20 +57,9 @@ export function DashboardHeadline({ summary, onShowMissingPrices }: {
   /** Opens the table on the objects with a missing price — the same filter as the "Qiymət yoxdur" chip. */
   onShowMissingPrices: () => void
 }) {
-  // The rule and the months it landed on. "Son 3 ayın ortalaması" is a rule; which three months it covers
-  // is the thing a reader needs, because some of them may be months an object never ordered in.
-  const basisText = describeBasisWithRange(summary.basis, summary.baselinePeriods)
-  const direction = costDirectionSentence(
-    describeBasisCaption(summary.basis, summary.baselinePeriods), summary.knownAmountDelta)
-
   const partition = summary.partition
 
-  // Money the comparison could not take in: an object that ordered with no month of the window behind it, or
-  // whose first order ever is this one. Then the month's total is not the amount the difference is of.
-  const leftOut = partition.noBaseline.length > 0
-    || partition.noHistory.some((member) => member.currentKnownAmount !== null)
-
-  // Three quarters of the row for the amount: at 1366 px the subtraction below it keeps to one line.
+  // Three quarters of the row for the amount: at 1366 px the cohort's figures below it keep to one line.
   return (
     <div className="mb-3 grid gap-3 lg:grid-cols-4">
       <section className="rounded-lg border border-slate-200 bg-white p-4 lg:col-span-3">
@@ -96,27 +87,15 @@ export function DashboardHeadline({ summary, onShowMissingPrices }: {
           {formatMoney(summary.current.knownAmount)}
         </p>
 
-        {leftOut ? (
-          <Subtraction summary={summary} basisText={basisText} direction={direction} />
-        ) : (
-          <>
-            {/* 2. Which way it moved, and against what. Colour carries direction only, never a verdict. */}
-            <p className={`mt-1 whitespace-nowrap text-base font-semibold ${costDirectionToneClass(summary.knownAmountDelta)}`}>
-              {formatMoneyDelta(summary.knownAmountDelta)}
-              <span className="text-slate-400"> · </span>
-              {formatPercent(summary.knownAmountPercentChange)}
-            </p>
-            {direction && <p className="mt-0.5 text-xs text-slate-600">{direction}</p>}
-
-            {/* 3. What that difference was computed from: here the month's total is the compared amount. */}
-            <p className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2 text-xs text-slate-500">
-              <span>
-                {basisText}: <span className="font-medium text-slate-700">{formatMoney(summary.baseline.knownAmount)}</span>
-              </span>
-              <InfoHint label="Müqayisə bazası nədir?">{basisHints[summary.basis]}</InfoHint>
-            </p>
-          </>
+        {/*
+          What the total leaves out, said where it is read rather than only behind the ⓘ — in the ⓘ's own words,
+          and amber because it is about a price somebody owes. Internal supply owes nothing and never raises it.
+        */}
+        {summary.current.missingPriceItemCount > 0 && (
+          <p className={`mt-0.5 text-xs ${warningToneClass}`}>{knownAmountHint}</p>
         )}
+
+        <Cohort summary={summary} />
       </section>
 
       {/*
@@ -150,37 +129,50 @@ export function DashboardHeadline({ summary, onShowMissingPrices }: {
 }
 
 /**
- * "Müqayisə olunan 23 obyekt: 71.030,25 ₼ − Keçən ay (Avqust 2026): 44.340,78 ₼ = +26.689,47 ₼ · +60,19%"
+ * "Müqayisə olunan 23 obyekt · Keçən ay (Avqust 2026)" and, under it, "Bu ay 71.030,25 ₼ · Baza 44.340,78 ₼ ·
+ * Fərq +26.689,47 ₼ · +60,19%" — the comparison, as a block apart from the month's total above it (21.2a).
  *
- * Shown when an object is outside the comparison. The difference used to sit under the month's total, and a
- * reader who subtracted the baseline from that total got a different number. Written as the subtraction it is,
- * every figure is one the reader can check against the others; all three come from the backend as they are.
+ * The same block for every basis and every month. The difference and its percentage are the cohort's, and they
+ * sit on the cohort's line; every figure comes from the backend as it is. Each label is glued to its figure, so
+ * when a narrow screen wraps the line the pairs move together and nothing can be read against the wrong word.
  */
-function Subtraction({ summary, basisText, direction }: {
-  summary: ManagementDashboardSummary
-  basisText: string
-  direction: string | null
-}) {
+function Cohort({ summary }: { summary: ManagementDashboardSummary }) {
   const partition = summary.partition
+  const cohort = footerComparedLabel(partition.compared.length)
+  const tone = costDirectionToneClass(summary.knownAmountDelta)
+
+  // The rule and the months it landed on. "Son 3 ayın ortalaması" is a rule; which three months it covers
+  // is the thing a reader needs, because some of them may be months an object never ordered in.
+  const basisText = describeBasisWithRange(summary.basis, summary.baselinePeriods)
+  const direction = costDirectionSentence(
+    describeBasisCaption(summary.basis, summary.baselinePeriods), summary.knownAmountDelta)
 
   return (
-    <div className="mt-2 border-t border-slate-100 pt-2">
-      {/* One sentence with real spaces, so it reads — and copies — as the subtraction it shows. */}
-      <p className="text-xs text-slate-500">
-        <span className="font-medium text-slate-700">
-          {comparedAmountLine(partition.compared.length, summary.comparedCurrent.knownAmount)}
-        </span>
-        {' − '}
-        <span>
-          {basisText}: <span className="font-medium text-slate-700">{formatMoney(summary.baseline.knownAmount)}</span>
-        </span>
-        {' = '}
-        <span className={`whitespace-nowrap text-sm font-semibold ${costDirectionToneClass(summary.knownAmountDelta)}`}>
-          {formatMoneyDelta(summary.knownAmountDelta)}
-          <span className="text-slate-400"> · </span>
-          {formatPercent(summary.knownAmountPercentChange)}
-        </span>{' '}
+    <div role="group" aria-label={cohort} className="mt-2 border-t border-slate-100 pt-2">
+      {/* 2. Over which objects, and against what. */}
+      <p className="flex flex-wrap items-center gap-x-1 text-xs text-slate-500">
+        <span className="font-medium text-slate-700">{cohort}</span>
+        <span className="text-slate-400"> · </span>
+        <span>{basisText}</span>
         <InfoHint label="Müqayisə bazası nədir?">{basisHints[summary.basis]}</InfoHint>
+      </p>
+
+      {/* 3. The cohort's figures. Colour carries direction only, never a verdict — and only on the difference. */}
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="whitespace-nowrap">
+          <span className="text-xs text-slate-500">{thisMonthLabel}</span>{' '}
+          <span className="text-sm font-medium text-slate-700">{formatMoney(summary.comparedCurrent.knownAmount)}</span>
+        </span>{' '}
+        <span className="whitespace-nowrap">
+          <span className="text-xs text-slate-500">{baselineLabel}</span>{' '}
+          <span className="text-sm text-slate-700">{formatMoney(summary.baseline.knownAmount)}</span>
+        </span>{' '}
+        <span className="whitespace-nowrap">
+          <span className="text-xs text-slate-500">{deltaLabel}</span>{' '}
+          <span className={`text-base font-semibold ${tone}`}>{formatMoneyDelta(summary.knownAmountDelta)}</span>
+          <span className="text-slate-400"> · </span>
+          <span className={`text-sm ${tone}`}>{formatPercent(summary.knownAmountPercentChange)}</span>
+        </span>
       </p>
       {direction && <p className="mt-0.5 text-xs text-slate-600">{direction}</p>}
 

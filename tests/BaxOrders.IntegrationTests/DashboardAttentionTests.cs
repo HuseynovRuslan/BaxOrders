@@ -164,6 +164,24 @@ public sealed class DashboardAttentionTests(PostgresDatabaseFixture database)
         Assert.Equal(before, now);
     }
 
+    /// <summary>
+    /// Task 21 (21.4): the cards come in reason order, and within a reason in their rank — "Ən böyük …" before
+    /// "İkinci ən böyük …" — on every basis.
+    /// </summary>
+    [PostgresTheory]
+    [MemberData(nameof(EveryBasis))]
+    public async Task Within_every_reason_the_cards_follow_their_rank(
+        AnalyticsComparisonBasis basis, int? fromMonth, int? toMonth)
+    {
+        await using var db = database.CreateContext();
+        var world = await MixedWorldAsync(db);
+        var dashboard = await DashboardAsync(db, world.Month, Query(world, basis, fromMonth, toMonth));
+        var cards = dashboard.Attention.Select(card => (card.Reason, card.Rank)).ToList();
+
+        Assert.NotEmpty(cards);
+        Assert.Equal(cards.OrderBy(card => card.Reason).ThenBy(card => card.Rank), cards);
+    }
+
     // ---- the audit's own shape ---------------------------------------------------------------------------
 
     /// <summary>
@@ -193,6 +211,56 @@ public sealed class DashboardAttentionTests(PostgresDatabaseFixture database)
 
         Assert.DoesNotContain(dashboard.Attention,
             card => card.Reason == DashboardAttentionReason.StrongPercentageChange && card.Rank == 1);
+    }
+
+    /// <summary>
+    /// Task 21's fourth problem: "İkinci ən böyük faiz dəyişməsi" was shown before "Ən böyük faiz dəyişməsi". The
+    /// cards were ordered by money within a reason, and the second-largest percentage here moved eight times the
+    /// money of the largest. Ordered by rank, the largest comes first — and the same objects are chosen.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_largest_percentage_comes_before_the_second_whatever_money_each_moved()
+    {
+        await using var db = database.CreateContext();
+        var world = await PercentageWorldAsync(db);
+        var query = new DashboardQuery(PageSize: ManagementDashboardQueries.MaxPageSize);
+        var dashboard = await DashboardAsync(db, world.Month, query);
+
+        var percentages = dashboard.Attention
+            .Where(card => card.Reason == DashboardAttentionReason.StrongPercentageChange)
+            .Select(card => (card.Location.LocationId, card.Rank))
+            .ToList();
+        Assert.Equal(new[] { (world.Faiz1, 1), (world.Faiz2, 2) }, percentages);
+
+        // Faiz 2 moved more money than Faiz 1, which is what used to put it first.
+        var faiz1 = Assert.Single(dashboard.Attention, card => card.Location.LocationId == world.Faiz1);
+        var faiz2 = Assert.Single(dashboard.Attention, card => card.Location.LocationId == world.Faiz2);
+        Assert.True(Math.Abs(faiz2.Location.KnownAmountDelta!.Value) > Math.Abs(faiz1.Location.KnownAmountDelta!.Value));
+
+        // The whole section is in reason order, then rank.
+        Assert.Equal(
+            new[]
+            {
+                (DashboardAttentionReason.LargestIncrease, 1, world.Pul1),
+                (DashboardAttentionReason.LargestIncrease, 2, world.Pul2),
+                (DashboardAttentionReason.StrongPercentageChange, 1, world.Faiz1),
+                (DashboardAttentionReason.StrongPercentageChange, 2, world.Faiz2),
+            },
+            dashboard.Attention.Select(card => (card.Reason, card.Rank, card.Location.LocationId)));
+
+        // Only the order moved: the movements choose what the rule before this task chose.
+        var orderings = Orderings(await EveryRowAsync(db, world.Month, query));
+        var before = Enum.GetValues<DashboardAttentionReason>()
+            .SelectMany(reason => orderings[reason].Take(2).Select(row => (Reason: reason, row.LocationId)))
+            .GroupBy(candidate => candidate.LocationId)
+            .Select(group => group.First())
+            .Where(candidate => MovementReasons.Contains(candidate.Reason))
+            .ToHashSet();
+        var now = dashboard.Attention
+            .Where(card => MovementReasons.Contains(card.Reason))
+            .Select(card => (card.Reason, card.Location.LocationId))
+            .ToHashSet();
+        Assert.Equal(before, now);
     }
 
     // ---- what the tests check against -------------------------------------------------------------------
@@ -279,6 +347,8 @@ public sealed class DashboardAttentionTests(PostgresDatabaseFixture database)
 
     private sealed record AuditWorld(DateOnly Month, int Heyder, int Novxani, int Milli);
 
+    private sealed record PercentageWorld(DateOnly Month, int Pul1, int Pul2, int Faiz1, int Faiz2);
+
     /// <summary>
     /// Rising and falling objects over several months, a large-percentage object that is also a large-money one,
     /// two objects with missing prices (one with no priced line at all), two with no baseline and one that has
@@ -320,6 +390,24 @@ public sealed class DashboardAttentionTests(PostgresDatabaseFixture database)
 
         await orders.SaveAsync();
         return new AuditWorld(month, heyder, novxani, milli);
+    }
+
+    /// <summary>
+    /// Two money objects that take both increase cards, and two percentage objects behind them: Faiz 1 has the
+    /// larger percentage on a small sum, Faiz 2 the smaller percentage on eight times the money.
+    /// </summary>
+    private static async Task<PercentageWorld> PercentageWorldAsync(BaxOrdersDbContext db)
+    {
+        var month = NextMonth();
+        var orders = await OrdersAsync(db, month.Year);
+
+        var pul1 = await orders.ObjectAsync("Pul 1", [(8, 10000m), (9, 40000m)]);   // +30.000, +300%
+        var pul2 = await orders.ObjectAsync("Pul 2", [(8, 10000m), (9, 30000m)]);   // +20.000, +200%
+        var faiz1 = await orders.ObjectAsync("Faiz 1", [(8, 100m), (9, 600m)]);     // +500, +500%
+        var faiz2 = await orders.ObjectAsync("Faiz 2", [(8, 1000m), (9, 5000m)]);   // +4.000, +400%
+
+        await orders.SaveAsync();
+        return new PercentageWorld(month, pul1, pul2, faiz1, faiz2);
     }
 
     private static async Task<Orders> OrdersAsync(BaxOrdersDbContext db, int year)

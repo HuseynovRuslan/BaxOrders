@@ -219,7 +219,7 @@ function dashboard(): ManagementDashboard {
           partitionMember(22, 'Nərimanov heykəli'),
           partitionMember(23, 'Bakı Konqres Mərkəzi'),
         ],
-        // Left out of the comparison, so the headline's subtraction (Task 09) is swept too.
+        // Left out of the comparison, so the cohort block's "Müqayisəyə daxil deyil" line (Task 21) is swept too.
         noBaseline: [partitionMember(24, 'EXPO Center', { currentKnownAmount: 180.04 })],
       }),
       locationsWithMissingPrices: 3,
@@ -952,13 +952,20 @@ describe('no retired word on the manager’s screens', () => {
     expect(screen.getAllByRole('img', { name: /Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur\./ }).length)
       .toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Bütün dövrün ortalaması' })).toBeInTheDocument()
-    // Task 09's own words: the card titles, the direction of the cost, the subtraction and the pressed chip.
+    // Task 09's own words: the card titles, the direction of the cost, the objects left out and the pressed chip.
     expect(container).toHaveTextContent('İkinci ən böyük məbləğ artımı')
     expect(container).toHaveTextContent('Həm də ən böyük faiz dəyişməsi')
     expect(container).toHaveTextContent('Bütün dövrün ortalamasına görə xərc artıb')
     expect(container).toHaveTextContent('Müqayisəyə daxil deyil: EXPO Center')
     expect(screen.getByRole('button', { name: 'Qiymət yoxdur · 3 obyekt' })).toHaveAttribute('aria-pressed', 'true')
     expect(container).not.toHaveTextContent(/yaxşı|pis/i)
+    // Task 21's: the named cohort and its three words, the partial baseline's count (the partial row), and the
+    // missing-price line under the headline (the summary owes prices) — none of them "təxmini".
+    expect(screen.getByRole('group', { name: 'Müqayisə olunan 3 obyekt' })).toHaveTextContent(/Bu ay .* Baza .* Fərq /)
+    expect(screen.getAllByText('Baza 2/3 ay').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Qiyməti olmayan sətirlər bu məbləğə daxil deyil.')
+      .filter((element) => element.closest('[role="note"]') === null)).toHaveLength(1)
+    expect(container).not.toHaveTextContent(/təxmini|təqribi/i)
     // The product lines under "Əsas səbəb" (Task 07), swept with the rest of the page.
     expect(container).toHaveTextContent('Rosmarinus — +300,00 ₼')
     expect(container).toHaveTextContent('(artımların 86%-i)')

@@ -1,5 +1,10 @@
 import type { AnalyticsComparisonBasis } from '../api/analytics'
-import type { DashboardPartition, DashboardPartitionMember, PortfolioGroup } from '../api/dashboard'
+import type {
+  DashboardPartition,
+  DashboardPartitionMember,
+  LocationDashboardRow,
+  PortfolioGroup,
+} from '../api/dashboard'
 import { formatCount, formatMoney, formatMonth } from '../components/analytics/format'
 import { limitedComparisonDataLabel } from '../terminology/terms'
 
@@ -13,7 +18,8 @@ import { limitedComparisonDataLabel } from '../terminology/terms'
  *
  * Four words carry the whole distinction now, and they are the same four the backend partitions by:
  *
- *   **Müqayisə olunan** — ordered this month and has a month inside the window. The headline is these.
+ *   **Müqayisə olunan** — ordered this month and has a month inside the window. The comparison under the
+ *     headline is these; the headline itself is the whole month.
  *   **Sifariş qeydə alınmayıb** — has ordered before, nothing recorded this month. Never "has not sent yet",
  *     and never a zero: an object that did not order is not an object that ordered nothing.
  *   **Müqayisə bazası yoxdur** — ordered this month, but nothing in the window to set it against. Its money
@@ -149,16 +155,6 @@ export function ordersThisMonthDetails(noOrder: number, noHistory: number): stri
 }
 
 /**
- * "Müqayisə olunan 23 obyekt: 71.030,25 ₼" — the money the difference beneath it was actually computed from.
- *
- * Shown whenever the month holds money the comparison could not take in. Without it the reader sees a total
- * and a difference that came from two different sets of objects and has no way to tell.
- */
-export function comparedAmountLine(count: number, amount: number | null): string {
-  return `Müqayisə olunan ${formatCount(count)} obyekt: ${formatMoney(amount)}`
-}
-
-/**
  * Why an object that ordered this month is outside the comparison, in the words of the basis in force.
  *
  * Named after the window rather than after the object: it is the window that does not reach back far enough,
@@ -197,6 +193,27 @@ export function missingPriceChipLabel(count: number): string {
 
 /** An object averaged over fewer months than the basis asked for. A property of a compared object. */
 export const partialHistoryChipLabel = limitedComparisonDataLabel
+
+/**
+ * "Baza 2/6 ay" — how many of the window's months the object's baseline actually has. A fact, not a warning: the
+ * percentage beside it is exact for the data there is, so it is never called "təxmini" (21.3). The count behind
+ * the chip's "Müqayisə üçün data azdır", said beside the figure it qualifies.
+ */
+export function baselineCoverageLabel(available: number, expected: number): string {
+  return `Baza ${formatCount(available)}/${formatCount(expected)} ay`
+}
+
+/**
+ * The label for a row that shows a difference over a partial baseline; null otherwise. Partial is exactly
+ * 0 < available < expected, so an object with no baseline month — which has no difference to qualify — and one
+ * whose window is complete say nothing: a "6/6" on every complete object would be noise.
+ */
+export function baselineCoverageNote(row: Pick<LocationDashboardRow,
+  'knownAmountDelta' | 'historyCoverage' | 'availableBaselinePeriodCount' | 'expectedBaselinePeriodCount'>): string | null {
+  return row.knownAmountDelta !== null && row.historyCoverage === 'Partial'
+    ? baselineCoverageLabel(row.availableBaselinePeriodCount, row.expectedBaselinePeriodCount)
+    : null
+}
 
 /** "= 27 obyekt" — the line that closes the chips, so the reader can see them add up. */
 export function coverageTotalNote(count: number): string {
@@ -241,7 +258,10 @@ export function noOrderRowStatus(member: DashboardPartitionMember | undefined): 
   return `${base} · son sifariş ${formatMonth(member.lastOrderPeriod)} (${formatMoney(member.lastOrderKnownAmount)})`
 }
 
-/** "Müqayisə olunan 23 obyekt" — what the footer row is a total of, said before the figures. */
+/**
+ * "Müqayisə olunan 23 obyekt" — what the table's footer row is a total of, and the name of the headline's cohort
+ * block, said before the figures in both.
+ */
 export function footerComparedLabel(count: number): string {
   return `Müqayisə olunan ${formatCount(count)} obyekt`
 }

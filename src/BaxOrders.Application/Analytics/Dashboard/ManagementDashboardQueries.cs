@@ -333,6 +333,11 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     /// the largest figure sits on says so as well (<see cref="DashboardAttentionDto.AlsoFirstIn"/>).
     /// </para>
     /// <para>
+    /// The cards come in reason order, and within a reason in their rank: "Ən böyük faiz dəyişməsi" before
+    /// "İkinci ən böyük faiz dəyişməsi", whichever of the two moved more money. For the money reasons rank and
+    /// money are the same order; the order never changes which objects are chosen, only where each is read.
+    /// </para>
+    /// <para>
     /// This hides nothing. Every object remains in the full table below, whatever its change; this is a reading
     /// order, not a filter.
     /// </para>
@@ -384,12 +389,14 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             .Select((row, index) => new DashboardAttentionDto(
                 reason.Reason, row, index + 1, AlsoFirstIn(reason.Reason, row.LocationId))));
 
-        // One card per object: the first reason it qualified under is the one it is filed against.
+        // One card per object: the first reason it qualified under is the one it is filed against. Within a reason
+        // the cards follow their rank, which is what their titles say (21.4) — by money, a percentage runner-up
+        // that moved more money than the largest percentage was shown before it.
         return [.. candidates
             .GroupBy(item => item.Location.LocationId)
             .Select(group => group.First())
             .OrderBy(item => item.Reason)
-            .ThenByDescending(item => Math.Abs(item.Location.KnownAmountDelta ?? 0m))
+            .ThenBy(item => item.Rank)
             .Take(MaxAttention)];
     }
 

@@ -24,20 +24,31 @@ import {
   surfaceLinkAttribute,
   surfaceLinkClass,
 } from '../interaction'
+import { baselineCoverageNote } from '../../coverage/labels'
 import { DetailsCue, detailsName, detailsTarget } from './details'
 import {
   alsoFirstLine,
   attentionReasonIsMissingPrice,
   attentionTitle,
+  baselineCoverageClass,
   causeHeadline,
   noComparisonCause,
   strongPercentageHint,
   supplyChangedNote,
+  thisMonthLabel,
 } from './labels'
 import { MissingPriceMark } from './MissingPriceMark'
 
 /** How many secondary causes a card shows before it stops being a summary. */
 const secondaryCount = 2
+
+/**
+ * The card's two figure sizes. The primary one is the figure the card is here for — the difference, or on a
+ * percentage card the percentage — at the size the amount used to have; the secondary one sits beside it. Exported
+ * so a test can find the figures by their place in the hierarchy rather than by pixels.
+ */
+export const cardPrimaryFigureClass = 'text-2xl font-semibold'
+export const cardSecondaryFigureClass = 'text-sm font-medium'
 
 interface AttentionSectionProps {
   attention: DashboardAttention[]
@@ -128,23 +139,21 @@ function Card({
       </p>
       {alsoFirst && <p className="text-xs text-slate-500">{alsoFirst}</p>}
 
-      {/* The amount itself is never coloured: it is a sum, not a direction. A missing price is marked beside it. */}
-      <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
-        <span className="whitespace-nowrap text-2xl font-semibold text-slate-900">{formatMoney(row.current.knownAmount)}</span>
-        <MissingPriceMark count={row.current.missingPriceItemCount} explanationIsComplete={row.explanationIsComplete} />
-      </p>
-
       {row.knownAmountDelta === null ? (
-        <p className="mt-0.5 text-sm text-slate-600">{noComparisonCause}</p>
-      ) : (
         <>
-          {/* Red up, green down (9.1): the direction of the cost, never a verdict on it — said in the words below. */}
-          <p className={`mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm font-medium ${costDirectionToneClass(row.knownAmountDelta)}`}>
-            <span className="whitespace-nowrap">{formatMoneyDelta(row.knownAmountDelta)}</span>
-            <span className="whitespace-nowrap">{formatPercent(row.knownAmountPercentChange)}</span>
+          {/* Nothing to compare against, so the amount is the figure. Never coloured: a sum, not a direction. */}
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
+            <span className={`whitespace-nowrap ${cardPrimaryFigureClass} text-slate-900`}>{formatMoney(row.current.knownAmount)}</span>
+            <MissingPriceMark count={row.current.missingPriceItemCount} explanationIsComplete={row.explanationIsComplete} />
           </p>
-          <p className="text-xs text-slate-500">{costDirectionSentence(caption, row.knownAmountDelta)}</p>
+          <p className="mt-0.5 text-sm text-slate-600">{noComparisonCause}</p>
         </>
+      ) : (
+        <Change
+          row={row}
+          percentLeads={item.reason === 'StrongPercentageChange'}
+          direction={costDirectionSentence(caption, row.knownAmountDelta)}
+        />
       )}
 
       <Causes row={row} />
@@ -153,6 +162,47 @@ function Card({
         <DetailsCue />
       </div>
     </article>
+  )
+}
+
+/**
+ * The change, then what it is a change of (21.1). The card is here because of the difference, so the difference is
+ * the largest figure on it; this month's amount follows, smaller and named "Bu ay". A percentage card leads with
+ * its percentage — that is what its title ranks — and keeps the money beside it, so a large share of a small sum
+ * is read for what it is (21.5). Neither figure is recomputed: both are the row's own.
+ */
+function Change({ row, percentLeads, direction }: {
+  row: LocationDashboardRow
+  percentLeads: boolean
+  direction: string | null
+}) {
+  const delta = formatMoneyDelta(row.knownAmountDelta)
+  const percent = formatPercent(row.knownAmountPercentChange)
+  const [primary, secondary] = percentLeads ? [percent, delta] : [delta, percent]
+  const coverage = baselineCoverageNote(row)
+
+  return (
+    <>
+      {/*
+        Red up, green down (9.1): the direction of the cost, never a verdict on it — said in the words below. The
+        coverage sets its own slate, so the tone never reaches it: it is a fact about the baseline, not a direction.
+        The spaces are for a screen reader and a copy; the gap draws them.
+      */}
+      <p className={`mt-2 flex flex-wrap items-baseline gap-x-2 ${costDirectionToneClass(row.knownAmountDelta)}`}>
+        <span className={`whitespace-nowrap ${cardPrimaryFigureClass}`}>{primary}</span>{' '}
+        <span className={`whitespace-nowrap ${cardSecondaryFigureClass}`}>{secondary}</span>
+        {coverage && <>{' '}<span className={baselineCoverageClass}>{coverage}</span></>}
+      </p>
+
+      {/* The amount itself is never coloured: it is a sum, not a direction. A missing price is marked beside it. */}
+      <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+        <span className="text-xs text-slate-500">{thisMonthLabel}</span>{' '}
+        <span className="whitespace-nowrap text-sm font-medium text-slate-900">{formatMoney(row.current.knownAmount)}</span>
+        <MissingPriceMark count={row.current.missingPriceItemCount} explanationIsComplete={row.explanationIsComplete} />
+      </p>
+
+      <p className="text-xs text-slate-500">{direction}</p>
+    </>
   )
 }
 

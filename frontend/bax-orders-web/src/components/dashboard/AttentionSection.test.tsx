@@ -14,7 +14,7 @@ import { comparedOnly } from '../../test/dashboardFixtures'
 import { expectInert } from '../../test/interaction'
 import { findOldTerms } from '../../test/oldTerms'
 import { interactiveSurfaceClass } from '../interaction'
-import { AttentionSection } from './AttentionSection'
+import { AttentionSection, cardPrimaryFigureClass, cardSecondaryFigureClass } from './AttentionSection'
 
 /**
  * The attention card's "Əsas səbəb", with the product behind it (Task 07).
@@ -377,14 +377,16 @@ describe('colour by direction on the card (9.1)', () => {
   /**
    * Task 09 says the difference's direction where everybody reads it — "Keçən aya görə xərc artıb" under the
    * figure — so the screen-reader word that used to sit on the difference itself would only repeat it. The
-   * product's stays: nothing visible says its direction in words.
+   * product's stays: nothing visible says its direction in words. Since Task 21 the amount it is a difference of,
+   * "Bu ay", sits between the two (21.1), and the sentence follows it.
    */
   it('says the direction in words: under the difference for everybody, beside the product for a screen reader', () => {
     renderCards(heyderAliyev(), fevvareler())
 
     const rising = card('Heydər Əliyev Mərkəzi')
     const risingDelta = within(rising).getByText('+23.852,70 ₼').closest('p')!
-    expect(risingDelta.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc artıb$/)
+    expect(risingDelta.nextElementSibling).toHaveTextContent(/^Bu ay 49\.000,00 ₼$/)
+    expect(risingDelta.nextElementSibling!.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc artıb$/)
     expect(risingDelta).not.toHaveTextContent('xərc')
     const tractor = within(rising).getByText('+21.900,00 ₼')
     expect(tractor).toHaveTextContent('+21.900,00 ₼, xərc artıb')
@@ -392,7 +394,8 @@ describe('colour by direction on the card (9.1)', () => {
 
     const falling = card('Fəvvarələr meydanı')
     const fallingDelta = within(falling).getByText('−2.584,45 ₼').closest('p')!
-    expect(fallingDelta.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc azalıb$/)
+    expect(fallingDelta.nextElementSibling).toHaveTextContent(/^Bu ay 5\.000,00 ₼$/)
+    expect(fallingDelta.nextElementSibling!.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc azalıb$/)
     const shoes = within(falling).getByText('−1.988,00 ₼')
     expect(shoes).toHaveTextContent('−1.988,00 ₼, xərc azalıb')
     expect(within(shoes).getByText(/xərc azalıb/)).toHaveClass('sr-only')
@@ -741,5 +744,202 @@ describe('the whole card opens the object', () => {
     expect(where()).toBe('/dashboard')
     // The ⓘ is not a second link: the card still has one.
     expect(within(article).getAllByRole('link')).toHaveLength(1)
+  })
+})
+
+/**
+ * Task 21 (21.1): the card is here because of its change, so the change is the largest figure on it. This month's
+ * amount follows on the next line, smaller and named "Bu ay"; the direction sentence (9.1) follows that.
+ */
+describe('the change leads the card', () => {
+  /** Heydər Əliyev Mərkəzi as September 2026 really read against Keçən ay: 35.837,72 ₼, +23.852,70 ₼, +199,02%. */
+  function heyderSeptember(): LocationDashboardRow {
+    return {
+      ...heyderAliyev(),
+      current: amount({ knownAmount: 35_837.72 }),
+      baseline: amount({ knownAmount: 11_985.02 }),
+      knownAmountPercentChange: 199.02,
+    }
+  }
+
+  /** Milli Konservatoriya qarşısı: a large share of a small sum, which is why the money is shown beside it (21.5). */
+  function milli(): LocationDashboardRow {
+    return row({
+      locationId: 4,
+      locationName: 'Milli Konservatoriya qarşısı',
+      current: amount({ knownAmount: 1_830.4 }),
+      baseline: amount({ knownAmount: 315.58 }),
+      knownAmountDelta: 1_514.82,
+      knownAmountPercentChange: 480.01,
+    })
+  }
+
+  /** A card whose baseline has two of the six months the window asked for. */
+  function partial(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRow {
+    return row({
+      locationId: 5,
+      locationName: 'Bayıl yolu',
+      expectedBaselinePeriodCount: 6,
+      availableBaselinePeriodCount: 2,
+      historyCoverage: 'Partial',
+      ...overrides,
+    })
+  }
+
+  function classesOf(value: string): string[] {
+    return value.split(' ')
+  }
+
+  it('makes the difference the largest figure and puts this month\'s amount, named, on the next line (brief acceptance 1)', () => {
+    renderCards(heyderSeptember())
+    const article = card('Heydər Əliyev Mərkəzi')
+
+    const delta = within(article).getByText('+23.852,70 ₼')
+    expect(delta).toHaveClass(...classesOf(cardPrimaryFigureClass))
+    const percent = within(article).getByText('+199,02%')
+    expect(percent).toHaveClass(...classesOf(cardSecondaryFigureClass))
+    expect(percent).not.toHaveClass('text-2xl')
+    // The largest figure on the card is the difference, and only the difference.
+    expect(article.querySelectorAll('.text-2xl')).toHaveLength(1)
+    expect(article.querySelector('.text-2xl')).toBe(delta)
+
+    const changeLine = delta.closest('p')!
+    expect(percent.closest('p')).toBe(changeLine)
+    const thisMonth = changeLine.nextElementSibling as HTMLElement
+    expect(thisMonth).toHaveTextContent(/^Bu ay 35\.837,72 ₼$/)
+    expect(within(thisMonth).getByText('Bu ay')).toHaveClass('text-xs', 'text-slate-500')
+    const amountFigure = within(thisMonth).getByText('35.837,72 ₼')
+    expect(amountFigure).toHaveClass('text-sm', 'font-medium', 'text-slate-900', 'whitespace-nowrap')
+    expect(amountFigure.className).not.toMatch(/text-2xl|red|emerald/)
+    expect(thisMonth.className).not.toMatch(/red|emerald/)
+    expect(thisMonth.nextElementSibling).toHaveTextContent(/^Keçən aya görə xərc artıb$/)
+  })
+
+  it('draws the difference and the percentage at two sizes, both red for a rise, with the sentence kept (brief acceptance 1, 7)', () => {
+    renderCards(heyderSeptember())
+    const article = card('Heydər Əliyev Mərkəzi')
+
+    const delta = within(article).getByText('+23.852,70 ₼')
+    const percent = within(article).getByText('+199,02%')
+    expect(delta.className).not.toBe(percent.className)
+    expect(delta.closest('p')).toHaveClass('text-red-700')
+    for (const figure of [delta, percent]) {
+      expect(figure.closest('.text-emerald-700')).toBeNull()
+      expect(figure).toHaveClass('whitespace-nowrap')
+    }
+    expect(within(article).getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+  })
+
+  it('leads a percentage card with the percentage and keeps the money beside it (brief acceptance 5)', () => {
+    renderAttention([{ reason: 'StrongPercentageChange', location: milli(), rank: 1, alsoFirstIn: [] }])
+    const article = card('Milli Konservatoriya qarşısı')
+
+    const percent = within(article).getByText('+480,01%')
+    const delta = within(article).getByText('+1.514,82 ₼')
+    expect(percent).toHaveClass(...classesOf(cardPrimaryFigureClass))
+    expect(delta).toHaveClass(...classesOf(cardSecondaryFigureClass))
+    // Beside each other, in the same tone, the percentage first.
+    const changeLine = percent.closest('p')!
+    expect(delta.closest('p')).toBe(changeLine)
+    expect(changeLine).toHaveClass('text-red-700')
+    expect(changeLine).toHaveTextContent(/^\+480,01% \+1\.514,82 ₼$/)
+    expect(changeLine.nextElementSibling).toHaveTextContent(/^Bu ay 1\.830,40 ₼$/)
+  })
+
+  it('leads every other card with the money, the percentage beside it', () => {
+    renderCards(fevvareler())
+    const article = card('Fəvvarələr meydanı')
+
+    expect(within(article).getByText('−2.584,45 ₼')).toHaveClass(...classesOf(cardPrimaryFigureClass))
+    expect(within(article).getByText('−34,08%')).toHaveClass(...classesOf(cardSecondaryFigureClass))
+    expect(within(article).getByText('−2.584,45 ₼').closest('p')).toHaveClass('text-emerald-700')
+  })
+
+  it('keeps an object with no baseline on its amount as the largest figure, with its explanation and no "Bu ay"', () => {
+    renderAttention([{
+      reason: 'NoComparisonHistory',
+      location: row({
+        locationName: 'EXPO Center',
+        current: amount({ knownAmount: 180.04 }),
+        comparisonAvailability: 'NoBaselineHistory',
+        availableBaselinePeriodCount: 0,
+        historyCoverage: 'Unavailable',
+        knownAmountDelta: null,
+        knownAmountPercentChange: null,
+        causes: [],
+        primaryCause: null,
+        primaryCauseAmount: null,
+      }),
+      rank: 1,
+      alsoFirstIn: [],
+    }])
+    const article = card('EXPO Center')
+
+    const amountFigure = within(article).getByText('180,04 ₼')
+    expect(amountFigure).toHaveClass(...classesOf(cardPrimaryFigureClass))
+    expect(amountFigure).toHaveClass('text-slate-900')
+    expect(within(article).getByText('Müqayisə üçün əvvəlki ay yoxdur')).toBeInTheDocument()
+    expect(within(article).queryByText('Bu ay')).toBeNull()
+    expect(article.textContent).not.toMatch(/%|Baza \d/)
+  })
+
+  /** Task 21 (21.3): the baseline's real coverage, stated beside the difference it qualifies — as a fact. */
+  it('says "Baza 2/6 ay" at the end of the change line of a card over a partial baseline, in slate', () => {
+    renderCards(partial())
+    const article = card('Bayıl yolu')
+
+    const coverage = within(article).getByText('Baza 2/6 ay')
+    expect(coverage.tagName).toBe('SPAN')
+    expect(coverage).toHaveClass('text-xs', 'text-slate-500', 'whitespace-nowrap')
+    expect(coverage.className).not.toMatch(/amber|red|emerald/)
+    // On the change line, after both figures, which are left exactly as they were.
+    const changeLine = coverage.closest('p')!
+    expect(changeLine.lastElementChild).toBe(coverage)
+    expect(changeLine).toHaveTextContent(/^\+200,00 ₼ \+25% Baza 2\/6 ay$/)
+  })
+
+  it('says nothing of the sort over a complete baseline, or with no difference to qualify', () => {
+    renderCards(
+      partial({ locationId: 6, locationName: 'Tam', availableBaselinePeriodCount: 6, historyCoverage: 'Complete' }),
+      partial({ locationId: 7, locationName: 'Fərqsiz', knownAmountDelta: null, knownAmountPercentChange: null }),
+    )
+
+    expect(card('Tam').textContent).not.toMatch(/Baza \d/)
+    expect(card('Fərqsiz').textContent).not.toMatch(/Baza \d/)
+  })
+
+  it('never calls a percentage over thin history "təxmini" (21.3), and uses no retired word', () => {
+    const { container } = renderAttention([
+      { reason: 'LargestIncrease', location: partial(), rank: 1, alsoFirstIn: [] },
+      { reason: 'StrongPercentageChange', location: milli(), rank: 1, alsoFirstIn: [] },
+      { reason: 'LargestDecrease', location: fevvareler(), rank: 1, alsoFirstIn: [] },
+    ])
+
+    expect(container.textContent).not.toMatch(/təxmini|təqribi/i)
+    expect(findOldTerms(container)).toEqual([])
+    // And the percentage over thin history is shown as it is: not greyed, not hidden.
+    expect(within(card('Bayıl yolu')).getByText('+25%').closest('p')).toHaveClass('text-red-700')
+  })
+
+  /** Task 20 (20.3): everything this task adds is text. It never takes a click of its own, and never changes. */
+  it('adds only inert text, and the card keeps its one link', () => {
+    renderAttention([
+      { reason: 'LargestIncrease', location: partial(), rank: 1, alsoFirstIn: [] },
+      { reason: 'StrongPercentageChange', location: milli(), rank: 1, alsoFirstIn: [] },
+    ])
+
+    for (const [name, elements] of [
+      ['Bayıl yolu', ['+200,00 ₼', '+25%', 'Baza 2/6 ay', 'Bu ay']],
+      ['Milli Konservatoriya qarşısı', ['+480,01%', '+1.514,82 ₼', 'Bu ay', '1.830,40 ₼']],
+    ] as const) {
+      const article = card(name)
+      for (const text of elements) {
+        const element = within(article).getAllByText(text)[0]
+        expectInert(element, article)
+        expect(element.closest('a, button, [role="button"]'), text).toBeNull()
+      }
+      expectInert(within(article).getByText('Bu ay').closest('p')!, article)
+      expect(within(article).getAllByRole('link')).toHaveLength(1)
+    }
   })
 })

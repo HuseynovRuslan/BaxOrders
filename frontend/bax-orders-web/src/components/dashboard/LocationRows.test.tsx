@@ -372,6 +372,104 @@ describe('the data-state column', () => {
   })
 })
 
+/**
+ * Task 21 (21.3): a difference over a partial baseline says how much baseline it has — "Baza 2/6 ay" — under the
+ * percentage in the table and under the difference on a phone. A fact, in slate; the percentage is left as it is.
+ */
+describe('the baseline coverage', () => {
+  const partial = row({
+    locationId: 31,
+    locationName: 'Qismən baza',
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 2,
+    historyCoverage: 'Partial',
+  })
+  const complete = row({
+    locationId: 32,
+    locationName: 'Tam baza',
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 6,
+    historyCoverage: 'Complete',
+  })
+  const noBaseline = row({
+    locationId: 33,
+    locationName: 'Bazasız',
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 0,
+    historyCoverage: 'Unavailable',
+    comparisonAvailability: 'NoBaselineHistory',
+    comparisonAvailable: false,
+    baseline: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+    knownAmountDelta: null,
+    knownAmountPercentChange: null,
+    primaryCause: null,
+    primaryCauseAmount: null,
+    causes: [],
+  })
+  const noOrder = row({
+    locationId: 34,
+    locationName: 'Sifarişsiz',
+    hasCurrentRequest: false,
+    currentRequestId: null,
+    current: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0 }),
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 2,
+    historyCoverage: 'Partial',
+    knownAmountDelta: null,
+    knownAmountPercentChange: null,
+    primaryCause: null,
+    primaryCauseAmount: null,
+    causes: [],
+  })
+
+  function tableRow(locationId: number): HTMLElement {
+    return document.getElementById(`row-${locationId}`)!
+  }
+
+  function phoneRow(locationId: number): HTMLElement {
+    return document.getElementById(`row-${locationId}-phone`)!
+  }
+
+  it('says "Baza 2/6 ay" in the Dəyişmə cell and on the phone row of a partial row', () => {
+    renderRows([partial], 'Previous6MonthAverage')
+
+    const cell = within(tableRow(31)).getByText('+25%').closest('td')!
+    const inCell = within(cell).getByText('Baza 2/6 ay')
+    // A third line, under the percentage.
+    expect(cell.lastElementChild).toBe(inCell)
+    expect(cell).toHaveTextContent(/^\+200,00 ₼, xərc artıb\s*\+25%\s*Baza 2\/6 ay$/)
+
+    const onPhone = within(phoneRow(31)).getByText('Baza 2/6 ay')
+    const differenceLine = within(phoneRow(31)).getByText(/\+200,00 ₼ \+25%/)
+    expect(differenceLine.nextElementSibling).toBe(onPhone)
+
+    for (const coverage of [inCell, onPhone]) {
+      expect(coverage).toHaveClass('text-xs', 'text-slate-500', 'whitespace-nowrap')
+      expect(coverage.className).not.toMatch(/amber|red|emerald/)
+      expectInert(coverage, coverage.closest('tr, li')!)
+    }
+  })
+
+  it('says nothing of the sort on a complete, a no-baseline or a no-order row', () => {
+    renderRows([complete, noBaseline, noOrder], 'Previous6MonthAverage')
+
+    for (const locationId of [32, 33, 34]) {
+      expect(tableRow(locationId).textContent, String(locationId)).not.toMatch(/Baza \d/)
+      expect(phoneRow(locationId).textContent, String(locationId)).not.toMatch(/Baza \d/)
+    }
+  })
+
+  it('leaves the data-state column and the figures as they were', () => {
+    renderRows([partial], 'Previous6MonthAverage')
+
+    expect(within(tableRow(31)).getByText('Müqayisə üçün data azdır')).toBeInTheDocument()
+    expect(within(tableRow(31)).getByText('1.000,00 ₼')).toBeInTheDocument()
+    expect(within(tableRow(31)).getByText('800,00 ₼')).toBeInTheDocument()
+    expect(within(tableRow(31)).getByText('+25%')).toHaveClass('text-red-700')
+    expect(document.body.textContent).not.toMatch(/təxmini|təqribi/i)
+  })
+})
+
 describe('the unpriced lines', () => {
   /**
    * Task 09 (brief: "Qiymət xəbərdarlığı ... qısa işarə və say ilə"): "⚠ 3" beside the money it affects, on the

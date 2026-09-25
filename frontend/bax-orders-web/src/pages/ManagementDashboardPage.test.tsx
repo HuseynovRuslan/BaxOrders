@@ -4,6 +4,7 @@ import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
 import { partition, partitionMember } from '../test/dashboardFixtures'
+import { readableText } from '../test/oldTerms'
 import { ManagementDashboardPage } from './ManagementDashboardPage'
 
 /**
@@ -479,6 +480,115 @@ describe('the product behind the main cause', () => {
     ))
     await waitFor(() => expect(cards().getByText(/Zibil paketi/)).toHaveTextContent('(artımların 25%-i)'))
     expect(cards().queryByText(/Əlcək/)).toBeNull()
+  })
+})
+
+/**
+ * Task 21, brief acceptance 4: on "Son 6 ayın ortalaması", every compared object whose baseline is partial says
+ * how much of it there is — "Baza N/6 ay", its own N — on its card and on its row, table and phone alike. A
+ * complete baseline, no baseline and no difference say nothing, and no percentage is called "təxmini" (21.3).
+ */
+describe('the baseline coverage on six months', () => {
+  const partialTwo: LocationDashboardRow = {
+    ...row(),
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 2,
+    historyCoverage: 'Partial',
+  }
+  const partialFour: LocationDashboardRow = {
+    ...row(),
+    locationId: 22,
+    locationName: 'Bayıl yolu',
+    currentRequestId: 155,
+    current: amount({ knownAmount: 300, missingPriceItemCount: 0, isComplete: true }),
+    baseline: amount({ knownAmount: 100, missingPriceItemCount: 0, isComplete: true }),
+    knownAmountDelta: 200,
+    knownAmountPercentChange: 200,
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 4,
+    historyCoverage: 'Partial',
+  }
+  const complete: LocationDashboardRow = {
+    ...row(),
+    locationId: 23,
+    locationName: 'Nərimanov heykəli',
+    currentRequestId: 156,
+    knownAmountDelta: -200,
+    knownAmountPercentChange: -16.67,
+    baseline: amount({ knownAmount: 1200, missingPriceItemCount: 0, isComplete: true }),
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 6,
+    historyCoverage: 'Complete',
+  }
+  const noBaseline: LocationDashboardRow = {
+    ...row(),
+    locationId: 97,
+    locationName: 'EXPO Center',
+    currentRequestId: 157,
+    current: amount({ knownAmount: 180.04, missingPriceItemCount: 0, isComplete: true }),
+    baseline: amount({ knownAmount: null, itemCount: 0, knownPriceItemCount: 0, missingPriceItemCount: 0 }),
+    expectedBaselinePeriodCount: 6,
+    availableBaselinePeriodCount: 0,
+    historyCoverage: 'Unavailable',
+    comparisonAvailability: 'NoBaselineHistory',
+    comparisonAvailable: false,
+    knownAmountDelta: null,
+    knownAmountPercentChange: null,
+    causes: [],
+    primaryCause: null,
+    primaryCauseAmount: null,
+  }
+
+  beforeEach(() => {
+    dashboardApi.fetchDashboard.mockImplementation((_period: string, query: { basis: string }) => {
+      const data = dashboard()
+      return Promise.resolve({
+        ...data,
+        summary: { ...data.summary, basis: query.basis, locationsWithPartialHistory: 2 },
+        attention: [
+          { reason: 'LargestIncrease', location: partialTwo, rank: 1, alsoFirstIn: [] },
+          { reason: 'LargestDecrease', location: complete, rank: 1, alsoFirstIn: [] },
+          { reason: 'StrongPercentageChange', location: partialFour, rank: 1, alsoFirstIn: [] },
+          { reason: 'NoComparisonHistory', location: noBaseline, rank: 1, alsoFirstIn: [] },
+        ],
+        rows: { ...data.rows, items: [partialTwo, partialFour, complete, noBaseline], totalCount: 4 },
+      })
+    })
+  })
+
+  /** The object's card, its table row and its phone row. */
+  function surfaces(locationId: number): HTMLElement[] {
+    return [`attention-${locationId}`, `row-${locationId}`, `row-${locationId}-phone`]
+      .map((id) => document.getElementById(id)!)
+  }
+
+  it('says "Baza N/6 ay" with each partial object\'s own N, on its card and on both its rows', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=avg6')
+
+    for (const [locationId, label] of [[21, 'Baza 2/6 ay'], [22, 'Baza 4/6 ay']] as const) {
+      for (const surface of surfaces(locationId)) {
+        const coverage = within(surface).getByText(label)
+        expect(coverage, surface.id).toHaveClass('text-slate-500')
+        expect(coverage.className).not.toMatch(/amber|red|emerald/)
+      }
+    }
+
+    for (const locationId of [23, 97]) {
+      for (const surface of surfaces(locationId)) {
+        expect(surface.textContent, surface.id).not.toMatch(/Baza \d/)
+      }
+    }
+  })
+
+  it('leaves every percentage as it was and calls none of them "təxmini"', async () => {
+    await renderPage('/dashboard?period=2026-09&basis=avg6')
+
+    expect(within(document.getElementById('attention-21')!).getByText('+25%')).toBeInTheDocument()
+    expect(within(document.getElementById('attention-22')!).getByText('+200%')).toBeInTheDocument()
+    expect(within(document.getElementById('row-22')!).getByText('+200%')).toBeInTheDocument()
+    expect(within(document.getElementById('attention-23')!).getByText('−16,67%')).toBeInTheDocument()
+    // Nowhere on the page: not in its text, and not in what it says to a screen reader or on hover.
+    expect(readableText(document.body)).not.toMatch(/təxmini|təqribi/i)
   })
 })
 

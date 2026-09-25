@@ -24,12 +24,14 @@ import {
 } from '../interaction'
 import { DetailsCue, detailsName, detailsTarget } from './details'
 import {
+  baselineCoverageNote,
   footerAllOrdersLine,
   footerComparedLabel,
   noOrderRowStatus,
   portfolioGroupLabels,
 } from '../../coverage/labels'
 import {
+  baselineCoverageClass,
   causeHeadline,
   noComparisonCause,
   partialHistoryNote,
@@ -140,6 +142,7 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                       <p className={`whitespace-nowrap text-xs ${costDirectionToneClass(row.knownAmountDelta)}`}>
                         {formatPercent(row.knownAmountPercentChange)}
                       </p>
+                      <BaselineCoverage row={row} />
                     </>
                   )}
                 </td>
@@ -233,6 +236,7 @@ export function LocationRows({ rows, summary, selection }: LocationRowsProps) {
                     {formatMoneyDelta(row.knownAmountDelta)} {formatPercent(row.knownAmountPercentChange)}
                   </p>
                 )}
+                <BaselineCoverage row={row} />
                 <p className="text-xs text-slate-400">{basisText}</p>
               </div>
             </div>
@@ -344,6 +348,15 @@ function DataState({ row, lastOrder, neverOrdered }: {
   }
 
   return <span className="sr-only">Məlumat tamdır</span>
+}
+
+/**
+ * "Baza 2/6 ay", on a line of its own under the difference it qualifies — only where a difference is shown over a
+ * partial baseline (21.3). The percentage above it is left exactly as it is.
+ */
+function BaselineCoverage({ row }: { row: LocationDashboardRow }) {
+  const coverage = baselineCoverageNote(row)
+  return coverage === null ? null : <span className={`block ${baselineCoverageClass}`}>{coverage}</span>
 }
 
 /** Beside the money it affects, so a partial figure never looks authoritative. An object with no order has none. */

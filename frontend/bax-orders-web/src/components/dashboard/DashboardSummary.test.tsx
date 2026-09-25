@@ -2,8 +2,10 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
+import type { AnalyticsComparisonBasis } from '../../api/analytics'
 import type { DashboardAmount, ManagementDashboardSummary } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
+import { describeBasisWithRange, knownAmountHint } from '../analytics/format'
 import { comparedOnly, partition, partitionMember } from '../../test/dashboardFixtures'
 import {
   DashboardCoverageChips,
@@ -127,6 +129,21 @@ function renderSummary(
   )
 }
 
+/** The headline figure: the line right after the heading row, "Sentyabr 2026 sifarişlərinin məbləği". */
+function headline(): HTMLElement {
+  return screen.getByText(/sifarişlərinin məbləği/).parentElement!.nextElementSibling as HTMLElement
+}
+
+/** The cohort block, found by its name — "Müqayisə olunan 23 obyekt". */
+function cohort(count: number): HTMLElement {
+  return screen.getByRole('group', { name: `Müqayisə olunan ${count} obyekt` })
+}
+
+/** The visible line under the headline, not the ⓘ's note with the same words. */
+function missingPriceLine(): HTMLElement | null {
+  return screen.queryAllByText(knownAmountHint).find((element) => element.closest('[role="note"]') === null) ?? null
+}
+
 describe('the headline amount', () => {
   it('is named by its own month rather than as "the current period"', () => {
     renderSummary(summary())
@@ -136,34 +153,38 @@ describe('the headline amount', () => {
   })
 
   /**
-   * Task 09: only when every object that ordered was compared. Then the month's total is the amount the
-   * difference is of, and the change belongs right under it.
+   * Task 21 (21.2a.1, .3): the month's real total is the headline, and nothing coloured and no percentage sits
+   * under it. What follows it is the cohort block — the difference is the cohort's, and it is inside that block.
    */
-  it('is the whole month, with the change directly beneath it, when nothing was left out', () => {
+  it('is the whole month, with the cohort block directly beneath it, when nothing was left out', () => {
     renderSummary(summary())
 
-    const total = screen.getByText('71.210,29 ₼')
-    expect(total.nextElementSibling).toHaveTextContent('+26.869,51 ₼ · +60,6%')
+    const total = headline()
+    expect(total).toHaveTextContent(/^71\.210,29 ₼$/)
+    expect(total.nextElementSibling).toBe(cohort(26))
   })
 
   /**
-   * Brief: "İstisna olanda fərq müqayisə olunan məbləğin yanında görünür: 71,030.25 − 44,340.78 = +26,689.47".
-   * The difference used to sit under 71.210,29 ₼, and a manager who subtracted the baseline from that got another
-   * number. Now the total stands alone and the comparison is written as the subtraction it is, in one line.
+   * Brief 21: "baş rəqəm müqayisə edilən rəqəm deyil". The total stays the headline (21.2); the cohort is named
+   * under it, as a block of its own, with its own this month, baseline and difference (21.2a.2), and the
+   * percentage beside "Fərq" inside it, never beside the total (21.2a.3). No figure is recomputed.
    */
-  it('is written as a subtraction beside the compared amount when an object was left out', () => {
+  it('keeps the total as the headline and names the cohort under it, with its own figures, when an object was left out', () => {
     renderSummary(september())
 
-    // What is right under the total is the subtraction, never the difference standing on its own.
-    const total = screen.getByText('71.210,29 ₼')
-    expect(total.nextElementSibling!.textContent).not.toMatch(/^\s*\+26\.689,47/)
-    expect(total.nextElementSibling!.textContent).toMatch(/^\s*Müqayisə olunan 23 obyekt/)
+    const total = headline()
+    expect(total).toHaveTextContent(/^71\.210,29 ₼$/)
+    const block = cohort(23)
+    expect(total.nextElementSibling).toBe(block)
 
-    const subtraction = screen.getByText(/Müqayisə olunan 23 obyekt: 71\.030,25 ₼/).closest('p')!
-    expect(screen.getByText(/\+26\.689,47 ₼/).closest('p')).toBe(subtraction)
-    expect(subtraction).toHaveTextContent('Müqayisə olunan 23 obyekt: 71.030,25 ₼ − Keçən ay (Avqust 2026): 44.340,78 ₼ = +26.689,47 ₼ · +60,19%')
-    expect(within(subtraction).getByText(/\+26\.689,47 ₼/)).toHaveClass('font-semibold', 'text-red-700')
-    expect(within(subtraction).getByText(/71\.030,25 ₼/)).toHaveClass('font-medium', 'text-slate-700')
+    expect(block).toHaveTextContent('Müqayisə olunan 23 obyekt · Keçən ay (Avqust 2026)')
+    const figures = within(block).getByText('71.030,25 ₼').closest('p')!
+    expect(figures).toHaveTextContent(/^Bu ay 71\.030,25 ₼ Baza 44\.340,78 ₼ Fərq \+26\.689,47 ₼ · \+60,19%$/)
+    expect(within(block).getByText('+26.689,47 ₼')).toHaveClass('font-semibold', 'text-red-700')
+    expect(within(block).getByText('+60,19%')).toHaveClass('text-red-700')
+    expect(within(block).getByText('71.030,25 ₼')).toHaveClass('font-medium', 'text-slate-700')
+    // The percentage is the cohort's and nothing else's.
+    expect(screen.getAllByText('+60,19%')).toHaveLength(1)
   })
 
   /** Owner decision 9.1: the direction of the cost, in words — "xərc artıb / azalıb", never a verdict. */
@@ -175,7 +196,9 @@ describe('the headline amount', () => {
     }))
 
     expect(screen.getByText('Son 6 ayın ortalamasına görə xərc azalıb')).toBeInTheDocument()
-    expect(screen.getByText(/Son 6 ayın ortalaması:/)).toHaveTextContent('44.340,78 ₼')
+    const block = cohort(26)
+    expect(within(block).getByText('Son 6 ayın ortalaması')).toBeInTheDocument()
+    expect(within(block).getByText('44.340,78 ₼').parentElement).toHaveTextContent(/^Baza 44\.340,78 ₼$/)
   })
 
   it('says a rise in cost is a rise in cost (9.1)', () => {
@@ -185,10 +208,10 @@ describe('the headline amount', () => {
     expect(document.body).not.toHaveTextContent(/yaxşı|pis|yüksəkdir|aşağıdır/i)
   })
 
-  it('says it in words under the subtraction too', () => {
+  it('says it in words under the cohort\'s figures too', () => {
     renderSummary(september())
 
-    expect(screen.getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
+    expect(within(cohort(23)).getByText('Keçən aya görə xərc artıb')).toBeInTheDocument()
   })
 
   /** 9.1: a cost that went up is red and one that went down is green. Direction, never "good" or "bad". */
@@ -197,19 +220,31 @@ describe('the headline amount', () => {
       knownAmountDelta: -22561.84,
       knownAmountPercentChange: -31.8,
     }))
-    expect(screen.getByText(/−22\.561,84 ₼/).closest('p')).toHaveClass('text-emerald-700')
+    expect(screen.getByText('−22.561,84 ₼')).toHaveClass('text-emerald-700')
+    expect(screen.getByText('−31,8%')).toHaveClass('text-emerald-700')
     unmount()
 
     renderSummary(summary({ knownAmountDelta: 10626.82, knownAmountPercentChange: 17.54 }))
-    expect(screen.getByText(/\+10\.626,82 ₼/).closest('p')).toHaveClass('text-red-700')
+    expect(screen.getByText('+10.626,82 ₼')).toHaveClass('text-red-700')
+    expect(screen.getByText('+17,54%')).toHaveClass('text-red-700')
     expect(document.querySelector('.text-rose-700')).toBeNull()
+    // The sums are never coloured: they are amounts, not directions.
+    expect(headline().className).not.toMatch(/red|emerald/)
+    expect(within(cohort(26)).getByText('71.210,29 ₼').className).not.toMatch(/red|emerald/)
+    expect(within(cohort(26)).getByText('44.340,78 ₼').className).not.toMatch(/red|emerald/)
   })
 
   it('never breaks a money value between the amount and its manat sign', () => {
     renderSummary(summary())
 
-    expect(screen.getByText('71.210,29 ₼')).toHaveClass('whitespace-nowrap')
-    expect(screen.getByText(/\+26\.869,51 ₼/).closest('p')).toHaveClass('whitespace-nowrap')
+    expect(headline()).toHaveClass('whitespace-nowrap')
+    // Each label is glued to its figure, so a line that wraps moves the pair together (21.2a.6).
+    const block = cohort(26)
+    expect(within(block).getByText('71.210,29 ₼').parentElement).toHaveClass('whitespace-nowrap')
+    expect(within(block).getByText('44.340,78 ₼').parentElement).toHaveClass('whitespace-nowrap')
+    const difference = within(block).getByText('+26.869,51 ₼').parentElement!
+    expect(difference).toHaveClass('whitespace-nowrap')
+    expect(difference).toHaveTextContent(/^Fərq \+26\.869,51 ₼ · \+60,6%$/)
   })
 
   /** "Məlum qiymətlər üzrə" is a caveat, not a headline, and it is not repeated as primary copy. */
@@ -234,7 +269,7 @@ describe('the cohort the difference is over', () => {
   it('names the compared objects and their money when some of the month was not compared', () => {
     renderSummary(september())
 
-    expect(screen.getByText(/Müqayisə olunan 23 obyekt: 71\.030,25 ₼/)).toBeInTheDocument()
+    expect(within(cohort(23)).getByText('71.030,25 ₼').parentElement).toHaveTextContent(/^Bu ay 71\.030,25 ₼$/)
   })
 
   it('names who was left out, and says it is the window that did not reach them', () => {
@@ -252,12 +287,19 @@ describe('the cohort the difference is over', () => {
     expect(screen.queryByText(/keçən ay sifarişi yoxdur/)).toBeNull()
   })
 
-  it('says none of that when every object that ordered was compared', () => {
+  /**
+   * Task 21 (21.2a): one arrangement for every month. When every object that ordered was compared, the cohort is
+   * still named, its "Bu ay" is the headline's figure — which says plainly that the cohort is the whole month —
+   * and nobody is named as left out.
+   */
+  it('still names the cohort when every object that ordered was compared, and names nobody as left out', () => {
     renderSummary(summary())
 
-    expect(screen.queryByText(/Müqayisə olunan 26 obyekt:/)).toBeNull()
+    const block = cohort(26)
+    expect(block).toHaveTextContent('Müqayisə olunan 26 obyekt · Keçən ay (Avqust 2026)')
+    expect(within(block).getByText('71.210,29 ₼').parentElement).toHaveTextContent(/^Bu ay 71\.210,29 ₼$/)
+    expect(within(block).getByText('44.340,78 ₼').parentElement).toHaveTextContent(/^Baza 44\.340,78 ₼$/)
     expect(screen.queryByText(/Müqayisəyə daxil deyil/)).toBeNull()
-    expect(screen.getByText(/Keçən ay \(Avqust 2026\):/)).toHaveTextContent('44.340,78 ₼')
   })
 
   /**
@@ -268,7 +310,8 @@ describe('the cohort the difference is over', () => {
   it('shows one baseline, and it is the cohort\'s', () => {
     renderSummary(september())
 
-    expect(screen.getByText(/Keçən ay \(Avqust 2026\):/)).toHaveTextContent('44.340,78 ₼')
+    expect(within(cohort(23)).getByText('44.340,78 ₼').parentElement).toHaveTextContent(/^Baza 44\.340,78 ₼$/)
+    expect(screen.getAllByText('44.340,78 ₼')).toHaveLength(1)
     expect(screen.queryByText(/45\.040,78 ₼/)).toBeNull()
   })
 })
@@ -307,6 +350,133 @@ describe('incomplete price data', () => {
     }))
 
     expect(screen.queryByText(/qiyməti olmayan sətir/)).toBeNull()
+  })
+
+  /**
+   * Task 21, brief acceptance 3: that the total leaves those lines out is said on a visible line under it, not
+   * only behind the ⓘ — in the ⓘ's own words (Task 2), and in amber, because it is about a price somebody owes.
+   */
+  it('says under the headline, without a click, that the unpriced lines are not in it', () => {
+    renderSummary(summary({
+      current: amount({ isComplete: false, missingPriceItemCount: 11 }),
+      locationsWithMissingPrices: 10,
+    }))
+
+    const line = missingPriceLine()!
+    expect(line).toHaveTextContent(/^Qiyməti olmayan sətirlər bu məbləğə daxil deyil\.$/)
+    expect(line).toBeVisible()
+    expect(line).toHaveClass('text-xs', 'text-amber-800')
+    // Directly under the total, and the cohort block right after it: nothing else comes between.
+    expect(headline().nextElementSibling).toBe(line)
+    expect(line.nextElementSibling).toBe(cohort(26))
+    // The ⓘ and the amber button stay as they were.
+    expect(screen.getByRole('button', { name: 'Məbləğ necə hesablanır?' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '10 obyektin sifarişində qiyməti olmayan sətir var' })).toBeInTheDocument()
+  })
+
+  it('leaves that line out when nothing is missing, rather than saying it about nothing', () => {
+    renderSummary(summary())
+
+    expect(missingPriceLine()).toBeNull()
+    expect(headline().nextElementSibling).toBe(cohort(26))
+    // The ⓘ still explains the rule.
+    expect(screen.getByRole('button', { name: 'Məbləğ necə hesablanır?' })).toBeInTheDocument()
+  })
+
+  it('leaves that line out when the only unpriced lines are internally supplied', () => {
+    renderSummary(summary({
+      current: amount({ isComplete: true, missingPriceItemCount: 0, priceNotRequiredItemCount: 11 }),
+      locationsWithMissingPrices: 0,
+    }))
+
+    expect(missingPriceLine()).toBeNull()
+  })
+})
+
+/**
+ * Task 21 (21.2a): one arrangement, whatever the basis and whether or not an object was left out. The same
+ * elements come in the same order; only the basis words, the figures, and the two lines allowed to come and go
+ * — the missing-price line and the objects left out — differ.
+ */
+describe('one arrangement for every basis and every month', () => {
+  const bases: [AnalyticsComparisonBasis, string[]][] = [
+    ['PreviousMonth', ['2026-08-01']],
+    ['Previous3MonthAverage', ['2026-06-01', '2026-07-01', '2026-08-01']],
+    ['Previous6MonthAverage', ['2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01']],
+    ['AllPriorMonths', ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01']],
+    ['CustomRange', ['2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01']],
+  ]
+
+  // Ten fixtures: every basis, on a month with nothing left out and on September with EXPO Center left out.
+  const fixtures = bases.flatMap(([basis, baselinePeriods]) => [
+    { name: `${basis}, nothing left out`, value: summary({ basis, baselinePeriods }), compared: 26, percent: '+60,6%' },
+    { name: `${basis}, EXPO Center left out`, value: september({ basis, baselinePeriods }), compared: 23, percent: '+60,19%' },
+  ])
+
+  /** An element's own words, without its children's. */
+  function ownText(element: Element): string {
+    return Array.from(element.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent)
+      .join('')
+      .trim()
+  }
+
+  /** The two lines 21.2a lets come and go. */
+  function isConditional(element: Element): boolean {
+    const line = element.closest('p')
+    return line !== null && line.closest('[role="note"]') === null
+      && (line.textContent === knownAmountHint || (line.textContent ?? '').startsWith('Müqayisəyə daxil deyil'))
+  }
+
+  /** The headline section as a sequence: each element's tag and role, and the words that never change. */
+  function shape(): string[] {
+    const fixedWords = new Set(['Bu ay', 'Baza', 'Fərq', '·'])
+    return Array.from(headline().closest('section')!.querySelectorAll('*'))
+      .filter((element) => !isConditional(element))
+      .map((element) => {
+        const role = element.getAttribute('role')
+        const words = ownText(element)
+        return `${element.tagName.toLowerCase()}${role ? `[${role}]` : ''}${fixedWords.has(words) ? `:${words}` : ''}`
+      })
+  }
+
+  it.each(fixtures)('keeps the total as the headline and the percentage inside the named cohort: $name', ({ value, compared, percent }) => {
+    renderSummary(value)
+
+    expect(headline()).toHaveTextContent(/^71\.210,29 ₼$/)
+    const block = cohort(compared)
+    expect(block).toHaveTextContent(`Müqayisə olunan ${compared} obyekt · ${describeBasisWithRange(value.basis, value.baselinePeriods)}`)
+    const figures = within(block).getByText(percent).closest('p')!
+    expect(figures).toHaveTextContent(/^Bu ay \S+ ₼ Baza 44\.340,78 ₼ Fərq \+\S+ ₼ · \+\S+%$/)
+    expect(screen.getAllByText(percent)).toHaveLength(1)
+    expect(headline().nextElementSibling).toBe(block)
+  })
+
+  it('draws the same elements in the same order in all ten', () => {
+    const shapes = fixtures.map(({ value }) => {
+      const { unmount } = renderSummary(value)
+      const result = shape()
+      unmount()
+      return result
+    })
+
+    expect(shapes[0]).toContain('div[group]')
+    expect(shapes[0].filter((part) => /:(Bu ay|Baza|Fərq)$/.test(part))).toEqual(['span:Bu ay', 'span:Baza', 'span:Fərq'])
+    for (const [index, result] of shapes.entries()) {
+      expect(result, fixtures[index].name).toEqual(shapes[0])
+    }
+  })
+
+  it('shows the missing-price line and the objects left out only when they apply, and in their places', () => {
+    renderSummary(september({
+      current: amount({ isComplete: false, missingPriceItemCount: 11 }),
+      locationsWithMissingPrices: 10,
+    }))
+
+    const block = cohort(23)
+    expect(headline().nextElementSibling).toBe(missingPriceLine())
+    expect(block.lastElementChild).toHaveTextContent(/^Müqayisəyə daxil deyil: EXPO Center/)
   })
 })
 
