@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   approveOrder,
   fetchWorkflow,
@@ -30,6 +30,12 @@ import {
 interface WorkflowPanelProps {
   orderRequestId: number
   onStatusChanged?: (workflow: OrderWorkflow) => void
+  /**
+   * Every workflow this panel has read — the first load and each action's answer — so the page can say what only
+   * the workflow knows (whether the order is historical) without asking the server a second time. Never called for
+   * an abandoned load.
+   */
+  onLoaded?: (workflow: OrderWorkflow) => void
   /** False where the page shows the history itself, so it is not on the screen twice. */
   showHistory?: boolean
 }
@@ -48,15 +54,32 @@ interface WorkflowPanelProps {
  * off the recorded events; nothing here fills a gap with a name or a date.
  * </para>
  */
-export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = true }: WorkflowPanelProps) {
+export function WorkflowPanel({
+  orderRequestId,
+  onStatusChanged,
+  onLoaded,
+  showHistory = true,
+}: WorkflowPanelProps) {
   const [workflow, setWorkflow] = useState<OrderWorkflow | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<WorkflowDialogKind | null>(null)
 
+  // The latest callback, read when the answer arrives: a page passing a new function each render must not
+  // re-fetch the workflow.
+  const onLoadedRef = useRef(onLoaded)
+  useEffect(() => {
+    onLoadedRef.current = onLoaded
+  })
+
   useEffect(() => {
     const controller = new AbortController()
     fetchWorkflow(orderRequestId, controller.signal)
-      .then(setWorkflow)
+      .then((loaded) => {
+        setWorkflow(loaded)
+        if (!controller.signal.aborted) {
+          onLoadedRef.current?.(loaded)
+        }
+      })
       .catch((problem: unknown) => {
         if (!controller.signal.aborted) {
           setError(problem instanceof Error ? problem.message : 'İş axını yüklənmədi')
@@ -76,6 +99,7 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
 
     setWorkflow(updated)
     setDialog(null)
+    onLoaded?.(updated)
     onStatusChanged?.(updated)
   }
 
@@ -194,7 +218,8 @@ export function WorkflowPanel({ orderRequestId, onStatusChanged, showHistory = t
 function DecisionFacts({ workflow }: { workflow: OrderWorkflow }) {
   const facts = workflow.decisionFacts
 
-  // 4.1: an order carried in from Excel says exactly this, and nothing about who sent or approved it.
+  // 22.3: an order carried in from Excel says why nobody and no date is recorded, in one sentence, and 4.1's other
+  // half still holds — nothing about who sent or approved it is made up.
   if (facts.isHistoricalImport) {
     return <p className="text-sm text-slate-700">{historicalImportNote}</p>
   }

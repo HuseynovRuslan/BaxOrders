@@ -18,9 +18,9 @@ import { parseCause, productParam, withCause, withProduct } from '../analytics/d
 import { useBasis } from '../analytics/useBasis'
 import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../api/orders'
 import { fetchRevision, type OrderRevision } from '../api/revisions'
+import type { OrderWorkflow } from '../api/workflow'
 import { PageHeader } from '../components/PageHeader'
 import { SectionHeader } from '../components/SectionHeader'
-import { StatusBadge } from '../components/StatusBadge'
 import { InfoHint } from '../components/analytics/InfoHint'
 import { describeSpecification, distinguishingDetails } from '../components/analytics/labels'
 import {
@@ -48,8 +48,8 @@ import { HistoryTabs } from '../components/orders/revision/HistoryTabs'
 import { RemoveLineDialog } from '../components/orders/revision/RemoveLineDialog'
 import { RevisionPanel } from '../components/orders/revision/RevisionPanel'
 import { addLineLabel, editLineLabel, removeLineLabel, staleDataMessage } from '../components/orders/revision/labels'
+import { OrderStatusBadge } from '../components/workflow/OrderStatusBadge'
 import { WorkflowPanel } from '../components/workflow/WorkflowPanel'
-import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
 import { latestOrderLinkLabel } from '../terminology/terms'
 import {
   formatAmount,
@@ -186,6 +186,17 @@ export function OrderDetailPage() {
   const [reloadToken, setReloadToken] = useState(0)
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
+  // Whether the order was carried in as already approved is the workflow's fact, not the order's. The decision panel
+  // reads the workflow anyway, so the header takes it from there rather than asking a second time — and only for the
+  // order it was read for, so the previous order's answer is never shown on this one.
+  const [historical, setHistorical] = useState<{ orderRequestId: number; isHistoricalImport: boolean } | null>(null)
+  const workflowLoaded = useCallback((workflow: OrderWorkflow) => {
+    setHistorical({
+      orderRequestId: workflow.orderRequestId,
+      isHistoricalImport: workflow.decisionFacts.isHistoricalImport,
+    })
+  }, [])
+
   useEffect(() => {
     const controller = new AbortController()
     setState({ status: 'loading' })
@@ -277,10 +288,12 @@ export function OrderDetailPage() {
         actions={
           data && (
             <>
-              <StatusBadge
-                label={workflowStatusLabels[data.status] ?? data.status}
-                sign={workflowStatusSign[data.status]}
-                toneClass={workflowStatusClass[data.status]}
+              {/* Until the workflow has been read, the plain badge — the same as for any order. */}
+              <OrderStatusBadge
+                status={data.status}
+                isHistoricalImport={
+                  historical?.orderRequestId === data.orderRequestId && historical.isHistoricalImport
+                }
               />
               {/* The object page reads the same basis, so the reader comes back to the comparison they left. */}
               <Link
@@ -355,6 +368,7 @@ export function OrderDetailPage() {
               key={reloadToken}
               orderRequestId={data.orderRequestId}
               onStatusChanged={reload}
+              onLoaded={workflowLoaded}
               showHistory={false}
             />
           )}

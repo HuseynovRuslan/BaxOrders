@@ -7,6 +7,12 @@ import type { DecisionComparison, DecisionDriver, OrderDecisionContext } from '.
 import type { OrderRequestDetail, OrderRequestItem } from '../api/orders'
 import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
+import {
+  historicalImportChipClass,
+  historicalImportLabel,
+  historicalImportNote,
+  workflowStatusClass,
+} from '../components/workflow/labels'
 import { expectInert } from '../test/interaction'
 import { findOldTerms } from '../test/oldTerms'
 import { OrderDetailPage } from './OrderDetailPage'
@@ -869,8 +875,16 @@ describe('the decision', () => {
 
     expect(within(panel).getByText('Təsdiqləyən')).toBeInTheDocument()
     expect(within(panel).getByText('Test Rəhbər')).toBeInTheDocument()
+    expect(within(panel).getByText('Təsdiq tarixi')).toBeInTheDocument()
     expect(screen.getAllByText('Təsdiqlənib')).toHaveLength(1)
     expect(within(panel).queryByText('Təsdiqlənib')).toBeNull()
+
+    // Brief acceptance 3 (Task 22): approved here, so the badge stands alone — nothing about a historical order,
+    // in the header or anywhere else.
+    const header = screen.getByRole('link', { name: 'Obyektin sifarişləri' }).parentElement!
+    expect(within(header).getByText('Təsdiqlənib')).toHaveClass(...workflowStatusClass.Approved.split(' '))
+    expect(document.body).not.toHaveTextContent(/Tarixi sifariş/)
+    expect(document.body).not.toHaveTextContent(/Təsdiq məlumatı mövcud deyil/)
   })
 })
 
@@ -1643,7 +1657,8 @@ describe('the way from the price warning to the lines behind it', () => {
  *
  * It is the one order state the domain cannot produce — Approved with neither moment recorded — so the risk is
  * that a screen reads it as broken data and either fails on it or fills the gap with a date nobody can stand
- * behind. It renders as an ordinary approved order, and the gap is stated rather than filled.
+ * behind. It renders as an ordinary approved order with the 22.2 phrase beside its badge, and the gap is explained
+ * (22.3) rather than filled.
  */
 describe('an order carried in as already approved', () => {
   beforeEach(() => {
@@ -1708,15 +1723,62 @@ describe('an order carried in as already approved', () => {
     expect(screen.queryByText(/Hələ təqdim olunmayıb/)).toBeNull()
   })
 
-  it('says in the decision panel exactly that it came from Excel and that no approval was recorded (4.1)', async () => {
+  it('says in the decision panel why no approver and no date is recorded, and names nobody (22.3, 4.1)', async () => {
     await renderPage()
 
     const panel = await screen.findByRole('region', { name: 'Qərar' })
 
-    expect(within(panel).getByText('Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.')).toBeInTheDocument()
+    expect(within(panel).getByText(historicalImportNote)).toBeInTheDocument()
     expect(within(panel).queryByText('Göndərən')).toBeNull()
     expect(within(panel).queryByText('Təsdiqləyən')).toBeNull()
     expect(within(panel).queryByText(/Sistem/)).toBeNull()
+  })
+
+  /** Brief acceptance 1 (22.2): the approved badge, unchanged, and the owner's phrase beside it. */
+  it('says in the header that it is approved, and beside the badge that it is a historical order', async () => {
+    await renderPage()
+
+    const header = screen.getByRole('link', { name: 'Obyektin sifarişləri' }).parentElement!
+    const phrase = await within(header).findByText('Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb')
+    const badge = within(header).getByText('Təsdiqlənib')
+
+    expect(badge).toHaveClass(...workflowStatusClass.Approved.split(' '))
+    expect(badge).toHaveTextContent('✓')
+    expect(badge.parentElement).toBe(phrase.parentElement)
+    expect(phrase).toHaveClass(...historicalImportChipClass.split(' '))
+    expect(phrase.className).not.toMatch(/amber|emerald/)
+  })
+
+  /** 22.3: the sentence that read as a denial of the badge is gone from the whole screen, not only the panel. */
+  it('nowhere says that nothing is known of the approval', async () => {
+    await renderPage()
+    await screen.findByText('Təsdiqlənmiş kimi köçürülüb')
+    await screen.findByText(historicalImportLabel)
+
+    expect(document.body).not.toHaveTextContent(/Təsdiq məlumatı mövcud deyil/)
+    expect(document.body).not.toHaveTextContent(/Excel importu ilə daxil edilib/)
+  })
+
+  /**
+   * The header learns the fact from the panel's own load (`onLoaded`), so the page asks the server exactly what it
+   * asked before Task 22: once for the decision panel, and once for the history tabs, which read only the history
+   * (`HistoryTabs.tsx`). No request is added for the header.
+   */
+  it('asks for the workflow no more often than before', async () => {
+    await renderPage()
+    await screen.findByText('Təsdiqlənmiş kimi köçürülüb')
+    await screen.findByText(historicalImportLabel)
+
+    expect(workflowApi.fetchWorkflow).toHaveBeenCalledTimes(2)
+    expect(workflowApi.fetchWorkflow.mock.calls.map(([orderRequestId]) => orderRequestId)).toEqual([105, 105])
+  })
+
+  it('says none of the old words (brief acceptance 6)', async () => {
+    await renderPage()
+    await screen.findByText('Təsdiqlənmiş kimi köçürülüb')
+    await screen.findByText(historicalImportLabel)
+
+    expect(findOldTerms(document.body)).toEqual([])
   })
 })
 

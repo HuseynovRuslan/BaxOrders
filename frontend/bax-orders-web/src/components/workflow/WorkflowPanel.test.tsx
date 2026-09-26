@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrderRequestStatus } from '../../api/orders'
 import type { AllowedWorkflowActions, OrderWorkflow, WorkflowDecisionFacts } from '../../api/workflow'
-import { approveLabel, returnLabel } from './labels'
+import { approveLabel, historicalImportNote, returnLabel } from './labels'
 import { WorkflowPanel } from './WorkflowPanel'
 
 /**
@@ -659,8 +659,9 @@ describe('the history', () => {
 
 /**
  * An order carried in from Excel as already approved: Approved, with neither moment recorded and nobody
- * behind it. Owner decision 4.1: the panel says exactly "Excel importu ilə daxil edilib · Təsdiq məlumatı
- * mövcud deyil." — and invents no sender, no approver and no date.
+ * behind it. Owner decision 22.3: the panel says in one sentence why no approver and no date is recorded
+ * (`historicalImportNote`), and 4.1's sentence, which read as a denial of the approval, is gone. 4.1's other half
+ * stands: it invents no sender, no approver and no date.
  */
 const historical = (): Partial<OrderWorkflow> => ({
   status: 'Approved',
@@ -687,7 +688,17 @@ describe('an order carried in from Excel as already approved', () => {
   it('says exactly the owner’s sentence', async () => {
     const panel = await renderPanel(workflow({ ...historical(), history: [] }))
 
-    expect(within(panel).getByText('Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.')).toBeInTheDocument()
+    expect(within(panel).getByText(historicalImportNote)).toBeInTheDocument()
+    expect(within(panel).getByText(
+      'Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb. '
+        + 'Təsdiq BaxOrders iş axını yaranmazdan əvvəl verildiyi üçün təsdiqləyən və tarix qeyd olunmayıb.',
+    )).toBeInTheDocument()
+  })
+
+  it('no longer says that nothing is known of the approval (22.3)', async () => {
+    const panel = await renderPanel(workflow(historical()))
+
+    expect(panel).not.toHaveTextContent(/Təsdiq məlumatı mövcud deyil/)
   })
 
   it('names nobody and dates nothing about its submission or approval', async () => {
@@ -727,5 +738,53 @@ describe('an order carried in from Excel as already approved', () => {
     await renderPanel(workflow(historical()))
 
     expect(screen.getByText('Təsdiqlənmiş kimi köçürülüb')).toHaveClass('bg-slate-100')
+  })
+})
+
+/**
+ * What the panel read, handed to the page (Task 22): the header says whether the order is historical from this
+ * answer rather than asking the server a second time.
+ */
+describe('telling the page what was read', () => {
+  it('hands over the workflow it loaded, once', async () => {
+    const loaded = workflow(historical())
+    const onLoaded = vi.fn()
+    workflowApi.fetchWorkflow.mockResolvedValue(loaded)
+    render(<WorkflowPanel orderRequestId={105} onLoaded={onLoaded} />)
+    await screen.findByRole('region', { name: 'Qərar' })
+
+    expect(onLoaded).toHaveBeenCalledTimes(1)
+    expect(onLoaded).toHaveBeenCalledWith(loaded)
+    expect(workflowApi.fetchWorkflow).toHaveBeenCalledTimes(1)
+  })
+
+  it('says nothing of a load that was abandoned', async () => {
+    let answer: (value: OrderWorkflow) => void = () => undefined
+    workflowApi.fetchWorkflow.mockReturnValue(new Promise<OrderWorkflow>((resolve) => { answer = resolve }))
+    const onLoaded = vi.fn()
+    const { unmount } = render(<WorkflowPanel orderRequestId={105} onLoaded={onLoaded} />)
+
+    unmount()
+    answer(workflow(historical()))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
+
+  it('hands over the answer to an action as well', async () => {
+    const user = userEvent.setup()
+    const approved = workflow({ status: 'Approved' })
+    workflowApi.approveOrder.mockResolvedValue(approved)
+    workflowApi.fetchWorkflow.mockResolvedValue(workflow({ status: 'PendingApproval' }))
+    const onLoaded = vi.fn()
+    render(<WorkflowPanel orderRequestId={105} onLoaded={onLoaded} />)
+    await screen.findByRole('region', { name: 'Qərar' })
+
+    await user.click(screen.getByRole('button', { name: 'Təsdiqlə' }))
+    await user.click(screen.getAllByRole('button', { name: 'Təsdiqlə' }).at(-1)!)
+
+    await waitFor(() => expect(onLoaded).toHaveBeenLastCalledWith(approved))
+    expect(onLoaded).toHaveBeenCalledTimes(2)
   })
 })

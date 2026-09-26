@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { historicalImportNote, submissionCountLabel } from './labels'
+import { findOldTerms } from '../../test/oldTerms'
+import { historicalImportLabel, historicalImportNote, submissionCountLabel } from './labels'
 
 /**
  * Which time an order is being sent, in business language rather than as a version number (Task 04, 5.6).
@@ -43,8 +44,27 @@ describe('the submission count in words', () => {
   })
 })
 
+/**
+ * An order carried in from Excel as already approved. 22.2 fixed the words beside its badge; 22.3 retired 4.1's
+ * sentence, which beside "Təsdiqlənib" read as a denial of the approval, and asked why nobody and no date is recorded.
+ */
 describe('an order carried in from Excel', () => {
-  it('reads exactly the owner’s sentence (4.1)', () => {
-    expect(historicalImportNote).toBe('Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.')
+  it('reads exactly the owner’s phrase beside the badge (22.2)', () => {
+    expect(historicalImportLabel).toBe('Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb')
+  })
+
+  it('says in the panel why no approver and no date is recorded, and no longer that nothing is known (22.3)', () => {
+    expect(historicalImportNote.startsWith(historicalImportLabel)).toBe(true)
+    expect(historicalImportNote).toContain('BaxOrders iş axını yaranmazdan əvvəl')
+    expect(historicalImportNote).toContain('təsdiqləyən')
+    expect(historicalImportNote).toContain('tarix')
+    expect(historicalImportNote).not.toContain('Təsdiq məlumatı mövcud deyil')
+  })
+
+  it('says none of the old words', () => {
+    const element = document.createElement('p')
+    element.textContent = historicalImportNote
+
+    expect(findOldTerms(element)).toEqual([])
   })
 })

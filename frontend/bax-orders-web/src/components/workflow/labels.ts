@@ -60,12 +60,30 @@ export const acknowledgeMissingPricesLabel = 'Qiyməti olmayan sətirlərin möv
 export const notSubmittedYetNote = 'Hələ təqdim olunmayıb'
 
 /**
- * Said of an order carried in from Excel as already approved (owner decision 4.1), exactly and alone.
- *
- * Its approval happened at some real moment nobody recorded, so no sender, no approver and no date is shown,
- * and none is made up. What must not be said is "hələ təqdim olunmayıb": the order was approved.
+ * Said beside the approved badge of an order carried in from Excel as already approved (owner decision 22.2),
+ * word for word. It qualifies the badge rather than replacing it: the order is approved (22.1).
  */
-export const historicalImportNote = 'Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.'
+export const historicalImportLabel = 'Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb'
+
+/** Why such an order names no approver and no date (22.3): the approval was given before this system existed. */
+export const historicalApprovalReason =
+  'Təsdiq BaxOrders iş axını yaranmazdan əvvəl verildiyi üçün təsdiqləyən və tarix qeyd olunmayıb.'
+
+/**
+ * What the decision panel says of such an order, exactly and alone.
+ *
+ * 22.3 retired 4.1's "Excel importu ilə daxil edilib · Təsdiq məlumatı mövcud deyil.": beside a green "Təsdiqlənib"
+ * it read as a denial of the approval. 4.1's other half stands: the approval happened at some real moment nobody
+ * recorded, so no sender, no approver and no date is shown, and none is made up. What must not be said is "hələ
+ * təqdim olunmayıb": the order was approved.
+ */
+export const historicalImportNote = `${historicalImportLabel}. ${historicalApprovalReason}`
+
+/**
+ * The grey the history already gives the same fact (`ImportedAsApproved`), with no ring, so the text reads as context
+ * beside the badge and not as a second status. Never amber: nothing is owed here (Task 2).
+ */
+export const historicalImportChipClass = workflowActionClass.ImportedAsApproved
 
 /** The facts the decision panel lists, in business language. */
 export const decisionFactLabels = {
