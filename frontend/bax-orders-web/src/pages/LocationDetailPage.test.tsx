@@ -9,7 +9,11 @@ import {
   historicalImportLabel,
   workflowStatusClass,
 } from '../components/workflow/labels'
+import { expectInert } from '../test/interaction'
 import { LocationDetailPage } from './LocationDetailPage'
+
+/** U+00A0, by its code point: the no-break space the money formatter puts before ₼. */
+const nbsp = String.fromCharCode(0xa0)
 
 /**
  * One object's page as the manager reads it (Task 05b): named, not coded; no version column and no line count;
@@ -193,8 +197,9 @@ describe('the orders table', () => {
     ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
     const { container } = await renderPage()
 
+    // Task 24 (24.1): the empty fourth column held the row's two duplicate buttons, and went with them.
     const headers = table().getAllByRole('columnheader').map((cell) => cell.textContent)
-    expect(headers).toEqual(['Dövr', 'Məbləğ', 'Status', ''])
+    expect(headers).toEqual(['Dövr', 'Məbləğ', 'Status'])
     expect(container).not.toHaveTextContent(/versiya/i)
     expect(container).not.toHaveTextContent('Sətir sayı')
   })
@@ -331,12 +336,12 @@ describe('the basis the page was opened with', () => {
     await renderPage('/locations/43?basis=avg3')
     await within(card()).findByText('Son 3 ayın ortalamasına görə')
 
+    // Changed in Task 24 (24.1, 24.2): the rows' «Sifarişə bax» and «Müqayisə» and the header's «Müqayisə et» are
+    // gone. What leads to an order now is the card's one «Sifarişə bax», each row's period and each month of the
+    // strip — and every one of them still carries the basis.
     const toOrders = screen.getAllByRole('link', { name: 'Sifarişə bax' })
-    // The card's and one per row.
-    expect(toOrders).toHaveLength(4)
-    for (const link of toOrders) {
-      expect(link.getAttribute('href')).toMatch(/^\/orders\/\d+\?basis=avg3$/)
-    }
+    expect(toOrders).toHaveLength(1)
+    expect(toOrders[0]).toHaveAttribute('href', '/orders/107?basis=avg3')
 
     const periods = table().getAllByRole('link', { name: /2026$/ })
     expect(periods.map((link) => link.getAttribute('href'))).toEqual([
@@ -345,15 +350,14 @@ describe('the basis the page was opened with', () => {
       '/orders/104?basis=avg3',
     ])
 
-    // Changed deliberately in 11b (11.1: "«Müqayisə» … həmin sifarişin təhlil səhifəsini açır"): the comparison is
-    // the order's own analysis, not a second page — the latest order for the header, that very order for a row.
-    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/107?basis=avg3')
-    const compare = table().getAllByRole('link', { name: /dövrünü müqayisə et$/ })
-    expect(compare.map((link) => link.getAttribute('href'))).toEqual([
-      '/orders/107?basis=avg3',
-      '/orders/105?basis=avg3',
-      '/orders/104?basis=avg3',
-    ])
+    const months = within(screen.getByRole('list', { name: 'Son ayların məbləğləri' })).getAllByRole('link')
+    expect(months.map((link) => link.getAttribute('href'))).toEqual(['/orders/104?basis=avg3', '/orders/107?basis=avg3'])
+
+    const toAnyOrder = screen.getAllByRole('link').filter((link) => link.getAttribute('href')!.startsWith('/orders/'))
+    expect(toAnyOrder).toHaveLength(6)
+    for (const link of toAnyOrder) {
+      expect(link.getAttribute('href')).toMatch(/^\/orders\/\d+\?basis=avg3$/)
+    }
   })
 
   it('rewrites the URL and asks again when the reader picks another basis', async () => {
@@ -399,37 +403,130 @@ describe('the basis the page was opened with', () => {
 })
 
 /**
- * Brief acceptance 5 (11.1): there is no separate comparison page. "Müqayisə et" opens the latest order's analysis
- * and each row's "Müqayisə" opens that order's, with the chosen basis.
+ * Task 24 (brief acceptance 1; 24.1, 24.2). This block was "«Müqayisə» opens the order's analysis" (11.1). The owner's
+ * later decisions removed those very controls: each period row keeps one link, its period, and «Müqayisə et» is
+ * deleted — not renamed, not repointed — because it promised an object-to-object comparison the product does not
+ * have. Its scenarios stay: under a filter, on page 2, with no order, and never a link to a comparison page (11.1).
  */
-describe('"Müqayisə" opens the order’s analysis', () => {
+describe('one link per period row, and no «Müqayisə et»', () => {
   function hrefs(): string[] {
     return screen.getAllByRole('link').map((link) => link.getAttribute('href') ?? '')
   }
 
-  it('from the header, as the latest order, with the basis', async () => {
-    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
-    await renderPage('/locations/43?basis=avg3')
-
-    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/107?basis=avg3')
+  /** Nothing named, labelled or reading «Müqayisə et» or «Müqayisə», as a link, a button or any other element. */
+  function expectNoComparisonControl() {
+    expect(screen.queryByRole('link', { name: /müqayisə et/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /müqayisə et/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Müqayisə$/ })).toBeNull()
+    expect(screen.queryByText('Müqayisə et')).toBeNull()
+    // The rows' own «Müqayisə». The card's basis picker is labelled «Müqayisə», and that label stays.
+    expect(table().queryByText('Müqayisə')).toBeNull()
+    expect(document.querySelector('[aria-label*="müqayisə et" i], [title*="müqayisə et" i]')).toBeNull()
+    expect(document.body.textContent).not.toMatch(/Müqayisə et/i)
     expect(hrefs().filter((href) => href.includes('/analytics'))).toEqual([])
-  })
+  }
 
-  it('from every row, as that row’s order, with the basis', async () => {
+  /** The header's actions: `Obyektlərə qayıt`, and nothing else. */
+  function expectHeaderHoldsOnlyTheWayBack() {
+    const header = screen.getByRole('heading', { level: 1 }).parentElement!.parentElement!
+    expect(within(header).getAllByRole('link').map((link) => link.textContent)).toEqual(['Obyektlərə qayıt'])
+    expect(within(header).queryAllByRole('button')).toHaveLength(0)
+    expect(header.querySelector('svg')).toBeNull()
+  }
+
+  it('gives every row exactly one link, its period, to the order it opened before, with the basis', async () => {
     ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
     await renderPage('/locations/43?basis=avg3')
 
-    // The same order the row's "Sifarişə bax" opens, and the same words and name as before.
     const rows = table().getAllByRole('row').slice(1)
-    const compare = rows.map((row) => within(row).getByRole('link', { name: /dövrünü müqayisə et$/ }))
-    expect(compare.map((link) => link.getAttribute('href')))
-      .toEqual(rows.map((row) => within(row).getByRole('link', { name: 'Sifarişə bax' }).getAttribute('href')))
-    expect(compare.map((link) => link.textContent)).toEqual(['Müqayisə', 'Müqayisə', 'Müqayisə'])
-    expect(compare[2]).toHaveAccessibleName('İyun 2026 dövrünü müqayisə et')
+    expect(rows.map((row) => within(row).getAllByRole('link').map((link) => `${link.textContent} → ${link.getAttribute('href')}`)))
+      .toEqual([
+        ['İyul 2026 → /orders/107?basis=avg3'],
+        ['İyul 2026 → /orders/105?basis=avg3'],
+        ['İyun 2026 → /orders/104?basis=avg3'],
+      ])
+    for (const row of rows) {
+      // Its name is the period it shows, with nothing added.
+      expect(within(row).getByRole('link')).toHaveAccessibleName(within(row).getByRole('link').textContent!)
+      expect(within(row).queryByRole('link', { name: 'Sifarişə bax' })).toBeNull()
+      expect(within(row).queryByRole('link', { name: /dövrünü müqayisə et$/ })).toBeNull()
+      expect(within(row).queryByText('Müqayisə')).toBeNull()
+      expect(within(row).queryAllByRole('button')).toHaveLength(0)
+    }
   })
 
-  it('still opens the latest order under a filter whose rows do not hold it', async () => {
-    // Filtered, the page lists June alone; the header still names July's newest order.
+  it('makes each row a surface: it changes under the cursor and its link wears the focus', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+
+    for (const row of table().getAllByRole('row').slice(1)) {
+      expect(row).toHaveClass('cursor-pointer', 'hover:bg-slate-50')
+      const link = within(row).getByRole('link')
+      expect(link).toHaveAttribute('data-surface-link')
+      expect(link).toHaveClass('focus-visible:outline-2', 'group-hover:underline', 'font-medium', 'text-slate-900')
+      // The link no longer underlines on its own hover: it follows the row's.
+      expect(link).not.toHaveClass('hover:underline')
+      // Everything else in the row is text.
+      expectInert(within(row).getByText(/₼/), row)
+      expectInert(within(row).getByText(/Təsdiq|Düzəliş/), row)
+    }
+  })
+
+  it('opens a row’s order from a click on its amount, its status or its note', async () => {
+    function Where() {
+      const { pathname, search } = useLocation()
+      return <span data-testid="where">{pathname + search}</span>
+    }
+
+    async function renderRoutes() {
+      const result = render(
+        <MemoryRouter initialEntries={['/locations/43?basis=avg3']}>
+          <Where />
+          <Routes>
+            <Route path="/locations/:locationId" element={<LocationDetailPage />} />
+            <Route path="*" element={<p>Açıldı</p>} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      await screen.findByRole('heading', { name: 'Nərimanov heykəli' })
+      return result
+    }
+
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+
+    const { unmount } = await renderRoutes()
+    await userEvent.click(within(table().getAllByRole('row')[3]).getByText('4.200,00 ₼'))
+    expect(screen.getByText('Açıldı')).toBeInTheDocument()
+    expect(screen.getByTestId('where')).toHaveTextContent('/orders/104?basis=avg3')
+    unmount()
+
+    const second = await renderRoutes()
+    await userEvent.click(within(table().getAllByRole('row')[1]).getByText('Təsdiq gözləyir'))
+    expect(screen.getByTestId('where')).toHaveTextContent('/orders/107?basis=avg3')
+    second.unmount()
+
+    await renderRoutes()
+    await userEvent.click(screen.getByText('Əvvəlki sifariş — sonradan yenilənib'))
+    expect(screen.getByTestId('where')).toHaveTextContent('/orders/105?basis=avg3')
+  })
+
+  it('has no «Müqayisə et», and the card’s one «Sifarişə bax» opens what the first row opens', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+
+    expectNoComparisonControl()
+    expectHeaderHoldsOnlyTheWayBack()
+    const open = within(card()).getAllByRole('link', { name: 'Sifarişə bax' })
+    expect(open).toHaveLength(1)
+    expect(open[0]).toHaveAttribute('href', '/orders/107?basis=avg3')
+    expect(open[0].getAttribute('href')).toBe(within(table().getAllByRole('row')[1]).getByRole('link').getAttribute('href'))
+  })
+
+  /**
+   * §4.2's consequence, stated rather than hidden: under a filter whose rows do not hold the latest order there is no
+   * card, and the removed button was the only way to it. Nothing replaces it.
+   */
+  it('has none under a filter either, where the page offers only the rows it lists', async () => {
     ordersApi.fetchLocationHistory.mockImplementation(
       (_id: number, query: { year?: number }) => Promise.resolve(query.year === undefined
         ? history(twoOfJuly)
@@ -438,13 +535,15 @@ describe('"Müqayisə" opens the order’s analysis', () => {
 
     const [yearFilter] = screen.getAllByRole('combobox')
     await userEvent.selectOptions(yearFilter, '2026')
-    await waitFor(() => expect(table().getAllByRole('link', { name: /dövrünü müqayisə et$/ })).toHaveLength(1))
+    await waitFor(() => expect(table().getAllByRole('link')).toHaveLength(1))
 
-    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/107?basis=avg3')
-    expect(table().getByRole('link', { name: /dövrünü müqayisə et$/ })).toHaveAttribute('href', '/orders/104?basis=avg3')
+    expectNoComparisonControl()
+    expectHeaderHoldsOnlyTheWayBack()
+    expect(table().getByRole('link')).toHaveAttribute('href', '/orders/104?basis=avg3')
+    expect(hrefs().filter((href) => href.startsWith('/orders/'))).toEqual(['/orders/104?basis=avg3'])
   })
 
-  it('still opens the latest order on the second page', async () => {
+  it('has none on the second page either', async () => {
     const many = Array.from({ length: 24 }, (_, index) => entry({ orderRequestId: 200 + index }))
     ordersApi.fetchLocationHistory.mockImplementation(
       (_id: number, query: { page: number }) => Promise.resolve(history(many, {
@@ -456,16 +555,29 @@ describe('"Müqayisə" opens the order’s analysis', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Növbəti' }))
     await screen.findByText('Səhifə 2 / 2 · 25 sifariş')
 
-    expect(screen.getByRole('link', { name: 'Müqayisə et' })).toHaveAttribute('href', '/orders/200?basis=avg3')
-    expect(table().getByRole('link', { name: /dövrünü müqayisə et$/ })).toHaveAttribute('href', '/orders/104?basis=avg3')
+    expectNoComparisonControl()
+    expectHeaderHoldsOnlyTheWayBack()
+    expect(table().getByRole('link')).toHaveAttribute('href', '/orders/104?basis=avg3')
+    expect(hrefs().filter((href) => href.startsWith('/orders/'))).toEqual(['/orders/104?basis=avg3'])
   })
 
-  it('is not offered for an object with no order: there is nothing to open', async () => {
+  it('has none for an object with no order, where there is nothing to open', async () => {
     ordersApi.fetchLocationHistory.mockResolvedValue(history([], { earliestPeriod: null, latestPeriod: null }))
     await renderPage('/locations/43?basis=avg3')
 
-    expect(screen.queryByRole('link', { name: 'Müqayisə et' })).toBeNull()
-    expect(hrefs().filter((href) => href.includes('/analytics'))).toEqual([])
+    expectNoComparisonControl()
+    expectHeaderHoldsOnlyTheWayBack()
+  })
+
+  it('leaves the amounts, the statuses, the note and the periods as they were', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage('/locations/43?basis=avg3')
+
+    expect(table().getAllByRole('row').slice(1).map((row) => row.textContent)).toEqual([
+      `İyul 20264.700,00${nbsp}₼⏳Təsdiq gözləyir`,
+      `İyul 2026Əvvəlki sifariş — sonradan yenilənib4.800,00${nbsp}₼↩Düzəliş tələb olunur`,
+      `İyun 20264.200,00${nbsp}₼✓Təsdiqlənib`,
+    ])
   })
 })
 
@@ -480,7 +592,8 @@ describe('where the card and the strip are shown', () => {
     await userEvent.selectOptions(yearFilter, '2026')
     await waitFor(() => expect(ordersApi.fetchLocationHistory).toHaveBeenLastCalledWith(
       43, expect.objectContaining({ year: 2026 }), expect.anything()))
-    await screen.findAllByRole('link', { name: 'Sifarişə bax' })
+    // The filtered rows are on the page. Task 24: waited for by their period links, the rows' only links now.
+    await table().findAllByRole('link', { name: /2026$/ })
 
     expect(screen.queryByRole('region', { name: 'Son sifariş və tarixçə' })).toBeNull()
     expect(screen.queryByRole('list', { name: 'Son ayların məbləğləri' })).toBeNull()

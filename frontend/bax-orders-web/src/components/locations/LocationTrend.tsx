@@ -5,6 +5,7 @@ import { orderLink, type BasisSelection } from '../../analytics/basisParams'
 import {
   internalSupplyShortLabel,
   internalToneClass,
+  missingPriceCount,
   missingPriceShortLabel,
   warningToneClass,
 } from '../../pricing/labels'
@@ -26,6 +27,7 @@ import {
 import { monthTickLabel, monthsBetween } from '../analytics/trend'
 import { MissingPriceMark } from '../dashboard/MissingPriceMark'
 import { emptyWindowNote } from '../decisions/labels'
+import { rowLinkClass } from '../interaction'
 import { OrderStatusBadge } from '../workflow/OrderStatusBadge'
 
 /** How far back the strip looks, in calendar months. Enough to see a season, short enough to stay a glance. */
@@ -109,36 +111,92 @@ export function LocationTrend({
       {/*
         Every month is named in full — "İyun" and "İyul" cut to three letters are the same word — and carries its
         own money, so the strip is read rather than guessed at from the bars' heights.
+
+        A month with an order is the way into it (24.4): the same order the row list's newest row of that month
+        opens, with the reader's basis. A month without one is a gap and opens nothing. The last month is the latest
+        order's, the one the card above names; it is marked in darker slate and to a screen reader, never in a
+        direction's colour, because an amount is a sum and not a change (9.1).
       */}
       <ol className="mt-4 flex items-start gap-1 overflow-x-auto" aria-label="Son ayların məbləğləri">
-        {slots.map(({ period, entry }, index) => (
-          <li key={period} className="flex flex-1 flex-col items-center gap-1">
-            <div className="flex w-full items-end" style={{ height: barHeight }}>
-              <span
-                className={`w-full rounded-sm ${entry === null ? 'border border-dashed border-slate-200' : 'bg-slate-300'}`}
-                style={{
-                  height: entry === null || largest === 0
-                    ? 4
-                    : Math.max(4, ((entry.knownAmountTotal ?? 0) / largest) * barHeight),
-                }}
-                title={
-                  entry === null
-                    ? `${formatMonth(period)}: sifariş yoxdur`
-                    : `${formatMonth(period)}: ${formatMoney(entry.knownAmountTotal)}`
-                }
-              />
-            </div>
-            <span className="whitespace-nowrap text-[10px] text-slate-500">{monthTickLabel(period, index === 0)}</span>
-            <span className="whitespace-nowrap text-[10px] tabular-nums text-slate-700">
-              {entry === null ? unknownValue : formatMoney(entry.knownAmountTotal)}
-            </span>
-            {/* A partial amount never reads as a whole one: the month that owes a price says so under it. */}
-            {entry !== null && <MissingPriceMark count={entry.missingPriceItemCount} explanationIsComplete />}
-          </li>
-        ))}
+        {slots.map(({ period, entry }, index) => {
+          const current = index === slots.length - 1
+          const content = (
+            <SlotContent period={period} entry={entry} first={index === 0} current={current} largest={largest} />
+          )
+
+          return (
+            <li key={period} className="flex flex-1 flex-col items-center gap-1">
+              {entry === null ? (
+                <div className="flex w-full flex-col items-center gap-1">{content}</div>
+              ) : (
+                <Link
+                  to={orderLink(entry.orderRequestId, selection)}
+                  aria-label={slotName(period, entry)}
+                  aria-current={current ? 'true' : undefined}
+                  className={`group flex w-full flex-col items-center gap-1 hover:bg-slate-50 ${rowLinkClass}`}
+                >
+                  {content}
+                </Link>
+              )}
+            </li>
+          )
+        })}
       </ol>
     </section>
   )
+}
+
+/**
+ * One month of the strip: its bar, its name and its money, and the mark of a price still owed. The same for a month
+ * that opens its order and for a gap; only the latest order's month is drawn darker, with its name in bold.
+ */
+function SlotContent({ period, entry, first, current, largest }: {
+  period: string
+  entry: LocationOrderHistoryEntry | null
+  first: boolean
+  current: boolean
+  largest: number
+}) {
+  const bar = entry === null
+    ? 'border border-dashed border-slate-200'
+    : current ? 'bg-slate-600' : 'bg-slate-300 group-hover:bg-slate-400'
+
+  return (
+    <>
+      <div className="flex w-full items-end" style={{ height: barHeight }}>
+        <span
+          className={`w-full rounded-sm ${bar}`}
+          style={{
+            height: entry === null || largest === 0
+              ? 4
+              : Math.max(4, ((entry.knownAmountTotal ?? 0) / largest) * barHeight),
+          }}
+          title={
+            entry === null
+              ? `${formatMonth(period)}: sifariş yoxdur`
+              : `${formatMonth(period)}: ${formatMoney(entry.knownAmountTotal)}`
+          }
+        />
+      </div>
+      <span className={`whitespace-nowrap text-[10px] ${current ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
+        {monthTickLabel(period, first)}
+      </span>
+      <span className="whitespace-nowrap text-[10px] tabular-nums text-slate-700">
+        {entry === null ? unknownValue : formatMoney(entry.knownAmountTotal)}
+      </span>
+      {/* A partial amount never reads as a whole one: the month that owes a price says so under it. */}
+      {entry !== null && <MissingPriceMark count={entry.missingPriceItemCount} explanationIsComplete />}
+    </>
+  )
+}
+
+/**
+ * What a month's link says: the bar's own words, and a price still owed when there is one, so a partial amount is
+ * never announced as a whole one (Task 2).
+ */
+function slotName(period: string, entry: LocationOrderHistoryEntry): string {
+  const name = `${formatMonth(period)}: ${formatMoney(entry.knownAmountTotal)}`
+  return entry.missingPriceItemCount > 0 ? `${name} · ${missingPriceCount(entry.missingPriceItemCount)}` : name
 }
 
 /**

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MonthlyReport, MonthlyReportCell, MonthlyReportMonth, MonthlyReportRow } from '../api/reports'
 import { historicalImportLabel, workflowStatusClass } from '../components/workflow/labels'
@@ -166,7 +166,8 @@ describe('the grid', () => {
     await renderPage()
 
     const cells = within(table()).getAllByRole('link', { name: /Fəvvarələr meydanı · Yan/ })
-    expect(cells[0]).toHaveAttribute('href', '/orders/101')
+    // Task 24: marked as opened from the report, so the order offers the way back to it.
+    expect(cells[0]).toHaveAttribute('href', '/orders/101?back=monthly')
   })
 
   it('never lets a month with no request read as a month that cost nothing', async () => {
@@ -316,7 +317,7 @@ describe('the phone', () => {
     await renderPage()
 
     const january = within(card('Fəvvarələr meydanı')).getByRole('link', { name: /Yanvar 2026/ })
-    expect(january).toHaveAttribute('href', '/orders/101')
+    expect(january).toHaveAttribute('href', '/orders/101?back=monthly')
     expect(january.getAttribute('href')).not.toContain('basis')
     const amount = within(january).getByText('1.001,00 ₼')
     // Kept to its ₼ by a no-break space (Task 5), and on one line.
@@ -619,7 +620,7 @@ describe('the panorama', () => {
   it('still opens the decision page from the cell', async () => {
     await renderPage()
 
-    expect(within(table()).getByRole('link', { name: /Yanvar 2026/ })).toHaveAttribute('href', '/orders/101')
+    expect(within(table()).getByRole('link', { name: /Yanvar 2026/ })).toHaveAttribute('href', '/orders/101?back=monthly')
   })
 
   it('shows the change as a percentage, which is far shorter than the money', async () => {
@@ -775,7 +776,7 @@ describe('an unusual month (owner decision 8.2)', () => {
     expect(june).toHaveAttribute('title', expect.stringContaining(why) as unknown as string)
     expect(june).toHaveAccessibleName(expect.stringContaining(why) as unknown as string)
     // Still the order, and still without a basis, so it opens on "Keçən ay" (Task 1).
-    expect(june).toHaveAttribute('href', '/orders/106')
+    expect(june).toHaveAttribute('href', '/orders/106?back=monthly')
   })
 
   it('leaves a month within half of its average as it is', async () => {
@@ -827,7 +828,7 @@ describe('months that have not begun', () => {
     serving(report({ rows: [withFutureGap()] }))
     await renderPage()
 
-    expect(within(table()).getByRole('link', { name: /Noyabr 2026/ })).toHaveAttribute('href', '/orders/111')
+    expect(within(table()).getByRole('link', { name: /Noyabr 2026/ })).toHaveAttribute('href', '/orders/111?back=monthly')
   })
 
   it('quietens the headers of the months to come', async () => {
@@ -867,7 +868,7 @@ describe('months that have not begun', () => {
     expect(within(phone).queryByLabelText(/Oktyabr 2026 · sifariş yoxdur/)).toBeNull()
     expect(within(phone).queryByLabelText(/Dekabr 2026 · sifariş yoxdur/)).toBeNull()
     // An order entered ahead of time is an ordinary month here as well.
-    expect(within(phone).getByRole('link', { name: /Noyabr 2026/ })).toHaveAttribute('href', '/orders/111')
+    expect(within(phone).getByRole('link', { name: /Noyabr 2026/ })).toHaveAttribute('href', '/orders/111?back=monthly')
     // Its slot on the strip is the same hatch; a past month with no order is an empty slot.
     const bars = [...phone.querySelector('.grid-cols-12')!.children] as HTMLElement[]
     expect(bars[9].className).toContain('bg-[image:repeating-linear-gradient')
@@ -1100,5 +1101,280 @@ describe('a location that has never ordered', () => {
 
     expect(within(table()).queryByText('Sistemdə hələ sifarişi yoxdur')).toBeNull()
     expect(within(table()).getByTitle('Yanvar 2026: sifariş yoxdur')).toBeInTheDocument()
+  })
+})
+
+/** Three objects, as the report lists them; each has its own January order, so a Back can tell them apart. */
+function threeRows() {
+  const months = (first: number) => Array.from({ length: 12 }, (_, index) => cell(index + 1, { orderRequestId: first + index }))
+  return report({
+    rows: [
+      row({ locationId: 1, locationName: 'Bayıl yolu', months: months(1100) }),
+      row({ locationId: 21, locationName: 'Fəvvarələr meydanı', months: months(2100) }),
+      row({ locationId: 3, locationName: 'Heydər Əliyev', months: months(3100) }),
+    ],
+  })
+}
+
+/** The part of the page that shows below 1024 pixels. */
+function phoneList(): HTMLElement {
+  return screen.getByRole('list', { name: 'Kartlardakı işarələr' }).parentElement!
+}
+
+/**
+ * Task 24 (brief acceptance 3; 24.3): each row, and each phone card, carries the id Back's scroll memory looks for, and
+ * every month opens its order marked as opened from here. Nothing else about a cell or a name link changed.
+ */
+describe('the rows a reader comes back to', () => {
+  it('gives every table row row-{id} and every phone card row-{id}-phone, each once', async () => {
+    serving(threeRows())
+    await renderPage()
+
+    const rows = [...table().querySelectorAll('tbody tr')]
+    expect(rows.map((element) => element.id)).toEqual(['row-1', 'row-21', 'row-3'])
+    expect(rows.map((element) => within(element as HTMLElement).getByRole('rowheader').textContent))
+      .toEqual(['Bayıl yolu', 'Fəvvarələr meydanı', 'Heydər Əliyev'])
+
+    const cards = [...phoneList().querySelectorAll('li[id]')]
+    expect(cards.map((element) => element.id)).toEqual(['row-1-phone', 'row-21-phone', 'row-3-phone'])
+    expect(document.getElementById('row-21-phone')).toHaveTextContent('Fəvvarələr meydanı')
+
+    const ids = [...document.querySelectorAll('[id^="row-"]')].map((element) => element.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toHaveLength(6)
+  })
+
+  it('opens every filled month, in both layouts, at its order marked as from the report, with no basis', async () => {
+    serving(threeRows())
+    await renderPage()
+
+    for (const scope of [table(), phoneList()]) {
+      const months = within(scope).getAllByRole('link', { name: / · .+ 2026 · / })
+      expect(months).toHaveLength(36)
+      for (const link of months) {
+        expect(link.getAttribute('href')).toMatch(/^\/orders\/\d+\?back=monthly$/)
+        expect(link.getAttribute('href')).not.toContain('basis')
+      }
+    }
+
+    expect(within(document.getElementById('row-21')!).getByRole('link', { name: /Yanvar 2026/ }))
+      .toHaveAttribute('href', '/orders/2100?back=monthly')
+    expect(within(document.getElementById('row-21-phone')!).getByRole('link', { name: /Yanvar 2026/ }))
+      .toHaveAttribute('href', '/orders/2100?back=monthly')
+  })
+
+  it('leaves the object names opening the object, and the cells saying what they said', async () => {
+    serving(threeRows())
+    await renderPage()
+
+    expect(within(table()).getByRole('link', { name: 'Fəvvarələr meydanı' })).toHaveAttribute('href', '/locations/21')
+    expect(within(phoneList()).getByRole('link', { name: 'Fəvvarələr meydanı' })).toHaveAttribute('href', '/locations/21')
+
+    const january = within(document.getElementById('row-21')!).getByRole('link', { name: /Yanvar 2026/ })
+    const title = january.getAttribute('title')!
+    expect(title.startsWith(`Yanvar 2026 · 1.001,00${nbsp}₼ · keçən aya görə +1,00${nbsp}₼`)).toBe(true)
+    expect(title).not.toMatch(/Aylıq|monthly|back/i)
+    expect(january).toHaveAccessibleName(`Fəvvarələr meydanı · ${title}`)
+    expect(within(january).getByText('1.001,00 ₼')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Brief acceptance 3 and 4 (24.3). The order page is a stub here, with the browser's Back as a button: what is under
+ * test is that Back from a month brings its row — or on a phone its card — into view once the matrix is on the page,
+ * and that the search the reader submitted comes back with it, in the box and in the request.
+ */
+describe('coming back from an order', () => {
+  function OrderStub() {
+    const navigate = useNavigate()
+    const { state } = useLocation()
+    return (
+      <>
+        <p data-testid="order-state">{JSON.stringify(state)}</p>
+        <button type="button" onClick={() => navigate(-1)}>Geri</button>
+        <Link to="/dashboard/monthly">Hesabata</Link>
+      </>
+    )
+  }
+
+  function Address() {
+    const { pathname, search } = useLocation()
+    return <p data-testid="address">{pathname + search}</p>
+  }
+
+  function renderWithOrder(url = '/dashboard/monthly') {
+    return render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[url]}>
+          <Address />
+          <Routes>
+            <Route path="/dashboard/monthly" element={<MonthlyReportPage />} />
+            <Route path="/orders/:orderRequestId" element={<OrderStub />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    )
+  }
+
+  function address(): string {
+    return screen.getByTestId('address').textContent ?? ''
+  }
+
+  function searchBox(): HTMLInputElement {
+    return screen.getByRole('searchbox', { name: 'Obyekt axtar' })
+  }
+
+  async function loaded() {
+    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+  }
+
+  async function goBack() {
+    await userEvent.click(screen.getByRole('button', { name: 'Geri' }))
+    await loaded()
+  }
+
+  let scrollIntoView = vi.fn()
+  beforeEach(() => {
+    // Each test is a fresh visit. A memory router's first entry is always keyed "default", and the scroll memory
+    // is kept per key in the session, so a place remembered by one test would otherwise be restored in the next.
+    window.sessionStorage.clear()
+    scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    serving(threeRows())
+  })
+  afterEach(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
+
+  it('opens a month as an entry marked as the report’s', async () => {
+    renderWithOrder()
+    await loaded()
+
+    await userEvent.click(within(document.getElementById('row-21')!).getByRole('link', { name: /Mart 2026/ }))
+
+    expect(address()).toBe('/orders/2102?back=monthly')
+    expect(screen.getByTestId('order-state')).toHaveTextContent('{"monthlyReport":true}')
+  })
+
+  it('brings the row whose month was opened into view, once the matrix is there', async () => {
+    renderWithOrder()
+    await loaded()
+
+    await userEvent.click(within(document.getElementById('row-3')!).getByRole('link', { name: /Avqust 2026/ }))
+    await screen.findByRole('button', { name: 'Geri' })
+    await goBack()
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-3')
+    expect(address()).toBe('/dashboard/monthly')
+  })
+
+  it('brings the phone card back instead, when the month was opened from a card', async () => {
+    renderWithOrder()
+    await loaded()
+
+    await userEvent.click(within(document.getElementById('row-21-phone')!).getByRole('link', { name: /Yanvar 2026/ }))
+    await screen.findByRole('button', { name: 'Geri' })
+    await goBack()
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-21-phone')
+  })
+
+  it('restores nothing on a fresh arrival, even with a place remembered for another visit', async () => {
+    renderWithOrder()
+    await loaded()
+
+    await userEvent.click(within(document.getElementById('row-3')!).getByRole('link', { name: /Avqust 2026/ }))
+    await userEvent.click(screen.getByRole('link', { name: 'Hesabata' }))
+    await loaded()
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  /** Brief acceptance 4: "Novxan" searched, a month opened, Back — the text and the filtered matrix are back. */
+  it('comes back with the search the reader submitted, in the box, in the address and in the request', async () => {
+    renderWithOrder()
+    await loaded()
+
+    await userEvent.type(searchBox(), 'Novxan')
+    // Typing alone asks for nothing and writes nothing.
+    expect(address()).toBe('/dashboard/monthly')
+    await userEvent.type(searchBox(), '{Enter}')
+    await waitFor(() => expect(address()).toBe('/dashboard/monthly?search=Novxan'))
+    await waitFor(() => expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: 'Novxan' }), expect.anything()))
+    await loaded()
+
+    await userEvent.click(within(document.getElementById('row-21')!).getByRole('link', { name: /Yanvar 2026/ }))
+    await screen.findByRole('button', { name: 'Geri' })
+    reportsApi.fetchMonthlyReport.mockClear()
+    await goBack()
+
+    expect(address()).toBe('/dashboard/monthly?search=Novxan')
+    expect(searchBox()).toHaveValue('Novxan')
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenCalled()
+    for (const [query] of reportsApi.fetchMonthlyReport.mock.calls) {
+      expect(query).toEqual({ year: undefined, search: 'Novxan' })
+    }
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+    expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-21')
+  })
+
+  /** Brief acceptance 4, its second half: a reload opens the same search again. */
+  it('keeps the search through a reload, and after Back from an opened month', async () => {
+    const first = renderWithOrder('/dashboard/monthly?search=Novxan')
+    await loaded()
+    expect(searchBox()).toHaveValue('Novxan')
+
+    await userEvent.click(within(document.getElementById('row-1')!).getByRole('link', { name: /Fevral 2026/ }))
+    await screen.findByRole('button', { name: 'Geri' })
+    await goBack()
+
+    expect(searchBox()).toHaveValue('Novxan')
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan' }, expect.anything())
+    const url = address()
+    expect(new URLSearchParams(url.split('?')[1]).get('search')).toBe('Novxan')
+    first.unmount()
+
+    // The reload: the same address, rendered anew.
+    reportsApi.fetchMonthlyReport.mockClear()
+    renderWithOrder(url)
+    await loaded()
+
+    expect(searchBox()).toHaveValue('Novxan')
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan' }, expect.anything())
+    expect(address()).toBe('/dashboard/monthly?search=Novxan')
+  })
+
+  it('writes a submitted search over the entry it is on, so the history does not grow', async () => {
+    function Back() {
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate(-1)}>Brauzerdə geri</button>
+    }
+
+    render(
+      <MemoryRouter initialEntries={['/elsewhere', '/dashboard/monthly?year=2026']}>
+        <Address />
+        <Back />
+        <Routes>
+          <Route path="/dashboard/monthly" element={<MonthlyReportPage />} />
+          <Route path="/elsewhere" element={<p>Əvvəlki səhifə</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await loaded()
+
+    await userEvent.type(searchBox(), 'Novxan{Enter}')
+    await waitFor(() => expect(address()).toBe('/dashboard/monthly?year=2026&search=Novxan'))
+    await userEvent.clear(searchBox())
+    await userEvent.type(searchBox(), 'Bayıl{Enter}')
+    await waitFor(() => expect(address()).toBe('/dashboard/monthly?year=2026&search=Bay%C4%B1l'))
+
+    // One Back leaves the report: neither search pushed an entry of its own.
+    await userEvent.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
   })
 })

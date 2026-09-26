@@ -684,6 +684,219 @@ describe('the way back to the object', () => {
   })
 })
 
+/**
+ * Task 24 (brief acceptance 5; 24.3): an order opened from the monthly report offers one way back to it. On the very
+ * entry the report opened it is the browser's Back, so the report comes back with its search and its row; anywhere
+ * else it is a link to the report for the order's year. No other way into an order shows it.
+ */
+describe('the way back to the monthly report', () => {
+  /** The router's own address, so a test can see where a click went. */
+  function Address() {
+    const { pathname, search } = useLocation()
+    return <span data-testid="address">{pathname + search}</span>
+  }
+
+  /** The browser's Back button, which a memory router has no other way to press. */
+  function Back() {
+    const navigate = useNavigate()
+    return <button type="button" onClick={() => navigate(-1)}>Brauzerdə geri</button>
+  }
+
+  /** The order as a report cell opens it: its own address, and the report's marker on the entry. */
+  const fromReportCell = { pathname: '/orders/105', search: '?back=monthly', state: { monthlyReport: true } }
+
+  async function renderAt(...entries: (string | typeof fromReportCell)[]) {
+    render(
+      <MemoryRouter initialEntries={entries}>
+        <Address />
+        <Back />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+          <Route path="/dashboard/monthly" element={<p>Hesabat</p>} />
+          <Route path="/elsewhere" element={<p>Əvvəlki səhifə</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+  }
+
+  function address(): string {
+    return screen.getByTestId('address').textContent ?? ''
+  }
+
+  function control(): HTMLElement {
+    return screen.getByRole('link', { name: 'Aylıq hesabat' })
+  }
+
+  it('is shown first in the header, named «Aylıq hesabat», with the header’s secondary look', async () => {
+    await renderAt('/dashboard/monthly?year=2026&search=Novxan', fromReportCell)
+
+    const link = control()
+    expect(link).toHaveAccessibleName('Aylıq hesabat')
+    expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    const actions = link.parentElement!
+    expect(actions.firstElementChild).toBe(link)
+    expect(within(actions).getByRole('link', { name: 'Obyektin sifarişləri' })).toBeInTheDocument()
+    expect(link).toHaveClass('rounded-md', 'border', 'border-slate-200', 'text-slate-700', 'hover:bg-slate-50')
+    expect(screen.getAllByRole('link', { name: /Aylıq hesabat/ })).toHaveLength(1)
+  })
+
+  it('goes Back on the entry the report opened, to the report with its search, and leaves no entry behind', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/dashboard/monthly?year=2026&search=Novxan', fromReportCell)
+
+    await user.click(control())
+
+    // The report's own entry — its search too, which the link's address does not carry — so this was Back.
+    expect(screen.getByText('Hesabat')).toBeInTheDocument()
+    expect(address()).toBe('/dashboard/monthly?year=2026&search=Novxan')
+    // And no entry was pushed: one more Back leaves the report.
+    await user.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  it('goes Back once when pressed twice before the first Back has landed', async () => {
+    await renderAt('/elsewhere', '/dashboard/monthly?year=2026&search=Novxan', fromReportCell)
+
+    const link = control()
+    act(() => {
+      fireEvent.click(link)
+      fireEvent.click(link)
+    })
+
+    // The report, not the page before it.
+    expect(address()).toBe('/dashboard/monthly?year=2026&search=Novxan')
+    expect(screen.getByText('Hesabat')).toBeInTheDocument()
+  })
+
+  it('opens the report for the order’s year from a pasted link, which has no entry of the report’s to go back to', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/orders/105?back=monthly')
+
+    expect(control()).toHaveAttribute('href', '/dashboard/monthly?year=2026')
+    await user.click(control())
+
+    expect(screen.getByText('Hesabat')).toBeInTheDocument()
+    expect(address()).toBe('/dashboard/monthly?year=2026')
+    // A new entry, as any link makes: Back returns to the order.
+    await user.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
+    expect(address()).toBe('/orders/105?back=monthly')
+  })
+
+  it('leaves a modified click to the link, so a new tab gets a real address and this page stays', async () => {
+    await renderAt('/dashboard/monthly?year=2026&search=Novxan', fromReportCell)
+    // The browser would open the tab; jsdom cannot, so the document — reached after the page's own handlers — stops it.
+    const noNewDocument = (event: Event) => event.preventDefault()
+    document.addEventListener('click', noNewDocument)
+
+    try {
+      fireEvent.click(control(), { ctrlKey: true })
+      fireEvent.click(control(), { button: 1 })
+    } finally {
+      document.removeEventListener('click', noNewDocument)
+    }
+
+    expect(address()).toBe('/orders/105?back=monthly')
+    expect(screen.queryByText('Hesabat')).toBeNull()
+  })
+
+  it.each([
+    ['no back', '/orders/105'],
+    ['a basis and no back', '/orders/105?basis=avg3'],
+    ['back=anything-else', '/orders/105?back=anything-else'],
+    ['back=Monthly', '/orders/105?back=Monthly'],
+    ['from=monthly', '/orders/105?from=monthly'],
+  ])('is not there with %s', async (_label, url) => {
+    await renderAt(url)
+
+    expect(screen.queryByRole('link', { name: /Aylıq hesabat/ })).toBeNull()
+    expect(screen.queryByText('Aylıq hesabat')).toBeNull()
+    // The header is as it was.
+    expect(screen.getByRole('link', { name: 'Obyektin sifarişləri' })).toBeInTheDocument()
+  })
+
+  it('is not there for an order opened with the report’s marker but no back, as no other screen sets back', async () => {
+    await renderAt({ pathname: '/orders/105', search: '', state: { monthlyReport: true } })
+
+    expect(screen.queryByRole('link', { name: /Aylıq hesabat/ })).toBeNull()
+  })
+
+  it('stays while the reader changes the basis, the cause and the product, and touches none of them', async () => {
+    const user = userEvent.setup()
+    await renderAt('/dashboard/monthly?year=2026', { ...fromReportCell, search: '?back=monthly&basis=avg3&cause=new' })
+    const params = () => new URLSearchParams(address().split('?')[1])
+
+    await user.click(within(within(headline()).getByRole('group', { name: 'Müqayisə' })).getByRole('button', { name: 'Keçən ay' }))
+    expect(params().get('basis')).toBe('last')
+    expect(params().get('back')).toBe('monthly')
+    expect(control()).toHaveAttribute('href', '/dashboard/monthly?year=2026')
+
+    await user.click(within(screen.getByRole('group', { name: 'Dəyişiklik növü' })).getByRole('button', { name: /^Hamısı/ }))
+    expect(params().get('cause')).toBeNull()
+    expect(params().get('back')).toBe('monthly')
+
+    await user.click(within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }))
+      .getByRole('button', { name: /^York qatlama salfet/ }))
+    await screen.findByRole('dialog', { name: 'Məhsul tarixçəsi' })
+    expect(params().get('product')).toBe('21')
+    expect(params().get('back')).toBe('monthly')
+    expect(params().get('basis')).toBe('last')
+    // The control is there over the history too, and it names none of the reader's choices.
+    expect(screen.getAllByRole('link', { name: 'Aylıq hesabat', hidden: true })).toHaveLength(1)
+    const href = screen.getByRole('link', { name: 'Aylıq hesabat', hidden: true }).getAttribute('href')!
+    expect(href).toBe('/dashboard/monthly?year=2026')
+    expect(href).not.toMatch(/basis|cause|product|from|to=/)
+  })
+
+  it('opens the report for the order’s year once the reader has pushed an entry of this page’s own', async () => {
+    const user = userEvent.setup()
+    await renderAt('/elsewhere', '/dashboard/monthly?year=2026&search=Novxan', fromReportCell)
+
+    await user.click(within(within(headline()).getByRole('group', { name: 'Müqayisə' })).getByRole('button', { name: 'Son 3 ayın ortalaması' }))
+    expect(address()).toBe('/orders/105?back=monthly&basis=avg3')
+
+    await user.click(control())
+
+    // An ordinary link now: the report for the year, at the top and without the search (assumption 4).
+    expect(address()).toBe('/dashboard/monthly?year=2026')
+  })
+
+  it('is there before the order has loaded, opening the report as the menu does', async () => {
+    ordersApi.fetchOrder.mockReturnValue(new Promise(() => {}))
+    render(
+      <MemoryRouter initialEntries={[fromReportCell]}>
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('link', { name: 'Aylıq hesabat' })).toHaveAttribute('href', '/dashboard/monthly')
+    expect(screen.queryByRole('link', { name: 'Obyektin sifarişləri' })).toBeNull()
+  })
+
+  it('is there when the order cannot be read, beside the way back to the objects', async () => {
+    const user = userEvent.setup()
+    ordersApi.fetchOrder.mockRejectedValue(new Error('Sifariş tapılmadı'))
+    render(
+      <MemoryRouter initialEntries={['/dashboard/monthly?year=2026&search=Novxan', fromReportCell]}>
+        <Address />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+          <Route path="/dashboard/monthly" element={<p>Hesabat</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('Sifariş tapılmadı')
+    expect(screen.getByRole('link', { name: 'Obyektlərə qayıt' })).toBeInTheDocument()
+    expect(control()).toHaveAttribute('href', '/dashboard/monthly')
+
+    await user.click(control())
+    expect(address()).toBe('/dashboard/monthly?year=2026&search=Novxan')
+  })
+})
+
 describe('a month with nothing before it', () => {
   it('says so, and does not present its products as new', async () => {
     decisionsApi.fetchDecisionContext.mockResolvedValue(context({

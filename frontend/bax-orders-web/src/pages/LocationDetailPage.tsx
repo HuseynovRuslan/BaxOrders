@@ -1,4 +1,3 @@
-import { TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { basisParams, basisRequest, orderLink, type BasisSelection } from '../analytics/basisParams'
@@ -7,6 +6,13 @@ import { fetchDecisionContext, type OrderDecisionContext } from '../api/decision
 import { fetchLocationHistory, type LocationOrderHistory, type LocationOrderHistoryEntry } from '../api/orders'
 import { formatMonthRange } from '../components/analytics/format'
 import { comparablePriorMonths } from '../components/decisions/labels'
+import {
+  interactiveRowClass,
+  interactiveTextClass,
+  openSurfaceLink,
+  rowLinkClass,
+  surfaceLinkAttribute,
+} from '../components/interaction'
 import { LocationTrend } from '../components/locations/LocationTrend'
 import { PageHeader } from '../components/PageHeader'
 import {
@@ -82,8 +88,8 @@ export function LocationDetailPage() {
   const data = state.status === 'success' ? state.data : null
 
   // Only the unfiltered first page begins with the object's latest order. Anywhere else the first row is just
-  // the first row, so there is no "Son sifariş" card to show. "Müqayisə et" does not lean on this: the history
-  // header names the latest order itself (`latestOrderRequestId`), whatever page or filter is being read.
+  // the first row, so there is no "Son sifariş" card to show, and the latest order is one "Filtri təmizlə" or the
+  // first page away.
   const latest = data && !year && !month && page === 1 ? (data.requests.items[0] ?? null) : null
   const latestId = latest?.orderRequestId ?? null
 
@@ -138,22 +144,9 @@ export function LocationDetailPage() {
         title={data?.name ?? 'Obyekt'}
         description={data && !data.isActive ? 'Deaktiv' : undefined}
         actions={
-          <>
-            {/* The comparison is the latest order's own analysis (11.1), against the reader's basis. An object
-                with no order has nothing to open. */}
-            {data && data.latestOrderRequestId !== null && (
-              <Link
-                to={orderLink(data.latestOrderRequestId, selection)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                <TrendingUp className="size-4" aria-hidden="true" />
-                Müqayisə et
-              </Link>
-            )}
-            <Link to="/locations" className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-              Obyektlərə qayıt
-            </Link>
-          </>
+          <Link to="/locations" className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+            Obyektlərə qayıt
+          </Link>
         }
       />
 
@@ -264,29 +257,37 @@ export function LocationDetailPage() {
               {/* The unpriced products are said beside the money they affect, not counted in a column of their own. */}
               <th className="px-4 py-3 text-right">Məbləğ</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {state.status === 'loading' && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
                   Yüklənir…
                 </td>
               </tr>
             )}
             {data?.requests.items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
                   {year || month ? 'Seçilmiş dövrdə sifariş yoxdur.' : 'Bu obyektin hələ sifarişi yoxdur.'}
                 </td>
               </tr>
             )}
 
             {data?.requests.items.map((request) => (
-              <tr key={request.orderRequestId} className="hover:bg-slate-50">
+              /*
+                One way into this order (24.1): its period. The whole row opens it (20.2) — a click anywhere on the row
+                is handed to that link — so the reader never aims at one word at the far left. An older version opens
+                as itself; its page says a newer one exists.
+              */
+              <tr key={request.orderRequestId} onClick={openSurfaceLink} className={interactiveRowClass}>
                 <td className="px-4 py-2.5">
-                  <Link to={orderLink(request.orderRequestId, selection)} className="font-medium text-slate-900 hover:underline">
+                  <Link
+                    {...surfaceLinkAttribute}
+                    to={orderLink(request.orderRequestId, selection)}
+                    className={`${rowLinkClass} ${interactiveTextClass} font-medium text-slate-900`}
+                  >
                     {formatPeriod(request.requestPeriod)}
                   </Link>
                   {superseded.has(request.orderRequestId) && (
@@ -309,24 +310,6 @@ export function LocationDetailPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <OrderStatusBadge status={request.status} isHistoricalImport={request.isHistoricalImport} size="sm" />
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <div className="flex justify-end gap-1.5">
-                    <Link
-                      to={orderLink(request.orderRequestId, selection)}
-                      className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Sifarişə bax
-                    </Link>
-                    {/* This very order's analysis. An older version opens as itself; its page says a newer one exists. */}
-                    <Link
-                      to={orderLink(request.orderRequestId, selection)}
-                      aria-label={`${formatPeriod(request.requestPeriod)} dövrünü müqayisə et`}
-                      className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Müqayisə
-                    </Link>
-                  </div>
                 </td>
               </tr>
             ))}

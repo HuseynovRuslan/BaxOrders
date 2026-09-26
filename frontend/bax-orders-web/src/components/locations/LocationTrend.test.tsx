@@ -1,9 +1,12 @@
 import { render, screen, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { BasisSelection } from '../../analytics/basisParams'
 import type { DecisionComparison, OrderDecisionContext } from '../../api/decisions'
 import type { LocationOrderHistoryEntry } from '../../api/orders'
+import { expectInert } from '../../test/interaction'
+import { findOldTerms } from '../../test/oldTerms'
 import { historicalImportChipClass, historicalImportLabel, workflowStatusClass } from '../workflow/labels'
 import { LocationTrend } from './LocationTrend'
 
@@ -107,10 +110,13 @@ function strip() {
   return screen.getByRole('list', { name: 'Son ayların məbləğləri' })
 }
 
-/** Each slot's month label and amount, left to right. */
+/**
+ * Each slot's month label and amount, left to right. Task 24: a slot's content sits one level down, inside the
+ * month's link or, for a gap, a plain wrapper — so it is read from the slot's first element child.
+ */
 function slots() {
   return within(strip()).getAllByRole('listitem').map((slot) => {
-    const [, label, amount] = Array.from(slot.children)
+    const [, label, amount] = Array.from(slot.firstElementChild!.children)
     return { label: label.textContent, amount: amount.textContent?.replace(String.fromCharCode(0xa0), ' ') }
   })
 }
@@ -413,3 +419,169 @@ describe('the strip behind it', () => {
     expect(container).toBeEmptyDOMElement()
   })
 })
+
+/**
+ * Task 24 (brief acceptance 2, 24.4): a month in the strip is the way into that month's order, and the latest order's
+ * month — the one the card names — stands apart from the others, to the eye and to a screen reader.
+ */
+describe('the strip as a way into each month', () => {
+  /** September, a gap in August, July corrected once and June owing two prices. */
+  const year = () => [
+    entry('2026-09-01', 3000),
+    entry('2026-07-01', 1500, { orderRequestId: 107, version: 2 }),
+    entry('2026-07-01', 1600, { orderRequestId: 105, version: 1 }),
+    entry('2026-06-01', 750, { orderRequestId: 104, missingPriceItemCount: 2 }),
+  ]
+
+  function monthLinks(): HTMLElement[] {
+    return within(strip()).queryAllByRole('link')
+  }
+
+  function bar(slot: HTMLElement): HTMLElement {
+    return slot.querySelector<HTMLElement>('[title]')!
+  }
+
+  it('opens each month with an order at that order, carrying the basis the page is reading', () => {
+    renderTrend(year(), { selection: { basis: 'Previous3MonthAverage', from: null, to: null } })
+
+    expect(monthLinks().map((link) => link.getAttribute('href'))).toEqual([
+      '/orders/104?basis=avg3',
+      '/orders/107?basis=avg3',
+      '/orders/9?basis=avg3',
+    ])
+    // The link is the slot's one child, and holds the bar, the name, the money and the mark as they were.
+    for (const link of monthLinks()) {
+      expect(link.parentElement!.tagName).toBe('LI')
+      expect(link.parentElement!.children).toHaveLength(1)
+      expect(link.querySelector('a, button')).toBeNull()
+    }
+  })
+
+  it('opens a corrected month at its newest version, as the row list’s newest row does', () => {
+    renderTrend(year())
+
+    const july = within(strip()).getAllByRole('listitem')[1]
+    expect(within(july).getByRole('link')).toHaveAttribute('href', '/orders/107?basis=last')
+    expect(within(strip()).queryByRole('link', { name: /1\.600,00/ })).toBeNull()
+  })
+
+  it('names each month by its bar’s words, and says a price still owed', () => {
+    renderTrend(year())
+
+    expect(monthLinks().map((link) => link.getAttribute('aria-label'))).toEqual([
+      `İyun 2026: 750,00${nbsp}₼ · 2 sətirdə qiymət yoxdur`,
+      `İyul 2026: 1.500,00${nbsp}₼`,
+      `Sentyabr 2026: 3.000,00${nbsp}₼`,
+    ])
+    // The accessible name is the bar's title, word for word, before anything is added to it.
+    for (const link of monthLinks()) {
+      expect(link.getAttribute('aria-label')!.startsWith(bar(link).getAttribute('title')!)).toBe(true)
+    }
+  })
+
+  it('leaves a month with no order as a gap that opens nothing and does not change under the cursor', () => {
+    renderTrend(year())
+
+    const august = within(strip()).getAllByRole('listitem')[2]
+    expect(within(august).queryByRole('link')).toBeNull()
+    expect(august.firstElementChild!.tagName).toBe('DIV')
+    expect(bar(august)).toHaveAttribute('title', 'Avqust 2026: sifariş yoxdur')
+    expectInert(bar(august), august)
+    expectInert(within(august).getByText('Avqust'), august)
+  })
+
+  it('marks the latest order’s month alone: darker, in bold, and as the current one — never in red or green', () => {
+    renderTrend(year())
+
+    const current = monthLinks().filter((link) => link.getAttribute('aria-current') === 'true')
+    expect(current).toHaveLength(1)
+    expect(current[0]).toHaveAttribute('href', '/orders/9?basis=last')
+    expect(current[0]).toBe(monthLinks().at(-1))
+    expect(bar(current[0])).toHaveClass('bg-slate-600')
+    expect(within(current[0]).getByText('Sentyabr')).toHaveClass('font-semibold', 'text-slate-900')
+
+    for (const other of monthLinks().slice(0, -1)) {
+      expect(other).not.toHaveAttribute('aria-current')
+      expect(bar(other)).toHaveClass('bg-slate-300')
+      expect(bar(other)).not.toHaveClass('bg-slate-600')
+    }
+
+    expect(strip().querySelector('[class*="red-"], [class*="emerald-"]')).toBeNull()
+  })
+
+  it('keeps every bar’s height, name, money and title as they were', () => {
+    renderTrend(year())
+
+    const [june, july, august, september] = within(strip()).getAllByRole('listitem')
+    // The largest month is the full 44 pixels; the others are drawn against it, and a gap is a 4-pixel outline.
+    expect(bar(september).style.height).toBe('44px')
+    expect(bar(july).style.height).toBe('22px')
+    expect(bar(june).style.height).toBe('11px')
+    expect(bar(august).style.height).toBe('4px')
+
+    expect(slots()).toEqual([
+      { label: 'İyun 2026', amount: '750,00 ₼' },
+      { label: 'İyul', amount: '1.500,00 ₼' },
+      { label: 'Avqust', amount: '—' },
+      { label: 'Sentyabr', amount: '3.000,00 ₼' },
+    ])
+    expect(bar(june)).toHaveAttribute('title', `İyun 2026: 750,00${nbsp}₼`)
+    expect(within(june).getByRole('img', { name: '2 sətirdə qiymət yoxdur' })).toHaveTextContent('⚠ 2')
+  })
+
+  it('leaves the card with its one «Sifarişə bax», and says nothing the old words list forbids', () => {
+    renderTrend(year())
+
+    const card = screen.getByRole('region', { name: 'Son sifariş və tarixçə' })
+    expect(within(card).getAllByRole('link', { name: 'Sifarişə bax' })).toHaveLength(1)
+    expect(findOldTerms(card)).toEqual([])
+  })
+
+  it('can be reached with Tab and opened with Enter', async () => {
+    function Address() {
+      const { pathname, search } = useLocation()
+      return <p data-testid="address">{pathname + search}</p>
+    }
+
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/locations/43']}>
+        <Routes>
+          <Route
+            path="/locations/:locationId"
+            element={(
+              <LocationTrend
+                entries={year()}
+                comparison={null}
+                comparisonPending={false}
+                selection={lastMonth}
+                onSelectBasis={vi.fn()}
+                priorMonths={['2026-07', '2026-08']}
+              />
+            )}
+          />
+          <Route path="/orders/:orderRequestId" element={<Address />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const links = monthLinks()
+    const reached: HTMLElement[] = []
+    for (let step = 0; step < 50 && reached.length < links.length; step++) {
+      await user.tab()
+      if (links.includes(document.activeElement as HTMLElement)) {
+        reached.push(document.activeElement as HTMLElement)
+      }
+    }
+
+    // Every month with an order, left to right, and the latest last.
+    expect(reached).toEqual(links)
+    expect(document.activeElement).toHaveAttribute('aria-current', 'true')
+
+    await user.keyboard('{Enter}')
+    expect(screen.getByTestId('address')).toHaveTextContent('/orders/9?basis=last')
+  })
+})
+
+/** U+00A0, by its code point: the no-break space the money formatter puts before ₼. */
+const nbsp = String.fromCharCode(0xa0)

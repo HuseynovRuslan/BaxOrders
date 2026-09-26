@@ -8,6 +8,7 @@ import { amountIncompleteLabel, missingPriceShortLabel } from '../pricing/labels
 import { SummaryMetric } from '../components/SummaryMetric'
 import { formatCount, formatMoney } from '../components/analytics/format'
 import { MonthlyReportTable, MonthlyReportYearList } from '../components/reports/MonthlyReportTable'
+import { useScrollMemory } from '../navigation/useScrollMemory'
 
 type State =
   | { status: 'loading' }
@@ -71,8 +72,12 @@ export function MonthlyReportPage() {
 
   const data = state.status === 'success' ? state.data : null
 
+  // Back from an order brings the reader to the row — or, on a phone, the card — whose month they opened, once the
+  // matrix for the returned-to address is on the page (24.3). The rows carry the ids the memory looks for.
+  const root = useScrollMemory<HTMLDivElement>(state.status === 'success')
+
   return (
-    <>
+    <div ref={root}>
       <PageHeader title="Aylıq hesabat" description="Obyektlərin bir il ərzindəki sifariş məbləğləri" />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -143,6 +148,6 @@ export function MonthlyReportPage() {
           <MonthlyReportYearList report={data} />
         </>
       )}
-    </>
+    </div>
   )
 }

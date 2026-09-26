@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   fetchDecisionContext,
@@ -51,6 +51,11 @@ import { RevisionPanel } from '../components/orders/revision/RevisionPanel'
 import { addLineLabel, editLineLabel, removeLineLabel, staleDataMessage } from '../components/orders/revision/labels'
 import { OrderStatusBadge } from '../components/workflow/OrderStatusBadge'
 import { WorkflowPanel } from '../components/workflow/WorkflowPanel'
+import {
+  isMonthlyReportEntry,
+  monthlyReportLink,
+  openedFromMonthlyReport,
+} from '../navigation/monthlyReportReturn'
 import { latestOrderLinkLabel } from '../terminology/terms'
 import {
   formatAmount,
@@ -169,6 +174,37 @@ export function OrderDetailPage() {
     }
   }
 
+  // Opened from a cell of the monthly report (24.3). `back` is copied along by every writer on this page, like any
+  // parameter it does not own, so the way back stays while the reader works here.
+  const fromMonthlyReport = openedFromMonthlyReport(params)
+  const leftForReport = useRef<string | null>(null)
+
+  /**
+   * «Aylıq hesabat», pressed. On the very entry the report opened, it is the browser's Back: the report returns with
+   * its year, its search and the row the reader left, and no entry is left behind. Anywhere else — a pasted link, a
+   * new tab, or after a reason, a product or a basis pushed an entry of this page's own — the link simply opens the
+   * report for the order's year. A modified or middle click is always the link's, so a new tab gets a real address.
+   */
+  function backToMonthlyReport(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+      return
+    }
+
+    if (!isMonthlyReportEntry(location.state)) {
+      return
+    }
+
+    event.preventDefault()
+    // A double click can arrive before the first Back has landed, and a second Back would leave the report. One per
+    // entry, as closing the product history is.
+    if (leftForReport.current === location.key) {
+      return
+    }
+
+    leftForReport.current = location.key
+    navigate(-1)
+  }
+
   const id = Number(orderRequestId)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -266,10 +302,31 @@ export function OrderDetailPage() {
     [reload],
   )
 
+  /**
+   * The one way back to the report, first in the header, with the header's own secondary look. It is there before the
+   * order has loaded, and when it fails to; until the order's year is known, it opens the report as the menu does.
+   */
+  function monthlyReportControl(year: number | null) {
+    if (!fromMonthlyReport) {
+      return null
+    }
+
+    return (
+      <Link
+        to={monthlyReportLink(year)}
+        onClick={backToMonthlyReport}
+        className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+      >
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Aylıq hesabat
+      </Link>
+    )
+  }
+
   if (state.status === 'error') {
     return (
       <>
-        <PageHeader title="Sifariş" />
+        <PageHeader title="Sifariş" actions={monthlyReportControl(null)} />
         <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{state.message}</p>
         <Link to="/locations" className="mt-3 inline-block text-sm text-slate-600 underline">
           Obyektlərə qayıt
@@ -287,6 +344,7 @@ export function OrderDetailPage() {
   const editable = revision?.canEditRevision === true
 
   const noLinesText = search || hasPrice !== undefined ? 'Axtarışa uyğun sətir tapılmadı.' : 'Bu sifarişdə sətir yoxdur.'
+  const backToReport = monthlyReportControl(data ? Number(data.requestPeriod.slice(0, 4)) : null)
 
   return (
     <>
@@ -294,22 +352,27 @@ export function OrderDetailPage() {
         title={data?.locationName ?? 'Sifariş'}
         description={data ? formatPeriod(data.requestPeriod) : undefined}
         actions={
-          data && (
+          (backToReport || data) && (
             <>
-              {/* Until the workflow has been read, the plain badge — the same as for any order. */}
-              <OrderStatusBadge
-                status={data.status}
-                isHistoricalImport={
-                  historical?.orderRequestId === data.orderRequestId && historical.isHistoricalImport
-                }
-              />
-              {/* The object page reads the same basis, so the reader comes back to the comparison they left. */}
-              <Link
-                to={locationLink(data.locationId, selection)}
-                className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-              >
-                Obyektin sifarişləri
-              </Link>
+              {backToReport}
+              {data && (
+                <>
+                  {/* Until the workflow has been read, the plain badge — the same as for any order. */}
+                  <OrderStatusBadge
+                    status={data.status}
+                    isHistoricalImport={
+                      historical?.orderRequestId === data.orderRequestId && historical.isHistoricalImport
+                    }
+                  />
+                  {/* The object page reads the same basis, so the reader comes back to the comparison they left. */}
+                  <Link
+                    to={locationLink(data.locationId, selection)}
+                    className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Obyektin sifarişləri
+                  </Link>
+                </>
+              )}
             </>
           )
         }

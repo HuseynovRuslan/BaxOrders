@@ -107,8 +107,8 @@ export interface LocationOrderHistory {
   years: number[]
   requests: PagedResult<LocationOrderHistoryEntry>
   /**
-   * The latest month's newest version — what "Müqayisə et" opens. From the header, so it is the same on every page
-   * and under every filter. Null when the object has no order.
+   * The latest month's newest version. From the header, so it is the same on every page and under every filter.
+   * Null when the object has no order.
    */
   latestOrderRequestId: number | null
 }

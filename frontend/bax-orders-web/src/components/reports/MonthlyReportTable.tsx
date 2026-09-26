@@ -14,6 +14,7 @@ import {
   unknownValue,
 } from '../analytics/format'
 import { workflowStatusClass, workflowStatusLabels, workflowStatusText } from '../workflow/labels'
+import { monthlyReportOrderLink, monthlyReportOrderState } from '../../navigation/monthlyReportReturn'
 import { missingPriceCount, missingPriceShortLabel } from '../../pricing/labels'
 import { portfolioGroupLabels } from '../../coverage/labels'
 import {
@@ -181,8 +182,9 @@ function LocationRow({ row, striped, future }: { row: MonthlyReportRow; striped:
   // underneath them.
   const band = `${striped ? 'bg-slate-50' : 'bg-white'} group-hover:bg-sky-50`
 
+  // The id is where Back from an order returns the reader to: the row whose month they opened (24.3).
   return (
-    <tr className="group">
+    <tr id={`row-${row.locationId}`} className="group">
       <th
         scope="row"
         className={`sticky left-0 z-[1] border-b border-slate-100 px-3 py-1.5 text-left font-normal ${band}`}
@@ -261,9 +263,11 @@ function Cell({ cell, locationName, future }: { cell: MonthlyReportCell; locatio
 
   const tint = cell.isUnusual ? costDirectionTintClass(cell.recentAveragePercent) : ''
 
+  // Marked as opened from here, so the order page can offer the way back to this very report (24.3).
   return (
     <Link
-      to={`/orders/${cell.orderRequestId}`}
+      to={monthlyReportOrderLink(cell.orderRequestId)}
+      state={monthlyReportOrderState}
       title={describe(cell, month)}
       aria-label={`${locationName} · ${describe(cell, month)}`}
       className={`block rounded px-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-900 ${
@@ -484,8 +488,9 @@ export function MonthlyReportYearList({ report, today = new Date() }: MonthlyRep
 }
 
 function LocationCard({ row, future }: { row: MonthlyReportRow; future: boolean[] }) {
+  // Its own id, for Back on a phone, where the table and its row ids are in the page but hidden.
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-3">
+    <li id={`row-${row.locationId}-phone`} className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         {/* The full name, wrapped rather than cut (Task 3), opening the object as the table's name does. */}
         <Link
