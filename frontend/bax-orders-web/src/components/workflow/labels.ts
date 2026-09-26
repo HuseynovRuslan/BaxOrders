@@ -85,6 +85,26 @@ export const historicalImportNote = `${historicalImportLabel}. ${historicalAppro
  */
 export const historicalImportChipClass = workflowActionClass.ImportedAsApproved
 
+/**
+ * The one condition under which the 22.2 phrase is shown, on every surface: the order is Approved and the workflow
+ * recorded it as carried in from Excel. The flag is the server's fact, never inferred from a missing approver or date.
+ */
+export function showsHistoricalImport(
+  status: OrderRequestStatus | null,
+  isHistoricalImport: boolean | undefined,
+): boolean {
+  return status === 'Approved' && isHistoricalImport === true
+}
+
+/**
+ * The status in words, for a place that cannot draw the badge — the monthly report's cell description: the badge's
+ * word, followed by the 22.2 phrase exactly when {@link showsHistoricalImport} is true.
+ */
+export function workflowStatusText(status: OrderRequestStatus, isHistoricalImport?: boolean): string {
+  const label = workflowStatusLabels[status] ?? status
+  return showsHistoricalImport(status, isHistoricalImport) ? `${label} · ${historicalImportLabel}` : label
+}
+
 /** The facts the decision panel lists, in business language. */
 export const decisionFactLabels = {
   submittedBy: 'Göndərən',

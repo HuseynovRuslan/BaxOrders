@@ -31,6 +31,11 @@ namespace BaxOrders.Application.Reports;
 /// <param name="IsUnusual">
 /// More than ±50% from that average (owner decision 8.2). False, never a guess, when there is no average.
 /// </param>
+/// <param name="IsHistoricalImport">
+/// Whether this month's order was carried in from Excel as already approved. From
+/// <see cref="Orders.Workflow.HistoricalImportRule"/>, the same as the order page's <c>DecisionFacts.IsHistoricalImport</c>;
+/// it never changes the status, which stays <c>Approved</c>. False when the month has no request.
+/// </param>
 public sealed record MonthlyReportCellDto(
     int Month,
     DateOnly Period,
@@ -46,7 +51,8 @@ public sealed record MonthlyReportCellDto(
     decimal? DeltaPercent,
     decimal? RecentAverageKnownAmount,
     decimal? RecentAveragePercent,
-    bool IsUnusual);
+    bool IsUnusual,
+    bool IsHistoricalImport = false);
 
 /// <param name="Months">Twelve cells, January first, whether or not the location ordered in them.</param>
 /// <param name="KnownAmount">The year's priced money for this location. Null when it ordered nothing priced.</param>

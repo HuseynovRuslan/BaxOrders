@@ -3,6 +3,7 @@ import { StatusBadge } from '../StatusBadge'
 import {
   historicalImportChipClass,
   historicalImportLabel,
+  showsHistoricalImport,
   workflowStatusClass,
   workflowStatusLabels,
   workflowStatusSign,
@@ -37,7 +38,7 @@ export function OrderStatusBadge({ status, isHistoricalImport = false, size = 'm
     />
   )
 
-  if (status !== 'Approved' || !isHistoricalImport) {
+  if (!showsHistoricalImport(status, isHistoricalImport)) {
     return badge
   }
 

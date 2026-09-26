@@ -4,6 +4,11 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DecisionComparison, OrderDecisionContext } from '../api/decisions'
 import type { LocationOrderHistory, LocationOrderHistoryEntry } from '../api/orders'
+import {
+  historicalImportChipClass,
+  historicalImportLabel,
+  workflowStatusClass,
+} from '../components/workflow/labels'
 import { LocationDetailPage } from './LocationDetailPage'
 
 /**
@@ -40,6 +45,7 @@ function entry(overrides: Partial<LocationOrderHistoryEntry> = {}): LocationOrde
     internalSupplyItemCount: 0,
     knownAmountTotal: 4800,
     createdAtUtc: '2026-09-22T10:00:00Z',
+    isHistoricalImport: false,
     ...overrides,
   }
 }
@@ -239,6 +245,63 @@ describe('two orders of one month', () => {
     await renderPage()
 
     expect(screen.queryByText('Əvvəlki sifariş — sonradan yenilənib')).toBeNull()
+  })
+})
+
+/** Task 22b: a period row says a historical order the way the order page does (brief requirement 5, 22.2). */
+describe('an order carried in from Excel', () => {
+  /** June, as in twoOfJuly, but carried in from Excel as already approved. */
+  const historicalJune = { ...twoOfJuly[2], isHistoricalImport: true }
+
+  function linksOf(row: HTMLElement): string[] {
+    return within(row).getAllByRole('link').map((link) => `${link.textContent} → ${link.getAttribute('href')}`)
+  }
+
+  it('reads ✓ Təsdiqlənib with the phrase beside it on its own row, and on no other', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([twoOfJuly[0], twoOfJuly[1], historicalJune]))
+    await renderPage()
+
+    const [julyNewest, julyReplaced, june] = table().getAllByRole('row').slice(1)
+    const badge = within(june).getByText('Təsdiqlənib')
+    expect(badge).toHaveTextContent('✓')
+    expect(badge).toHaveClass(...workflowStatusClass.Approved.split(' '))
+    const phrase = within(june).getByText(historicalImportLabel)
+    expect(phrase).toHaveClass(...historicalImportChipClass.split(' '))
+    expect(phrase.className).not.toMatch(/amber/)
+
+    expect(julyNewest).not.toHaveTextContent('Tarixi sifariş')
+    expect(julyReplaced).not.toHaveTextContent('Tarixi sifariş')
+  })
+
+  it('says nothing historical of an order approved in this system', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    await renderPage()
+
+    const june = table().getAllByRole('row').slice(1)[2]
+    expect(within(june).getByText('Təsdiqlənib')).toBeInTheDocument()
+    expect(june).not.toHaveTextContent('Tarixi sifariş')
+  })
+
+  it('keeps the row’s links exactly as they were', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history(twoOfJuly))
+    const { unmount } = await renderPage()
+    const before = linksOf(table().getAllByRole('row').slice(1)[2])
+    unmount()
+
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([twoOfJuly[0], twoOfJuly[1], historicalJune]))
+    await renderPage()
+    const june = table().getAllByRole('row').slice(1)[2]
+
+    expect(linksOf(june)).toEqual(before)
+    expect(within(june).queryAllByRole('button')).toHaveLength(0)
+  })
+
+  it('shows the phrase on the latest-order card when the latest order is historical', async () => {
+    ordersApi.fetchLocationHistory.mockResolvedValue(history([{ ...twoOfJuly[0], status: 'Approved', isHistoricalImport: true }]))
+    await renderPage()
+
+    expect(within(card()).getByText(historicalImportLabel)).toBeInTheDocument()
+    expect(within(card()).getAllByRole('link', { name: 'Sifarişə bax' })).toHaveLength(1)
   })
 })
 

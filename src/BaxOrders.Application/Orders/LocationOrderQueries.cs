@@ -1,6 +1,7 @@
 ﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Orders.Pricing;
+using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Locations;
@@ -112,6 +113,14 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 : row)];
 
         items = await WithLatestOrderAsync(items, cancellationToken);
+
+        // By the order page's own rule, for the whole page at once: an Approved order carried in from Excel reads
+        // the same here as it does there. A location with no order has nothing to ask about.
+        var historical = await HistoricalImportRule.AmongAsync(
+            db, [.. items.Where(row => row.LatestRequestId is not null).Select(row => row.LatestRequestId!.Value)], cancellationToken);
+        items = [.. items.Select(row => row.LatestRequestId is { } latestId && historical.Contains(latestId)
+            ? row with { LatestRequestIsHistoricalImport = true }
+            : row)];
 
         // The header counts describe the whole universe, not the page in front of the operator.
         return new LocationOrderListDto(
@@ -311,6 +320,13 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
 
         requests = [.. requests.Select(request => request.KnownPriceItemCount == 0
             ? request with { KnownAmountTotal = null }
+            : request)];
+
+        // By the order page's own rule, for the whole page at once.
+        var historical = await HistoricalImportRule.AmongAsync(
+            db, [.. requests.Select(request => request.OrderRequestId)], cancellationToken);
+        requests = [.. requests.Select(request => historical.Contains(request.OrderRequestId)
+            ? request with { IsHistoricalImport = true }
             : request)];
 
         return new LocationOrderHistoryDto(

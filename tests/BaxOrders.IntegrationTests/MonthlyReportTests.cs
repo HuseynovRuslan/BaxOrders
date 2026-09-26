@@ -303,14 +303,15 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
             await new MonthlyReportQueries(counted).GetAsync(new MonthlyReportQuery(2026), None);
         }
 
-        // Still the years, the locations, the requests and their lines — a row of dashes needs no round trip.
-        Assert.Equal(4, counter.Count);
+        // Still the years, the locations, the requests and their lines, and for the historical flag the revision
+        // links and the workflow events of the year's requests — a row of dashes needs no round trip.
+        Assert.Equal(6, counter.Count);
     }
 
     // ---- what it costs to ask ------------------------------------------------------------------------
 
     [PostgresFact]
-    public async Task A_whole_year_is_four_queries_not_one_per_cell()
+    public async Task A_whole_year_is_six_queries_not_one_per_cell()
     {
         await using var db = database.CreateContext();
         await WorldAsync(db);
@@ -324,9 +325,10 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
             await new MonthlyReportQueries(counted).GetAsync(new MonthlyReportQuery(2026), None);
         }
 
-        // The years, the locations, the requests up to the year's end, and their lines. Twenty-six locations
-        // times twelve months would otherwise be three hundred round trips.
-        Assert.Equal(4, counter.Count);
+        // The years, the locations, the requests up to the year's end, and their lines; then, for the historical
+        // flag, the revision links and the workflow events of the year's requests, all at once. Twenty-six
+        // locations times twelve months would otherwise be three hundred round trips.
+        Assert.Equal(6, counter.Count);
     }
 
     [PostgresFact]

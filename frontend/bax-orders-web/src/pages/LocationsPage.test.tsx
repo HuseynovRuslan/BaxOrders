@@ -2,6 +2,11 @@ import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LocationOrderList, LocationOrderSummary } from '../api/orders'
+import {
+  historicalImportChipClass,
+  historicalImportLabel,
+  workflowStatusClass,
+} from '../components/workflow/labels'
 import { LocationsPage } from './LocationsPage'
 
 /**
@@ -42,6 +47,7 @@ function location(overrides: Partial<LocationOrderSummary> = {}): LocationOrderS
     previousKnownAmount: 1200,
     knownAmountDelta: 320.4,
     knownAmountPercentChange: 26.7,
+    latestRequestIsHistoricalImport: false,
     ...overrides,
   }
 }
@@ -276,5 +282,67 @@ describe('the columns the list no longer carries', () => {
     expect(await screen.findByText('Sentyabr 2026')).toBeInTheDocument()
     // The word "Qaralama" is gone from the product; an undecided order says exactly that.
     expect(screen.getByText('Təsdiqlənməyib')).toBeInTheDocument()
+  })
+})
+
+/** Task 22b: the status column says a historical order the way the order page does (brief acceptance 4, 22.2). */
+describe('the status of an order carried in from Excel', () => {
+  async function statusCell(overrides: Partial<LocationOrderSummary>) {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows(overrides))
+    await renderPage()
+    await screen.findByText('1.520,40 ₼')
+    const row = screen.getByRole('link', { name: 'Fəvvarələr meydanı' }).closest('tr')!
+    return { row, cell: row.querySelectorAll('td')[3] }
+  }
+
+  it('reads ✓ Təsdiqlənib with the historical phrase beside it, in the plain grey of context', async () => {
+    const { cell } = await statusCell({ latestRequestStatus: 'Approved', latestRequestIsHistoricalImport: true })
+
+    const badge = within(cell).getByText('Təsdiqlənib')
+    expect(badge).toHaveTextContent('✓')
+    expect(badge).toHaveClass(...workflowStatusClass.Approved.split(' '))
+
+    const phrase = within(cell).getByText(historicalImportLabel)
+    expect(phrase).toHaveTextContent('Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb')
+    expect(phrase).toHaveClass(...historicalImportChipClass.split(' '))
+    expect(phrase.className).not.toMatch(/amber/)
+  })
+
+  it('adds no link or control to the row: it keeps its name and its Bax, and nothing else', async () => {
+    const { row, cell } = await statusCell({ latestRequestStatus: 'Approved', latestRequestIsHistoricalImport: true })
+
+    const links = within(row).getAllByRole('link')
+    expect(links.map((link) => link.getAttribute('aria-label') ?? link.textContent)).toEqual([
+      'Fəvvarələr meydanı',
+      'Fəvvarələr meydanı obyektinə bax',
+    ])
+    expect(within(cell).queryByRole('link')).toBeNull()
+    expect(within(cell).queryByRole('button')).toBeNull()
+  })
+
+  it('says nothing historical of an order approved in this system', async () => {
+    const { cell } = await statusCell({ latestRequestStatus: 'Approved', latestRequestIsHistoricalImport: false })
+
+    expect(within(cell).getByText('Təsdiqlənib')).toBeInTheDocument()
+    expect(cell).not.toHaveTextContent('Tarixi sifariş')
+  })
+
+  it('says nothing historical of a waiting order', async () => {
+    const { cell } = await statusCell({ latestRequestStatus: 'PendingApproval' })
+
+    expect(within(cell).getByText('Təsdiq gözləyir')).toBeInTheDocument()
+    expect(cell).not.toHaveTextContent('Tarixi sifariş')
+  })
+
+  it('still says sifariş yoxdur of an object with no order', async () => {
+    const { cell } = await statusCell({
+      latestRequestId: null,
+      latestRequestVersion: null,
+      latestRequestStatus: null,
+      latestRequestIsHistoricalImport: false,
+    })
+
+    expect(cell).toHaveTextContent('sifariş yoxdur')
+    expect(cell).not.toHaveTextContent('Tarixi sifariş')
   })
 })

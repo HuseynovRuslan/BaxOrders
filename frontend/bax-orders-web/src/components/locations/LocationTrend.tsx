@@ -26,8 +26,7 @@ import {
 import { monthTickLabel, monthsBetween } from '../analytics/trend'
 import { MissingPriceMark } from '../dashboard/MissingPriceMark'
 import { emptyWindowNote } from '../decisions/labels'
-import { StatusBadge } from '../StatusBadge'
-import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../workflow/labels'
+import { OrderStatusBadge } from '../workflow/OrderStatusBadge'
 
 /** How far back the strip looks, in calendar months. Enough to see a season, short enough to stay a glance. */
 const months = 12
@@ -84,12 +83,7 @@ export function LocationTrend({
           </p>
           <LatestCounts entry={latest} />
           <p className="mt-1 text-xs">
-            <StatusBadge
-              label={workflowStatusLabels[latest.status] ?? latest.status}
-              sign={workflowStatusSign[latest.status]}
-              toneClass={workflowStatusClass[latest.status]}
-              size="sm"
-            />
+            <OrderStatusBadge status={latest.status} isHistoricalImport={latest.isHistoricalImport} size="sm" />
           </p>
         </div>
 

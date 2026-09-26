@@ -154,8 +154,8 @@ public sealed record WorkflowDecisionFactsDto(
         // back, and the source takes no action after that. So the chain reads in order as earlier, then own.
         List<WorkflowEventDto> chain = [.. earlierVersionsHistory, .. ownHistory];
 
-        var everSubmitted = chain.Any(entry => entry.Action == OrderWorkflowAction.SubmittedForApproval);
-        if (!everSubmitted && ownHistory.Any(entry => entry.Action == OrderWorkflowAction.ImportedAsApproved))
+        if (HistoricalImportRule.Holds(
+            ownHistory.Select(entry => entry.Action), earlierVersionsHistory.Select(entry => entry.Action)))
         {
             return HistoricalImport;
         }

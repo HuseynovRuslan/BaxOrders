@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BasisSelection } from '../../analytics/basisParams'
 import type { DecisionComparison, OrderDecisionContext } from '../../api/decisions'
 import type { LocationOrderHistoryEntry } from '../../api/orders'
+import { historicalImportChipClass, historicalImportLabel, workflowStatusClass } from '../workflow/labels'
 import { LocationTrend } from './LocationTrend'
 
 /**
@@ -27,6 +28,7 @@ function entry(period: string, amount: number | null, overrides: Partial<Locatio
     internalSupplyItemCount: 0,
     knownAmountTotal: amount,
     createdAtUtc: '2026-09-22T10:00:00Z',
+    isHistoricalImport: false,
     ...overrides,
   }
 }
@@ -134,6 +136,44 @@ describe('the latest order', () => {
     renderTrend([entry('2026-09-01', 3246.43)])
 
     expect(screen.getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/9?basis=last')
+  })
+})
+
+/** Task 22b: the card says a historical latest order the way the order page does (22.2). */
+describe('a latest order carried in from Excel', () => {
+  function card() {
+    return screen.getByRole('region', { name: 'Son sifariş və tarixçə' })
+  }
+
+  it('reads ✓ Təsdiqlənib with the phrase beside it, and still has one way into the order', () => {
+    renderTrend([entry('2026-09-01', 3246.43, { status: 'Approved', isHistoricalImport: true })])
+
+    const badge = within(card()).getByText('Təsdiqlənib')
+    expect(badge).toHaveTextContent('✓')
+    expect(badge).toHaveClass(...workflowStatusClass.Approved.split(' '))
+    const phrase = within(card()).getByText(historicalImportLabel)
+    expect(phrase).toHaveClass(...historicalImportChipClass.split(' '))
+    expect(phrase.className).not.toMatch(/amber/)
+
+    expect(within(card()).getAllByRole('link', { name: 'Sifarişə bax' })).toHaveLength(1)
+  })
+
+  it('says nothing historical of an order approved in this system', () => {
+    renderTrend([entry('2026-09-01', 3246.43, { status: 'Approved', isHistoricalImport: false })])
+
+    expect(within(card()).getByText('Təsdiqlənib')).toBeInTheDocument()
+    expect(card()).not.toHaveTextContent('Tarixi sifariş')
+    expect(within(card()).getAllByRole('link', { name: 'Sifarişə bax' })).toHaveLength(1)
+  })
+
+  it('looks only at the latest order: an older historical one says nothing on the card', () => {
+    renderTrend([
+      entry('2026-09-01', 3246.43, { status: 'PendingApproval' }),
+      entry('2026-08-01', 1958.52, { status: 'Approved', isHistoricalImport: true }),
+    ])
+
+    expect(within(card()).getByText('Təsdiq gözləyir')).toBeInTheDocument()
+    expect(card()).not.toHaveTextContent('Tarixi sifariş')
   })
 })
 

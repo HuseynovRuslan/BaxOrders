@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MonthlyReport, MonthlyReportCell, MonthlyReportMonth, MonthlyReportRow } from '../api/reports'
+import { historicalImportLabel, workflowStatusClass } from '../components/workflow/labels'
 import { findOldTerms } from '../test/oldTerms'
 import { MonthlyReportPage } from './MonthlyReportPage'
 
@@ -36,6 +37,7 @@ function cell(month: number, overrides: Partial<MonthlyReportCell> = {}): Monthl
     recentAverageKnownAmount: null,
     recentAveragePercent: null,
     isUnusual: false,
+    isHistoricalImport: false,
     ...overrides,
   }
 }
@@ -947,6 +949,116 @@ describe('the legend', () => {
     expect(legend).toHaveTextContent('əvvəlki 3 mövcud ayın ortalamasından 50%-dən çox fərq')
     // Directly above the table, in the part of the page that shows from 1024 pixels.
     expect(legend.closest('.lg\\:block')).toBe(table().closest('.lg\\:block'))
+  })
+})
+
+/**
+ * Task 22b: the report says a historical order the way the order page does (brief acceptance 4, 22.2) — in the
+ * cell's words, where the report already says a status. The dot and the legend are the marks of the grid, and a
+ * historical order is approved (22.1), so they stay exactly as they were.
+ */
+describe('an order carried in from Excel', () => {
+  const phrase = 'Təsdiqlənib · Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb'
+
+  /** Two objects whose January is the same approved order in every figure; only the first was carried in. */
+  function twins() {
+    return report({
+      rows: [
+        row({
+          locationId: 21,
+          locationName: 'Fəvvarələr meydanı',
+          months: [cell(1, { status: 'Approved', isHistoricalImport: true }), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))],
+        }),
+        row({
+          locationId: 1,
+          locationName: 'Bayıl yolu',
+          months: [cell(1, { status: 'Approved' }), ...Array.from({ length: 11 }, (_, index) => cell(index + 2))],
+        }),
+      ],
+    })
+  }
+
+  function january(scope: HTMLElement, locationName: string): HTMLElement {
+    return within(scope).getByRole('link', { name: new RegExp(`^${locationName} · Yanvar 2026`) })
+  }
+
+  it('says the phrase after Təsdiqlənib in the cell’s tooltip and its accessible name', async () => {
+    serving(twins())
+    await renderPage()
+
+    const historical = january(table(), 'Fəvvarələr meydanı')
+    expect(historical.getAttribute('title')).toContain(phrase)
+    expect(historical.getAttribute('title')!.endsWith(phrase)).toBe(true)
+    expect(historical).toHaveAccessibleName(`Fəvvarələr meydanı · ${historical.getAttribute('title')}`)
+  })
+
+  it('leaves an order approved in this system with exactly the words it had', async () => {
+    serving(twins())
+    await renderPage()
+
+    const plain = january(table(), 'Bayıl yolu').getAttribute('title')!
+    const historical = january(table(), 'Fəvvarələr meydanı').getAttribute('title')!
+    expect(plain.endsWith(' · Təsdiqlənib')).toBe(true)
+    expect(plain).not.toContain('Tarixi sifariş')
+    // The same figures, and the phrase added after the status — nothing else in the words moved.
+    expect(historical).toBe(`${plain} · ${historicalImportLabel}`)
+  })
+
+  it('keeps the approved dot, in the approved colours', async () => {
+    serving(twins())
+    await renderPage()
+
+    const historicalDot = january(table(), 'Fəvvarələr meydanı').querySelector('.rounded-full')!
+    const plainDot = january(table(), 'Bayıl yolu').querySelector('.rounded-full')!
+    expect(historicalDot).toHaveClass(...workflowStatusClass.Approved.split(' '))
+    expect(historicalDot.outerHTML).toBe(plainDot.outerHTML)
+    expect(table()).not.toHaveTextContent('Tarixi sifariş')
+  })
+
+  it('adds nothing to either legend', async () => {
+    serving(twins())
+    await renderPage()
+
+    for (const name of ['Cədvəldəki işarələr', 'Kartlardakı işarələr']) {
+      const legend = screen.getByRole('list', { name })
+      expect(within(legend).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+        'Təsdiq gözləyir',
+        'Təsdiqlənib',
+        'Düzəliş tələb olunur',
+        '⚠ NQiymət yoxdur',
+        'Faiz — əvvəlki aya görə:xərc artıb·xərc azalıb',
+        'Qeyri-adi ay — əvvəlki 3 mövcud ayın ortalamasından 50%-dən çox fərq',
+        'Gələcək ay',
+      ])
+      expect(legend).not.toHaveTextContent('Tarixi sifariş')
+    }
+  })
+
+  it('says the same words on the phone card', async () => {
+    serving(twins())
+    await renderPage()
+
+    const phone = screen.getByRole('list', { name: 'Kartlardakı işarələr' }).parentElement!
+    const onPhone = january(phone, 'Fəvvarələr meydanı')
+    expect(onPhone.getAttribute('title')).toContain(phrase)
+    expect(onPhone.getAttribute('aria-label')).toBe(january(table(), 'Fəvvarələr meydanı').getAttribute('aria-label'))
+    expect(january(phone, 'Bayıl yolu').getAttribute('title')).not.toContain('Tarixi sifariş')
+  })
+
+  it('never calls an order that is not approved historical, whatever the flag says', async () => {
+    serving(report({
+      rows: [row({
+        months: [
+          cell(1, { status: 'PendingApproval', isHistoricalImport: true }),
+          cell(2, { status: 'ReturnedForCorrection', isHistoricalImport: true }),
+          cell(3, { status: 'Draft', isHistoricalImport: true }),
+          ...Array.from({ length: 9 }, (_, index) => cell(index + 4)),
+        ],
+      })],
+    }))
+    await renderPage()
+
+    expect(document.body.innerHTML).not.toContain('Tarixi sifariş')
   })
 })
 

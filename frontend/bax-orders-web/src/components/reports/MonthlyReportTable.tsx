@@ -13,7 +13,7 @@ import {
   isFutureMonth,
   unknownValue,
 } from '../analytics/format'
-import { workflowStatusClass, workflowStatusLabels } from '../workflow/labels'
+import { workflowStatusClass, workflowStatusLabels, workflowStatusText } from '../workflow/labels'
 import { missingPriceCount, missingPriceShortLabel } from '../../pricing/labels'
 import { portfolioGroupLabels } from '../../coverage/labels'
 import {
@@ -349,8 +349,10 @@ function describe(cell: MonthlyReportCell, month: string): string {
     parts.push(missingPriceCount(cell.missingPriceItemCount))
   }
 
+  // The status in words, as the badge says it elsewhere: a historical order is approved and says so, then says
+  // how (22.2). The dot beside the amount stays the Approved dot — a fourth dot would read as a fourth status.
   if (cell.status) {
-    parts.push(workflowStatusLabels[cell.status] ?? cell.status)
+    parts.push(workflowStatusText(cell.status, cell.isHistoricalImport))
   }
 
   return parts.join(' · ')

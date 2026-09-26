@@ -3,6 +3,7 @@ using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Locations;
 using BaxOrders.Application.Orders;
+using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Domain.Orders;
 using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
@@ -14,8 +15,9 @@ namespace BaxOrders.Application.Reports;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Four queries whatever the size of the year: the locations, the requests of every month up to the year's end,
-/// the lines of those requests, and the years that can be asked for. Nothing here loops over locations or
+/// Six queries whatever the size of the year: the locations, the requests of every month up to the year's end,
+/// the lines of those requests, the years that can be asked for, and — for the year's requests — the revision
+/// links and workflow events <see cref="HistoricalImportRule"/> reads. Nothing here loops over locations or
 /// months to fetch anything, because a report of 26 locations and 12 months would then be 312 round trips.
 /// </para>
 /// <para>
@@ -72,6 +74,11 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
 
         var totals = await TotalsAsync([.. requests.Select(request => request.OrderRequestId)], cancellationToken);
 
+        // Only the year's own requests become a cell, so only they are asked about — by the order page's own
+        // rule, for all of them at once.
+        var historical = await HistoricalImportRule.AmongAsync(
+            db, [.. requests.Where(request => request.Period.Year == year).Select(request => request.OrderRequestId)], cancellationToken);
+
         var byLocation = requests
             .GroupBy(request => request.LocationId)
             .ToDictionary(group => group.Key, group => group.ToDictionary(request => request.Period));
@@ -79,7 +86,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         var rows = new List<MonthlyReportRowDto>(locations.Count);
         foreach (var location in locations.OrderByName(location => location.Name))
         {
-            rows.Add(Build(location, year, byLocation.GetValueOrDefault(location.Id) ?? [], totals));
+            rows.Add(Build(location, year, byLocation.GetValueOrDefault(location.Id) ?? [], totals, historical));
         }
 
         var months = Months(year, rows);
@@ -149,7 +156,8 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         LocationRef location,
         int year,
         Dictionary<DateOnly, RequestRef> requests,
-        Dictionary<long, RequestTotals> totals)
+        Dictionary<long, RequestTotals> totals,
+        IReadOnlySet<long> historical)
     {
         var cells = new List<MonthlyReportCellDto>(12);
         decimal? yearAmount = null;
@@ -175,7 +183,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
                 .TakeWhile(candidate => candidate.Period < period)
                 .Select(candidate => candidate.Amount)
                 .ToList();
-            var cell = Cell(period, requests, totals, earlier);
+            var cell = Cell(period, requests, totals, earlier, historical);
             cells.Add(cell);
 
             if (cell.OrderRequestId is null)
@@ -199,11 +207,13 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
     }
 
     /// <param name="earlierAmounts">The location's available months before this one, oldest first.</param>
+    /// <param name="historical">The year's requests that were carried in from Excel as already approved.</param>
     private static MonthlyReportCellDto Cell(
         DateOnly period,
         Dictionary<DateOnly, RequestRef> requests,
         Dictionary<long, RequestTotals> totals,
-        IReadOnlyList<decimal> earlierAmounts)
+        IReadOnlyList<decimal> earlierAmounts,
+        IReadOnlySet<long> historical)
     {
         // The month before, which for January is the December of the year before.
         var previousAmount = requests.TryGetValue(period.AddMonths(-1), out var previous)
@@ -237,7 +247,8 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             percent,
             recent.RecentAverage,
             recent.RecentAveragePercent,
-            recent.IsUnusual);
+            recent.IsUnusual,
+            historical.Contains(request.OrderRequestId));
     }
 
     private static decimal? KnownAmountOf(RequestRef request, Dictionary<long, RequestTotals> totals)

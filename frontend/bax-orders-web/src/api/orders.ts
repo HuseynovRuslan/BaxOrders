@@ -56,6 +56,12 @@ export interface LocationOrderSummary {
   previousKnownAmount: number | null
   knownAmountDelta: number | null
   knownAmountPercentChange: number | null
+  /**
+   * Whether the latest order was carried in from Excel as already approved: the workflow's recorded fact, by the same
+   * rule as the order page. True only with `latestRequestStatus === 'Approved'`, and never inferred from a missing
+   * approver or date.
+   */
+  latestRequestIsHistoricalImport: boolean
 }
 
 export interface LocationOrderList {
@@ -80,6 +86,8 @@ export interface LocationOrderHistoryEntry {
   internalSupplyItemCount: number
   knownAmountTotal: number | null
   createdAtUtc: string
+  /** Carried in from Excel as already approved — the workflow's recorded fact, as on the order page. Status stays Approved. */
+  isHistoricalImport: boolean
 }
 
 export interface LocationOrderHistory {

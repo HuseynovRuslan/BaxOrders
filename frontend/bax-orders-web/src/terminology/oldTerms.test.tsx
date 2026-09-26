@@ -18,6 +18,7 @@ import type { MonthlyReport, MonthlyReportCell } from '../api/reports'
 import type { OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
 import { TrendModal } from '../components/analytics/TrendModal'
+import { historicalImportLabel } from '../components/workflow/labels'
 import { ApprovalInboxPage } from '../pages/ApprovalInboxPage'
 import { LocationDetailPage } from '../pages/LocationDetailPage'
 import { LocationsPage } from '../pages/LocationsPage'
@@ -671,6 +672,7 @@ function locationHistory(): LocationOrderHistory {
     internalSupplyItemCount: 1,
     knownAmountTotal: 4800,
     createdAtUtc: '2026-09-22T10:00:00Z',
+    isHistoricalImport: false,
   }
 
   return {
@@ -720,6 +722,7 @@ function reportCell(month: number, overrides: Partial<MonthlyReportCell> = {}): 
     recentAverageKnownAmount: month === 6 ? 14458.58 : null,
     recentAveragePercent: month === 6 ? 149.06 : null,
     isUnusual: month === 6,
+    isHistoricalImport: false,
     ...overrides,
   }
 }
@@ -881,6 +884,7 @@ function locationOrders(): LocationOrderList {
     previousKnownAmount: 4200,
     knownAmountDelta: 600,
     knownAmountPercentChange: 14.2857,
+    latestRequestIsHistoricalImport: false,
   }
 
   return {
@@ -1214,6 +1218,72 @@ describe('no retired word on the manager’s screens', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  // Task 22b: the three list screens with an order carried in from Excel as already approved, so the 22.2 phrase
+  // is on the screen being swept (brief acceptance 6).
+
+  it('the objects list, with a historical order', async () => {
+    const list = locationOrders()
+    list.locations.items[0] = {
+      ...list.locations.items[0],
+      latestRequestStatus: 'Approved',
+      latestRequestIsHistoricalImport: true,
+    }
+    ordersApi.fetchLocationOrders.mockReset().mockResolvedValue(list)
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/locations']}>
+        <LocationsPage />
+      </MemoryRouter>,
+    )
+    await screen.findByText(historicalImportLabel)
+
+    expectNoOldTerms(container)
+    expect(container).toHaveTextContent('Təsdiqlənib')
+  })
+
+  it('the object page, with a historical order', async () => {
+    const history = locationHistory()
+    history.requests.items = history.requests.items.map((item) => ({
+      ...item,
+      status: 'Approved' as const,
+      isHistoricalImport: true,
+    }))
+    ordersApi.fetchLocationHistory.mockReset().mockResolvedValue(history)
+
+    const { container } = renderAt('/locations/22?basis=avg3', '/locations/:locationId', <LocationDetailPage />)
+    await screen.findByRole('heading', { name: 'Nərimanov heykəli' })
+    await screen.findByText('Son 3 ayın ortalamasına görə')
+
+    expectNoOldTerms(container)
+    // Every row, and the latest-order card.
+    expect(screen.getAllByText(historicalImportLabel)).toHaveLength(4)
+  })
+
+  it('the monthly report, with a historical order', async () => {
+    const report = monthlyReport()
+    const [first] = report.rows
+    report.rows[0] = {
+      ...first,
+      months: first.months.map((cell) => cell.month === 1
+        ? { ...cell, status: 'Approved' as const, isHistoricalImport: true }
+        : cell),
+    }
+    reportsApi.fetchMonthlyReport.mockReset().mockResolvedValue(report)
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/dashboard/monthly']}>
+        <MonthlyReportPage />
+      </MemoryRouter>,
+    )
+    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+
+    const described = screen.getAllByTitle(/Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb$/)
+    // The table's cell and the phone card's.
+    expect(described).toHaveLength(2)
+    expectNoOldTerms(container)
+    expectNoOldTerms(screen.getByRole('list', { name: 'Kartlardakı işarələr' }).parentElement!)
   })
 
   it('the approval inbox', async () => {

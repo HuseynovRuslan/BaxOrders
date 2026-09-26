@@ -18,8 +18,7 @@ import {
   warningToneClass,
 } from '../pricing/labels'
 import { supersededOrderNote, wholeHistoryLead } from '../terminology/terms'
-import { StatusBadge } from '../components/StatusBadge'
-import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
+import { OrderStatusBadge } from '../components/workflow/OrderStatusBadge'
 import {
   formatAmount,
   formatNumber,
@@ -309,12 +308,7 @@ export function LocationDetailPage() {
                   )}
                 </td>
                 <td className="px-4 py-2.5">
-                  <StatusBadge
-                    label={workflowStatusLabels[request.status] ?? request.status}
-                    sign={workflowStatusSign[request.status]}
-                    toneClass={workflowStatusClass[request.status]}
-                    size="sm"
-                  />
+                  <OrderStatusBadge status={request.status} isHistoricalImport={request.isHistoricalImport} size="sm" />
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <div className="flex justify-end gap-1.5">

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import type { OrderRequestStatus } from '../../api/orders'
 import { findOldTerms } from '../../test/oldTerms'
-import { historicalImportLabel, historicalImportNote, submissionCountLabel } from './labels'
+import {
+  historicalImportLabel,
+  historicalImportNote,
+  showsHistoricalImport,
+  submissionCountLabel,
+  workflowStatusLabels,
+  workflowStatusText,
+} from './labels'
 
 /**
  * Which time an order is being sent, in business language rather than as a version number (Task 04, 5.6).
@@ -66,5 +74,45 @@ describe('an order carried in from Excel', () => {
     element.textContent = historicalImportNote
 
     expect(findOldTerms(element)).toEqual([])
+  })
+})
+
+const statuses: OrderRequestStatus[] = ['Draft', 'PendingApproval', 'Approved', 'ReturnedForCorrection']
+const flags = [true, false, undefined] as const
+const combinations = statuses.flatMap((status) => flags.map((flag) => [status, flag] as const))
+
+/**
+ * Task 22b: the one condition under which the 22.2 phrase is shown, on every surface — the order is Approved and
+ * the workflow recorded it as carried in. An order that is not approved is never called historical.
+ */
+describe('when the historical phrase is shown', () => {
+  it.each(combinations)('%s, historical %s', (status, flag) => {
+    expect(showsHistoricalImport(status, flag)).toBe(status === 'Approved' && flag === true)
+  })
+
+  it('never for an object with no order', () => {
+    expect(showsHistoricalImport(null, true)).toBe(false)
+    expect(showsHistoricalImport(null, false)).toBe(false)
+    expect(showsHistoricalImport(null, undefined)).toBe(false)
+  })
+})
+
+/** The status in words, for the monthly report's cell description, where no badge can be drawn. */
+describe('the status in words', () => {
+  it.each(combinations)('%s, historical %s', (status, flag) => {
+    const words = workflowStatusText(status, flag)
+
+    if (status === 'Approved' && flag === true) {
+      expect(words).toBe('Təsdiqlənib · Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb')
+    } else {
+      // Byte for byte the badge's word, as the report said before.
+      expect(words).toBe(workflowStatusLabels[status])
+    }
+  })
+
+  it('without the fact, is the badge’s word alone', () => {
+    for (const status of statuses) {
+      expect(workflowStatusText(status)).toBe(workflowStatusLabels[status])
+    }
   })
 })

@@ -3,6 +3,7 @@ using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Approvals;
 using BaxOrders.Application.Orders;
+using BaxOrders.Application.Orders.Revisions;
 using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Application.Reports;
 using BaxOrders.Domain.Catalog;
@@ -13,7 +14,9 @@ using BaxOrders.Domain.Orders;
 using BaxOrders.Infrastructure.Persistence;
 using BaxOrders.Infrastructure.Persistence.Migrations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BaxOrders.IntegrationTests;
 
@@ -333,6 +336,204 @@ public sealed class HistoricalApprovalTests(PostgresDatabaseFixture database)
         Assert.NotNull(request.ApprovedAtUtc);
     }
 
+    // ---- 9. the lists say it the way the order page does (22.4) ----------------------------------------
+
+    [PostgresFact]
+    public async Task The_objects_list_says_its_latest_order_is_a_historical_import()
+    {
+        await using var db = database.CreateContext();
+        var world = await HistoricalWorldAsync(db);
+
+        var row = await ListRowAsync(db, world);
+
+        Assert.Equal(world.OrderId, row.LatestRequestId);
+        Assert.Equal(OrderRequestStatus.Approved, row.LatestRequestStatus);
+        Assert.True(row.LatestRequestIsHistoricalImport);
+    }
+
+    [PostgresFact]
+    public async Task The_object_page_says_its_period_row_is_a_historical_import()
+    {
+        await using var db = database.CreateContext();
+        var world = await HistoricalWorldAsync(db);
+
+        var entry = await HistoryEntryAsync(db, world, world.OrderId);
+
+        Assert.Equal(OrderRequestStatus.Approved, entry.Status);
+        Assert.True(entry.IsHistoricalImport);
+    }
+
+    [PostgresFact]
+    public async Task The_monthly_report_says_its_cell_is_a_historical_import()
+    {
+        await using var db = database.CreateContext();
+        var world = await HistoricalWorldAsync(db);
+
+        var cell = await ReportCellAsync(db, world);
+
+        Assert.Equal(world.OrderId, cell.OrderRequestId);
+        Assert.Equal(OrderRequestStatus.Approved, cell.Status);
+        Assert.True(cell.IsHistoricalImport);
+    }
+
+    /// <summary>Approved the same way, but through this application: no list may call it historical.</summary>
+    [PostgresFact]
+    public async Task An_order_approved_through_the_workflow_is_not_a_historical_import_on_any_list()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorkflowWorldAsync(db);
+
+        var request = await db.OrderRequests.Include(order => order.Items)
+            .SingleAsync(order => order.Id == world.OrderId, None);
+        request.SubmitForApproval(WorkflowActor.System("Sınaq"), null, DateTime.UtcNow);
+        request.Approve(WorkflowActor.System("Sınaq"), null, missingPricesAcknowledged: false, DateTime.UtcNow);
+        await db.SaveChangesAsync(None);
+        db.ChangeTracker.Clear();
+
+        var row = await ListRowAsync(db, world);
+        Assert.Equal(OrderRequestStatus.Approved, row.LatestRequestStatus);
+        Assert.False(row.LatestRequestIsHistoricalImport);
+
+        var entry = await HistoryEntryAsync(db, world, world.OrderId);
+        Assert.Equal(OrderRequestStatus.Approved, entry.Status);
+        Assert.False(entry.IsHistoricalImport);
+
+        var cell = await ReportCellAsync(db, world);
+        Assert.Equal(OrderRequestStatus.Approved, cell.Status);
+        Assert.False(cell.IsHistoricalImport);
+    }
+
+    [PostgresFact]
+    public async Task A_draft_is_not_a_historical_import_on_any_list()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorkflowWorldAsync(db);
+
+        var row = await ListRowAsync(db, world);
+        Assert.Equal(OrderRequestStatus.Draft, row.LatestRequestStatus);
+        Assert.False(row.LatestRequestIsHistoricalImport);
+
+        Assert.False((await HistoryEntryAsync(db, world, world.OrderId)).IsHistoricalImport);
+        Assert.False((await ReportCellAsync(db, world)).IsHistoricalImport);
+    }
+
+    [PostgresFact]
+    public async Task The_three_lists_carry_the_flag_on_the_wire()
+    {
+        await using var db = database.CreateContext();
+        var world = await HistoricalWorldAsync(db);
+
+        var list = await new LocationOrderQueries(db)
+            .ListAsync(new LocationOrderListQuery(Search: world.LocationName), None);
+        var history = await new LocationOrderQueries(db)
+            .GetHistoryAsync(world.LocationId, new LocationHistoryQuery(), None);
+        var report = await new MonthlyReportQueries(db).GetAsync(
+            new MonthlyReportQuery(world.Period.Year, Search: world.LocationName), None);
+
+        Assert.Contains("\"latestRequestIsHistoricalImport\":true", JsonSerializer.Serialize(list, Wire), StringComparison.Ordinal);
+        Assert.Contains("\"isHistoricalImport\":true", JsonSerializer.Serialize(history, Wire), StringComparison.Ordinal);
+        Assert.Contains("\"isHistoricalImport\":true", JsonSerializer.Serialize(report, Wire), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 22.4: the lists and the order page can never disagree. Every kind of order is asked in every place it is
+    /// shown, and each list's flag must equal the order page's <c>DecisionFacts.IsHistoricalImport</c>.
+    /// </summary>
+    /// <remarks>
+    /// The correction carries the carried-over event too, and is set to Approved, both written by SQL the way the
+    /// fixture writes a historical order. It is still not historical: a version below it was sent for approval,
+    /// and only the rule's reading of the whole chain says so.
+    /// </remarks>
+    [PostgresFact]
+    public async Task Every_list_agrees_with_the_order_page_about_every_kind_of_order()
+    {
+        var kinds = await KindsAsync();
+        await using var db = database.CreateContext();
+
+        // What each one is, by the order page.
+        (World World, long OrderId, bool Expected, bool Latest)[] cases =
+        [
+            (kinds.Historical, kinds.Historical.OrderId, true, true),
+            (kinds.Approved, kinds.Approved.OrderId, false, true),
+            (kinds.Draft, kinds.Draft.OrderId, false, true),
+            (kinds.Pending, kinds.Pending.OrderId, false, true),
+            (kinds.Corrected, kinds.Corrected.OrderId, false, false),
+            (kinds.Corrected, kinds.Correction, false, true),
+        ];
+
+        foreach (var (world, orderId, expected, latest) in cases)
+        {
+            var facts = (await WorkflowAsync(db, orderId)).DecisionFacts.IsHistoricalImport;
+            Assert.Equal(expected, facts);
+
+            Assert.Equal(facts, (await HistoryEntryAsync(db, world, orderId)).IsHistoricalImport);
+
+            // The returned version is overtaken by its correction, so only the object page lists it.
+            if (!latest)
+            {
+                continue;
+            }
+
+            var row = await ListRowAsync(db, world);
+            Assert.Equal(orderId, row.LatestRequestId);
+            Assert.Equal(facts, row.LatestRequestIsHistoricalImport);
+
+            var cell = await ReportCellAsync(db, world);
+            Assert.Equal(orderId, cell.OrderRequestId);
+            Assert.Equal(facts, cell.IsHistoricalImport);
+        }
+
+        // The correction really is Approved with the carried-over event, so only the chain keeps it from being historical.
+        var correction = await db.OrderRequests.AsNoTracking().SingleAsync(order => order.Id == kinds.Correction, None);
+        Assert.Equal(OrderRequestStatus.Approved, correction.Status);
+        Assert.Contains(OrderWorkflowAction.ImportedAsApproved,
+            (await WorkflowAsync(db, kinds.Correction)).History.Select(entry => entry.Action));
+    }
+
+    /// <summary>Asking is reading: the historical order keeps its status, version, history and its three empty moments.</summary>
+    [PostgresFact]
+    public async Task Reading_the_three_lists_changes_nothing_about_the_historical_order()
+    {
+        await using var db = database.CreateContext();
+        var world = await HistoricalWorldAsync(db);
+        var before = await StoredAsync(db, world.OrderId);
+
+        await ListRowAsync(db, world);
+        await HistoryEntryAsync(db, world, world.OrderId);
+        await ReportCellAsync(db, world);
+
+        var after = await StoredAsync(db, world.OrderId);
+        Assert.Equal(before, after);
+        Assert.Equal((OrderRequestStatus.Approved, 1, 1, (DateTime?)null, (DateTime?)null, (Guid?)null), after);
+    }
+
+    /// <summary>A page of orders costs two queries, whatever its size and however long its chains — never one per row.</summary>
+    [PostgresFact]
+    public async Task Asking_about_a_page_costs_nothing_for_none_and_two_queries_for_any_number()
+    {
+        var kinds = await KindsAsync();
+
+        var (none, noneQueries) = await CountedAmongAsync([]);
+        Assert.Empty(none);
+        Assert.Equal(0, noneQueries);
+
+        var (one, oneQueries) = await CountedAmongAsync([kinds.Historical.OrderId]);
+        Assert.Equal(new[] { kinds.Historical.OrderId }, one.Order());
+        Assert.Equal(2, oneQueries);
+
+        var (many, manyQueries) = await CountedAmongAsync(
+        [
+            kinds.Historical.OrderId, kinds.Approved.OrderId, kinds.Draft.OrderId, kinds.Pending.OrderId,
+            kinds.Corrected.OrderId, kinds.Correction,
+        ]);
+        Assert.Equal(new[] { kinds.Historical.OrderId }, many.Order());
+        Assert.Equal(2, manyQueries);
+
+        var (chained, chainedQueries) = await CountedAmongAsync([kinds.Correction]);
+        Assert.Empty(chained);
+        Assert.Equal(2, chainedQueries);
+    }
+
     // ---- the backfill itself ---------------------------------------------------------------------------
 
     /// <summary>
@@ -436,22 +637,133 @@ public sealed class HistoricalApprovalTests(PostgresDatabaseFixture database)
     private static async Task<World> HistoricalWorldAsync(BaxOrdersDbContext db)
     {
         var world = await ImportedDraftWorldAsync(db);
+        await CarryOverAsync(db, world.OrderId);
+        return world;
+    }
 
+    /// <summary>The migration's two statements, scoped to one request: the carried-over event, and Approved.</summary>
+    private static async Task CarryOverAsync(BaxOrdersDbContext db, long orderId)
+    {
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO "OrderRequestWorkflowEvents"
                 ("OrderRequestId", "Action", "FromStatus", "ToStatus", "ActorUserId", "ActorDisplayName",
                  "Comment", "MissingPriceItemCount", "MissingPricesAcknowledged", "OccurredAtUtc")
-            VALUES ({world.OrderId}, 'ImportedAsApproved', 'Draft', 'Approved', NULL, 'Sistem',
+            VALUES ({orderId}, 'ImportedAsApproved', 'Draft', 'Approved', NULL, 'Sistem',
                     {HistoricalComment}, 0, FALSE, NOW() AT TIME ZONE 'UTC');
             """,
             None);
 
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"""UPDATE "OrderRequests" SET "Status" = 'Approved' WHERE "Id" = {world.OrderId};""", None);
+            $"""UPDATE "OrderRequests" SET "Status" = 'Approved' WHERE "Id" = {orderId};""", None);
 
         db.ChangeTracker.Clear();
-        return world;
+    }
+
+    private static async Task<LocationOrderSummaryDto> ListRowAsync(BaxOrdersDbContext db, World world)
+    {
+        var list = await new LocationOrderQueries(db)
+            .ListAsync(new LocationOrderListQuery(Search: world.LocationName), None);
+        return Assert.Single(list.Locations.Items);
+    }
+
+    private static async Task<LocationOrderHistoryEntryDto> HistoryEntryAsync(BaxOrdersDbContext db, World world, long orderId)
+    {
+        var history = await new LocationOrderQueries(db)
+            .GetHistoryAsync(world.LocationId, new LocationHistoryQuery(), None);
+        return history!.Requests.Items.Single(entry => entry.OrderRequestId == orderId);
+    }
+
+    private static async Task<MonthlyReportCellDto> ReportCellAsync(BaxOrdersDbContext db, World world)
+    {
+        var report = await new MonthlyReportQueries(db).GetAsync(
+            new MonthlyReportQuery(world.Period.Year, Search: world.LocationName), None);
+        return Assert.Single(report.Rows).Months[world.Period.Month - 1];
+    }
+
+    private static async Task<(OrderRequestStatus Status, int Version, int EventCount, DateTime? SubmittedAtUtc, DateTime? ApprovedAtUtc, Guid? SubmittedByUserId)>
+        StoredAsync(BaxOrdersDbContext db, long orderId)
+    {
+        var stored = await db.OrderRequests.AsNoTracking().SingleAsync(order => order.Id == orderId, None);
+        var events = await db.OrderRequestWorkflowEvents.AsNoTracking().CountAsync(item => item.OrderRequestId == orderId, None);
+        return (stored.Status, stored.Version, events, stored.SubmittedAtUtc, stored.ApprovedAtUtc, stored.SubmittedByUserId);
+    }
+
+    /// <param name="Corrected">A returned version 1.</param>
+    /// <param name="Correction">Its correction, version 2, which also carries the carried-over event and is Approved.</param>
+    private sealed record Kinds(World Historical, World Approved, World Draft, World Pending, World Corrected, long Correction);
+
+    /// <summary>
+    /// One order of every kind the flag has to tell apart, each at its own location except the two versions of
+    /// the corrected month. The workflow ones go through the real services, as a coordinator and a Rəhbər.
+    /// </summary>
+    private async Task<Kinds> KindsAsync()
+    {
+        TestCurrentUser coordinator;
+        TestCurrentUser rehber;
+        World historical, approved, draft, pending, corrected;
+        await using (var db = database.CreateContext())
+        {
+            coordinator = await TestCurrentUser.CoordinatorAsync(db, "Sınaq koordinatoru");
+            rehber = await TestCurrentUser.ManagerAsync(db, "Sınaq rəhbəri");
+            historical = await HistoricalWorldAsync(db);
+            approved = await WorkflowWorldAsync(db);
+            draft = await WorkflowWorldAsync(db);
+            pending = await WorkflowWorldAsync(db);
+            corrected = await WorkflowWorldAsync(db);
+        }
+
+        await WorkflowAs(coordinator, service => service.SubmitAsync(approved.OrderId, new SubmitForApprovalCommand(), None));
+        await WorkflowAs(rehber, service => service.ApproveAsync(approved.OrderId, new ApproveOrderCommand(), None));
+
+        await WorkflowAs(coordinator, service => service.SubmitAsync(pending.OrderId, new SubmitForApprovalCommand(), None));
+
+        await WorkflowAs(coordinator, service => service.SubmitAsync(corrected.OrderId, new SubmitForApprovalCommand(), None));
+        await WorkflowAs(rehber, service =>
+            service.ReturnAsync(corrected.OrderId, new ReturnForCorrectionCommand("Miqdar çoxdur"), None));
+
+        long correction;
+        await using (var db = database.CreateContext())
+        {
+            var revisions = new OrderRevisionService(
+                db, coordinator, new PostgresOrderRequestLock(db), NullLogger<OrderRevisionService>.Instance);
+            correction = (await revisions.CreateAsync(corrected.OrderId, None)).OrderRequestId;
+            await CarryOverAsync(db, correction);
+        }
+
+        return new Kinds(historical, approved, draft, pending, corrected, correction);
+    }
+
+    private async Task<T> WorkflowAs<T>(TestCurrentUser user, Func<OrderWorkflowService, Task<T>> work)
+    {
+        await using var db = database.CreateContext();
+        return await work(new OrderWorkflowService(db, user, new PostgresOrderRequestLock(db)));
+    }
+
+    private static async Task<(IReadOnlySet<long> Historical, int Queries)> CountedAmongAsync(long[] orderRequestIds)
+    {
+        var counter = new CountingCommandInterceptor();
+        await using var counted = new BaxOrdersDbContext(new DbContextOptionsBuilder<BaxOrdersDbContext>()
+            .UseNpgsql(PostgresDatabaseFixture.ConnectionString)
+            .AddInterceptors(counter)
+            .Options);
+
+        var historical = await HistoricalImportRule.AmongAsync(counted, orderRequestIds, None);
+        return (historical, counter.Count);
+    }
+
+    /// <summary>Counts the SQL statements a unit of work sends.</summary>
+    private sealed class CountingCommandInterceptor : DbCommandInterceptor
+    {
+        public int Count { get; private set; }
+
+        public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Count++;
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     /// <summary>An imported draft, exactly as it stood the moment before the migration ran.</summary>

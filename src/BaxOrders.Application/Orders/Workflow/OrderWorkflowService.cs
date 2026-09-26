@@ -157,7 +157,8 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
     /// <remarks>
     /// Two queries whatever the length of the chain: the revision links of this location's month, walked in
     /// memory, and the events of the earlier versions together. Only a revision link makes a version part of
-    /// the chain — a new version made by a second import is not a correction, and starts its own count.
+    /// the chain — a new version made by a second import is not a correction, and starts its own count. The
+    /// walk is <see cref="HistoricalImportRule.EarlierVersions"/>, the one the lists use too.
     /// </remarks>
     private async Task<WorkflowDecisionFactsDto> DecisionFactsAsync(
         OrderRequest request, IReadOnlyList<WorkflowEventDto> history, CancellationToken cancellationToken)
@@ -168,11 +169,7 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             .Select(revision => new { revision.RevisionOrderRequestId, revision.SourceOrderRequestId })
             .ToDictionaryAsync(revision => revision.RevisionOrderRequestId, revision => revision.SourceOrderRequestId, cancellationToken);
 
-        var earlier = new List<long>();
-        for (var current = request.Id; links.TryGetValue(current, out var source) && !earlier.Contains(source); current = source)
-        {
-            earlier.Add(source);
-        }
+        List<long> earlier = [.. HistoricalImportRule.EarlierVersions(request.Id, links)];
 
         List<WorkflowEventDto> earlierHistory = earlier.Count == 0
             ? []

@@ -3,9 +3,8 @@ import { Link } from 'react-router'
 import { fetchLocationOrders, type LocationOrderList, type LocationOrderSort } from '../api/orders'
 import { PageHeader } from '../components/PageHeader'
 import { missingPriceCount } from '../pricing/labels'
-import { StatusBadge } from '../components/StatusBadge'
 import { SummaryMetric } from '../components/SummaryMetric'
-import { workflowStatusClass, workflowStatusLabels, workflowStatusSign } from '../components/workflow/labels'
+import { OrderStatusBadge } from '../components/workflow/OrderStatusBadge'
 import { DirectionWord } from '../components/analytics/DirectionWord'
 import { noPreviousMonthNote } from '../components/decisions/labels'
 import {
@@ -198,10 +197,9 @@ export function LocationsPage() {
 
                 <td className="px-4 py-2.5">
                   {location.latestRequestStatus ? (
-                    <StatusBadge
-                      label={workflowStatusLabels[location.latestRequestStatus] ?? location.latestRequestStatus}
-                      sign={workflowStatusSign[location.latestRequestStatus]}
-                      toneClass={workflowStatusClass[location.latestRequestStatus]}
+                    <OrderStatusBadge
+                      status={location.latestRequestStatus}
+                      isHistoricalImport={location.latestRequestIsHistoricalImport}
                       size="sm"
                     />
                   ) : (

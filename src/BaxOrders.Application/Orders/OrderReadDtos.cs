@@ -35,6 +35,11 @@ public sealed record KnownAmount(decimal? KnownAmountTotal, int KnownPriceItemCo
 /// That month's money, or null when the location has no request for it — no difference is then offered, because
 /// a month that does not exist is not a month of zero.
 /// </param>
+/// <param name="LatestRequestIsHistoricalImport">
+/// Whether the latest order was carried in from Excel as already approved. From <see cref="Workflow.HistoricalImportRule"/>,
+/// the same as the order page's <c>DecisionFacts.IsHistoricalImport</c>; it never changes the status, which stays
+/// <c>Approved</c>. False when the location has no order.
+/// </param>
 public sealed record LocationOrderSummaryDto(
     int LocationId,
     string Code,
@@ -60,7 +65,8 @@ public sealed record LocationOrderSummaryDto(
     DateOnly? PreviousPeriod = null,
     decimal? PreviousKnownAmount = null,
     decimal? KnownAmountDelta = null,
-    decimal? KnownAmountPercentChange = null);
+    decimal? KnownAmountPercentChange = null,
+    bool LatestRequestIsHistoricalImport = false);
 
 /// <param name="LocationsWithOrders">How many of the listed locations have at least one request.</param>
 public sealed record LocationOrderListDto(
@@ -87,6 +93,11 @@ public sealed record LocationOrderListQuery(
     int PageSize = 25);
 
 /// <summary>One request of a location, as its history lists it.</summary>
+/// <param name="IsHistoricalImport">
+/// Whether this request was carried in from Excel as already approved. From <see cref="Workflow.HistoricalImportRule"/>,
+/// the same as the order page's <c>DecisionFacts.IsHistoricalImport</c>; it never changes the status, which stays
+/// <c>Approved</c>.
+/// </param>
 public sealed record LocationOrderHistoryEntryDto(
     long OrderRequestId,
     DateOnly RequestPeriod,
@@ -99,7 +110,8 @@ public sealed record LocationOrderHistoryEntryDto(
     int MissingPriceItemCount,
     int InternalSupplyItemCount,
     decimal? KnownAmountTotal,
-    DateTime CreatedAtUtc)
+    DateTime CreatedAtUtc,
+    bool IsHistoricalImport = false)
 {
     /// <summary>True when every line that needed a price has one — not when every line has one.</summary>
     public bool AmountIsComplete => MissingPriceItemCount == 0;

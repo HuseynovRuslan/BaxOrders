@@ -203,4 +203,147 @@ Qeyd:
 
 ## 22b — siyahılar və aylıq hesabat
 
-22b tərəfindən doldurulacaq; F-09-dan davam edir.
+Bu hissə Task 22b-nin brauzerdə yoxlanılan hissəsidir (`AI_WORKFLOW/TASKS/TASK-22b.md`; brief-in «Qəbul» 3, 4, 5, 6-cı
+bəndləri və «Tələb» 5-ci bəndi; qərarlar 22.1, 22.2, 22.4). Onu da operator aparır. **Coder brauzerdə heç bir yoxlama
+aparmayıb.** Yuxarıdakı «Harada aparılır», «En və ekran şəkilləri» və «Sətrin forması» bu hissəyə də aiddir.
+
+**22a-dan fərqli olaraq, API-ni yenidən başlatmaq LAZIMDIR.** Task 22b üç siyahının cavabına bir yalnız oxunan sahə
+əlavə edir: obyektlər siyahısında `latestRequestIsHistoricalImport`, obyekt səhifəsində və aylıq hesabatda
+`isHistoricalImport`. API bu commit-in kodu ilə yenidən başladılmayana qədər siyahılar ifadəni göstərmir, yalnız
+`✓ Təsdiqlənib` görünür — bu, köhnə API-dir, səhv deyil. Real sistemdə API-ni (`http://localhost:5173`-ün arxasındakı)
+və sınaq mühitinin API-sini (`sandbox.ps1 -Run`) yenidən başladın, frontend-i yeniləyin. Baza, miqrasiya və data
+dəyişməyib; heç bir sifarişin statusu dəyişmir.
+
+Nə yoxlanılır:
+
+- obyektlər siyahısının «Status» sütunu, obyekt səhifəsinin dövr sətirləri və «Son sifariş» kartı tarixi sifarişi
+  sifariş səhifəsindəki kimi deyir: yaşıl `✓ Təsdiqlənib`, yanında boz «Tarixi sifariş · sistemə təsdiqlənmiş kimi
+  köçürülüb» (`components/workflow/OrderStatusBadge.tsx`:31–58; siyahı `pages/LocationsPage.tsx`:198–208; sətir
+  `pages/LocationDetailPage.tsx`:311; kart `components/locations/LocationTrend.tsx`:85–87);
+- aylıq hesabatda xananın izahı (üzərinə gələndə çıxan mətn) `… · Təsdiqlənib · Tarixi sifariş · sistemə təsdiqlənmiş
+  kimi köçürülüb` ilə bitir (`components/reports/MonthlyReportTable.tsx`:335–359; mətn
+  `components/workflow/labels.ts`:92–106). **Nöqtə və şərti işarələr dəyişmir:** tarixi sifariş təsdiqlənib (22.1),
+  nöqtə «Təsdiqlənib» deyir; dördüncü nöqtə dördüncü status kimi oxunardı;
+- sistemdə təsdiqlənmiş, gözləyən, göndərilməmiş və düzəliş tələb olunan sifarişlər dörd yerdə də əvvəlki kimidir;
+- heç bir sifarişin statusu, məbləği və tarixçəsi dəyişməyib.
+
+Sınaq mühitində, sıfırlamadan sonra, **heç bir obyektin son sifarişi tarixi deyil**: «Sınaq obyekti 1»-in son sifarişi
+Sentyabr 2026-dır (təsdiq gözləyir), «Sınaq obyekti 2»-ninki də Sentyabr 2026 (göndərilməyib). Ona görə obyektlər
+siyahısında və «Son sifariş» kartında tarixi sifariş real sistemdə, yalnız oxumaqla yoxlanılır (F-09, F-12). Obyekt
+səhifəsinin sətirləri və aylıq hesabat sınaqda da yoxlanılır: «Sınaq obyekti 1»-in İyul və Avqust 2026 sifarişləri
+tarixidir.
+
+F-08-in 2-ci addımı 22a-da «siyahıda nişan hələ yalnız `✓ Təsdiqlənib`-dir» gözləyirdi. 22b-dən sonra siyahı ifadəni də
+göstərir; bu, F-09-un gözləntisidir və F-08 bunun üçün «keçmədi» sayılmır.
+
+### F-09 — Obyektlər siyahısı: son sifarişi tarixi olan obyektdə `✓ Təsdiqlənib` və yanında ifadə
+Mənbə: `BRIEFS/TASK-22.md`, «Qəbul», 4-cü bənd, sitat: "Obyektlər siyahısında və aylıq hesabatın statuslarında tarixi sifariş eyni cür ifadə olunur."
+Harada: real (yalnız oxuma) · «Obyektlər» siyahısı, «Status» sütunu · `http://localhost:5173/locations` (`pages/LocationsPage.tsx`:198–208) · dörd en
+Addımlar: 1) API-nin bu commit ilə yenidən başladıldığını yoxlayın; real sistemə Rəhbər və ya Admin ilə daxil olun; heç bir yazma düyməsi basmayın; 2) «Obyektlər» siyahısını açın; 3) «Status» sütununda `✓ Təsdiqlənib` olan bir obyekt seçin, onun adını yazın, adına klik edib son sifarişini açın (`/orders/<nömrə>`) və nömrəsini yazın; 4) sifariş səhifəsinin «Təsdiq prosesi» vərəqində «Təsdiqlənmiş kimi köçürülüb» hadisəsinin olub-olmadığını yazın; varsa, bu obyekt tarixidir; yoxdursa, başqa obyektlə 3–4-cü addımları təkrarlayın; 5) siyahıya qayıdın və həmin obyektin «Status» xanasındakı bütün mətni hərfbəhərf yazın; 6) sətirdə neçə keçid olduğunu yazın (obyektin adı və «Bax»).
+Gözlənilən: 5-ci addımda yaşıl `✓ Təsdiqlənib` və yanında ayrıca boz mətn «Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb» — sifariş səhifəsinin başlığındakı ilə eyni (F-01). Mətn kəhrəba deyil. 6-cı addımda keçidlər əvvəlki kimidir: ad və «Bax»; ifadə keçid deyil.
+İlk auditdə: siyahıda tarixi sifariş yalnız `✓ Təsdiqlənib` kimi görünürdü və sistemdə təsdiqlənmişdən ayrılmırdı (`AI_WORKFLOW/PLAN.md`, HD-010)
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-10 — Obyektlər siyahısı: sistemdə təsdiqlənmiş və gözləyən obyektdə ifadə yoxdur
+Mənbə: `BRIEFS/TASK-22.md`, «Qəbul», 3-cü bənd, sitat: "Sistemdə təsdiqlənmiş adi sifariş (tarixi olmayan) açılır → nişan və izah əvvəlki kimidir, "Tarixi sifariş" yazılmır."
+Harada: sınaq · «Obyektlər» siyahısı, «Status» sütunu · `http://localhost:5174/locations` (`pages/LocationsPage.tsx`:198–208) · dörd en
+Addımlar: 1) sıfırlamadan dərhal sonra `sinaq.rehber` ilə daxil olun və «Obyektlər» siyahısını açın; 2) «Sınaq obyekti 1» və «Sınaq obyekti 2» sətirlərinin «Status» xanasını hərfbəhərf yazın; 3) `Ctrl+F` ilə «Tarixi sifariş» axtarın və neçə dəfə tapıldığını yazın; 4) `04-sandbox.md`, Sınaq 1-in 7-ci addımından sonra (düzəldilmiş Sentyabr sifarişi təsdiqlənib) siyahını yeniləyin və «Sınaq obyekti 1»-in «Status» xanasını yenidən yazın; Sınaq 1 bu seansda aparılmırsa, bu addımı «yoxlanıla bilmədi» kimi `Qeyd:`-də yazın.
+Gözlənilən: 2-ci addımda «Sınaq obyekti 1» — mavi `⏳ Təsdiq gözləyir`, «Sınaq obyekti 2» — boz `· Təsdiqlənməyib`; heç birinin yanında mətn yoxdur. 3-cü addımda 0 dəfə. 4-cü addımda yaşıl `✓ Təsdiqlənib`, yanında mətn yoxdur.
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-11 — Obyekt səhifəsi: dövr sətirlərində tarixi sifariş ifadə ilə, qalanları əvvəlki kimi
+Mənbə: `BRIEFS/TASK-22.md`, «Tələb», 5-ci bənd, sitat: "eyni ifadə nişanın göründüyü hər yerdə eyni olsun"
+Harada: sınaq · obyekt səhifəsi, sifarişlər cədvəli, «Status» sütunu · «Obyektlər» → «Sınaq obyekti 1» (`/locations/<nömrə>`; `pages/LocationDetailPage.tsx`:311) · dörd en
+Addımlar: 1) `sinaq.rehber` ilə «Obyektlər» → «Sınaq obyekti 1»-i açın və ünvandakı nömrəni yazın; 2) cədvəlin hər sətri üçün dövrü və «Status» xanasındakı bütün mətni hərfbəhərf yazın; 3) İyul 2026 sətrində neçə keçid olduğunu və adlarını yazın; 4) həmin sətrin «Status» xanasındakı ifadəyə klik edin və nə baş verdiyini yazın.
+Gözlənilən: 2-ci addımda İyul 2026 və Avqust 2026 — yaşıl `✓ Təsdiqlənib`, yanında boz «Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb»; Sentyabr 2026 — mavi `⏳ Təsdiq gözləyir`, yanında mətn yoxdur (Sınaq 1 aparılıbsa, düzəldilmiş Sentyabr — `✓ Təsdiqlənib`, yanında mətn yoxdur; əvvəlki Sentyabr — `↩ Düzəliş tələb olunur`). 3-cü addımda keçidlər əvvəlki kimidir: dövrün adı, «Sifarişə bax», «Müqayisə». 4-cü addımda ifadə özü heç nə açmır; sətir öz davranışını saxlayır.
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-12 — Obyekt səhifəsi: «Son sifariş» kartı
+Mənbə: `BRIEFS/TASK-22.md`, «Tələb», 5-ci bənd, sitat: "eyni ifadə nişanın göründüyü hər yerdə eyni olsun"
+Harada: real (yalnız oxuma) və sınaq · obyekt səhifəsi, yuxarıdakı «Son sifariş» kartı (`components/locations/LocationTrend.tsx`:85–87) · dörd en
+Addımlar: 1) sınaqda «Sınaq obyekti 1»-in səhifəsini açın; kartda nişanı və yanındakı mətni hərfbəhərf yazın; 2) real sistemdə F-09-da seçdiyiniz tarixi obyektin səhifəsini açın (siyahıda adına klik); heç bir yazma düyməsi basmayın; 3) kartda «Son sifariş · <ay>» sətrini, nişanı və yanındakı mətni hərfbəhərf yazın; 4) kartda neçə «Sifarişə bax» keçidi olduğunu yazın.
+Gözlənilən: 1-ci addımda mavi `⏳ Təsdiq gözləyir` (Sınaq 1-dən sonra `✓ Təsdiqlənib`), yanında mətn yoxdur. 3-cü addımda yaşıl `✓ Təsdiqlənib` və yanında boz «Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb». 4-cü addımda bir keçid.
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-13 — Aylıq hesabat: tarixi xananın izahı ifadəni deyir, nöqtə yaşıl qalır
+Mənbə: `BRIEFS/TASK-22.md`, «Qəbul», 4-cü bənd, sitat: "Obyektlər siyahısında və aylıq hesabatın statuslarında tarixi sifariş eyni cür ifadə olunur."
+Harada: sınaq · «Aylıq hesabat» (`/dashboard/monthly`), 2026 ili, «Sınaq obyekti 1» sətri · xananın izahı (`components/reports/MonthlyReportTable.tsx`:335–359), nöqtə (:316–323) · `1366×768`, `1440×900`, `1200×800`
+Addımlar: 1) `sinaq.rehber` ilə «Aylıq hesabat»-ı açın, 2026 ilini seçin; 2) «Sınaq obyekti 1»-in İyul xanasının üzərinə siçanı aparın və çıxan izahı hərfbəhərf yazın; 3) Avqust xanası ilə 2-ci addımı təkrarlayın; 4) İyul və Avqust xanalarındakı nöqtənin rəngini yazın və onu cədvəlin üstündəki şərti işarələrdəki «Təsdiqlənib» nöqtəsi ilə müqayisə edin; 5) xananın içində (izahda yox) «Tarixi sifariş» yazısının olub-olmadığını yazın.
+Gözlənilən: 2-ci və 3-cü addımda izah `… · Təsdiqlənib · Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb` ilə bitir; məbləğ və fərq hissəsi əvvəlki kimidir. 4-cü addımda nöqtə yaşıldır, «Təsdiqlənib» nöqtəsi ilə eynidir. 5-ci addımda xananın içində yazı yoxdur — ifadə yalnız izahdadır.
+İlk auditdə: hesabatda tarixi sifariş yalnız «Təsdiqlənib» kimi görünürdü (`AI_WORKFLOW/PLAN.md`, HD-010)
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-14 — Aylıq hesabat: şərti işarələr dəyişməyib; sistemdə təsdiqlənmiş xananın izahı əvvəlki kimidir
+Mənbə: `TASKS/TASK-22b.md`, §9, 5-ci meyar, sitat: "The report's dot and legend are unchanged. The phrase appears in no amber or warning class."
+Harada: sınaq · «Aylıq hesabat», 2026 · şərti işarələr (`components/reports/MonthlyReportTable.tsx`:399–438) və Sentyabr xanası · `1440×900` və `390×844`
+Addımlar: 1) cədvəlin üstündəki şərti işarələr siyahısının bütün maddələrini soldan sağa hərfbəhərf yazın; 2) `390×844`-də kartların üstündəki şərti işarələr siyahısı ilə 1-ci addımı təkrarlayın; 3) `04-sandbox.md`, Sınaq 1-in 7-ci addımından sonra hesabatı yeniləyin; «Sınaq obyekti 1»-in Sentyabr xanasının izahını hərfbəhərf yazın; Sınaq 1 bu seansda aparılmırsa, bu addımı «yoxlanıla bilmədi» kimi `Qeyd:`-də yazın; 4) səhifədə kəhrəba rəngli «Tarixi sifariş» yazısının olub-olmadığını yazın.
+Gözlənilən: 1-ci və 2-ci addımda maddələr: «Təsdiq gözləyir», «Təsdiqlənib», «Düzəliş tələb olunur», «⚠ N Qiymət yoxdur», «Faiz — əvvəlki aya görə: xərc artıb · xərc azalıb», «Qeyri-adi ay — …», «Gələcək ay»; «Tarixi sifariş» yoxdur, yeni nöqtə yoxdur. 3-cü addımda izah `… · Təsdiqlənib` ilə bitir, «Tarixi sifariş» yoxdur. 4-cü addımda yoxdur.
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-15 — Telefon (`390×844`): ifadə nişanın altına keçir, heç nə ekrandan çıxmır
+Mənbə: `TASKS/TASK-22a.md`, §4.1, sitat: "Wrapper: an inline flex with wrapping, so on a phone the text drops under the badge instead of overflowing."
+Harada: real (yalnız oxuma) və sınaq · obyektlər siyahısı, obyekt səhifəsi, aylıq hesabatın telefon kartları · `390×844`
+Addımlar: 1) real sistemdə «Obyektlər» siyahısını açın, F-09-un obyektinin sətrini tapın (cədvəl sağa sürüşürsə, sürüşdürün); nişanın və ifadənin yerləşməsini yazın; 2) sınaqda «Sınaq obyekti 1»-in səhifəsində İyul 2026 sətrinin «Status» xanasını və yuxarıdakı kartı yazın; 3) sınaqda «Aylıq hesabat»-da «Sınaq obyekti 1»-in kartında İyul ayına toxunun; açılan sifarişin nömrəsini yazın və geri qayıdın; 4) hər ekranda səhifənin üfüqi olaraq ekrandan çıxıb-çıxmadığını yazın.
+Gözlənilən: 1-ci və 2-ci addımda ifadə nişanın altına keçir və ya onunla bir sətirdədir; kəsilmir, üst-üstə düşmür. 3-cü addımda İyul sifarişi açılır (telefonda izah göstərilmir; onun mətni ekran oxuyucusunun adındadır). 4-cü addımda heç bir ekran cədvəldən başqa üfüqi sürüşmür.
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:
+
+### F-16 — Real sistem: status və məbləğlər dəyişməyib; «Təsdiq gözləyənlər» dəyişməyib
+Mənbə: `BRIEFS/TASK-22.md`, «Qəbul», 5-ci bənd, sitat: "Heç bir sifarişin statusu, versiyası və məbləği dəyişmir; təsdiq axını və icazələr dəyişmir."
+Harada: real (yalnız oxuma) · «Obyektlər», obyekt səhifəsi, «Aylıq hesabat», «Təsdiq gözləyənlər» · `http://localhost:5173` · `1440×900`
+Addımlar: 1) **API-ni yenidən başlatmazdan əvvəl** «Obyektlər» siyahısında ilk beş obyektin «Status» və «Məbləğ» xanalarını, «Aylıq hesabat»-da 2026 ilinin «Cəmi» sətrini və «Təsdiq gözləyənlər»-də (`/approvals`) sifariş sayını yazın; 2) API-ni bu commit ilə yenidən başladın və frontend-i yeniləyin; 3) 1-ci addımdakı hər rəqəmi və statusun sözünü yenidən yazın; 4) F-09-un obyektinin səhifəsində tarixi sifarişlərin sayını (ifadəsi olan sətirlər) yazın; 5) heç bir yazma düyməsi basmayın.
+Gözlənilən: 3-cü addımda hər status sözü, hər məbləğ, «Cəmi» sətri və «Təsdiq gözləyənlər»-in sayı 1-ci addımdakı ilə eynidir; yalnız tarixi sifarişlərin yanında ifadə əlavə olunub. 2-ci addımdan əvvəl siyahılarda ifadə görünmür — bu köhnə API-dir, səhv deyil.
+İlk auditdə: brief qeyd etmir
+---- operator doldurur ----
+Göründü:
+Rəqəm:
+En:
+Ekran şəkli:
+Hökm: keçdi / keçmədi / yoxlanıla bilmədi (səbəb)
+Qeyd:

@@ -32,6 +32,8 @@ export interface MonthlyReportCell {
   recentAveragePercent: number | null
   /** More than ±50% from that average (owner decision 8.2). Decided by the backend; the browser only draws it. */
   isUnusual: boolean
+  /** Carried in from Excel as already approved — the workflow's recorded fact, as on the order page. Status stays Approved. */
+  isHistoricalImport: boolean
 }
 
 export interface MonthlyReportRow {
