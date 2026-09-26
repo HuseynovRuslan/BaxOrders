@@ -1,4 +1,4 @@
-namespace BaxOrders.Domain.Imports;
+﻿namespace BaxOrders.Domain.Imports;
 
 public enum ImportIssueType
 {
@@ -9,6 +9,12 @@ public enum ImportIssueType
     UnknownUnit = 5,
     UnknownCategory = 6,
     UnknownResponsiblePerson = 7,
+
+    /// <summary>
+    /// The "Növ" cell holds a word this system does not recognise as a line classification. A warning, not an
+    /// error: the line imports and stays unclassified, and a person decides what it is.
+    /// </summary>
+    UnknownOrderLineType = 9,
 
     /// <summary>The value resolves to more than one record (for example a canonical name and another record's alias).</summary>
     AmbiguousMatch = 8,

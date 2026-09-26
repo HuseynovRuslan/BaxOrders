@@ -40,6 +40,30 @@ public sealed record DashboardAmountDto(
     int PriceNotRequiredItemCount,
     bool IsComplete);
 
+/// <summary>
+/// The selected month's money split by what kind of demand each line was.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Three populations that do not overlap and together are the whole month, so the figures reconcile against
+/// <see cref="ManagementDashboardSummaryDto.Current"/> by addition and nobody has to take the split on trust.
+/// </para>
+/// <para>
+/// Unclassified is kept apart rather than folded into either. It is not a third kind of demand; it is the
+/// absence of an answer, and a reader who sees it as its own line knows exactly how much of the month is
+/// still unaccounted for.
+/// </para>
+/// </remarks>
+/// <param name="UnclassifiedItemCount">
+/// Lines nobody has classified. Shown as a neutral note, never as an error: the months before this column
+/// existed are full of them and browsing that history is not a fault.
+/// </param>
+public sealed record DashboardLineTypeSplitDto(
+    DashboardAmountDto Monthly,
+    DashboardAmountDto OutsideMonthly,
+    DashboardAmountDto Unclassified,
+    int UnclassifiedItemCount);
+
 /// <summary>What one location's selected month looks like beside its own history.</summary>
 /// <param name="HasCurrentRequest">
 /// False for an object that has ordered before but not this month. Its current money stays null: an object
@@ -139,6 +163,11 @@ public sealed record LocationDashboardRowDto(
 /// The whole month's money: every object that ordered, whether or not it can be compared with anything. This
 /// is what the company spent, and it does not move when the reader changes the comparison basis.
 /// </param>
+/// <param name="LineTypes">
+/// The same month split into monthly, outside-monthly and unclassified. Every comparison figure beside it is
+/// about monthly lines alone (<see cref="MonthlyComparisonPopulation"/>); this is where the rest of the month
+/// is accounted for.
+/// </param>
 /// <param name="ComparedCurrent">
 /// The same month, restricted to the cohort — the objects that also have a baseline. This is the figure
 /// <paramref name="Baseline"/> is beside and <paramref name="KnownAmountDelta"/> is the difference of. It
@@ -179,7 +208,8 @@ public sealed record ManagementDashboardSummaryDto(
     int UnchangedVariantCount,
     int NoLongerOrderedVariantCount,
     int InsufficientHistoryVariantCount,
-    int AmountOrientedServiceCount);
+    int AmountOrientedServiceCount,
+    DashboardLineTypeSplitDto LineTypes);
 
 /// <param name="FilteredLocationCount">
 /// How many locations the search and filters left. The summary above is unaffected by them.

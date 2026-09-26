@@ -1,4 +1,4 @@
-using BaxOrders.Application.Imports;
+﻿using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Matching;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Domain.Catalog;
@@ -44,6 +44,74 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
         Assert.Equal("02.04.2026", ramanaRow.OriginalRequestDate);
         Assert.Contains(preview.IssueSummary, i => i is { IssueType: ImportIssueType.UnknownProduct, Count: 4 });
         Assert.Equal(3, Assert.Single(result.Sheets).HeaderRowNumber);
+    }
+
+    /// <summary>
+    /// A workbook with no "Növ" column at all is staged, said plainly, and refused readiness.
+    /// </summary>
+    /// <remarks>
+    /// The alternative is what this exists to stop: importing three thousand lines as "nobody classified
+    /// this" when nobody was ever asked. The rows are kept exactly as they were read — the source is the
+    /// evidence and is never discarded — and the batch simply cannot become ready to import until somebody
+    /// deals with it.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_workbook_with_no_classification_column_is_staged_but_cannot_be_imported()
+    {
+        await using var db = database.CreateContext();
+        var workbook = OrdersWithoutLineTypeColumn(
+            new OrderLine(Location: "H.Ə.M"), new OrderLine(Location: "H.Ə.M"));
+
+        var result = await Service(db, () => workbook).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+
+        Assert.Equal(ImportOutcome.Staged, result.Outcome);
+
+        // Said once where the person who uploaded the file reads it...
+        Assert.Equal(
+            "Növ sütunu tapılmadı. Sifariş növü təsnifatı oxuna bilmədi.",
+            Assert.Single(result.Sheets).Problem);
+
+        // ...and once on every row, as an error, which is what stops the batch.
+        var preview = result.Preview!;
+        Assert.Equal(ImportStatus.NeedsReview, preview.Batch.Status);
+        Assert.Equal(2, preview.Batch.InvalidRows);
+        Assert.Contains(preview.IssueSummary, issue => issue.IssueType == ImportIssueType.UnknownOrderLineType);
+
+        // The source is kept whole, and what the sheet could not say is recorded as exactly that.
+        var rows = await db.ImportRows.AsNoTracking()
+            .Where(row => row.ImportBatchId == result.ImportBatchId)
+            .ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, row => Assert.False(row.SourceHadOrderLineTypeColumn));
+        Assert.All(rows, row => Assert.Null(row.OriginalOrderLineType));
+
+        // Everything the sheet did say is still there, cell for cell: the block is about one missing column,
+        // not a reason to throw the file away.
+        Assert.All(rows, row => Assert.Equal("Test malı", row.OriginalProductName));
+        Assert.All(rows, row => Assert.Equal("H.Ə.M", row.OriginalLocationName));
+        Assert.All(rows, row => Assert.Equal("10", row.OriginalQuantity));
+    }
+
+    /// <summary>
+    /// The same workbook with the column present and its cells empty is a different answer: two lines waiting
+    /// on somebody, not a workbook that cannot be read. Warnings, and the batch is not made invalid by them.
+    /// </summary>
+    [PostgresFact]
+    public async Task A_workbook_whose_classification_cells_are_empty_is_a_warning_and_not_a_block()
+    {
+        await using var db = database.CreateContext();
+        var workbook = Orders(
+            new OrderLine(Location: "H.Ə.M", LineType: null), new OrderLine(Location: "H.Ə.M", LineType: null));
+
+        var result = await Service(db, () => workbook).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+
+        Assert.Null(Assert.Single(result.Sheets).Problem);
+        Assert.Equal(0, result.Preview!.Batch.InvalidRows);
+
+        var rows = await db.ImportRows.AsNoTracking()
+            .Where(row => row.ImportBatchId == result.ImportBatchId)
+            .ToListAsync();
+        Assert.All(rows, row => Assert.True(row.SourceHadOrderLineTypeColumn));
     }
 
     [PostgresFact]

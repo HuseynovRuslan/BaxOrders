@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
 import type {
+  DashboardLineTypeSplit,
   DashboardAmount,
   LocationDashboardRow,
   ManagementDashboardSummary,
@@ -13,6 +14,25 @@ import { partition, partitionMember } from '../../test/dashboardFixtures'
 import { expectInert } from '../../test/interaction'
 import { interactiveRowClass, interactiveSurfaceClass, rowLinkClass, surfaceLinkClass } from '../interaction'
 import { LocationRows } from './LocationRows'
+
+/**
+ * A month with nothing in it but planned material: the monthly figure is the whole month, which is what
+ * every fixture here describes. The other two sides hold no lines at all, so their amount is null rather
+ * than a zero standing in for one.
+ */
+function monthlyOnly(current: DashboardAmount): DashboardLineTypeSplit {
+  const none: DashboardAmount = {
+    knownAmount: null,
+    itemCount: 0,
+    knownPriceItemCount: 0,
+    missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
+    isComplete: true,
+  }
+
+  return { monthly: current, outsideMonthly: none, unclassified: none, unclassifiedItemCount: 0 }
+}
+
 
 /**
  * The objects table as a manager reads it: what this month cost, what last month cost, the difference, and the
@@ -85,7 +105,7 @@ function row(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRo
 }
 
 function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementDashboardSummary {
-  return {
+  const base: ManagementDashboardSummary = {
     selectedPeriod: '2026-07-01',
     basis,
     baselinePeriods: ['2026-06-01'],
@@ -122,7 +142,10 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
     noLongerOrderedVariantCount: 0,
     insufficientHistoryVariantCount: 0,
     amountOrientedServiceCount: 0,
+    lineTypes: monthlyOnly(amount()),
   }
+
+  return { ...base, lineTypes: monthlyOnly(base.current) }
 }
 
 /** What the dashboard was comparing against; the table carries it into every row's link. */

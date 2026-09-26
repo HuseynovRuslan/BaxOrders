@@ -16,6 +16,7 @@ import {
 import { InfoHint } from '../analytics/InfoHint'
 import { WarningNote } from '../WarningNote'
 import { warningChipClass } from '../../pricing/labels'
+import { monthlyComparisonScopeLabel } from '../../orderLines/lineType'
 import {
   costDecreasedLabel,
   costIncreasedLabel,
@@ -92,7 +93,13 @@ export function CauseSummary({ decomposition, basis, windowPeriods, selected, on
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-sm font-semibold text-slate-900">Niyə dəyişib?</h2>
+          {/*
+            Which month is being compared, and — since Task 22 — which lines. An ad-hoc purchase is not
+            recurring demand and is never compared as though it were, so the screen says so once, quietly,
+            rather than leaving a reader to wonder why a month they know had a big one-off reads as flat.
+          */}
           <span className="text-xs text-slate-500">{caption}</span>
+          <span className="text-xs text-slate-400">{monthlyComparisonScopeLabel}</span>
         </div>
         <p className="whitespace-nowrap text-sm text-slate-700">
           Cəmi <Amount value={decomposition.totalAmountImpact} className="font-semibold" />

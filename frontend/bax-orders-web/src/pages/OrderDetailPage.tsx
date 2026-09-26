@@ -43,6 +43,7 @@ import { comparablePriorMonths, type DriverFilter } from '../components/decision
 import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
 import { DriverList } from '../components/decisions/DriverList'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
+import { OrderLineTypeBadge } from '../components/orders/OrderLineTypeBadge'
 import { AddLineDialog } from '../components/orders/revision/AddLineDialog'
 import { EditLineDialog } from '../components/orders/revision/EditLineDialog'
 import { HistoryTabs } from '../components/orders/revision/HistoryTabs'
@@ -594,6 +595,9 @@ export function OrderDetailPage() {
                       <td className="px-3 py-2 text-xs text-slate-400">{(data.items.page - 1) * data.items.pageSize + index + 1}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium text-slate-900">{item.productName}</p>
+                        <p className="mt-0.5">
+                          <OrderLineTypeBadge type={item.orderLineType} />
+                        </p>
                       </td>
                       <td className="px-3 py-2 text-slate-700">
                         <SpecificationCell item={item} detail={details[index]} />
@@ -879,6 +883,9 @@ function LineCard({ item, number, detail, editable, onSource, onEdit, onRemove }
               <SpecificationCell item={item} detail={detail} />
             </p>
           )}
+          <p className="mt-1">
+            <OrderLineTypeBadge type={item.orderLineType} />
+          </p>
         </div>
         <p className="shrink-0 text-right">
           {/* Never a zero: no amount was recorded, for either reason. */}

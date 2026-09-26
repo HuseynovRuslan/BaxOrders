@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Catalog;
+﻿using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Normalization;
@@ -51,6 +51,9 @@ internal sealed class ImportRowConfiguration : IEntityTypeConfiguration<ImportRo
         builder.Property(row => row.OriginalLocationName).HasMaxLength(ImportRow.SourceTextMaxLength);
         builder.Property(row => row.OriginalRequestDate).HasMaxLength(ImportRow.SourceValueMaxLength);
         builder.Property(row => row.OriginalResponsiblePersonName).HasMaxLength(ImportRow.SourceTextMaxLength);
+        builder.Property(row => row.OriginalOrderLineType).HasMaxLength(ImportRow.SourceValueMaxLength);
+        // Nullable on purpose: null is "staged before anybody recorded this", which is not false.
+        builder.Property(row => row.SourceHadOrderLineTypeColumn);
 
         builder.Property(row => row.NormalizedProductName).HasMaxLength(ImportRow.SourceTextMaxLength);
         builder.Property(row => row.NormalizedSupplierName).HasMaxLength(ImportRow.SourceTextMaxLength);

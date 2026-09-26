@@ -261,9 +261,10 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
         }
 
         // The locations, their requests, each object's last month before this one, the approved spelling matches
-        // (Task 13b), the lines of the requests in the window, and the variant kinds and names. Six whatever the
-        // number of objects: the decomposition and the partition both run on figures already in memory.
-        Assert.Equal(6, counter.Count);
+        // (Task 13b), the lines of the requests in the window, the month's classification split (Task 22), and
+        // the variant kinds and names. Seven whatever the number of objects: the decomposition and the
+        // partition both run on figures already in memory.
+        Assert.Equal(7, counter.Count);
     }
 
     [PostgresFact]

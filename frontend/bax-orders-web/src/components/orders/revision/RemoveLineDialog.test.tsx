@@ -38,6 +38,7 @@ function item(): OrderRequestItem {
     categoryPath: [],
     source: null,
     sourceOrderRequestItemId: null,
+    orderLineType: 'Monthly',
   }
 }
 

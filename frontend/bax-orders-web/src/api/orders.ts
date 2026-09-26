@@ -1,3 +1,4 @@
+import type { OrderLineType } from '../orderLines/lineType'
 import { getJson } from './client'
 
 /** A request lives in one of these states. Task 5 only ever displays them. */
@@ -18,6 +19,8 @@ export type PricingMode =
   | 'InternalFreeSupply'
   /** Nobody has said which. Counted with the gaps, because the cautious reading cannot hide a real one. */
   | 'Unresolved'
+
+export type { OrderLineType }
 
 export type LocationOrderSort = 'Name' | 'LatestPeriod' | 'OrderRequestCount'
 
@@ -156,6 +159,11 @@ export interface OrderRequestItem {
   source: OrderItemSourceRef | null
   /** The line of the previous version this one was copied from, if any. */
   sourceOrderRequestItemId: number | null
+  /**
+   * Whether this line is the month's planned material or was ordered on top of the plan. Line-level, because
+   * one order routinely holds both; see `src/orderLines/lineType`.
+   */
+  orderLineType: OrderLineType
 }
 
 export interface OrderRequestDetail {

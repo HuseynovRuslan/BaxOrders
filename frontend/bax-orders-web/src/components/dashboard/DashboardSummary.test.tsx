@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
-import type { DashboardAmount, ManagementDashboardSummary } from '../../api/dashboard'
+import type { DashboardLineTypeSplit, DashboardAmount, ManagementDashboardSummary } from '../../api/dashboard'
 import type { BasisSelection } from '../../analytics/basisParams'
 import { describeBasisWithRange, knownAmountHint } from '../analytics/format'
 import { comparedOnly, partition, partitionMember } from '../../test/dashboardFixtures'
@@ -13,6 +13,25 @@ import {
   DashboardHeadline,
   type CoverageChip,
 } from './DashboardSummary'
+
+/**
+ * A month with nothing in it but planned material: the monthly figure is the whole month, which is what
+ * every fixture here describes. The other two sides hold no lines at all, so their amount is null rather
+ * than a zero standing in for one.
+ */
+function monthlyOnly(current: DashboardAmount): DashboardLineTypeSplit {
+  const none: DashboardAmount = {
+    knownAmount: null,
+    itemCount: 0,
+    knownPriceItemCount: 0,
+    missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
+    isComplete: true,
+  }
+
+  return { monthly: current, outsideMonthly: none, unclassified: none, unclassifiedItemCount: 0 }
+}
+
 
 /**
  * The three-second read, in the order a decision needs it: the amount, which way it moved, over which
@@ -39,7 +58,7 @@ function amount(overrides: Partial<DashboardAmount> = {}): DashboardAmount {
 
 /** A clean month: every object that ordered can be compared, and nothing is outside the cohort. */
 function summary(overrides: Partial<ManagementDashboardSummary> = {}): ManagementDashboardSummary {
-  return {
+  const base: ManagementDashboardSummary = {
     selectedPeriod: '2026-09-01',
     basis: 'PreviousMonth',
     baselinePeriods: ['2026-08-01'],
@@ -65,8 +84,11 @@ function summary(overrides: Partial<ManagementDashboardSummary> = {}): Managemen
     noLongerOrderedVariantCount: 0,
     insufficientHistoryVariantCount: 0,
     amountOrientedServiceCount: 0,
+    lineTypes: monthlyOnly(amount()),
     ...overrides,
   }
+
+  return { ...base, lineTypes: monthlyOnly(base.current) }
 }
 
 /**
@@ -140,6 +162,15 @@ function cohort(count: number): HTMLElement {
 }
 
 /** The visible line under the headline, not the ⓘ's note with the same words. */
+/**
+ * What the month was made of: the planned material and what was asked for on top of it. It sits between the
+ * headline (with its qualifier, when there is one) and the cohort block — the second question a manager asks
+ * about the number above, and before anything about the comparison.
+ */
+function lineTypeSplit(): HTMLElement {
+  return screen.getByText('Aylıq sifarişlər').closest('div')!
+}
+
 function missingPriceLine(): HTMLElement | null {
   return screen.queryAllByText(knownAmountHint).find((element) => element.closest('[role="note"]') === null) ?? null
 }
@@ -161,7 +192,8 @@ describe('the headline amount', () => {
 
     const total = headline()
     expect(total).toHaveTextContent(/^71\.210,29 ₼$/)
-    expect(total.nextElementSibling).toBe(cohort(26))
+    expect(total.nextElementSibling).toBe(lineTypeSplit())
+    expect(lineTypeSplit().nextElementSibling).toBe(cohort(26))
   })
 
   /**
@@ -175,7 +207,8 @@ describe('the headline amount', () => {
     const total = headline()
     expect(total).toHaveTextContent(/^71\.210,29 ₼$/)
     const block = cohort(23)
-    expect(total.nextElementSibling).toBe(block)
+    expect(total.nextElementSibling).toBe(lineTypeSplit())
+    expect(lineTypeSplit().nextElementSibling).toBe(block)
 
     expect(block).toHaveTextContent('Müqayisə olunan 23 obyekt · Keçən ay (Avqust 2026)')
     const figures = within(block).getByText('71.030,25 ₼').closest('p')!
@@ -368,7 +401,8 @@ describe('incomplete price data', () => {
     expect(line).toHaveClass('text-xs', 'text-amber-800')
     // Directly under the total, and the cohort block right after it: nothing else comes between.
     expect(headline().nextElementSibling).toBe(line)
-    expect(line.nextElementSibling).toBe(cohort(26))
+    expect(line.nextElementSibling).toBe(lineTypeSplit())
+    expect(lineTypeSplit().nextElementSibling).toBe(cohort(26))
     // The ⓘ and the amber button stay as they were.
     expect(screen.getByRole('button', { name: 'Məbləğ necə hesablanır?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '10 obyektin sifarişində qiyməti olmayan sətir var' })).toBeInTheDocument()
@@ -378,7 +412,8 @@ describe('incomplete price data', () => {
     renderSummary(summary())
 
     expect(missingPriceLine()).toBeNull()
-    expect(headline().nextElementSibling).toBe(cohort(26))
+    expect(headline().nextElementSibling).toBe(lineTypeSplit())
+    expect(lineTypeSplit().nextElementSibling).toBe(cohort(26))
     // The ⓘ still explains the rule.
     expect(screen.getByRole('button', { name: 'Məbləğ necə hesablanır?' })).toBeInTheDocument()
   })
@@ -450,7 +485,8 @@ describe('one arrangement for every basis and every month', () => {
     const figures = within(block).getByText(percent).closest('p')!
     expect(figures).toHaveTextContent(/^Bu ay \S+ ₼ Baza 44\.340,78 ₼ Fərq \+\S+ ₼ · \+\S+%$/)
     expect(screen.getAllByText(percent)).toHaveLength(1)
-    expect(headline().nextElementSibling).toBe(block)
+    expect(headline().nextElementSibling).toBe(lineTypeSplit())
+    expect(lineTypeSplit().nextElementSibling).toBe(block)
   })
 
   it('draws the same elements in the same order in all ten', () => {
@@ -476,6 +512,7 @@ describe('one arrangement for every basis and every month', () => {
 
     const block = cohort(23)
     expect(headline().nextElementSibling).toBe(missingPriceLine())
+    expect(missingPriceLine()!.nextElementSibling).toBe(lineTypeSplit())
     expect(block.lastElementChild).toHaveTextContent(/^Müqayisəyə daxil deyil: EXPO Center/)
   })
 })

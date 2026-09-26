@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Imports;
@@ -25,6 +25,17 @@ public interface IRowValues
     /// for the first time has no such decision, so it always answers false.
     /// </summary>
     bool IsExplicitlyEmpty(ImportField field) => false;
+
+    /// <summary>
+    /// Whether the sheet this row came from had the column at all.
+    /// </summary>
+    /// <remarks>
+    /// A cell somebody left empty and a column that was never there are not the same fact, and for the "Növ"
+    /// column they need different answers: the first is a line nobody has classified, the second is a workbook
+    /// that cannot be classified at all. Everything else is read the same either way, so the default is true
+    /// and only the callers that know better say otherwise.
+    /// </remarks>
+    bool HasColumn(ImportField field) => true;
 }
 
 /// <summary>
@@ -73,6 +84,9 @@ public sealed class EffectiveRowValues(ImportRow row) : IRowValues
             {
                 ImportField.SequenceNumber => row.OriginalSequenceNumber,
                 ImportField.LineTotal => row.OriginalLineTotal,
+                // Not correctable today: the classification is decided on the order's own screen, where the
+                // line can be seen next to its neighbours, rather than cell by cell in the import review.
+                ImportField.OrderLineType => row.OriginalOrderLineType,
                 _ => null,
             };
 
@@ -92,6 +106,17 @@ public sealed class EffectiveRowValues(ImportRow row) : IRowValues
 
     public bool IsExplicitlyEmpty(ImportField field) =>
         Correctable.TryGetValue(field, out var correctable) && row.IsIntentionallyEmpty(correctable);
+
+    /// <summary>
+    /// What the staged row remembers about its sheet.
+    /// </summary>
+    /// <remarks>
+    /// Null means the row was staged before this was recorded. It answers true there — not because the column
+    /// was present, but because re-reading an old batch is not the moment to start blocking it. New imports
+    /// always record the answer, so only history can be silent.
+    /// </remarks>
+    public bool HasColumn(ImportField field) =>
+        field != ImportField.OrderLineType || row.SourceHadOrderLineTypeColumn != false;
 
     /// <summary>
     /// A staged cell is text, so the date Excel produced is recognised by its shape. The importer only reports it;

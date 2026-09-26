@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Domain.Imports;
@@ -10,6 +10,10 @@ namespace BaxOrders.Application.Imports.Confirmation;
 /// <summary>One staged row as the confirmation sees it: already resolved, already effective, ready to become an item.</summary>
 /// <param name="IsPossibleDuplicate">Informational only; the row still becomes an item of its own.</param>
 /// <param name="Classification">What a reviewer said about the missing price; null when nobody did.</param>
+/// <param name="OrderLineType">
+/// What the workbook's "Növ" column said, read through <see cref="OrderLineTypes"/>. Unclassified when the
+/// column is absent, blank, or holds something this system does not recognise — never guessed at.
+/// </param>
 /// <param name="ClassifiedByUserId">Who said it, answerable for it on the line's history.</param>
 internal sealed record PlannedRow(
     long ImportRowId,
@@ -25,7 +29,8 @@ internal sealed record PlannedRow(
     bool HasSpecificationDescriptor,
     PricingMode? Classification,
     Guid? ClassifiedByUserId,
-    string? ClassifiedByDisplayName)
+    string? ClassifiedByDisplayName,
+    OrderLineType OrderLineType)
 {
     /// <summary>The mode the line is written with (<see cref="ImportLinePricing.ModeOf"/>).</summary>
     public PricingMode PricingMode => ImportLinePricing.ModeOf(UnitPrice, Classification);
@@ -132,6 +137,7 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 row.PricingClassification,
                 row.PricingClassifiedByUserId,
                 row.PricingClassifiedByDisplayName,
+                row.OriginalOrderLineType,
             })
             .ToListAsync(cancellationToken);
 
@@ -149,7 +155,8 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 row.HasSpecificationDescriptor,
                 row.PricingClassification,
                 row.PricingClassifiedByUserId,
-                row.PricingClassifiedByDisplayName))
+                row.PricingClassifiedByDisplayName,
+                OrderLineTypes.Read(row.OriginalOrderLineType) ?? OrderLineType.Unclassified))
             .ToList();
 
         var locationIds = planned.Select(row => row.LocationId).Distinct().ToList();

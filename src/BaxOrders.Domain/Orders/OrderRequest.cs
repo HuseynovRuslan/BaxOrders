@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Catalog;
+﻿using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.ResponsiblePeople;
@@ -292,12 +292,14 @@ public sealed class OrderRequest
         Supplier? supplier = null,
         string? originalProductName = null,
         string? notes = null,
-        PricingMode? pricingMode = null)
+        PricingMode? pricingMode = null,
+        OrderLineType orderLineType = OrderLineType.Monthly)
     {
         EnsureStatus("add items to", OrderRequestStatus.Draft);
         EnsureNotRevision();
 
-        var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName, notes, pricingMode);
+        var item = new OrderRequestItem(
+            this, productVariant, supplier, quantity, unitPrice, originalProductName, notes, pricingMode, orderLineType);
         _items.Add(item);
         return item;
     }
@@ -370,6 +372,27 @@ public sealed class OrderRequest
     }
 
     /// <summary>
+    /// Records whether a line is the month's planned material or was ordered on top of the plan.
+    /// </summary>
+    /// <remarks>
+    /// Line-level on purpose: one request routinely holds both kinds, so this is never a property of the
+    /// request. Changing it moves money between the monthly comparison and the ad-hoc summary, which is why it
+    /// goes through the audited edits rather than being set quietly.
+    /// </remarks>
+    /// <returns>The history entry, or null when the line was already classified that way.</returns>
+    public OrderRequestEditEvent? ChangeItemOrderLineType(
+        OrderRequestItem item, OrderLineType orderLineType, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+        var from = line.OrderLineType;
+
+        line.ChangeOrderLineType(orderLineType);
+        return line.OrderLineType == from
+            ? null
+            : RecordEdit(OrderRequestEditEvent.OrderLineTypeChanged(this, line, from, line.OrderLineType, actor, utcNow));
+    }
+
+    /// <summary>
     /// Adds a line to a correction version. The line is new: it copies nothing and claims no workbook row.
     /// </summary>
     /// <remarks>
@@ -377,11 +400,18 @@ public sealed class OrderRequest
     /// entry names the line by its id and the database hands the id out. Both happen in one transaction.
     /// </remarks>
     public OrderRequestItem AddRevisionItem(
-        ProductVariant productVariant, decimal quantity, decimal? unitPrice, Supplier? supplier, WorkflowActor actor)
+        ProductVariant productVariant,
+        decimal quantity,
+        decimal? unitPrice,
+        Supplier? supplier,
+        WorkflowActor actor,
+        OrderLineType orderLineType = OrderLineType.Monthly)
     {
         EnsureEditableRevision(actor);
 
-        var item = new OrderRequestItem(this, productVariant, supplier, quantity, unitPrice, originalProductName: null, notes: null);
+        var item = new OrderRequestItem(
+            this, productVariant, supplier, quantity, unitPrice, originalProductName: null, notes: null,
+            pricingMode: null, orderLineType: orderLineType);
         _items.Add(item);
         return item;
     }

@@ -1,4 +1,4 @@
-using BaxOrders.Application.Imports.Parsing;
+﻿using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Domain.Imports;
 
@@ -17,6 +17,8 @@ public sealed record SourceRow(string SheetName, ExcelRow Row, HeaderLayout Layo
     public string? Text(ImportField field) => ImportCellParser.ToSourceText(Cell(field));
 
     public bool StoredAsDate(ImportField field) => Cell(field) is DateTime;
+
+    public bool HasColumn(ImportField field) => Layout.ColumnOf(field) is not null;
 
     /// <summary>
     /// Source text for staging. Text longer than the staging column is cut to fit and reported as an error,
@@ -40,6 +42,8 @@ public sealed record SourceRow(string SheetName, ExcelRow Row, HeaderLayout Layo
         LocationName = Fit(ImportField.Location, ImportRow.SourceTextMaxLength, issues),
         RequestDate = Fit(ImportField.RequestDate, ImportRow.SourceValueMaxLength, issues),
         ResponsiblePersonName = Fit(ImportField.ResponsiblePerson, ImportRow.SourceTextMaxLength, issues),
+        OrderLineType = Fit(ImportField.OrderLineType, ImportRow.SourceValueMaxLength, issues),
+        HasOrderLineTypeColumn = HasColumn(ImportField.OrderLineType),
     };
 
     private string? Fit(ImportField field, int maxLength, List<ImportIssueDraft> issues)

@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
@@ -26,7 +26,12 @@ internal sealed record OrderLine(
     string? MiddleCategory = null,
     string? SubCategory = null,
     string? SpecificationValue = null,
-    string? SpecificationUnit = null);
+    string? SpecificationUnit = null,
+    /// <summary>
+    /// The "Növ" cell. Defaults to the month's planned material, which is what almost every line of a real
+    /// workbook is and what these fixtures mean; a test about an unclassified or an unreadable line says so.
+    /// </summary>
+    string? LineType = "Aylıq sifariş");
 
 internal sealed class FakeWorkbookReader(Func<ExcelWorkbook> read) : IExcelWorkbookReader
 {
@@ -38,13 +43,33 @@ internal static class ImportWorkbooks
     private static readonly object?[] Header =
     [
         "№", "Ana kateqoriya", "Orta kateqoriya", "Alt kateqoriya", "Malın adı", "Ölçü", "Vahid",
-        "Miqdarı", "Ö/v", "Qiyməti", "Cəmi", "Şirkət", "Obyekt", "Tarix", "Cavabdeh şəxs",
+        "Miqdarı", "Ö/v", "Qiyməti", "Cəmi", "Şirkət", "Obyekt", "Tarix", "Cavabdeh şəxs", "Növ",
     ];
 
     /// <summary>A workbook shaped like the real one: two title rows, header on row 3, data from row 4.</summary>
     public static ExcelWorkbook Orders(params OrderLine[] lines)
     {
         var rows = new List<ExcelRow> { new(1, []), new(2, []), new(3, Header) };
+        rows.AddRange(lines.Select((line, index) => new ExcelRow(index + 4,
+        [
+            (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
+            line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
+            line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
+        ])));
+
+        return new ExcelWorkbook([new ExcelSheet("Əsas", rows)]);
+    }
+
+    /// <summary>
+    /// The same workbook as an older one: every column an import needs, and no "Növ" column at all.
+    /// </summary>
+    /// <remarks>
+    /// Not the same thing as a workbook whose "Növ" cells are empty. This one cannot say which of its lines
+    /// are the month's plan and which are not, and the import is expected to say so rather than decide.
+    /// </remarks>
+    public static ExcelWorkbook OrdersWithoutLineTypeColumn(params OrderLine[] lines)
+    {
+        var rows = new List<ExcelRow> { new(1, []), new(2, []), new(3, Header[..^1]) };
         rows.AddRange(lines.Select((line, index) => new ExcelRow(index + 4,
         [
             (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,

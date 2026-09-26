@@ -5,7 +5,12 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity, VariantTrend } from '../api/analytics'
 import type { ApprovalInbox, ApprovalInboxRow } from '../api/approvals'
-import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
+import type {
+  DashboardAmount,
+  DashboardLineTypeSplit,
+  LocationDashboardRow,
+  ManagementDashboard,
+} from '../api/dashboard'
 import type { DecisionDriver, OrderDecisionContext } from '../api/decisions'
 import type {
   LocationOrderHistory,
@@ -34,6 +39,24 @@ import {
   oldTerms,
   readableText,
 } from '../test/oldTerms'
+
+/**
+ * A month with nothing in it but planned material: the monthly figure is the whole month, which is what
+ * every fixture here describes. The other two sides hold no lines at all, so their amount is null rather
+ * than a zero standing in for one.
+ */
+function monthlyOnly(current: DashboardAmount): DashboardLineTypeSplit {
+  const none: DashboardAmount = {
+    knownAmount: null,
+    itemCount: 0,
+    knownPriceItemCount: 0,
+    missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
+    isComplete: true,
+  }
+
+  return { monthly: current, outsideMonthly: none, unclassified: none, unclassifiedItemCount: 0 }
+}
 
 /**
  * Owner decision 5.1 and the brief's pairs, checked where the manager reads them.
@@ -235,6 +258,7 @@ function dashboard(): ManagementDashboard {
       noLongerOrderedVariantCount: 3,
       insufficientHistoryVariantCount: 0,
       amountOrientedServiceCount: 0,
+      lineTypes: monthlyOnly(amount()),
     },
     filteredLocationCount: 3,
     // A rank and a "Həm də" line (Task 09), so the card titles are swept in every form they take.
@@ -433,6 +457,7 @@ function orderItem(overrides: Partial<OrderRequestItem> = {}): OrderRequestItem 
     categoryPath: [],
     source: null,
     sourceOrderRequestItemId: null,
+    orderLineType: 'Monthly',
     ...overrides,
   }
 }

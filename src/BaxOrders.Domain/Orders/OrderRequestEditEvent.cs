@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
@@ -15,6 +15,7 @@ public enum OrderEditAction
     ItemSupplierChanged = 4,
     ItemAdded = 5,
     ItemRemoved = 6,
+    ItemOrderLineTypeChanged = 7,
 }
 
 /// <summary>The field of a line a change was made to.</summary>
@@ -23,6 +24,7 @@ public enum OrderEditField
     Quantity = 1,
     UnitPrice = 2,
     Supplier = 3,
+    OrderLineType = 4,
 }
 
 /// <summary>
@@ -130,6 +132,11 @@ public sealed class OrderRequestEditEvent
         new(request, OrderEditAction.ItemSupplierChanged, item, OrderEditField.Supplier,
             EditAuditValue.Of(from), EditAuditValue.Of(to), actor, utcNow);
 
+    internal static OrderRequestEditEvent OrderLineTypeChanged(
+        OrderRequest request, OrderRequestItem item, OrderLineType from, OrderLineType to, WorkflowActor actor, DateTime utcNow) =>
+        new(request, OrderEditAction.ItemOrderLineTypeChanged, item, OrderEditField.OrderLineType,
+            EditAuditValue.Of(from), EditAuditValue.Of(to), actor, utcNow);
+
     internal static OrderRequestEditEvent ItemAdded(
         OrderRequest request, OrderRequestItem item, WorkflowActor actor, DateTime utcNow) =>
         new(request, OrderEditAction.ItemAdded, item, null, null, EditAuditValue.Line(item), actor, utcNow);
@@ -154,6 +161,11 @@ public static class EditAuditValue
     /// <summary>A number, or null when there is none. <c>12.500</c> and <c>12.5</c> are written the same.</summary>
     public static string? Of(decimal? value) =>
         value is { } number ? Canonical(number).ToString(CultureInfo.InvariantCulture) : null;
+
+    /// <summary>
+    /// The classification by name, never by number, so the history stays readable if the enum ever moves.
+    /// </summary>
+    public static string Of(OrderLineType value) => value.ToString();
 
     /// <summary>The supplier as it was named at the time, or null for none.</summary>
     public static string? Of(Supplier? supplier) =>

@@ -33,6 +33,14 @@ internal static class MigrationsAsFound
             .AddInterceptors(new AuditingSaveChangesInterceptor(TimeProvider.System))
             .ReplaceService<IMigrationsAssembly, MigrationsUpToTask13a>()
             .Options);
+
+    /// <summary>The code as Task 16a's import-pricing tool found it.</summary>
+    public static BaxOrdersDbContext Task16a(string connectionString) =>
+        new(new DbContextOptionsBuilder<BaxOrdersDbContext>()
+            .UseNpgsql(connectionString)
+            .AddInterceptors(new AuditingSaveChangesInterceptor(TimeProvider.System))
+            .ReplaceService<IMigrationsAssembly, MigrationsUpToTask16a>()
+            .Options);
 }
 
 #pragma warning disable EF1001 // EF Core's own migrations assembly, with nothing changed but how far its list reaches.
@@ -51,6 +59,24 @@ internal sealed class MigrationsUpToTask13a(
         _migrations ??= new SortedList<string, TypeInfo>(
             base.Migrations
                 .Where(migration => string.CompareOrdinal(migration.Key, ProductMatchMigration.MigrationPlan.Target) <= 0)
+                .ToDictionary(migration => migration.Key, migration => migration.Value),
+            StringComparer.Ordinal);
+}
+
+/// <summary>Every migration of the code up to <c>ImportPricingMigration.MigrationPlan.Target</c>, in order.</summary>
+internal sealed class MigrationsUpToTask16a(
+    ICurrentDbContext currentContext,
+    IDbContextOptions options,
+    IMigrationsIdGenerator idGenerator,
+    IDiagnosticsLogger<DbLoggerCategory.Migrations> logger)
+    : MigrationsAssembly(currentContext, options, idGenerator, logger)
+{
+    private IReadOnlyDictionary<string, TypeInfo>? _migrations;
+
+    public override IReadOnlyDictionary<string, TypeInfo> Migrations =>
+        _migrations ??= new SortedList<string, TypeInfo>(
+            base.Migrations
+                .Where(migration => string.CompareOrdinal(migration.Key, ImportPricingMigration.MigrationPlan.Target) <= 0)
                 .ToDictionary(migration => migration.Key, migration => migration.Value),
             StringComparer.Ordinal);
 }

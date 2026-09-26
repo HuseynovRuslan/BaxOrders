@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Orders;
+﻿using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Domain.Imports;
 
@@ -64,6 +64,8 @@ public sealed class ImportRow
         OriginalLocationName = Guard.SourceText(original.LocationName, SourceTextMaxLength, nameof(OriginalLocationName));
         OriginalRequestDate = Guard.SourceText(original.RequestDate, SourceValueMaxLength, nameof(OriginalRequestDate));
         OriginalResponsiblePersonName = Guard.SourceText(original.ResponsiblePersonName, SourceTextMaxLength, nameof(OriginalResponsiblePersonName));
+        OriginalOrderLineType = Guard.SourceText(original.OrderLineType, SourceValueMaxLength, nameof(OriginalOrderLineType));
+        SourceHadOrderLineTypeColumn = original.HasOrderLineTypeColumn;
 
         RefreshSourceKeys();
 
@@ -112,6 +114,27 @@ public sealed class ImportRow
     public string? OriginalRequestDate { get; private set; }
 
     public string? OriginalResponsiblePersonName { get; private set; }
+
+    /// <summary>
+    /// The "Növ" cell exactly as written, whether or not this system recognises it.
+    /// </summary>
+    /// <remarks>
+    /// Kept even when unrecognised, because an unrecognised word is the evidence a person needs in order to
+    /// classify the line — and because a workbook with no such column at all reads as null, which is a
+    /// different fact from a cell somebody left blank.
+    /// </remarks>
+    public string? OriginalOrderLineType { get; private set; }
+
+    /// <summary>
+    /// Whether the sheet this row was read from had a "Növ" column at all.
+    /// </summary>
+    /// <remarks>
+    /// False is the fact that blocks an import: a workbook with no such column cannot say which of its lines
+    /// are the month's plan and which are not, and importing it as though every line were deliberately left
+    /// unclassified would put a guess in the figures. Null belongs to rows staged before this was recorded and
+    /// is read as "do not block", because a batch already in review is not made invalid retroactively.
+    /// </remarks>
+    public bool? SourceHadOrderLineTypeColumn { get; private set; }
 
     public string? NormalizedProductName { get; private set; }
 

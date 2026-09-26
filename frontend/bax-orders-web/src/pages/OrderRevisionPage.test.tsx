@@ -88,6 +88,7 @@ function item(overrides: Partial<OrderRequestItem> = {}): OrderRequestItem {
     categoryPath: [],
     source: { importBatchId: 7, importRowId: 70, sheetName: 'Əsas', rowNumber: 4 },
     sourceOrderRequestItemId: 401,
+    orderLineType: 'Monthly',
     ...overrides,
   }
 }

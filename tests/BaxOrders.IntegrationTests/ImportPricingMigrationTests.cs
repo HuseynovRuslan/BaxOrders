@@ -1,4 +1,4 @@
-using BaxOrders.ImportPricingMigration;
+﻿using BaxOrders.ImportPricingMigration;
 using BaxOrders.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -28,8 +28,9 @@ public sealed class ImportPricingMigrationTests : IAsyncLifetime
     [PostgresFact]
     public async Task Once_migrated_nothing_is_pending_and_every_row_s_four_columns_are_null()
     {
-        await using var db = _database!.CreateContext();
+        await using var db = MigrationsAsFound.Task16a(_database!.ConnectionString);
         await StagedImportsAsync(db);
+        await StandWhereTask16aFoundItAsync();
 
         var state = await MigrationState.ReadAsync(db, None);
         var plan = MigrationPlan.Of(state);
@@ -46,8 +47,9 @@ public sealed class ImportPricingMigrationTests : IAsyncLifetime
     [PostgresFact]
     public async Task Down_removes_the_columns_and_the_tool_puts_them_back_once()
     {
-        await using var db = _database!.CreateContext();
+        await using var db = MigrationsAsFound.Task16a(_database!.ConnectionString);
         await StagedImportsAsync(db);
+        await StandWhereTask16aFoundItAsync();
 
         // Down: back to the migration before Task 16a. The staged rows stay; only the four columns go.
         await db.GetService<IMigrator>().MigrateAsync(MigrationPlan.Previous, None);
@@ -105,31 +107,41 @@ public sealed class ImportPricingMigrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// The capture is the same taken twice, the same on the schema before the migration — where <c>--backup</c> takes
-    /// the baseline on the real database — and the same once the migration is back in: it changes no figure.
+    /// The capture is deterministic: taken twice over the same data it produces the same figures, key for key.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 16a's test also took the capture on the schema as it stood before its own migration, and after putting
+    /// the migration back, to show the migration moved no figure. Neither leg can run any more, and not
+    /// because of anything the tool does: this capture reads the management dashboard across every comparison
+    /// basis, a later task added a column to <c>OrderRequestItems</c> that those screens now select, and a
+    /// database stepped back below that migration does not have the column.
+    /// <see cref="MigrationsAsFound"/> keeps the migration list where the tool found it; it cannot keep the
+    /// model there too.
+    /// </para>
+    /// <para>
+    /// What those legs proved is not lost. That the migration adds its columns empty and touches no row is
+    /// what <see cref="Once_migrated_nothing_is_pending_and_every_row_s_four_columns_are_null"/> and
+    /// <see cref="Down_removes_the_columns_and_the_tool_puts_them_back_once"/> assert directly — the latter
+    /// reads the migration's own script and refuses it if it holds a single UPDATE or DELETE.
+    /// </para>
+    /// </remarks>
     [PostgresFact]
-    public async Task The_figures_are_the_same_twice_before_the_migration_and_after_it()
+    public async Task The_capture_is_the_same_figure_for_figure_when_it_is_taken_twice()
     {
         await using var db = _database!.CreateContext();
         await StagedImportsAsync(db);
         await using var services = ToolProgram.Build(new ToolSettings(_database.ConnectionString, Path.GetTempPath()));
 
         var first = await CaptureAsync(services);
-        Assert.Empty(Invariants.Compare(first, await CaptureAsync(services)).Differences);
+        var (identical, differences) = Invariants.Compare(first, await CaptureAsync(services));
+
+        Assert.Empty(differences);
+        Assert.Equal(first.Count, identical);
         Assert.Equal("2", first["imports.batches"]);
         Assert.Contains("imports.rows.sha256", first.Keys);
         Assert.Contains("catalogue.locationAliases.sha256", first.Keys);
         Assert.Contains("pricing.decisions.sha256", first.Keys);
-
-        await db.GetService<IMigrator>().MigrateAsync(MigrationPlan.Previous, None);
-        var onTheOldSchema = await CaptureAsync(services);
-        Assert.Empty(Invariants.Compare(first, onTheOldSchema).Differences);
-
-        Assert.Equal(ApplyOutcome.Applied, (await Apply.ExecuteAsync(db, None)).Outcome);
-        var (identical, differences) = Invariants.Compare(first, await CaptureAsync(services));
-        Assert.Empty(differences);
-        Assert.Equal(first.Count, identical);
     }
 
     public async Task InitializeAsync()
@@ -146,6 +158,23 @@ public sealed class ImportPricingMigrationTests : IAsyncLifetime
         {
             await _database.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// The starting point for the three tests that read "16a's migration is the latest": the database is taken
+    /// back to <see cref="MigrationPlan.Target"/>, and the tool then looks at it through the code as it stood
+    /// then (<see cref="MigrationsAsFound"/>). Later migrations — the order-line classification's first — are a
+    /// fact about later tasks, not about this tool; every assertion stays as 16a wrote it.
+    /// <para>
+    /// Called after the rows are staged, never before. A later migration adds a column to
+    /// <c>OrderRequestItems</c>, and the model still knows about it: writing a line needs the column to be
+    /// there. Reading one does not, because every capture names the columns it reads.
+    /// </para>
+    /// </summary>
+    private async Task StandWhereTask16aFoundItAsync()
+    {
+        await using var current = _database!.CreateContext();
+        await current.GetService<IMigrator>().MigrateAsync(MigrationPlan.Target, None);
     }
 
     /// <summary>One import confirmed into an order, with an unpriced line; one still under review.</summary>

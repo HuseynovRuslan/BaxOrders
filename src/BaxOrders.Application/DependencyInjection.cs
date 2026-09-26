@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<OrderRevisionService>();
         services.AddScoped<OrderAnalyticsQueries>();
         services.AddScoped<ManagementDashboardQueries>();
+        services.AddScoped<OutsideMonthlyQueries>();
         services.AddScoped<ApprovalInboxQueries>();
         services.AddScoped<OrderDecisionContextQueries>();
         services.AddScoped<MonthlyReportQueries>();

@@ -1,4 +1,4 @@
-using BaxOrders.Application.Imports.Reading;
+﻿using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Domain.Normalization;
 
 namespace BaxOrders.Application.Imports.Parsing;
@@ -22,6 +22,7 @@ public enum ImportField
     Location,
     RequestDate,
     ResponsiblePerson,
+    OrderLineType,
 }
 
 /// <param name="HeaderRowNumber">1-based worksheet row that holds the header.</param>
@@ -69,6 +70,7 @@ public static class ImportHeaders
         [ImportField.Location] = "Obyekt",
         [ImportField.RequestDate] = "Tarix",
         [ImportField.ResponsiblePerson] = "Cavabdeh şəxs",
+        [ImportField.OrderLineType] = "Növ",
     };
 
     /// <summary>Columns a workbook must have. All other columns may be absent or blank.</summary>

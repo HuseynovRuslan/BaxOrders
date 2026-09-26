@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
@@ -376,7 +376,8 @@ public sealed class VariantTransitionAnalyticsTests : IAsyncLifetime
 
     /// <summary>
     /// Criterion 9: with live decisions of both kinds in the database, both kinds are still one query. The decision
-    /// context runs six, the dashboard six, and seven for "every prior month".
+    /// context runs six, the dashboard seven — one of them the month's classification split (Task 22) — and eight
+    /// for "every prior month".
     /// </summary>
     [PostgresFact]
     public async Task With_both_kinds_of_decision_live_the_query_counts_do_not_change()
@@ -394,7 +395,7 @@ public sealed class VariantTransitionAnalyticsTests : IAsyncLifetime
             var everyPriorMonth = await CountAsync(counted => new ManagementDashboardQueries(counted).GetAsync(
                 ProductMatchFixture.September, new DashboardQuery(AnalyticsComparisonBasis.AllPriorMonths), None));
 
-            Assert.Equal((6, 6, 7), (context, dashboard, everyPriorMonth));
+            Assert.Equal((6, 7, 8), (context, dashboard, everyPriorMonth));
         }
     }
 

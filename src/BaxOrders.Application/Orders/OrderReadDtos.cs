@@ -188,7 +188,12 @@ public sealed record OrderRequestItemDto(
     string? SourceSupplierName,
     IReadOnlyList<string> CategoryPath,
     OrderItemSourceRefDto? Source,
-    long? SourceOrderRequestItemId);
+    long? SourceOrderRequestItemId,
+    /// <summary>
+    /// Whether this line is the month's planned material or was ordered on top of the plan. Line-level
+    /// because one request routinely holds both, and the monthly comparison reads only the monthly ones.
+    /// </summary>
+    OrderLineType OrderLineType);
 
 /// <param name="IsRevision">True when this version was made as the correction of a returned one.</param>
 /// <param name="SourceOrderRequestId">The returned version this one corrects, when it is a correction.</param>

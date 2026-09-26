@@ -1062,6 +1062,10 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("OriginalOrderLineType")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("OriginalOrderUnit")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
@@ -1145,6 +1149,9 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<bool?>("SourceHadOrderLineTypeColumn")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("SpecificationDescriptor")
                         .HasMaxLength(50)
@@ -1644,6 +1651,13 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("OrderLineType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("Unclassified");
+
                     b.Property<long>("OrderRequestId")
                         .HasColumnType("bigint");
 
@@ -1684,6 +1698,8 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceOrderRequestItemId");
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("OrderRequestId", "OrderLineType");
 
                     b.ToTable("OrderRequestItems", null, t =>
                         {

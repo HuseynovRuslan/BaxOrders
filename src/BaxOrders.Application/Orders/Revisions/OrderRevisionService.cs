@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain.Orders;
@@ -112,7 +112,8 @@ public sealed class OrderRevisionService(
 
         if (!command.ChangesAnything)
         {
-            throw new ValidationException("Nothing to change: send at least one of quantity, unitPrice or supplierId.");
+            throw new ValidationException(
+                "Nothing to change: send at least one of quantity, unitPrice, supplierId or orderLineType.");
         }
 
         var request = await EditableAsync(orderRequestId, token, cancellationToken);
@@ -137,6 +138,11 @@ public sealed class OrderRevisionService(
         if (command.SupplierId is not null)
         {
             changed |= request.ChangeItemSupplier(item, supplier, actor, now) is not null;
+        }
+
+        if (command.OrderLineType is { } orderLineType)
+        {
+            changed |= request.ChangeItemOrderLineType(item, orderLineType.Value, actor, now) is not null;
         }
 
         // Asking for the value a line already has changes nothing, so it records nothing and moves nothing.
@@ -167,7 +173,8 @@ public sealed class OrderRevisionService(
                       ?? throw new ValidationException($"Product variant #{command.ProductVariantId} does not exist.");
         var supplier = command.SupplierId is { } supplierId ? await SupplierAsync(supplierId, cancellationToken) : null;
 
-        var item = request.AddRevisionItem(variant, command.Quantity, command.UnitPrice, supplier, actor);
+        var item = request.AddRevisionItem(
+            variant, command.Quantity, command.UnitPrice, supplier, actor, command.OrderLineType);
         Touch(request);
         await SaveAsync(cancellationToken);
 

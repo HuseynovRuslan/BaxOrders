@@ -145,7 +145,12 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         // Every object lands in exactly one group. Decided once and handed to both the summary and the filter,
         // so a chip's count and the rows its filter leaves are the same objects by construction.
         var groups = GroupsOf(rows, lastOrders);
-        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, groups, lastOrders);
+
+        // The whole month, split by what kind of demand each line was. Read separately from the comparison
+        // above, which sees monthly lines only, so the three figures add up to the month rather than to the
+        // part of it that is comparable.
+        var lineTypes = await LineTypeSplitAsync(currentPeriod, requestIds, cancellationToken);
+        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, groups, lastOrders, lineTypes);
 
         var filtered = Sort(Filter(rows, groups, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
@@ -430,10 +435,66 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
     // ---- reading ------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The selected month's money split by classification, over every line the month has.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a separate query rather than a slice of the snapshots: those are monthly-only by design,
+    /// and this has to see the whole month for the three figures to add up to it. Money is rounded to the cent
+    /// once per object and per kind, the same way and at the same granularity as everywhere else on this page,
+    /// so the monthly figure here is the same number the comparison shows rather than one qəpik away from it.
+    /// </remarks>
+    private async Task<DashboardLineTypeSplitDto> LineTypeSplitAsync(
+        DateOnly currentPeriod, long[] requestIds, CancellationToken cancellationToken)
+    {
+        var rows = await db.OrderRequestItems.AsNoTracking()
+            .Where(item => requestIds.Contains(item.OrderRequestId)
+                && item.OrderRequest.RequestPeriod == currentPeriod)
+            .GroupBy(item => new { item.OrderRequest.LocationId, item.OrderLineType })
+            .Select(group => new
+            {
+                group.Key.LocationId,
+                group.Key.OrderLineType,
+                ItemCount = group.Count(),
+                KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
+                MissingPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
+                PriceNotRequiredItemCount = group.Count(item => item.UnitPrice == null
+                    && item.PricingMode == PricingMode.InternalFreeSupply),
+                KnownAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
+            })
+            .ToListAsync(cancellationToken);
+
+        DashboardAmountDto Of(OrderLineType type)
+        {
+            var side = rows.Where(row => row.OrderLineType == type).ToList();
+            var known = side.Sum(row => row.KnownPriceItemCount);
+            var missing = side.Sum(row => row.MissingPriceItemCount);
+            return new DashboardAmountDto(
+                known == 0 ? null : side.Sum(row => PortfolioCohort.Money(row.KnownAmount)),
+                side.Sum(row => row.ItemCount),
+                known,
+                missing,
+                side.Sum(row => row.PriceNotRequiredItemCount),
+                missing == 0);
+        }
+
+        var unclassified = Of(OrderLineType.Unclassified);
+        return new DashboardLineTypeSplitDto(
+            Of(OrderLineType.Monthly), Of(OrderLineType.OutsideMonthly), unclassified, unclassified.ItemCount);
+    }
+
+    /// <remarks>
+    /// Monthly lines alone - see <see cref="MonthlyComparisonPopulation"/>. Everything built from these
+    /// snapshots is comparative, and a one-off purchase compared against a month that did not have one reads
+    /// as a change in demand when it is nothing of the kind. The rest of the month is accounted for by
+    /// <see cref="LineTypeSplitAsync"/>.
+    /// </remarks>
     private async Task<Dictionary<long, Dictionary<long, VariantPeriodSnapshot>>> SnapshotsAsync(
         long[] requestIds, CancellationToken cancellationToken)
     {
         var rows = await db.OrderRequestItems.AsNoTracking()
+            .OnlyMonthly()
             .Where(item => requestIds.Contains(item.OrderRequestId))
             .GroupBy(item => new { item.OrderRequestId, item.ProductVariantId })
             .Select(group => new
@@ -655,7 +716,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         IReadOnlyList<DateOnly> baselinePeriods,
         IReadOnlyList<LocationDashboardRowDto> rows,
         IReadOnlyDictionary<int, PortfolioGroup> groups,
-        IReadOnlyDictionary<int, LastOrderRef> lastOrders)
+        IReadOnlyDictionary<int, LastOrderRef> lastOrders,
+        DashboardLineTypeSplitDto lineTypes)
     {
         var rowMembers = rows.Select(row =>
         {
@@ -735,7 +797,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             rows.Sum(row => row.UnchangedVariantCount),
             rows.Sum(row => row.NoLongerOrderedVariantCount),
             rows.Sum(row => row.InsufficientHistoryVariantCount),
-            rows.Sum(row => row.AmountOrientedServiceCount));
+            rows.Sum(row => row.AmountOrientedServiceCount),
+            lineTypes);
     }
 
     private sealed record LocationRef(int Id, string Code, string Name);

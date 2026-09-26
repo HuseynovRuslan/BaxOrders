@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Common;
 using Microsoft.AspNetCore.Mvc;
@@ -13,8 +13,36 @@ namespace BaxOrders.Api.Controllers;
 [ApiController]
 [Route(ApiRoutes.V1 + "/dashboard")]
 [Produces("application/json")]
-public sealed class DashboardController(ManagementDashboardQueries queries) : ControllerBase
+public sealed class DashboardController(
+    ManagementDashboardQueries queries, OutsideMonthlyQueries outsideMonthly) : ControllerBase
 {
+    /// <summary>
+    /// What was ordered on top of the monthly plan in one month: which objects, which products, how much.
+    /// </summary>
+    /// <remarks>
+    /// Exactly the lines the monthly comparison leaves out, listed as facts and nothing more. A month with
+    /// none of them answers with an empty list, which is an answer.
+    /// </remarks>
+    /// <param name="period">The month being looked at, as <c>yyyy-MM</c>.</param>
+    /// <response code="400">The month is not a value this API accepts.</response>
+    [HttpGet("outside-monthly")]
+    [ProducesResponseType<OutsideMonthlyDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public Task<OutsideMonthlyDto> GetOutsideMonthly(
+        [FromQuery] string? period, CancellationToken cancellationToken)
+    {
+        if (period is null)
+        {
+            throw new ValidationException("'period' is required and must be a month in the form yyyy-MM.");
+        }
+
+        var selected = AnalyticsPeriod.TryParse(period, out var parsed)
+            ? parsed
+            : throw new ValidationException($"'period' must be a month in the form yyyy-MM (got '{period}').");
+
+        return outsideMonthly.GetAsync(selected, cancellationToken);
+    }
+
     /// <summary>The months the company has permanent orders for, newest first.</summary>
     [HttpGet("periods")]
     [ProducesResponseType<DashboardPeriodsDto>(StatusCodes.Status200OK)]

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using BaxOrders.Domain.Orders;
 
@@ -100,10 +100,16 @@ public sealed record EditOrderItemCommand(
     string? RowVersion,
     FieldChange<decimal>? Quantity = null,
     FieldChange<decimal?>? UnitPrice = null,
-    FieldChange<int?>? SupplierId = null)
+    FieldChange<int?>? SupplierId = null,
+    /// <summary>
+    /// Whether the line is the month's planned material or was ordered on top of it. Moving it moves money
+    /// between the monthly comparison and the ad-hoc summary, so it is an audited change like the others.
+    /// </summary>
+    FieldChange<OrderLineType>? OrderLineType = null)
 {
     [JsonIgnore]
-    public bool ChangesAnything => Quantity is not null || UnitPrice is not null || SupplierId is not null;
+    public bool ChangesAnything =>
+        Quantity is not null || UnitPrice is not null || SupplierId is not null || OrderLineType is not null;
 }
 
 /// <summary>A new line for a correction draft: a catalog variant and a quantity, with a price and a supplier if known.</summary>
@@ -114,7 +120,12 @@ public sealed record AddOrderItemCommand(
     long ProductVariantId,
     decimal Quantity,
     decimal? UnitPrice = null,
-    int? SupplierId = null);
+    int? SupplierId = null,
+    /// <summary>
+    /// What kind of demand the new line is. Left out it is the month's planned material, which is what a
+    /// person adding a line to a monthly order almost always means and what the screen offers already chosen.
+    /// </summary>
+    OrderLineType OrderLineType = OrderLineType.Monthly);
 
 /// <summary>Reads <see cref="FieldChange{T}"/> strictly: <c>{"value": …}</c> and nothing else.</summary>
 public sealed class FieldChangeJsonConverterFactory : JsonConverterFactory

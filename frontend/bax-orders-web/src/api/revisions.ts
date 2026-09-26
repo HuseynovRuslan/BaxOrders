@@ -1,5 +1,6 @@
 import { deleteJson, getJson, patchJson, postJson } from './client'
 import type { OrderRequestStatus } from './orders'
+import type { OrderLineType } from '../orderLines/lineType'
 
 /** What was done to the content of a correction version. Mirrors the backend enum. */
 export type OrderEditAction =
@@ -113,6 +114,8 @@ export interface EditOrderItemCommand {
   quantity?: FieldChange<number>
   unitPrice?: FieldChange<number | null>
   supplierId?: FieldChange<number | null>
+  /** Whether the line is the month's planned material or was ordered on top of it. */
+  orderLineType?: FieldChange<OrderLineType>
 }
 
 export interface AddOrderItemCommand {
@@ -121,6 +124,8 @@ export interface AddOrderItemCommand {
   quantity: number
   unitPrice?: number | null
   supplierId?: number | null
+  /** Left out, the server takes the month's planned material — what a line added to a monthly order is. */
+  orderLineType?: OrderLineType
 }
 
 export function fetchRevision(orderRequestId: number, signal?: AbortSignal): Promise<OrderRevision> {

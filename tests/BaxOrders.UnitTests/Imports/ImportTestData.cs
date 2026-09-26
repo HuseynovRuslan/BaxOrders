@@ -1,8 +1,9 @@
-using BaxOrders.Application.Imports.Evaluation;
+﻿using BaxOrders.Application.Imports.Evaluation;
 using BaxOrders.Application.Imports.Matching;
 using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Domain.Catalog;
+using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Normalization;
 
 namespace BaxOrders.UnitTests.Imports;
@@ -43,6 +44,8 @@ internal static class ImportTestData
         // Like the real order workbook: "Tarix" holds the first day of the request period.
         [ImportField.RequestDate] = new DateTime(2026, 3, 1),
         [ImportField.ResponsiblePerson] = "Eldar",
+        // "Növ": the month's planned material, which is what almost every row of a real workbook is.
+        [ImportField.OrderLineType] = "Aylıq sifariş",
     };
 
     /// <summary>A fully valid row with the given fields replaced.</summary>
@@ -58,6 +61,41 @@ internal static class ImportTestData
 
         var cells = Enum.GetValues<ImportField>().Select(field => values[field]).ToArray();
         return new SourceRow("Əsas", new ExcelRow(rowNumber, cells), Layout);
+    }
+
+    /// <summary>
+    /// A row from a workbook that predates the "Növ" column: the layout does not hold the field at all, which
+    /// is a different fact from a cell somebody left blank.
+    /// </summary>
+    public static SourceRow RowWithoutLineTypeColumn()
+    {
+        var fields = Enum.GetValues<ImportField>().Where(field => field != ImportField.OrderLineType).ToArray();
+        var layout = new HeaderLayout(1, fields.Select((field, column) => (field, column))
+            .ToDictionary(pair => pair.field, pair => pair.column));
+
+        return new SourceRow("Əsas", new ExcelRow(2, [.. fields.Select(field => ValidValues[field])]), layout);
+    }
+
+    /// <summary>
+    /// A row as it stands once it has been staged, which is what a revalidation reads.
+    /// </summary>
+    /// <param name="hasOrderLineTypeColumn">
+    /// What the row remembers about its sheet: true, false, or null for a row staged before anybody recorded
+    /// it. Null is not false, and the difference is the point of the parameter.
+    /// </param>
+    public static ImportRow StagedRow(bool? hasOrderLineTypeColumn, string? cell = null)
+    {
+        var batch = new ImportBatch("sifarisler.xlsx", new string('a', 64), DateTime.UtcNow);
+        return batch.AddRow("Əsas", 2, new ImportRowOriginalValues
+        {
+            ProductName = "Makaron mop",
+            Quantity = "43",
+            OrderUnit = "ədəd",
+            LocationName = "H.Ə.M",
+            RequestDate = "2026-03-01",
+            OrderLineType = cell,
+            HasOrderLineTypeColumn = hasOrderLineTypeColumn,
+        });
     }
 
     public static ImportCatalog TestCatalog()

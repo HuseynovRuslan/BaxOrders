@@ -233,6 +233,7 @@ function item(): OrderRequestItem {
     categoryPath: [],
     source: null,
     sourceOrderRequestItemId: null,
+    orderLineType: 'Monthly',
   }
 }
 
@@ -1380,7 +1381,10 @@ describe('the lines, folded until asked for', () => {
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
       '#', 'Məhsul', 'Spesifikasiya', 'Miqdar', 'Vahid', 'Qiymət', 'Cəmi', 'Təchizatçı', 'Kateqoriya', 'Mənbə',
     ])
-    expect(within(table).getAllByRole('row').slice(1).map((row) => row.querySelectorAll('td')[1].textContent))
+    // The product cell now carries the line's classification under the name (Task 22), so the name is read
+    // from its own element rather than from everything the cell holds.
+    expect(within(table).getAllByRole('row').slice(1)
+      .map((row) => row.querySelectorAll('td')[1].querySelector('p')!.textContent))
       .toEqual(['Bel', 'Vedrə', 'Süpürgə'])
     expect(within(table).getAllByRole('button', { name: 'Mənbəyə bax' })).toHaveLength(3)
     const cards = section.getByRole('list', { name: 'Sətirlər' })

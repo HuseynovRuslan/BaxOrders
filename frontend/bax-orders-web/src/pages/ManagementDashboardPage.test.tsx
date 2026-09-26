@@ -2,10 +2,29 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
+import type { DashboardLineTypeSplit, DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
 import { partition, partitionMember } from '../test/dashboardFixtures'
 import { readableText } from '../test/oldTerms'
 import { ManagementDashboardPage } from './ManagementDashboardPage'
+
+/**
+ * A month with nothing in it but planned material: the monthly figure is the whole month, which is what
+ * every fixture here describes. The other two sides hold no lines at all, so their amount is null rather
+ * than a zero standing in for one.
+ */
+function monthlyOnly(current: DashboardAmount): DashboardLineTypeSplit {
+  const none: DashboardAmount = {
+    knownAmount: null,
+    itemCount: 0,
+    knownPriceItemCount: 0,
+    missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
+    isComplete: true,
+  }
+
+  return { monthly: current, outsideMonthly: none, unclassified: none, unclassifiedItemCount: 0 }
+}
+
 
 /**
  * Choosing what a month is compared against.
@@ -82,6 +101,16 @@ function row(): LocationDashboardRow {
   }
 }
 
+/**
+ * The month's total, as the headline.
+ *
+ * The same figure also appears in the split under it — in a fixture whose month is all planned material the
+ * monthly figure is the whole month — so the query says which of the two it wants.
+ */
+function headlineAmount(): HTMLElement {
+  return screen.getAllByText('71.210,29 ₼').find((node) => node.tagName === 'P')!
+}
+
 function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashboard {
   return {
     summary: {
@@ -115,6 +144,7 @@ function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashbo
       noLongerOrderedVariantCount: 0,
       insufficientHistoryVariantCount: 0,
       amountOrientedServiceCount: 0,
+      lineTypes: monthlyOnly(amount()),
     },
     filteredLocationCount: 1,
     attention: [{ reason: 'LargestIncrease', location: row(), rank: 1, alsoFirstIn: [] }],
@@ -440,7 +470,7 @@ describe('the keyboard through the cards and the table', () => {
     expect(footer.getByText('60.583,47 ₼')).toBeInTheDocument()
     expect(footer.getByText('+10.626,82 ₼')).toBeInTheDocument()
     expect(footer.getByText('+17,54%')).toBeInTheDocument()
-    expect(screen.getByText('71.210,29 ₼')).toBeInTheDocument()
+    expect(headlineAmount()).toBeInTheDocument()
   })
 })
 
@@ -799,7 +829,7 @@ describe('the first screen', () => {
   it('reads: the month, the cards, who was left out, then the chips over the table', async () => {
     await renderPage()
 
-    const headline = screen.getByText('71.210,29 ₼')
+    const headline = headlineAmount()
     const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
     const exceptions = screen.getByText('Müqayisədən kənarda qalan obyektlər')
     const chips = screen.getByText('Məlumatın əhatəsi')
@@ -865,13 +895,13 @@ describe('while the next answer loads', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Qiymət yoxdur · 10 obyekt' }))
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ missingPrice: true }))
-    expect(screen.getByText('71.210,29 ₼')).toBeInTheDocument()
+    expect(headlineAmount()).toBeInTheDocument()
     expect(document.querySelector('table')).toHaveTextContent('Fəvvarələr meydanı')
-    expect(screen.getByText('71.210,29 ₼').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
+    expect(headlineAmount().closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
     expect(screen.queryByText('Panel yüklənir')).toBeNull()
 
     answer(dashboard())
-    await waitFor(() => expect(screen.getByText('71.210,29 ₼').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'false'))
+    await waitFor(() => expect(headlineAmount().closest('[aria-busy]')).toHaveAttribute('aria-busy', 'false'))
   })
 })
 

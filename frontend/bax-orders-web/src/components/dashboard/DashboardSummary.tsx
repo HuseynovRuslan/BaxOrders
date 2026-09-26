@@ -18,6 +18,11 @@ import {
 } from '../analytics/format'
 import { warningToneClass } from '../../pricing/labels'
 import {
+  monthlyOrdersLabel,
+  outsideMonthlyOrdersLabel,
+  unclassifiedLinesNote,
+} from '../../orderLines/lineType'
+import {
   coverageHeading,
   coverageTotalNote,
   excludedFromComparisonLine,
@@ -52,10 +57,81 @@ import { baselineLabel, deltaLabel, monthAmountHeading, ordersThisMonthLabel, th
  * It is one of three parts the page places separately (the objects left out, and the chips, are the others),
  * so the attention cards can sit directly under it on the first screen.
  */
-export function DashboardHeadline({ summary, onShowMissingPrices }: {
+/**
+ * The month's whole money: the three populations added up.
+ *
+ * Taken from the split rather than from `current`, which is the monthly population alone now that the
+ * comparison reads only monthly lines. Null only when not one line of the month has a price at all — a month
+ * with some priced lines is a known figure, however partial, and the note beside it says so.
+ */
+function wholeMonth(summary: ManagementDashboardSummary): number | null {
+  const parts = [
+    summary.lineTypes.monthly.knownAmount,
+    summary.lineTypes.outsideMonthly.knownAmount,
+    summary.lineTypes.unclassified.knownAmount,
+  ].filter((amount): amount is number => amount !== null)
+
+  return parts.length === 0 ? null : parts.reduce((total, amount) => total + amount, 0)
+}
+
+/**
+ * What the month was made of: the planned material, and what was asked for on top of it.
+ *
+ * Deliberately two quiet lines under the headline rather than cards of their own. The manager's first
+ * question is what the month cost; this is the second, and it earns a line, not a panel. The unclassified
+ * note appears only when there is something to say, and it stays neutral — the months before this column
+ * existed are full of unclassified lines, and reading that history is not a fault.
+ */
+function LineTypeSplit({
+  summary,
+  onShowOutsideMonthly,
+}: {
+  summary: ManagementDashboardSummary
+  onShowOutsideMonthly?: () => void
+}) {
+  const { monthly, outsideMonthly, unclassifiedItemCount } = summary.lineTypes
+
+  return (
+    <div className="mt-2 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-slate-100 pt-2">
+      <span className="text-xs text-slate-500">
+        {monthlyOrdersLabel}{' '}
+        <span className="text-sm font-medium text-slate-700">{formatMoney(monthly.knownAmount)}</span>
+      </span>
+
+      {/*
+        The one figure here worth opening: these are exactly the lines the comparison beside it leaves out, so
+        a reader who notices the number wants to know what it was. It opens where it is read rather than on a
+        page of its own, and it stays a link on the figure, not a button competing with the headline.
+      */}
+      {outsideMonthly.itemCount > 0 && onShowOutsideMonthly ? (
+        <button
+          type="button"
+          onClick={onShowOutsideMonthly}
+          className="text-left text-xs text-slate-500 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-600"
+        >
+          {outsideMonthlyOrdersLabel}{' '}
+          <span className="text-sm font-medium text-slate-700">{formatMoney(outsideMonthly.knownAmount)}</span>
+        </button>
+      ) : (
+        <span className="text-xs text-slate-500">
+          {outsideMonthlyOrdersLabel}{' '}
+          <span className="text-sm font-medium text-slate-700">{formatMoney(outsideMonthly.knownAmount)}</span>
+        </span>
+      )}
+
+      {unclassifiedItemCount > 0 && (
+        <span className="text-xs text-slate-500">{unclassifiedLinesNote(unclassifiedItemCount)}</span>
+      )}
+    </div>
+  )
+}
+
+export function DashboardHeadline({ summary, onShowMissingPrices, onShowOutsideMonthly }: {
   summary: ManagementDashboardSummary
   /** Opens the table on the objects with a missing price — the same filter as the "Qiymət yoxdur" chip. */
   onShowMissingPrices: () => void
+  /** Opens the month's ad-hoc lines. Left out, the figure is still shown; it just does not open. */
+  onShowOutsideMonthly?: () => void
 }) {
   const partition = summary.partition
 
@@ -84,7 +160,7 @@ export function DashboardHeadline({ summary, onShowMissingPrices }: {
           )}
         </div>
         <p className="mt-1 whitespace-nowrap text-3xl font-semibold text-slate-900">
-          {formatMoney(summary.current.knownAmount)}
+          {formatMoney(wholeMonth(summary))}
         </p>
 
         {/*
@@ -94,6 +170,12 @@ export function DashboardHeadline({ summary, onShowMissingPrices }: {
         {summary.current.missingPriceItemCount > 0 && (
           <p className={`mt-0.5 text-xs ${warningToneClass}`}>{knownAmountHint}</p>
         )}
+
+        {/*
+          2. What the month was made of. It comes after the qualifier above, not between it and the number it
+          qualifies: "this total leaves out the unpriced lines" belongs against the total it is about.
+        */}
+        <LineTypeSplit summary={summary} onShowOutsideMonthly={onShowOutsideMonthly} />
 
         <Cohort summary={summary} />
       </section>

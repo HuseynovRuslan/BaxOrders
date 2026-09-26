@@ -116,7 +116,8 @@ public sealed class ImportConfirmationService(
                 var classification = row.EffectiveClassification;
                 var item = request.AddItem(
                     variant, row.Quantity, row.UnitPrice, supplier, row.OriginalProductName,
-                    pricingMode: classification is null ? row.PricingMode : PricingMode.Unresolved);
+                    pricingMode: classification is null ? row.PricingMode : PricingMode.Unresolved,
+                    orderLineType: row.OrderLineType);
 
                 if (classification is { } mode)
                 {

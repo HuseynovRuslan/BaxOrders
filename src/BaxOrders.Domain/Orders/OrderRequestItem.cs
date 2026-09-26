@@ -24,6 +24,12 @@ public sealed class OrderRequestItem
     /// The mode the line starts with, used as given. An import always passes it (brief 16: nothing is classified by
     /// source). Null is only for a line built by hand, which keeps the supplier's seed below.
     /// </param>
+    /// <param name="orderLineType">
+    /// What kind of demand the line is. An import always passes it, and passes
+    /// <see cref="OrderLineType.Unclassified"/> when the workbook says nothing — a file is never guessed at.
+    /// A line built by hand is the ordinary case, the month's planned material, and the person adding it is
+    /// shown that as the choice already made and may change it before the request is sent.
+    /// </param>
     internal OrderRequestItem(
         OrderRequest orderRequest,
         ProductVariant productVariant,
@@ -32,7 +38,8 @@ public sealed class OrderRequestItem
         decimal? unitPrice,
         string? originalProductName,
         string? notes,
-        PricingMode? pricingMode = null)
+        PricingMode? pricingMode = null,
+        OrderLineType orderLineType = OrderLineType.Monthly)
     {
         ArgumentNullException.ThrowIfNull(productVariant);
 
@@ -64,6 +71,7 @@ public sealed class OrderRequestItem
                 : PricingMode.PriceRequired;
         OriginalProductName = Guard.OptionalText(originalProductName, OriginalProductNameMaxLength, nameof(OriginalProductName));
         Notes = Guard.OptionalText(notes, NotesMaxLength, nameof(Notes));
+        OrderLineType = ValidLineType(orderLineType);
     }
 
     public long Id { get; private set; }
@@ -94,6 +102,15 @@ public sealed class OrderRequestItem
     /// missing one.
     /// </remarks>
     public PricingMode PricingMode { get; private set; } = PricingMode.PriceRequired;
+
+    /// <summary>
+    /// Whether this line is the month's planned material or was asked for on top of the plan.
+    /// </summary>
+    /// <remarks>
+    /// Like <see cref="PricingMode"/>, it belongs to the line rather than the request, because one request
+    /// routinely holds both kinds. It is never inferred — see <see cref="OrderLineType"/>.
+    /// </remarks>
+    public OrderLineType OrderLineType { get; private set; } = OrderLineType.Unclassified;
 
     /// <summary>
     /// What this line's price situation is, read through the one rule the whole system shares.
@@ -154,6 +171,9 @@ public sealed class OrderRequestItem
         UnitPrice = UnitPrice,
         // A correction inherits how its source was supplied; changing that is its own decision.
         PricingMode = PricingMode,
+        // And whether it was planned for the month. A correction that lost this would quietly drop the line
+        // out of the monthly figures it has always been counted in.
+        OrderLineType = OrderLineType,
         OriginalProductName = OriginalProductName,
         Notes = Notes,
         SourceOrderRequestItem = this,
@@ -161,6 +181,17 @@ public sealed class OrderRequestItem
     };
 
     internal void ChangeQuantity(decimal quantity) => Quantity = ValidQuantity(quantity);
+
+    /// <remarks>
+    /// Moving a line back to <see cref="OrderLineType.Unclassified"/> is allowed: a person who no longer
+    /// stands behind a classification should be able to say so rather than pick the less wrong of two.
+    /// </remarks>
+    internal void ChangeOrderLineType(OrderLineType orderLineType) => OrderLineType = ValidLineType(orderLineType);
+
+    private static OrderLineType ValidLineType(OrderLineType orderLineType) =>
+        Enum.IsDefined(orderLineType)
+            ? orderLineType
+            : throw new DomainException($"'{orderLineType}' is not an order line type this system knows.");
 
     /// <remarks>Null means the price is not known. It is never turned into zero, which would be a price.</remarks>
     internal void ChangeUnitPrice(decimal? unitPrice) => UnitPrice = ValidUnitPrice(unitPrice);

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Imports.Evaluation;
@@ -257,7 +257,16 @@ public sealed class ExcelImportService(
                 .Where(row => !row.IsBlank)
                 .ToList();
 
-            sheets.Add(new SheetDetection(sheet.Name, layout.HeaderRowNumber, dataRows.Count, [], null));
+            // The sheet has every column an import needs, so it is read — but a missing "Növ" column is said
+            // here as well as on each row, because this is what the person who uploaded the file sees first.
+            sheets.Add(new SheetDetection(
+                sheet.Name,
+                layout.HeaderRowNumber,
+                dataRows.Count,
+                [],
+                layout.ColumnOf(ImportField.OrderLineType) is null
+                    ? ImportRowEvaluator.MissingOrderLineTypeColumn
+                    : null));
             rows.AddRange(dataRows);
         }
 

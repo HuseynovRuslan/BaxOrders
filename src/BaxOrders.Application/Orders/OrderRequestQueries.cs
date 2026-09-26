@@ -132,6 +132,7 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
                 // Carried on the line so the screen can tell "nobody has priced this yet" from "this came out
                 // of our own store and never had a purchase price" — and from "nobody has said which".
                 PricingMode = row.Item.PricingMode,
+                row.Item.OrderLineType,
                 // The workbook's own supplier cell. For an internally supplied line it is often the only
                 // record of which store it came out of — "Azpetrol baza" never matched a catalogue supplier —
                 // so the screen can say "Daxili: Azpetrol baza" instead of "Məlum deyil", which reads like a
@@ -191,7 +192,8 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
             row.Source is null
                 ? null
                 : new OrderItemSourceRefDto(row.Source.ImportBatchId, row.Source.ImportRowId, row.Source.SheetName, row.Source.RowNumber),
-            row.SourceOrderRequestItemId))
+            row.SourceOrderRequestItemId,
+            row.OrderLineType))
             .ToList();
 
         var isRevision = header.RevisedFrom is not null;

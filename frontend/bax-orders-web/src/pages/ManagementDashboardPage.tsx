@@ -30,6 +30,7 @@ import { basisParams, basisRequest, type BasisSelection } from '../analytics/bas
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
 import { useScrollMemory } from '../navigation/useScrollMemory'
+import { OutsideMonthlyPanel } from '../components/dashboard/OutsideMonthlyPanel'
 
 /**
  * Every object of the month on one page: the API's largest page (`ManagementDashboardQueries.MaxPageSize`). The
@@ -99,6 +100,8 @@ export function ManagementDashboardPage() {
   const page = Math.max(1, Number(params.get('page') ?? '1') || 1)
 
   const [searchInput, setSearchInput] = useState(search)
+  // The month's ad-hoc lines, opened from the figure that names them on the headline.
+  const [outsideMonthlyOpen, setOutsideMonthlyOpen] = useState(false)
   useEffect(() => setSearchInput(search), [search])
 
   useEffect(() => {
@@ -289,7 +292,17 @@ export function ManagementDashboardPage() {
             straight under the month, on the first screen (Task 9), and Back still finds the card it left from.
           */}
           <div className="max-lg:flex max-lg:flex-col">
-            <DashboardHeadline summary={data.summary} onShowMissingPrices={showMissingPrices} />
+            <DashboardHeadline
+              summary={data.summary}
+              onShowMissingPrices={showMissingPrices}
+              onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
+            />
+            {outsideMonthlyOpen && (
+              <OutsideMonthlyPanel
+                period={data.summary.selectedPeriod.slice(0, 7)}
+                onClose={() => setOutsideMonthlyOpen(false)}
+              />
+            )}
 
             {/* Which objects to read, and why — straight under the month, on the first screen. */}
             <div className="max-lg:order-2">

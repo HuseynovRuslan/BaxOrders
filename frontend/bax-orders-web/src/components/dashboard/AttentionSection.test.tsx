@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import type {
+  DashboardLineTypeSplit,
   DashboardAmount,
   DashboardAttention,
   DashboardCause,
@@ -15,6 +16,25 @@ import { expectInert } from '../../test/interaction'
 import { findOldTerms } from '../../test/oldTerms'
 import { interactiveSurfaceClass } from '../interaction'
 import { AttentionSection, cardPrimaryFigureClass, cardSecondaryFigureClass } from './AttentionSection'
+
+/**
+ * A month with nothing in it but planned material: the monthly figure is the whole month, which is what
+ * every fixture here describes. The other two sides hold no lines at all, so their amount is null rather
+ * than a zero standing in for one.
+ */
+function monthlyOnly(current: DashboardAmount): DashboardLineTypeSplit {
+  const none: DashboardAmount = {
+    knownAmount: null,
+    itemCount: 0,
+    knownPriceItemCount: 0,
+    missingPriceItemCount: 0,
+    priceNotRequiredItemCount: 0,
+    isComplete: true,
+  }
+
+  return { monthly: current, outsideMonthly: none, unclassified: none, unclassifiedItemCount: 0 }
+}
+
 
 /**
  * The attention card's "Əsas səbəb", with the product behind it (Task 07).
@@ -140,7 +160,7 @@ function fevvareler(): LocationDashboardRow {
 }
 
 function summary(): ManagementDashboardSummary {
-  return {
+  const base: ManagementDashboardSummary = {
     selectedPeriod: '2026-09-01',
     basis: 'PreviousMonth',
     baselinePeriods: ['2026-08-01'],
@@ -166,7 +186,10 @@ function summary(): ManagementDashboardSummary {
     noLongerOrderedVariantCount: 0,
     insufficientHistoryVariantCount: 0,
     amountOrientedServiceCount: 0,
+    lineTypes: monthlyOnly(amount()),
   }
+
+  return { ...base, lineTypes: monthlyOnly(base.current) }
 }
 
 function renderCards(...locations: LocationDashboardRow[]) {

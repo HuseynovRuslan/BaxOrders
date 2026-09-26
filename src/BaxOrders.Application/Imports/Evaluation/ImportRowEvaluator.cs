@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using BaxOrders.Application.Imports.Matching;
 using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Domain.Imports;
@@ -46,6 +46,7 @@ public static class ImportRowEvaluator
         issues.AddRange(matching.Issues);
 
         ReportCellsStoredAsDates(row, issues);
+        ReportLineType(row, issues);
 
         return new RowEvaluation(quantity, unitPrice, lineTotal, requestPeriod, matching.Matches, issues);
     }
@@ -160,6 +161,54 @@ public static class ImportRowEvaluator
             }
         }
     }
+
+    /// <summary>
+    /// What the "Növ" column says about this line, and what it means when it says nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three different silences, and they are not the same thing. A column that is not there at all is a
+    /// workbook that cannot answer the question for any of its lines: that is an <b>error</b>, and an import
+    /// carrying one cannot be ready to import, because bringing it in would write "nobody classified this"
+    /// over three thousand lines as though somebody had decided it.
+    /// </para>
+    /// <para>
+    /// An empty cell in a column that exists, and a word nobody can read, are both one line waiting on one
+    /// person. Those are <b>warnings</b>: the line imports, arrives unclassified — which is true — and is put
+    /// in front of somebody. Either way the classification is never guessed at.
+    /// </para>
+    /// </remarks>
+    private static void ReportLineType(IRowValues row, List<ImportIssueDraft> issues)
+    {
+        if (!row.HasColumn(ImportField.OrderLineType))
+        {
+            issues.Add(Issue(ImportIssueType.UnknownOrderLineType, IssueSeverity.Error, ImportIssueOrigin.Parsing,
+                ImportField.OrderLineType, MissingOrderLineTypeColumn));
+            return;
+        }
+
+        var cell = row.Text(ImportField.OrderLineType);
+        if (string.IsNullOrWhiteSpace(cell))
+        {
+            issues.Add(Issue(ImportIssueType.UnknownOrderLineType, IssueSeverity.Warning, ImportIssueOrigin.Validation,
+                ImportField.OrderLineType,
+                "Sifariş növü boşdur; sətir təsnif edilməmiş qalır. " +
+                $"Gözlənilən dəyərlər: {string.Join(", ", OrderLineTypes.Recognized.Keys)}."));
+            return;
+        }
+
+        if (OrderLineTypes.IsUnrecognized(cell))
+        {
+            issues.Add(Issue(ImportIssueType.UnknownOrderLineType, IssueSeverity.Warning, ImportIssueOrigin.Validation,
+                ImportField.OrderLineType,
+                $"'{cell}' tanınan sifariş növü deyil; sətir təsnif edilməmiş qalır. " +
+                $"Gözlənilən dəyərlər: {string.Join(", ", OrderLineTypes.Recognized.Keys)}."));
+        }
+    }
+
+    /// <summary>What a workbook with no "Növ" column is told, in one sentence, wherever it is told.</summary>
+    public const string MissingOrderLineTypeColumn =
+        "Növ sütunu tapılmadı. Sifariş növü təsnifatı oxuna bilmədi.";
 
     private static ImportIssueDraft Issue(ImportIssueType type, IssueSeverity severity, ImportIssueOrigin origin, ImportField field, string message) =>
         new(type, severity, origin, ImportHeaders.ExpectedHeaders[field], message);

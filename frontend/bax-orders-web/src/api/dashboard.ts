@@ -53,6 +53,21 @@ export interface DashboardAmount {
   isComplete: boolean
 }
 
+/**
+ * The selected month's money split by what kind of demand each line was.
+ *
+ * Three populations that do not overlap and together are the whole month, so the figures reconcile by
+ * addition. `unclassified` is kept apart rather than folded into either: it is not a third kind of demand,
+ * it is the absence of an answer.
+ */
+export interface DashboardLineTypeSplit {
+  monthly: DashboardAmount
+  outsideMonthly: DashboardAmount
+  unclassified: DashboardAmount
+  /** Lines nobody has classified. A neutral note, never an error. */
+  unclassifiedItemCount: number
+}
+
 export interface LocationDashboardRow {
   locationId: number
   locationCode: string
@@ -192,7 +207,11 @@ export interface ManagementDashboardSummary {
   locationsWithCurrentRequest: number
   locationsWithoutCurrentRequest: number
   currentRequestCount: number
-  /** The whole month: every object that ordered. It does not move when the basis changes. */
+  /**
+   * The month's **monthly-order** money over every object that ordered. It does not move when the basis
+   * changes. Outside-monthly and unclassified lines are not in it — they are in `lineTypes`, and the three
+   * together are the whole month.
+   */
   current: DashboardAmount
   /**
    * The same month over the cohort alone — the objects that also have a baseline. This is the figure
@@ -223,6 +242,11 @@ export interface ManagementDashboardSummary {
   noLongerOrderedVariantCount: number
   insufficientHistoryVariantCount: number
   amountOrientedServiceCount: number
+  /**
+   * The whole month, split into monthly, outside-monthly and unclassified. Every comparison figure beside it
+   * is about monthly lines alone; this is where the rest of the month is accounted for.
+   */
+  lineTypes: DashboardLineTypeSplit
 }
 
 export interface ManagementDashboard {
@@ -252,6 +276,50 @@ export interface DashboardRequest {
   descending?: boolean
   page: number
   pageSize: number
+}
+
+/** One line somebody ordered on top of the monthly plan. */
+export interface OutsideMonthlyLine {
+  orderRequestItemId: number
+  orderRequestId: number
+  productName: string
+  specificationValue: string | null
+  specificationUnitCode: string | null
+  specificationDescriptor: string | null
+  quantity: number
+  orderUnitName: string | null
+  unitPrice: number | null
+  /** Quantity × price, or null when nobody has priced the line. Never a zero standing in for unknown. */
+  knownAmount: number | null
+  supplierName: string | null
+}
+
+export interface OutsideMonthlyLocation {
+  locationId: number
+  locationCode: string
+  locationName: string
+  lineCount: number
+  knownAmount: number | null
+  missingPriceLineCount: number
+  lines: OutsideMonthlyLine[]
+}
+
+/**
+ * The month's ad-hoc orders, object by object — exactly the lines the monthly comparison leaves out.
+ *
+ * Facts and nothing more: an ad-hoc purchase has no month of its own to be compared against, and a trend or
+ * a cause invented for one would be the mistake the comparison avoids by not mixing it in.
+ */
+export interface OutsideMonthly {
+  period: string
+  lineCount: number
+  knownAmount: number | null
+  missingPriceLineCount: number
+  locations: OutsideMonthlyLocation[]
+}
+
+export function fetchOutsideMonthly(period: string, signal?: AbortSignal): Promise<OutsideMonthly> {
+  return getJson<OutsideMonthly>(`/api/v1/dashboard/outside-monthly?period=${encodeURIComponent(period)}`, signal)
 }
 
 export function fetchDashboardPeriods(signal?: AbortSignal): Promise<DashboardPeriods> {

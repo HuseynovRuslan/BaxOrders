@@ -1,4 +1,4 @@
-namespace BaxOrders.Domain.Imports;
+﻿namespace BaxOrders.Domain.Imports;
 
 /// <summary>
 /// Cell text of one Excel row exactly as read. Nothing here is trimmed, parsed or interpreted.
@@ -52,4 +52,13 @@ public sealed record ImportRowOriginalValues
 
     /// <summary>"Cavabdeh şəxs"</summary>
     public string? ResponsiblePersonName { get; init; }
+
+    /// <summary>"Növ" — "Aylıq sifariş" or "Aylıqdan kənar", as written. Absent in older workbooks.</summary>
+    public string? OrderLineType { get; init; }
+
+    /// <summary>
+    /// Whether the sheet had a "Növ" column at all, which is not the same fact as an empty cell in one.
+    /// </summary>
+    /// <remarks>Null only where nobody looked: a reader that knows always says true or false.</remarks>
+    public bool? HasOrderLineTypeColumn { get; init; }
 }

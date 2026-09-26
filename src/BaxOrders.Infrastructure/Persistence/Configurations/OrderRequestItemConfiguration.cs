@@ -49,6 +49,15 @@ internal sealed class OrderRequestItemConfiguration : IEntityTypeConfiguration<O
             .HasMaxLength(30)
             .HasDefaultValue(PricingMode.PriceRequired);
 
+        builder.Property(item => item.OrderLineType)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasDefaultValue(OrderLineType.Unclassified);
+
+        // Monthly and outside-monthly figures are read per period, so the index carries the type beside the
+        // request it hangs off rather than standing on its own.
+        builder.HasIndex(item => new { item.OrderRequestId, item.OrderLineType });
+
         builder.HasIndex(item => item.SupplierId);
         builder.HasIndex(item => item.SourceOrderRequestItemId);
     }

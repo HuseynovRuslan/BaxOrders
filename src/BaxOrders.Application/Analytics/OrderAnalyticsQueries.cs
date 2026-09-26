@@ -245,6 +245,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
 
         var requestIds = periods.Select(period => period.OrderRequestId).ToArray();
         var byRequest = await db.OrderRequestItems.AsNoTracking()
+            .OnlyMonthly()
             .Where(item => requestIds.Contains(item.OrderRequestId) && members.Contains(item.ProductVariantId))
             .GroupBy(item => item.OrderRequestId)
             .Select(group => new
@@ -268,6 +269,7 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
         // Who supplied it, month by month: one query, a handful of rows, and nothing written. A line with no
         // supplier recorded names nobody rather than an empty name.
         var supplierRows = await db.OrderRequestItems.AsNoTracking()
+            .OnlyMonthly()
             .Where(item => requestIds.Contains(item.OrderRequestId)
                 && members.Contains(item.ProductVariantId)
                 && item.SupplierId != null)
@@ -388,12 +390,16 @@ public sealed class OrderAnalyticsQueries(IBaxOrdersDbContext db)
             .Select(request => new PeriodRequestDto(request.RequestPeriod, request.Id, request.Version, request.Status))
             .ToListAsync(cancellationToken);
 
-    /// <summary>One row per request and variant: the permanent items added up, never changed.</summary>
+    /// <summary>
+    /// One row per request and variant: the permanent items added up, never changed.
+    /// </summary>
+    /// <remarks>Monthly lines alone - see <see cref="MonthlyComparisonPopulation"/> for why.</remarks>
     private async Task<Dictionary<long, Dictionary<long, VariantPeriodSnapshot>>> SnapshotsAsync(
         IReadOnlyCollection<PeriodRequestDto> requests, CancellationToken cancellationToken)
     {
         var requestIds = requests.Select(request => request.OrderRequestId).ToArray();
         var rows = await db.OrderRequestItems.AsNoTracking()
+            .OnlyMonthly()
             .Where(item => requestIds.Contains(item.OrderRequestId))
             .GroupBy(item => new { item.OrderRequestId, item.ProductVariantId })
             .Select(group => new

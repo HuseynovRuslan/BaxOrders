@@ -331,11 +331,15 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
 
     // ---- reading ------------------------------------------------------------------------------------
 
-    /// <summary>One row per request and variant, from the permanent lines. Reads only.</summary>
+    /// <summary>
+    /// One row per request and variant, from the permanent lines. Reads only.
+    /// </summary>
+    /// <remarks>Monthly lines alone - see <see cref="MonthlyComparisonPopulation"/> for why.</remarks>
     private async Task<Dictionary<long, Dictionary<long, VariantPeriodSnapshot>>> SnapshotsAsync(
         long[] requestIds, CancellationToken cancellationToken)
     {
         var rows = await db.OrderRequestItems.AsNoTracking()
+            .OnlyMonthly()
             .Where(item => requestIds.Contains(item.OrderRequestId))
             .GroupBy(item => new { item.OrderRequestId, item.ProductVariantId })
             .Select(group => new
