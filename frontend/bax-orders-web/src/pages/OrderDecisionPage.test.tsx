@@ -836,7 +836,7 @@ describe('the way back to the monthly report', () => {
     expect(params().get('cause')).toBeNull()
     expect(params().get('back')).toBe('monthly')
 
-    await user.click(within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }))
+    await user.click(within(screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' }))
       .getByRole('button', { name: /^York qatlama salfet/ }))
     await screen.findByRole('dialog', { name: 'Məhsul tarixçəsi' })
     expect(params().get('product')).toBe('21')
@@ -944,9 +944,11 @@ describe('the drivers', () => {
   it('names the product, the prices it moved between and what that was worth', async () => {
     await renderPage()
 
-    expect(screen.getByText('Əsas dəyişikliklər')).toBeInTheDocument()
+    expect(screen.getByText('Məbləği dəyişdirən əsas məhsullar')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /York qatlama salfet/ })).toBeInTheDocument()
-    expect(screen.getByText(/Qiymət 2,80 ₼ → 4,10 ₼/)).toBeInTheDocument()
+    // The price is its own labelled block now: the heading, and what it moved between.
+    expect(screen.getByText('Qiymət')).toBeInTheDocument()
+    expect(screen.getByText('2,80 ₼ → 4,10 ₼')).toBeInTheDocument()
   })
 
   it('opens that product s own history when it is clicked', async () => {
@@ -970,7 +972,7 @@ describe('the drivers', () => {
   it('says what "Hamısı" counts, from the counts the backend sent', async () => {
     await renderPage()
 
-    const list = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
+    const list = screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' })
     expect(within(list).getByText(
       'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 1 məhsulu sayır. '
       + '44 məhsulun məbləği dəyişməyib.',
@@ -1001,7 +1003,7 @@ describe('the drivers', () => {
     }))
     await renderPage()
 
-    const list = within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }))
+    const list = within(screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' }))
     await userEvent.click(list.getByRole('button', { name: /Məbləği dəyişməyən/ }))
     expect(list.getByRole('button', { name: /Sabit mal/ })).toHaveTextContent('Dəyişməyib')
   })
@@ -1533,7 +1535,7 @@ describe('the lines, folded until asked for', () => {
   it('keeps the counting sentence behind the ⓘ beside «Əsas dəyişikliklər», and the state counts in view', async () => {
     const user = userEvent.setup()
     await renderAt('/orders/105')
-    const list = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
+    const list = screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' })
     const hint = within(list).getByRole('button', { name: '«Hamısı» nəyi sayır?' })
     const note = document.getElementById(hint.getAttribute('aria-controls') ?? '')!
 
@@ -2454,7 +2456,7 @@ describe('from a reason to the products behind it', () => {
   }
 
   function listed(): string[] {
-    return within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' })).getAllByRole('listitem')
+    return within(screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' })).getAllByRole('listitem')
       .map((row) => row.querySelector('span.font-medium')?.textContent ?? '')
   }
 
@@ -2486,7 +2488,7 @@ describe('from a reason to the products behind it', () => {
     // To the heading, not the first row, so the chips stay in view. No `matchMedia` here, so no motion.
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
-    expect(scrollIntoView.mock.contexts[0]).toHaveTextContent('Əsas dəyişikliklər')
+    expect(scrollIntoView.mock.contexts[0]).toHaveTextContent('Məbləği dəyişdirən əsas məhsullar')
     expect((scrollIntoView.mock.contexts[0] as HTMLElement).tagName).toBe('H2')
   })
 
@@ -2732,7 +2734,7 @@ describe('the product history in the address', () => {
   }
 
   function drivers() {
-    return within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }))
+    return within(screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' }))
   }
 
   function row(productName: string): HTMLElement {

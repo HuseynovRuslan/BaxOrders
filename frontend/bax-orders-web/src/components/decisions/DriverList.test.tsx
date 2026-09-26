@@ -157,21 +157,18 @@ const risingStore = driver({
   state: 'Increased',
 })
 
-/** What a sighted reader sees: the text without the words said only to a screen reader, spaces collapsed. */
-function visibleText(element: HTMLElement): string {
-  const copy = element.cloneNode(true) as HTMLElement
-  copy.querySelectorAll('.sr-only').forEach((node) => node.remove())
-  return (copy.textContent ?? '').replace(/\s+/g, ' ').trim()
-}
-
 describe('a row', () => {
   it('shows the price it moved between, and what that was worth', () => {
     renderList([driver()])
 
     expect(screen.getByText('York qatlama salfet')).toBeInTheDocument()
-    expect(screen.getByText(/Qiymət 2,80 ₼ → 4,10 ₼/)).toBeInTheDocument()
-    expect(screen.getByText(/\+46,43%/)).toBeInTheDocument()
+    // The price is its own labelled block now: the heading, what it moved between, and how far.
+    expect(screen.getByText('Qiymət')).toBeInTheDocument()
+    expect(screen.getByText('2,80 ₼ → 4,10 ₼')).toBeInTheDocument()
+    expect(screen.getByText('+46,43%')).toBeInTheDocument()
+    // The row's own figure, under its own name, and no smaller than anything explaining it.
     expect(screen.getByText('+39,00 ₼')).toBeInTheDocument()
+    expect(screen.getByText('Ümumi təsir')).toBeInTheDocument()
   })
 
   /**
@@ -216,12 +213,19 @@ describe('a row', () => {
     expect(row).not.toHaveTextContent('32,1273')
   })
 
-  /** The money is an effect on money, not a quantity, and the badge above it says so. */
-  it('calls the money an effect rather than a change in quantity', () => {
-    renderList([bags])
+  /**
+   * The money is an effect on money, not a quantity, and the words carrying it say so.
+   *
+   * "Miqdar +270,00 ₼" read as though the manat figure were a quantity. Each half is now «…-ın təsiri», and the
+   * bare word «Miqdar» is left for the one place it is true: the heading over 50 → 55 paket.
+   */
+  it('names each half of the money as an effect, never as a quantity', () => {
+    renderList([driver({ amountImpact: 167, quantityImpact: 160, priceImpact: 7, category: 'QuantityChange' })])
 
-    expect(screen.getByText('Miqdar təsiri')).toBeInTheDocument()
+    expect(screen.getByText('Miqdarın təsiri')).toBeInTheDocument()
+    expect(screen.getByText('Qiymətin təsiri')).toBeInTheDocument()
     expect(screen.queryByText('Miqdar dəyişməsi')).toBeNull()
+    expect(screen.queryByText('Miqdar təsiri')).toBeNull()
   })
 
   /**
@@ -240,7 +244,7 @@ describe('a row', () => {
     expect(down).toHaveClass('text-emerald-700')
     expect(within(up).getByText(/xərc artıb/)).toHaveClass('sr-only')
     expect(within(down).getByText(/xərc azalıb/)).toHaveClass('sr-only')
-    expect(screen.getByRole('region', { name: 'Əsas dəyişikliklər' }).innerHTML).not.toMatch(/text-rose-700/)
+    expect(screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' }).innerHTML).not.toMatch(/text-rose-700/)
   })
 
   /**
@@ -264,18 +268,27 @@ describe('a row', () => {
     })])
 
     const row = screen.getByRole('button', { name: /Zibil paketi/ })
-    // "Mütləq qorunmalı": the compact line in the same form and order.
-    const compact = within(row).getByText(/50 → 55 paket · Qiymət 32,00 ₼ → 32,13 ₼/)
-    const split = compact.nextElementSibling as HTMLElement
-    expect(visibleText(split)).toBe('Miqdar +160,00 ₼ · Qiymət +7,00 ₼')
-    expect(within(split).getByText('+160,00 ₼')).toHaveClass('text-red-700')
-    expect(within(split).getByText('+7,00 ₼')).toHaveClass('text-red-700')
-    expect(within(split).getAllByText(/xərc artıb/)).toHaveLength(2)
 
-    // One neutral pill naming both, never the larger effect alone.
-    expect(within(row).getByText('Miqdar və qiymət')).toHaveClass('bg-slate-100')
+    // "Mütləq qorunmalı": every figure the compact line carried, to the digit — now each in its own block.
+    expect(within(row).getByText('50 → 55 paket')).toBeInTheDocument()
+    expect(within(row).getByText('+5 paket')).toBeInTheDocument()
+    expect(within(row).getByText('32,00 ₼ → 32,13 ₼')).toBeInTheDocument()
+    expect(within(row).getByText('+0,4%')).toBeInTheDocument()
+
+    // Each half of the money, named as an effect and in its own direction's colour (9.1).
+    expect(within(row).getByText('Miqdarın təsiri')).toBeInTheDocument()
+    expect(within(row).getByText('+160,00 ₼')).toHaveClass('text-red-700')
+    expect(within(row).getByText('Qiymətin təsiri')).toBeInTheDocument()
+    expect(within(row).getByText('+7,00 ₼')).toHaveClass('text-red-700')
+
+    // The reason in words, from the larger contribution — and no analyst pill left to decode.
+    expect(within(row).getByText('Əsas səbəb: daha çox sifariş verilib')).toBeInTheDocument()
+    expect(within(row).queryByText('Miqdar və qiymət')).toBeNull()
     expect(within(row).queryByText('Miqdar təsiri')).toBeNull()
+
+    // The row's own figure still leads it.
     expect(within(row).getByText('+167,00 ₼')).toHaveClass('text-red-700')
+    expect(within(row).getByText('Ümumi təsir')).toBeInTheDocument()
   })
 
   it('gives each part of a split its own direction', () => {
@@ -286,14 +299,85 @@ describe('a row', () => {
     expect(within(row).getByText('−20,00 ₼')).toHaveClass('text-emerald-700')
   })
 
-  it('leaves a row with one effect as it was: one pill, no split', () => {
+  /** Only one half moved, so there is nothing to split: the reason says it, and no second figure repeats it. */
+  it('gives a row with one effect its reason and no split', () => {
     renderList([bags])
 
     const row = screen.getByRole('button', { name: /Zibil paketi/ })
-    expect(within(row).getByText('Miqdar təsiri')).toBeInTheDocument()
+    expect(within(row).getByText('Əsas səbəb: daha çox sifariş verilib')).toBeInTheDocument()
+    expect(within(row).queryByText('Miqdarın təsiri')).toBeNull()
+    expect(within(row).queryByText('Qiymətin təsiri')).toBeNull()
     expect(within(row).queryByText('Miqdar və qiymət')).toBeNull()
-    expect(within(row).queryByText(/^Miqdar$/)).toBeNull()
-    expect(visibleText(row)).not.toMatch(/Miqdar \+120,00 ₼ · Qiymət/)
+    // The quantity heading is still there — over a quantity, which is what it says.
+    expect(within(row).getByText('Miqdar')).toBeInTheDocument()
+  })
+
+  /**
+   * The audit's Latex, whole: 8,75 → 40 paket at 7,27 → 7,00 ₼ is +216,43 ₼, of which +227,03 is quantity and
+   * −10,60 is price. A reader should reach "we ordered far more, and the unit price actually fell" without
+   * doing any arithmetic — and without being told the price rose, which it did not.
+   */
+  it('reads Latex without arithmetic: more ordered, and the price fell', () => {
+    renderList([driver({
+      variant: variant({ productVariantId: 61, productName: 'Latex', orderUnitCode: 'PACK', orderUnitName: 'Paçka' }),
+      category: 'QuantityChange',
+      amountImpact: 216.43,
+      quantityImpact: 227.03,
+      priceImpact: -10.6,
+      baselineQuantity: 8.75,
+      currentQuantity: 40,
+      baselineUnitPrice: 7.27,
+      currentUnitPrice: 7,
+      unitPricePercentChange: -3.6451,
+      state: 'Increased',
+    })])
+
+    const row = screen.getByRole('button', { name: /Latex/ })
+
+    expect(within(row).getByText('+216,43 ₼')).toHaveClass('text-red-700')
+    expect(within(row).getByText('Ümumi təsir')).toBeInTheDocument()
+    expect(within(row).getByText('Əsas səbəb: daha çox sifariş verilib')).toBeInTheDocument()
+
+    expect(within(row).getByText('8,75 → 40 paket')).toBeInTheDocument()
+    expect(within(row).getByText('+31,25 paket')).toBeInTheDocument()
+    expect(within(row).getByText('7,27 ₼ → 7,00 ₼')).toBeInTheDocument()
+    expect(within(row).getByText('−3,65%')).toBeInTheDocument()
+
+    // The fall is shown as a fall, in its own direction's colour (9.1), never folded into the rise.
+    expect(within(row).getByText('+227,03 ₼')).toHaveClass('text-red-700')
+    expect(within(row).getByText('−10,60 ₼')).toHaveClass('text-emerald-700')
+  })
+
+  /**
+   * The audit's Zibil paketi: 30,75 → 30 paket at 31,15 → 34,00 ₼ is +62,25 ₼, of which −23,36 is quantity and
+   * +85,61 is price. Fewer were ordered; the higher price more than made up for it, and that is the reason.
+   */
+  it('reads Zibil paketi without arithmetic: fewer ordered, but dearer', () => {
+    renderList([driver({
+      variant: variant({ productVariantId: 62, productName: 'Zibil paketi', orderUnitCode: 'PACK', orderUnitName: 'Paçka' }),
+      category: 'PriceChange',
+      amountImpact: 62.25,
+      quantityImpact: -23.36,
+      priceImpact: 85.61,
+      baselineQuantity: 30.75,
+      currentQuantity: 30,
+      baselineUnitPrice: 31.15,
+      currentUnitPrice: 34,
+      unitPricePercentChange: 9.1493,
+      state: 'Decreased',
+    })])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+
+    expect(within(row).getByText('+62,25 ₼')).toHaveClass('text-red-700')
+    expect(within(row).getByText('Əsas səbəb: qiymət artıb')).toBeInTheDocument()
+
+    expect(within(row).getByText('30,75 → 30 paket')).toBeInTheDocument()
+    expect(within(row).getByText('−0,75 paket')).toBeInTheDocument()
+    expect(within(row).getByText('31,15 ₼ → 34,00 ₼')).toBeInTheDocument()
+
+    expect(within(row).getByText('−23,36 ₼')).toHaveClass('text-emerald-700')
+    expect(within(row).getByText('+85,61 ₼')).toHaveClass('text-red-700')
   })
 
   /** Both months are ordinary and nothing is missing, which is exactly why it has to be said out loud. */
@@ -328,6 +412,8 @@ describe('a row', () => {
   it('says how many of a product s lines have no price', () => {
     renderList([driver({
       category: 'UnattributedDueToMissingPrice',
+      quantityImpact: null,
+      priceImpact: null,
       missingPriceItemCount: 2,
       priceIsComplete: false,
     })])
@@ -348,9 +434,9 @@ describe('a row', () => {
   it('shows an em dash, not a zero, when the money cannot be computed at all', () => {
     renderList([driver({
       category: 'UnattributedDueToMissingPrice',
-      amountImpact: 0,
       quantityImpact: null,
       priceImpact: null,
+      amountImpact: 0,
       currentUnitPrice: null,
       baselineUnitPrice: null,
       unitPricePercentChange: null,
@@ -423,7 +509,7 @@ describe('what "Hamısı" counts', () => {
     const line = 'Bu sifarişdə 76 məhsul var, müqayisə bazası ilə birlikdə 100. «Hamısı» onlardan dəyişən 91 məhsulu sayır. '
       + '9 məhsulun məbləği dəyişməyib.'
     renderList([driver()], vi.fn(), productsOf([driver()], { inCurrentOrderCount: 76, comparedCount: 100, listedCount: 91 }))
-    const section = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
+    const section = screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' })
 
     // No longer a paragraph of the section's body.
     expect(Array.from(section.querySelectorAll('p')).map((paragraph) => paragraph.textContent)).not.toContain(line)
@@ -450,7 +536,7 @@ describe('what "Hamısı" counts', () => {
     )
 
     const heading = screen.getByRole('heading', { level: 2 })
-    expect(heading).toHaveAccessibleName('Əsas dəyişikliklər')
+    expect(heading).toHaveAccessibleName('Məbləği dəyişdirən əsas məhsullar')
     expect(heading).toBe(headingRef.current)
     expect(heading).toHaveClass('scroll-mt-20')
     const hint = screen.getByRole('button', { name: '«Hamısı» nəyi sayır?' })
@@ -513,10 +599,18 @@ describe('the filters', () => {
   /** Owner decision 5.1: the filter and the badge under it say the same words. */
   it('names new and no-longer-ordered products in the approved words', () => {
     renderList([
-      driver({ variant: variant({ productVariantId: 31, productName: 'Yeni mal' }), category: 'NewOrders', state: 'New' }),
+      driver({
+        variant: variant({ productVariantId: 31, productName: 'Yeni mal' }),
+        category: 'NewOrders',
+        quantityImpact: null,
+        priceImpact: null,
+        state: 'New',
+      }),
       driver({
         variant: variant({ productVariantId: 32, productName: 'Köhnə mal' }),
         category: 'NoLongerOrdered',
+        quantityImpact: null,
+        priceImpact: null,
         state: 'NoLongerOrdered',
       }),
     ])
@@ -540,6 +634,8 @@ describe('the filters', () => {
     const unpricedNew = driver({
       variant: variant({ productVariantId: 61, productName: 'Yeni qiyməti olmayan mal' }),
       category: 'UnattributedDueToMissingPrice',
+      quantityImpact: null,
+      priceImpact: null,
       missingPriceItemCount: 1,
       priceIsComplete: false,
       state: 'New',
@@ -608,8 +704,11 @@ describe('the products whose money did not move', () => {
 
     const same = screen.getByRole('button', { name: /Sabit mal/ })
     expect(within(same).getByText('Dəyişməyib')).toHaveClass('bg-slate-100')
-    expect(within(same).queryByText('Miqdar təsiri')).toBeNull()
-    expect(same).toHaveTextContent('50 → 50 ədəd · Qiymət 1,00 ₼ → 1,00 ₼')
+    // A product that moved no money has no reason to give: it keeps its state badge and claims nothing more.
+    expect(within(same).queryByText('Miqdarın təsiri')).toBeNull()
+    expect(within(same).queryByText(/^Əsas səbəb/)).toBeNull()
+    expect(within(same).getByText('50 → 50 ədəd')).toBeInTheDocument()
+    expect(within(same).getByText('1,00 ₼ → 1,00 ₼')).toBeInTheDocument()
     // Money known on both sides that did not move is a real zero, in slate.
     expect(within(same).getByText('0,00 ₼')).toHaveClass('text-slate-600')
 
@@ -735,39 +834,119 @@ describe('the product name says it opens something', () => {
     expect(name.className).toBe(`font-medium text-slate-900 ${interactiveTextClass}`)
   })
 
-  it('puts a history marker right after the name, for the eye only', () => {
+  /**
+   * The cue says what the card does, in a word, under the figure a reader is already looking at. An icon alone
+   * left the one action on the card to be guessed at.
+   */
+  it('names what the card does, beside the icon that shows it', () => {
     renderList([bags])
 
-    const name = within(screen.getByRole('button', { name: /Zibil paketi/ })).getByText('Zibil paketi')
-    const marker = name.nextElementSibling!
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    const cue = within(row).getByText('Tarixçə')
+
+    const marker = cue.firstElementChild!
     expect(marker.tagName.toLowerCase()).toBe('svg')
     expect(marker).toHaveAttribute('aria-hidden', 'true')
-    expect(marker).toHaveClass('size-3.5', 'shrink-0', 'text-slate-400', 'group-hover:text-slate-700')
-    expect(marker.parentElement).toBe(name.parentElement)
+    expect(marker).toHaveClass('size-3.5')
   })
 
-  it('opens the history with the product, from the name and from the marker alike', async () => {
+  it('opens the history with the product, from the name and from the cue alike', async () => {
     const onHistory = renderList([bags])
     const row = screen.getByRole('button', { name: /Zibil paketi/ })
 
     await userEvent.click(within(row).getByText('Zibil paketi'))
-    await userEvent.click(within(row).getByText('Zibil paketi').nextElementSibling!)
+    await userEvent.click(within(row).getByText('Tarixçə'))
 
     expect(onHistory).toHaveBeenCalledTimes(2)
     expect(onHistory).toHaveBeenNthCalledWith(1, bags)
     expect(onHistory).toHaveBeenNthCalledWith(2, bags)
   })
 
-  it('leaves the pill, the figures and their colours as they were', () => {
+  /** One target, never two: the cue is part of the card, not a second link nested inside the first. */
+  it('keeps the card the only interactive target', () => {
     renderList([bags])
 
     const row = screen.getByRole('button', { name: /Zibil paketi/ })
-    expect(within(row).getByText('Miqdar təsiri')).toBeInTheDocument()
-    expect(within(row).getByText(/20 → 60 ədəd/)).toBeInTheDocument()
+    expect(within(row).queryAllByRole('button')).toHaveLength(0)
+    expect(within(row).queryAllByRole('link')).toHaveLength(0)
+  })
+
+  it('leaves the reason, the figures and their colours as they were', () => {
+    renderList([bags])
+
+    const row = screen.getByRole('button', { name: /Zibil paketi/ })
+    expect(within(row).getByText('Əsas səbəb: daha çox sifariş verilib')).toBeInTheDocument()
+    expect(within(row).getByText('20 → 60 ədəd')).toBeInTheDocument()
     expect(within(row).getByText('+120,00 ₼')).toHaveClass('text-red-700')
-    // The marker adds no word: what a reader sees in the row is the name, the pill and the figures, as before.
-    expect(visibleText(row)).not.toMatch(/tarixçə/i)
-    expect(within(row).getByText('Miqdar təsiri')).toHaveClass('rounded-full', 'text-xs', 'font-medium')
+  })
+
+  /** A category whose money was never split still wears its own pill, and it still looks like a pill. */
+  it('keeps the pill on a row whose money was never split', () => {
+    renderList([driver({ category: 'NewOrders', quantityImpact: null, priceImpact: null, state: 'New' })])
+
+    const row = screen.getByRole('button', { name: /York qatlama salfet/ })
+    expect(within(row).getByText('Yeni məhsullar')).toHaveClass('rounded-full', 'text-xs', 'font-medium')
+    // Badge and sentence say different things: what kind of row it is, and why it moved the amount.
+    expect(within(row).getByText('Əsas səbəb: Bu ay ilk dəfə sifariş edilib')).toBeInTheDocument()
+  })
+
+  /**
+   * A new product's whole amount is new spending — not "more ordered" at a price nobody had before. Its one
+   * effect says so, and no previous price is invented to make it look like a quantity change.
+   */
+  it('gives a new product one effect in its own terms, and no invented price', () => {
+    renderList([driver({
+      variant: variant({ productVariantId: 71, productName: 'Traktor qazonbiçən' }),
+      category: 'NewOrders',
+      amountImpact: 21900,
+      quantityImpact: null,
+      priceImpact: null,
+      baselineQuantity: 0,
+      currentQuantity: 1,
+      baselineUnitPrice: null,
+      currentUnitPrice: 21900,
+      unitPricePercentChange: null,
+      state: 'New',
+    })])
+
+    const row = screen.getByRole('button', { name: /Traktor qazonbiçən/ })
+    expect(within(row).getByText('Yeni məhsulun təsiri')).toBeInTheDocument()
+    expect(within(row).getByText('0 → 1 ədəd')).toBeInTheDocument()
+    // The month it was not ordered in has no price, and none is made up for it.
+    expect(within(row).getByText('— → 21.900,00 ₼')).toBeInTheDocument()
+    expect(within(row).queryByText('Miqdarın təsiri')).toBeNull()
+    expect(within(row).queryByText('Qiymətin təsiri')).toBeNull()
+  })
+
+  /** A dropped product's missing current price is not a price that fell. */
+  it('gives a dropped product one effect, and calls no missing price a fall', () => {
+    renderList([driver({
+      variant: variant({ productVariantId: 72, productName: 'Yay ayaqqabısı' }),
+      category: 'NoLongerOrdered',
+      amountImpact: -1316,
+      quantityImpact: null,
+      priceImpact: null,
+      baselineQuantity: 47,
+      currentQuantity: 0,
+      baselineUnitPrice: 28,
+      currentUnitPrice: null,
+      unitPricePercentChange: null,
+      state: 'NoLongerOrdered',
+    })])
+
+    const row = screen.getByRole('button', { name: /Yay ayaqqabısı/ })
+    expect(within(row).getByText('Əsas səbəb: keçən ay olan məhsul bu ay yazılmayıb')).toBeInTheDocument()
+    expect(within(row).getByText('Bu ay yazılmamasının təsiri')).toBeInTheDocument()
+    expect(within(row).getByText('47 → 0 ədəd')).toBeInTheDocument()
+    expect(within(row).getByText('−47 ədəd')).toBeInTheDocument()
+    expect(within(row).getByText('28,00 ₼ → —')).toBeInTheDocument()
+    expect(within(row).queryByText('Qiymətin təsiri')).toBeNull()
+
+    // Its whole amount is its one effect, so the figure is on the row twice — once as the total, once as the
+    // effect. The total is the one under its own name.
+    const total = within(row).getByText('Ümumi təsir').previousElementSibling!
+    expect(total).toHaveTextContent('−1.316,00 ₼')
+    expect(total).toHaveClass('text-emerald-700')
   })
 })
 
@@ -1023,9 +1202,14 @@ describe('the chip, owned by the page', () => {
       const { unmount } = render(list(filter, [mixedBags, driver()]))
 
       const row = screen.getByRole('button', { name: /Zibil paketi/ })
-      const compact = within(row).getByText(/50 → 55 paket · Qiymət 32,00 ₼ → 32,13 ₼/)
-      expect(visibleText(compact.nextElementSibling as HTMLElement), filter).toBe('Miqdar +160,00 ₼ · Qiymət +7,00 ₼')
-      expect(within(row).getByText('Miqdar və qiymət'), filter).toBeInTheDocument()
+      // Under either chip the row keeps both halves of its money and both of its facts, to the digit.
+      expect(within(row).getByText('50 → 55 paket'), filter).toBeInTheDocument()
+      expect(within(row).getByText('32,00 ₼ → 32,13 ₼'), filter).toBeInTheDocument()
+      expect(within(row).getByText('Miqdarın təsiri'), filter).toBeInTheDocument()
+      expect(within(row).getByText('+160,00 ₼'), filter).toBeInTheDocument()
+      expect(within(row).getByText('Qiymətin təsiri'), filter).toBeInTheDocument()
+      expect(within(row).getByText('+7,00 ₼'), filter).toBeInTheDocument()
+      expect(within(row).getByText('Əsas səbəb: daha çox sifariş verilib'), filter).toBeInTheDocument()
       expect(within(row).getByText('+167,00 ₼'), filter).toHaveClass('text-red-700')
       unmount()
     }
@@ -1045,7 +1229,7 @@ describe('the chip, owned by the page', () => {
       />,
     )
 
-    expect(heading.current).toHaveTextContent('Əsas dəyişikliklər')
+    expect(heading.current).toHaveTextContent('Məbləği dəyişdirən əsas məhsullar')
     expect(heading.current).toHaveClass('scroll-mt-20')
   })
 })

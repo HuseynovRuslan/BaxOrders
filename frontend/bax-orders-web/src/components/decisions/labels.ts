@@ -88,20 +88,137 @@ export const causeTieOrder: CauseCategory[] = [
 ]
 
 /**
- * The one pill of a product whose quantity and price both moved.
+ * The section's own name, in the words its reader would use for it: these are the products that moved the order's
+ * amount. Said once, so the heading and the landmark can never drift apart.
  *
- * It used to carry only the larger of its two effects — "Miqdar təsiri" on Zibil paketi, whose +167 ₼ was 160 ₼
- * of quantity and 7 ₼ of price — so the row read as a quantity change with the price hidden in it. The pill now
- * names both, neutrally, and the line under the figures gives each its money.
+ * It was «Əsas dəyişikliklər», which named the analysis rather than the thing a manager is looking for.
  */
-export const mixedCauseLabel = 'Miqdar və qiymət'
+export const driverSectionTitle = 'Məbləği dəyişdirən əsas məhsullar'
 
-/** Slate: the pill says which kind of change this is, and a row that moved both ways is neither kind alone. */
+/** Slate: the badge under «Məbləği dəyişməyən» names a state, which is a fact about the product, not a verdict. */
 export const mixedCauseToneClass = 'bg-slate-100 text-slate-700 ring-slate-300'
 
-/** The two words of a mixed row's split: "Miqdar +160,00 ₼ · Qiymət +7,00 ₼". */
-export const quantityPartLabel = 'Miqdar'
-export const pricePartLabel = 'Qiymət'
+/** What the row's leading figure is: this product's whole effect on the order's difference. */
+export const totalEffectLabel = 'Ümumi təsir'
+
+/** The lead of the one sentence that says why, before a single figure has to be read. */
+export const primaryCauseLabel = 'Əsas səbəb'
+
+/**
+ * The two halves of the money, named as effects ON the total rather than as the things they are named after.
+ *
+ * "Miqdar +270,00 ₼" read as though the manat figure were a quantity. It is not — it is the share of the
+ * difference that ordering more accounts for — and «təsiri» is what makes that impossible to misread.
+ */
+export const quantityEffectLabel = 'Miqdarın təsiri'
+export const priceEffectLabel = 'Qiymətin təsiri'
+
+/** The headings of the two before → after facts under the reason. */
+export const quantityFactLabel = 'Miqdar'
+export const priceFactLabel = 'Qiymət'
+
+/** The cue that says the whole card opens the product's history. One target, named rather than guessed at. */
+export const historyCueLabel = 'Tarixçə'
+
+/**
+ * The one effect of a product that has only one, said in that product's own terms.
+ *
+ * A new product's whole amount is new spending, and a dropped one's whole amount is spending that stopped.
+ * Neither is a quantity effect or a price effect, and neither is given a made-up previous price to make it
+ * look like one.
+ */
+export const newProductEffectLabel = 'Yeni məhsulun təsiri'
+export const noLongerOrderedEffectLabel = 'Bu ay yazılmamasının təsiri'
+
+const quantityRoseCause = 'daha çox sifariş verilib'
+const quantityFellCause = 'daha az sifariş verilib'
+const priceRoseCause = 'qiymət artıb'
+const priceFellCause = 'qiymət azalıb'
+const equalEffectCause = 'miqdar və qiymət eyni təsir edib'
+const newProductCause = 'Bu ay ilk dəfə sifariş edilib'
+const noLongerOrderedCause = 'keçən ay olan məhsul bu ay yazılmayıb'
+
+/**
+ * Whether this row's money was split into a quantity effect and a price effect at all.
+ *
+ * A new product, one no longer ordered, a service, store material and a line still owing a price are never split:
+ * the backend returns null for both, and the row keeps its category's own accepted words.
+ */
+export function hasEffectSplit(quantityImpact: number | null, priceImpact: number | null): boolean {
+  return quantityImpact !== null && priceImpact !== null
+}
+
+/**
+ * Why this product moved the amount, in the words a manager would use — from the two figures the backend already
+ * returns and from nothing else. No threshold, no heuristic, no new arithmetic.
+ *
+ * The larger contribution in absolute money is the reason, and its own sign says which way. Because the two
+ * contributions sum to the total, the larger one always carries the total's sign, so this sentence can never
+ * contradict the figure beside it: quantity +227,03 with price −10,60 is "daha çox sifariş verilib" on a +216,43
+ * row, and quantity −23,36 with price +85,61 is "qiymət artıb" on a +62,25 one.
+ */
+export function primaryCause(
+  category: CauseCategory,
+  quantityImpact: number | null,
+  priceImpact: number | null,
+): string | null {
+  if (!hasEffectSplit(quantityImpact, priceImpact)) {
+    // The two the reader still wants a sentence for. The rest — a service, store material, a line owing a
+    // price — say everything they have to say in their badge, and a second line would only repeat it.
+    if (category === 'NewOrders') {
+      return newProductCause
+    }
+
+    if (category === 'NoLongerOrdered') {
+      return noLongerOrderedCause
+    }
+
+    return null
+  }
+
+  const quantity = Math.abs(quantityImpact as number)
+  const price = Math.abs(priceImpact as number)
+
+  // Neither outweighs the other, so neither may be called the reason.
+  if (quantity === price) {
+    return equalEffectCause
+  }
+
+  if (quantity > price) {
+    return (quantityImpact as number) > 0 ? quantityRoseCause : quantityFellCause
+  }
+
+  return (priceImpact as number) > 0 ? priceRoseCause : priceFellCause
+}
+
+/**
+ * "Əsas səbəb: daha çox sifariş verilib" — the whole line, so no component assembles it from two pieces, and
+ * null where this kind of row has no sentence to give.
+ */
+export function primaryCauseLine(
+  category: CauseCategory,
+  quantityImpact: number | null,
+  priceImpact: number | null,
+): string | null {
+  const cause = primaryCause(category, quantityImpact, priceImpact)
+  return cause === null ? null : `${primaryCauseLabel}: ${cause}`
+}
+
+/**
+ * The name of the one pill a row with a single effect carries, or null where the money is split in two and the
+ * two effect labels carry it instead.
+ */
+export function soleEffectLabel(category: CauseCategory, quantityImpact: number | null, priceImpact: number | null): string | null {
+  if (hasEffectSplit(quantityImpact, priceImpact)) {
+    return null
+  }
+
+  if (category === 'NewOrders') {
+    return newProductEffectLabel
+  }
+
+  return category === 'NoLongerOrdered' ? noLongerOrderedEffectLabel : null
+}
 
 /**
  * `New` and `NoLongerOrdered` are the product's state — the comparison page's own rule — not where its money

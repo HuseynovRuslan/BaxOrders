@@ -1012,10 +1012,12 @@ describe('no retired word on the manager’s screens', () => {
     expect(container).toHaveTextContent('32,13 ₼')
     expect(container).toHaveTextContent('Yeni məhsullar')
     expect(container).toHaveTextContent('Bu ay yazılmayan məhsullar')
-    // Task 10's words: a part's count, the split of a mixed row, and what "Hamısı" counts.
+    // Task 10's words: a part's count, the split of a mixed row, and what "Hamısı" counts. The split now names
+    // each half as an effect on money, and the row says its reason in words instead of wearing an analyst's pill.
     expect(container).toHaveTextContent('1 məhsuldan')
-    expect(container).toHaveTextContent('Miqdar və qiymət')
-    expect(container).toHaveTextContent(/Miqdar \+160,00 ₼.*· Qiymət \+7,00 ₼/)
+    expect(container).toHaveTextContent('Əsas səbəb: daha çox sifariş verilib')
+    expect(container).toHaveTextContent(/Miqdarın təsiri\s*\+160,00 ₼/)
+    expect(container).toHaveTextContent(/Qiymətin təsiri\s*\+7,00 ₼/)
     expect(container).toHaveTextContent(
       'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 4 məhsulu sayır.',
     )
@@ -1086,7 +1088,7 @@ describe('no retired word on the manager’s screens', () => {
     expect(within(causes).getByRole('button', { name: /^Yeni məhsullar, / })).toHaveAttribute('aria-pressed', 'true')
     // "Yeni məhsullar", "Bu ay yazılmayan məhsullar" and "Qiymət yoxdur": each name swept above with its amount.
     expect(within(causes).getAllByRole('button', { name: /, [+−]/ })).toHaveLength(3)
-    expect(within(screen.getByRole('region', { name: 'Əsas dəyişikliklər' })).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(screen.getByRole('region', { name: 'Məbləği dəyişdirən əsas məhsullar' })).getAllByRole('listitem')).toHaveLength(2)
   })
 
   /** Task 14: the price warning's way to Qiymət təsnifatı, swept where a Rəhbər meets it. */
