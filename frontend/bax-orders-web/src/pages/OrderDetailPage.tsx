@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   fetchDecisionContext,
@@ -20,8 +21,8 @@ import { fetchOrder, type OrderRequestDetail, type OrderRequestItem } from '../a
 import { fetchRevision, type OrderRevision } from '../api/revisions'
 import type { OrderWorkflow } from '../api/workflow'
 import { PageHeader } from '../components/PageHeader'
-import { SectionHeader } from '../components/SectionHeader'
 import { InfoHint } from '../components/analytics/InfoHint'
+import { formatCount } from '../components/analytics/format'
 import { describeSpecification, distinguishingDetails } from '../components/analytics/labels'
 import {
   classifyLine,
@@ -180,6 +181,13 @@ export function OrderDetailPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [decision, setDecision] = useState<OrderDecisionContext | null>(null)
   const [decisionPending, setDecisionPending] = useState(true)
+
+  // Which order's lines the reader opened (23.1). The order rather than a yes or no, so that another order shown on
+  // this same page opens folded with no effect to reset it, while the page's own reload after an edit leaves them
+  // open. Never in the address: everyone who opens a link gets the same folded page.
+  const [linesOpenFor, setLinesOpenFor] = useState<number | null>(null)
+  const linesOpen = linesOpenFor === id
+  const linesRegionId = useId()
 
   // Bumped after every change, so the lines, the correction state and both histories are re-read together
   // rather than each drifting on its own copy.
@@ -410,206 +418,235 @@ export function OrderDetailPage() {
         )}
       </div>
 
-      {/* C. Sətirlər */}
-      <SectionHeader title="Sətirlər" />
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            setSearch(searchInput.trim())
-            setPage(1)
-          }}
-        >
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Məhsul adı…"
-            className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-72"
-          />
-        </form>
-
-        <select
-          value={hasPrice === undefined ? '' : String(hasPrice)}
-          onChange={(event) => {
-            setHasPrice(event.target.value === '' ? undefined : event.target.value === 'true')
-            setPage(1)
-          }}
-          className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
-        >
-          <option value="">Bütün sətirlər</option>
-          <option value="true">Qiyməti olan sətirlər</option>
-          <option value="false">{missingPriceShortLabel}</option>
-        </select>
-
-        {/* Offered only where the server says this version may be edited; the endpoint checks again. */}
-        {editable && (
+      {/*
+        C. Sətirlər. The raw lines, and the way from each to its source, are the evidence behind the evidence: folded
+        until the reader asks for them (23.1). The heading is the control, and it names how many lines the order has,
+        whatever the search or the filter inside holds. Opening fetches nothing; the lines came with the page.
+      */}
+      <div className="mb-2">
+        <h2 className="text-sm font-semibold text-slate-900">
           <button
             type="button"
-            onClick={() => setDialog({ kind: 'add' })}
-            className="ml-auto rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            onClick={() => setLinesOpenFor(linesOpen ? null : id)}
+            aria-expanded={linesOpen}
+            aria-controls={linesRegionId}
+            className="-ml-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-slate-100"
           >
-            {addLineLabel}
+            {linesOpen ? <ChevronDown className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}
+            <span>
+              Sətirlər
+              {/* The whole order's count, as the change list's chips show theirs; not known yet while it loads. */}
+              {data && <span className="ml-1 font-normal text-slate-400">{formatCount(data.itemCount)}</span>}
+            </span>
           </button>
-        )}
+        </h2>
       </div>
 
-      {/* Ten columns from 1024 pixels; below that, where they would scroll sideways, the same lines as cards. */}
-      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
-            <tr>
-              <th className="px-3 py-3">#</th>
-              <th className="px-3 py-3">Məhsul</th>
-              <th className="px-3 py-3">Spesifikasiya</th>
-              <th className="px-3 py-3 text-right">Miqdar</th>
-              <th className="px-3 py-3">Vahid</th>
-              <th className="px-3 py-3 text-right">Qiymət</th>
-              <th className="px-3 py-3 text-right">Cəmi</th>
-              <th className="px-3 py-3">Təchizatçı</th>
-              <th className="px-3 py-3">Kateqoriya</th>
-              <th className="px-3 py-3">Mənbə</th>
-              {editable && (
-                <th className="px-3 py-3">
-                  <span className="sr-only">Əməliyyatlar</span>
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {state.status === 'loading' && (
-              <tr>
-                <td colSpan={editable ? 11 : 10} className="px-4 py-6 text-center text-slate-500">
-                  Yüklənir…
-                </td>
-              </tr>
-            )}
-            {data?.items.items.length === 0 && (
-              <tr>
-                <td colSpan={editable ? 11 : 10} className="px-4 py-6 text-center text-slate-500">
-                  {noLinesText}
-                </td>
-              </tr>
-            )}
+      {/* Always here, so the control always names it; it holds the section only while it is open. */}
+      <div id={linesRegionId}>
+        {linesOpen && (
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setSearch(searchInput.trim())
+                  setPage(1)
+                }}
+              >
+                <input
+                  type="search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Məhsul adı…"
+                  className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-72"
+                />
+              </form>
 
-            {data?.items.items.map((item, index) => (
-              <tr key={item.orderRequestItemId} className="hover:bg-slate-50">
-                <td className="px-3 py-2 text-xs text-slate-400">{(data.items.page - 1) * data.items.pageSize + index + 1}</td>
-                <td className="px-3 py-2">
-                  <p className="font-medium text-slate-900">{item.productName}</p>
-                </td>
-                <td className="px-3 py-2 text-slate-700">
-                  <SpecificationCell item={item} detail={details[index]} />
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">{formatQuantity(item.quantity)}</td>
-                <td className="px-3 py-2 text-slate-700">
-                  <UnitCell item={item} />
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {/*
-                    A blank price means three different things, and the line itself says which. Material the
-                    company supplies itself was never going to have a purchase price, so it is described in
-                    calm grey — calling it "Qiymət yoxdur" sent people looking for a number that does not
-                    exist. The other two are amber, because in both cases a price is still owed; what the
-                    unclassified one adds is that nobody has yet said whether it really is.
-                  */}
-                  <PriceCell item={item} />
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {/* Never a zero: no amount was recorded, for either reason. */}
-                  {item.lineTotal === null ? <span className="text-slate-400">—</span> : formatAmount(item.lineTotal)}
-                </td>
-                <td className="px-3 py-2 text-slate-700">
-                  <SupplierCell item={item} />
-                </td>
-                <td className="px-3 py-2 text-xs text-slate-600">
-                  {item.categoryPath.length > 0 ? item.categoryPath.join(' › ') : <span className="text-slate-400">—</span>}
-                </td>
-                <td className="px-3 py-2">
-                  {/* Secondary next to Redaktə et / Sil: provenance is looked up, not acted on. */}
+              <select
+                value={hasPrice === undefined ? '' : String(hasPrice)}
+                onChange={(event) => {
+                  setHasPrice(event.target.value === '' ? undefined : event.target.value === 'true')
+                  setPage(1)
+                }}
+                className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              >
+                <option value="">Bütün sətirlər</option>
+                <option value="true">Qiyməti olan sətirlər</option>
+                <option value="false">{missingPriceShortLabel}</option>
+              </select>
+
+              {/* Offered only where the server says this version may be edited; the endpoint checks again. */}
+              {editable && (
+                <button
+                  type="button"
+                  onClick={() => setDialog({ kind: 'add' })}
+                  className="ml-auto rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+                >
+                  {addLineLabel}
+                </button>
+              )}
+            </div>
+
+            {/* Ten columns from 1024 pixels; below that, where they would scroll sideways, the same lines as cards. */}
+            <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white lg:block">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
+                  <tr>
+                    <th className="px-3 py-3">#</th>
+                    <th className="px-3 py-3">Məhsul</th>
+                    <th className="px-3 py-3">Spesifikasiya</th>
+                    <th className="px-3 py-3 text-right">Miqdar</th>
+                    <th className="px-3 py-3">Vahid</th>
+                    <th className="px-3 py-3 text-right">Qiymət</th>
+                    <th className="px-3 py-3 text-right">Cəmi</th>
+                    <th className="px-3 py-3">Təchizatçı</th>
+                    <th className="px-3 py-3">Kateqoriya</th>
+                    <th className="px-3 py-3">Mənbə</th>
+                    {editable && (
+                      <th className="px-3 py-3">
+                        <span className="sr-only">Əməliyyatlar</span>
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {state.status === 'loading' && (
+                    <tr>
+                      <td colSpan={editable ? 11 : 10} className="px-4 py-6 text-center text-slate-500">
+                        Yüklənir…
+                      </td>
+                    </tr>
+                  )}
+                  {data?.items.items.length === 0 && (
+                    <tr>
+                      <td colSpan={editable ? 11 : 10} className="px-4 py-6 text-center text-slate-500">
+                        {noLinesText}
+                      </td>
+                    </tr>
+                  )}
+
+                  {data?.items.items.map((item, index) => (
+                    <tr key={item.orderRequestItemId} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 text-xs text-slate-400">{(data.items.page - 1) * data.items.pageSize + index + 1}</td>
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-slate-900">{item.productName}</p>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">
+                        <SpecificationCell item={item} detail={details[index]} />
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-900">{formatQuantity(item.quantity)}</td>
+                      <td className="px-3 py-2 text-slate-700">
+                        <UnitCell item={item} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {/*
+                          A blank price means three different things, and the line itself says which. Material the
+                          company supplies itself was never going to have a purchase price, so it is described in
+                          calm grey — calling it "Qiymət yoxdur" sent people looking for a number that does not
+                          exist. The other two are amber, because in both cases a price is still owed; what the
+                          unclassified one adds is that nobody has yet said whether it really is.
+                        */}
+                        <PriceCell item={item} />
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-900">
+                        {/* Never a zero: no amount was recorded, for either reason. */}
+                        {item.lineTotal === null ? <span className="text-slate-400">—</span> : formatAmount(item.lineTotal)}
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">
+                        <SupplierCell item={item} />
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">
+                        {item.categoryPath.length > 0 ? item.categoryPath.join(' › ') : <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-3 py-2">
+                        {/* Secondary next to Redaktə et / Sil: provenance is looked up, not acted on. */}
+                        <button
+                          type="button"
+                          onClick={() => setSource({ id: item.orderRequestItemId, name: item.productName })}
+                          className="text-xs text-slate-500 underline hover:text-slate-800"
+                        >
+                          Mənbəyə bax
+                        </button>
+                      </td>
+                      {editable && (
+                        <td className="px-3 py-2">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setDialog({ kind: 'edit', item })}
+                              className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              {editLineLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDialog({ kind: 'remove', item })}
+                              className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+                            >
+                              {removeLineLabel}
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul aria-label="Sətirlər" className="space-y-2 lg:hidden">
+              {state.status === 'loading' && (
+                <li className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm text-slate-500">Yüklənir…</li>
+              )}
+              {data?.items.items.length === 0 && (
+                <li className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm text-slate-500">
+                  {noLinesText}
+                </li>
+              )}
+
+              {data?.items.items.map((item, index) => (
+                <LineCard
+                  key={item.orderRequestItemId}
+                  item={item}
+                  number={(data.items.page - 1) * data.items.pageSize + index + 1}
+                  detail={details[index]}
+                  editable={editable}
+                  onSource={() => setSource({ id: item.orderRequestItemId, name: item.productName })}
+                  onEdit={() => setDialog({ kind: 'edit', item })}
+                  onRemove={() => setDialog({ kind: 'remove', item })}
+                />
+              ))}
+            </ul>
+
+            {data && data.items.totalCount > pageSize && (
+              <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
+                <span>
+                  Səhifə {data.items.page} / {totalPages} · {formatNumber(data.items.totalCount)} sətir
+                </span>
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setSource({ id: item.orderRequestItemId, name: item.productName })}
-                    className="text-xs text-slate-500 underline hover:text-slate-800"
+                    disabled={page <= 1}
+                    onClick={() => setPage((current) => current - 1)}
+                    className="rounded border border-slate-200 px-3 py-1 disabled:opacity-40"
                   >
-                    Mənbəyə bax
+                    Əvvəlki
                   </button>
-                </td>
-                {editable && (
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setDialog({ kind: 'edit', item })}
-                        className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        {editLineLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDialog({ kind: 'remove', item })}
-                        className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-                      >
-                        {removeLineLabel}
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((current) => current + 1)}
+                    className="rounded border border-slate-200 px-3 py-1 disabled:opacity-40"
+                  >
+                    Növbəti
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-
-      <ul aria-label="Sətirlər" className="space-y-2 lg:hidden">
-        {state.status === 'loading' && (
-          <li className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm text-slate-500">Yüklənir…</li>
-        )}
-        {data?.items.items.length === 0 && (
-          <li className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm text-slate-500">
-            {noLinesText}
-          </li>
-        )}
-
-        {data?.items.items.map((item, index) => (
-          <LineCard
-            key={item.orderRequestItemId}
-            item={item}
-            number={(data.items.page - 1) * data.items.pageSize + index + 1}
-            detail={details[index]}
-            editable={editable}
-            onSource={() => setSource({ id: item.orderRequestItemId, name: item.productName })}
-            onEdit={() => setDialog({ kind: 'edit', item })}
-            onRemove={() => setDialog({ kind: 'remove', item })}
-          />
-        ))}
-      </ul>
-
-      {data && data.items.totalCount > pageSize && (
-        <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
-          <span>
-            Səhifə {data.items.page} / {totalPages} · {formatNumber(data.items.totalCount)} sətir
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => current - 1)}
-              className="rounded border border-slate-200 px-3 py-1 disabled:opacity-40"
-            >
-              Əvvəlki
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((current) => current + 1)}
-              className="rounded border border-slate-200 px-3 py-1 disabled:opacity-40"
-            >
-              Növbəti
-            </button>
-          </div>
-        </div>
-      )}
 
       {revision && <HistoryTabs orderRequestId={id} editHistory={revision.editHistory} reloadToken={reloadToken} />}
 

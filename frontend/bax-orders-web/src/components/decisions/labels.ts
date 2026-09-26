@@ -144,7 +144,7 @@ export const driverFilterOrder: DriverFilter[] = [
 ]
 
 /**
- * What "Hamısı" counts, said under the heading.
+ * What "Hamısı" counts, said beside the heading behind its ⓘ (23.3; under the heading until then).
  *
  * "Hamısı 100" on an order of 76 lines read as a mistake. It was not one — the comparison is over this order and
  * the basis window together, and only the products that changed are listed — but nothing said so.
@@ -161,6 +161,12 @@ export function driverScopeLine(products: DecisionProductCounts): string {
     ? `${line} ${formatCount(comparedCount - listedCount)} ${productNoun}un məbləği dəyişməyib.`
     : line
 }
+
+/**
+ * The ⓘ beside «Əsas dəyişikliklər» that holds `driverScopeLine` (23.3): named for the question the sentence answers,
+ * as the page's other hints are. The sentence explains how the list counts, so it is asked for, not read first.
+ */
+export const driverScopeHintLabel = '«Hamısı» nəyi sayır?'
 
 /**
  * Said under a reason whose list counts a different number of products than the reason does (18.3).

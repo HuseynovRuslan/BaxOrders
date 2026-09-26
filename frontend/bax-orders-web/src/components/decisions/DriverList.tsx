@@ -2,6 +2,7 @@ import { History } from 'lucide-react'
 import { useState, type Ref } from 'react'
 import type { DecisionDriver, DecisionProductCounts, DecisionVariantTransition } from '../../api/decisions'
 import { DirectionWord } from '../analytics/DirectionWord'
+import { InfoHint } from '../analytics/InfoHint'
 import {
   costDirectionToneClass,
   formatCount,
@@ -23,6 +24,7 @@ import {
   causeToneClass,
   driverFilterLabels,
   driverFilterOrder,
+  driverScopeHintLabel,
   driverScopeLine,
   mixedCauseLabel,
   mixedCauseToneClass,
@@ -102,9 +104,15 @@ export function DriverList({
     <section className="rounded-lg border border-slate-200 bg-white" aria-label="Əsas dəyişikliklər">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4">
         <div className="min-w-0">
-          {/* Clear of the sticky 64-pixel header when a reason brings it into view. */}
-          <h2 ref={headingRef} className="scroll-mt-20 text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
-          <p className="mt-0.5 text-xs text-slate-500">{driverScopeLine(products)}</p>
+          <div className="flex items-center gap-1">
+            {/* Clear of the sticky 64-pixel header when a reason brings it into view. */}
+            <h2 ref={headingRef} className="scroll-mt-20 text-sm font-semibold text-slate-900">Əsas dəyişikliklər</h2>
+            {/*
+              What "Hamısı" counts, word for word as it was, behind the ⓘ rather than at the head of the list (23.3).
+              Beside the heading and not inside it, so the heading's name stays «Əsas dəyişikliklər».
+            */}
+            <InfoHint label={driverScopeHintLabel}>{driverScopeLine(products)}</InfoHint>
+          </div>
           {/* The comparison page's up / down / service counts, over every compared product — the backend's. */}
           <p className="mt-0.5 text-xs text-slate-500">{productStateLine(products)}</p>
         </div>

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VariantIdentity, VariantTrend } from '../api/analytics'
@@ -404,6 +404,16 @@ async function renderPage() {
 
 function headline() {
   return screen.getByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+}
+
+/** The order's lines are folded until asked for (Task 23): the control is the section's heading, `Sətirlər N`. */
+function linesControl(): HTMLElement {
+  return screen.getByRole('button', { name: /^Sətirlər/ })
+}
+
+/** Opens the lines, as a reader does, before a test reads them. */
+async function openLines(user: Pick<UserEvent, 'click'> = userEvent) {
+  await user.click(linesControl())
 }
 
 describe('the first screenful', () => {
@@ -1052,9 +1062,274 @@ describe('what the window is made of', () => {
 describe('the evidence below the decision', () => {
   it('still carries the order s own lines', async () => {
     await renderPage()
+    await openLines()
 
     expect(screen.getByText('Sətirlər')).toBeInTheDocument()
     expect(within(document.querySelector('table')!).getByText('York qatlama salfet')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Brief (Task 23): the page does not open on its technical origin. The lines, and with them every row's way to its
+ * source, are folded behind the section's own heading, which names how many lines the order has. Opened, the section
+ * is exactly what it was; opening asks the server for nothing and writes nothing to the address (23.1, 23.2).
+ */
+describe('the lines, folded until asked for', () => {
+  /** The router's entry and address, so a test can see that opening and closing write neither. */
+  function Where() {
+    const location = useLocation()
+    return <span data-testid="where">{`${location.key} ${location.search}`}</span>
+  }
+
+  function line(orderRequestItemId: number, productName: string): OrderRequestItem {
+    return { ...item(), orderRequestItemId, productName }
+  }
+
+  /** Three lines on the page of an order that has 78, so the heading's count is seen to be the order's. */
+  function threeOf78() {
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      itemCount: 78,
+      items: { items: [line(1, 'Bel'), line(2, 'Vedrə'), line(3, 'Süpürgə')], page: 1, pageSize: 50, totalCount: 3 },
+    } as never))
+  }
+
+  async function renderAt(url: string) {
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Where />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('region', { name: 'Sifarişin məbləği və müqayisəsi' })
+    // The order is in once its heading can count its lines.
+    await screen.findByRole('button', { name: /^Sətirlər\s*\d+$/ })
+  }
+
+  function where(): string {
+    return screen.getByTestId('where').textContent ?? ''
+  }
+
+  /** The element the control names as the one it opens. */
+  function region(): HTMLElement {
+    return document.getElementById(linesControl().getAttribute('aria-controls') ?? '')!
+  }
+
+  /** Criteria 1 and 7. */
+  it('opens with no line, no card and no "Mənbəyə bax"; in their place one control, the heading, counting the lines', async () => {
+    threeOf78()
+    await renderAt('/orders/105')
+
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Sətirlər' })).toBeNull()
+    expect(screen.queryAllByRole('button', { name: 'Mənbəyə bax' })).toEqual([])
+    expect(screen.queryByPlaceholderText('Məhsul adı…')).toBeNull()
+    expect(screen.queryByRole('option', { name: 'Bütün sətirlər' })).toBeNull()
+
+    const control = linesControl()
+    // The whole order's 78, not the 3 lines on this page: a filter does not change it either (itemCount).
+    expect(control).toHaveAccessibleName(/^Sətirlər\s*78$/)
+    expect(within(control).getByText('78')).toHaveClass('text-slate-400')
+    expect(control.closest('h2')).toBe(screen.getByRole('heading', { level: 2, name: /^Sətirlər/ }))
+    expect(control).toHaveAttribute('aria-expanded', 'false')
+    // It names an element that is there, and holds nothing while folded.
+    expect(region()).toBeInTheDocument()
+    expect(region()).toBeEmptyDOMElement()
+  })
+
+  it('offers the control before the order has come, without a count, and it opens on the loading lines', async () => {
+    ordersApi.fetchOrder.mockReturnValue(new Promise(() => {}))
+    await renderPage()
+
+    expect(linesControl()).toHaveAccessibleName('Sətirlər')
+    expect(linesControl()).toHaveAttribute('aria-expanded', 'false')
+    await openLines()
+
+    expect(linesControl()).toHaveAttribute('aria-expanded', 'true')
+    expect(within(region()).getByRole('list', { name: 'Sətirlər' })).toHaveTextContent('Yüklənir…')
+  })
+
+  /** Criteria 2 and 7. */
+  it('opens the section as it was: the search, the three filters, ten columns, and "Mənbəyə bax" on every row and card', async () => {
+    const user = userEvent.setup()
+    threeOf78()
+    await renderAt('/orders/105')
+
+    await openLines(user)
+
+    expect(linesControl()).toHaveAttribute('aria-expanded', 'true')
+    const section = within(region())
+    expect(section.getByPlaceholderText('Məhsul adı…')).toBeInTheDocument()
+    expect(section.getAllByRole('option').map((option) => option.textContent))
+      .toEqual(['Bütün sətirlər', 'Qiyməti olan sətirlər', 'Qiymət yoxdur'])
+    const table = section.getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      '#', 'Məhsul', 'Spesifikasiya', 'Miqdar', 'Vahid', 'Qiymət', 'Cəmi', 'Təchizatçı', 'Kateqoriya', 'Mənbə',
+    ])
+    expect(within(table).getAllByRole('row').slice(1).map((row) => row.querySelectorAll('td')[1].textContent))
+      .toEqual(['Bel', 'Vedrə', 'Süpürgə'])
+    expect(within(table).getAllByRole('button', { name: 'Mənbəyə bax' })).toHaveLength(3)
+    const cards = section.getByRole('list', { name: 'Sətirlər' })
+    expect(within(cards).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(cards).getAllByRole('button', { name: 'Mənbəyə bax' })).toHaveLength(3)
+
+    await user.click(linesControl())
+
+    expect(linesControl()).toHaveAttribute('aria-expanded', 'false')
+    expect(region()).toBeEmptyDOMElement()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryAllByRole('button', { name: 'Mənbəyə bax' })).toEqual([])
+  })
+
+  /** Criterion 2: more than 50 lines are still the server's pages of 50, inside the section. */
+  it('keeps the server’s pages inside the section: page 1 of 2, 50 lines each, as before', async () => {
+    const user = userEvent.setup()
+    const lines = Array.from({ length: 50 }, (_, index) => line(index + 1, `Mal ${index + 1}`))
+    ordersApi.fetchOrder.mockResolvedValue(detail({
+      itemCount: 78,
+      items: { items: lines, page: 1, pageSize: 50, totalCount: 78 },
+    } as never))
+    await renderAt('/orders/105')
+    expect(screen.queryByText(/Səhifə 1 \/ 2/)).toBeNull()
+
+    await openLines(user)
+
+    expect(within(region()).getByText('Səhifə 1 / 2 · 78 sətir')).toBeInTheDocument()
+    expect(within(within(region()).getByRole('table')).getAllByRole('button', { name: 'Mənbəyə bax' })).toHaveLength(50)
+    expect(within(within(region()).getByRole('list', { name: 'Sətirlər' })).getAllByRole('button', { name: 'Mənbəyə bax' }))
+      .toHaveLength(50)
+    await user.click(within(region()).getByRole('button', { name: 'Növbəti' }))
+    expect(ordersApi.fetchOrder).toHaveBeenLastCalledWith(
+      105,
+      { search: undefined, hasPrice: undefined, page: 2, pageSize: 50 },
+      expect.anything(),
+    )
+  })
+
+  /** Criterion 8: the state is the page's, never the address's. */
+  it('changes no address and adds no entry, opening, closing or opening again', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105?basis=avg3&cause=price')
+    const before = where()
+    expect(before).toContain('?basis=avg3&cause=price')
+
+    await openLines(user)
+    expect(where()).toBe(before)
+    await user.click(linesControl())
+    expect(where()).toBe(before)
+    await openLines(user)
+    expect(where()).toBe(before)
+  })
+
+  /** Criterion 8 and §6: presentation only. The lines come with the page, and opening them asks for nothing. */
+  it('reads the lines with the page, once, and nothing more on opening, closing or opening again', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105')
+    await waitFor(() => expect(revisionsApi.fetchRevision).toHaveBeenCalled())
+    const calls = () => [
+      ordersApi.fetchOrder.mock.calls.length,
+      decisionsApi.fetchDecisionContext.mock.calls.length,
+      revisionsApi.fetchRevision.mock.calls.length,
+    ]
+
+    // Folded, and the order with its first page of lines has already been read: once, as before Task 23.
+    expect(linesControl()).toHaveAttribute('aria-expanded', 'false')
+    expect(ordersApi.fetchOrder).toHaveBeenCalledTimes(1)
+    expect(ordersApi.fetchOrder).toHaveBeenCalledWith(
+      105,
+      { search: undefined, hasPrice: undefined, page: 1, pageSize: 50 },
+      expect.anything(),
+    )
+    const before = calls()
+
+    await openLines(user)
+    expect(calls()).toEqual(before)
+    await user.click(linesControl())
+    expect(calls()).toEqual(before)
+    await openLines(user)
+    expect(calls()).toEqual(before)
+    expect(ordersApi.fetchOrderItemSource).not.toHaveBeenCalled()
+  })
+
+  /** Criterion 6: the three filters and the search, as before; closing and opening again keeps what was chosen. */
+  it('filters and searches as before once open, and keeps both across closing and opening again', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105')
+    await openLines(user)
+    const filter = () => within(region()).getByRole('combobox')
+    const lastQuery = () => ordersApi.fetchOrder.mock.lastCall?.slice(0, 2)
+
+    await user.selectOptions(filter(), 'Qiymət yoxdur')
+    expect(lastQuery()).toEqual([105, { search: undefined, hasPrice: false, page: 1, pageSize: 50 }])
+    await user.selectOptions(filter(), 'Qiyməti olan sətirlər')
+    expect(lastQuery()).toEqual([105, { search: undefined, hasPrice: true, page: 1, pageSize: 50 }])
+    await user.selectOptions(filter(), 'Bütün sətirlər')
+    expect(lastQuery()).toEqual([105, { search: undefined, hasPrice: undefined, page: 1, pageSize: 50 }])
+
+    await user.selectOptions(filter(), 'Qiymət yoxdur')
+    await user.type(within(region()).getByRole('searchbox'), 'salfet{Enter}')
+    expect(lastQuery()).toEqual([105, { search: 'salfet', hasPrice: false, page: 1, pageSize: 50 }])
+    const fetches = ordersApi.fetchOrder.mock.calls.length
+
+    await user.click(linesControl())
+    await openLines(user)
+
+    expect(filter()).toHaveDisplayValue('Qiymət yoxdur')
+    expect(within(region()).getByRole('searchbox')).toHaveValue('salfet')
+    expect(ordersApi.fetchOrder).toHaveBeenCalledTimes(fetches)
+    // The heading still counts the whole order, whatever the filter holds.
+    await waitFor(() => expect(linesControl()).toHaveAccessibleName(/^Sətirlər\s*40$/))
+  })
+
+  /** Criterion 8: the state belongs to the order it was opened on. */
+  it('opens another order folded, on the same page', async () => {
+    function Other() {
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate('/orders/106')}>Başqa sifariş</button>
+    }
+    ordersApi.fetchOrder.mockImplementation((orderRequestId: number) =>
+      Promise.resolve(detail({ orderRequestId, itemCount: orderRequestId === 106 ? 12 : 40 })))
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/orders/105']}>
+        <Other />
+        <Routes>
+          <Route path="/orders/:orderRequestId" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('button', { name: /^Sətirlər\s*40$/ })
+    await openLines(user)
+    expect(screen.getByRole('table')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Başqa sifariş' }))
+
+    await screen.findByRole('button', { name: /^Sətirlər\s*12$/ })
+    expect(ordersApi.fetchOrder).toHaveBeenLastCalledWith(106, expect.anything(), expect.anything())
+    expect(linesControl()).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryAllByRole('button', { name: 'Mənbəyə bax' })).toEqual([])
+  })
+
+  /** Criterion 4, on the page: the counting sentence is behind the ⓘ beside «Əsas dəyişikliklər» (23.3). */
+  it('keeps the counting sentence behind the ⓘ beside «Əsas dəyişikliklər», and the state counts in view', async () => {
+    const user = userEvent.setup()
+    await renderAt('/orders/105')
+    const list = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
+    const hint = within(list).getByRole('button', { name: '«Hamısı» nəyi sayır?' })
+    const note = document.getElementById(hint.getAttribute('aria-controls') ?? '')!
+
+    expect(note).toHaveAttribute('role', 'note')
+    expect(note.textContent).toBe(
+      'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 1 məhsulu sayır. '
+      + '44 məhsulun məbləği dəyişməyib.',
+    )
+    expect(note).not.toBeVisible()
+    expect(within(list).getByText('Artıb: 2 · Azalıb: 0')).toBeVisible()
+
+    await user.click(hint)
+    expect(note).toBeVisible()
   })
 })
 
@@ -1144,6 +1419,7 @@ describe('the lines on a phone', () => {
       categoryPath: ['Təsərrüfat', 'Təmizlik'],
     })])
     await renderPage()
+    await openLines()
 
     const priced = card('Distillə su')
     expect(within(priced).getByText('1')).toHaveClass('text-xs', 'text-slate-400')
@@ -1169,6 +1445,7 @@ describe('the lines on a phone', () => {
       sourceSupplierName: 'Azpetrol baza',
     })])
     await renderPage()
+    await openLines()
 
     const internal = card('Qum')
     const words = within(internal).getByText('Daxili təminat')
@@ -1185,6 +1462,7 @@ describe('the lines on a phone', () => {
   it('says an owed price in amber, once', async () => {
     serveLines([line({ productName: 'Əlcək', unitPrice: null, lineTotal: null, pricingMode: 'PriceRequired' })])
     await renderPage()
+    await openLines()
 
     const owed = card('Əlcək')
     expect(within(owed).getByText('Qiymət yoxdur')).toHaveClass('text-amber-800')
@@ -1195,6 +1473,7 @@ describe('the lines on a phone', () => {
   it('says a line nobody has classified in amber, with its explanation', async () => {
     serveLines([line({ productName: 'Gübrə', unitPrice: null, lineTotal: null, pricingMode: 'Unresolved' })])
     await renderPage()
+    await openLines()
 
     const unclassified = card('Gübrə')
     expect(within(unclassified).getByText('Qiymət yoxdur').closest('span')).toHaveClass('text-amber-800')
@@ -1204,6 +1483,7 @@ describe('the lines on a phone', () => {
   it('does not repeat the table’s dash for a line with no specification', async () => {
     serveLines([line({ productName: 'York qatlama salfet' })])
     await renderPage()
+    await openLines()
 
     const plain = card('York qatlama salfet')
     // The only dash-free card: no specification line at all, and a total that is there.
@@ -1215,6 +1495,7 @@ describe('the lines on a phone', () => {
       items: { items: [line({ orderRequestItemId: 1, productName: 'Bel' }), line({ orderRequestItemId: 2, productName: 'Vedrə' })], page: 2, pageSize: 50, totalCount: 52 },
     } as never))
     await renderPage()
+    await openLines()
 
     expect(within(card('Bel')).getByText('51')).toBeInTheDocument()
     expect(within(card('Vedrə')).getByText('52')).toBeInTheDocument()
@@ -1231,6 +1512,7 @@ describe('the lines on a phone', () => {
       source: null,
     })
     await renderPage()
+    await openLines(user)
 
     await user.click(within(cards()).getByRole('button', { name: 'Mənbəyə bax' }))
 
@@ -1241,12 +1523,14 @@ describe('the lines on a phone', () => {
   it('says there are no lines, and says it is loading, in the table’s words', async () => {
     serveLines([])
     await renderPage()
+    await openLines()
     expect(within(cards()).getByText('Bu sifarişdə sətir yoxdur.')).toBeInTheDocument()
   })
 
   it('says it is loading while the lines are on their way', async () => {
     ordersApi.fetchOrder.mockReturnValue(new Promise(() => {}))
     await renderPage()
+    await openLines()
     expect(within(cards()).getByText('Yüklənir…')).toBeInTheDocument()
   })
 
@@ -1256,6 +1540,7 @@ describe('the lines on a phone', () => {
       line({ orderRequestItemId: 2, productName: 'Qum', unitPrice: null, lineTotal: null, pricingMode: 'InternalFreeSupply' }),
     ])
     await renderPage()
+    await openLines()
 
     const wrapper = document.querySelector('table')!.parentElement!
     expect(wrapper).toHaveClass('hidden', 'lg:block', 'overflow-x-auto')
@@ -1311,6 +1596,7 @@ describe('what the manager does not have to decode', () => {
       } as never,
     }))
     await renderPage()
+    await openLines()
 
     const rows = linesTable().getAllByRole('row').slice(1)
     expect(specificationOf(rows[0])).toBe('—')
@@ -1343,6 +1629,7 @@ describe('what the manager does not have to decode', () => {
       } as never,
     }))
     await renderPage()
+    await openLines()
 
     const rows = linesTable().getAllByRole('row').slice(1)
     expect(specificationOf(rows[0])).toBe('80 sm · 20078331')
@@ -1353,6 +1640,7 @@ describe('what the manager does not have to decode', () => {
 
   it('asks for a product name in the search, not a code', async () => {
     await renderPage()
+    await openLines()
 
     expect(screen.getByPlaceholderText('Məhsul adı…')).toBeInTheDocument()
   })
@@ -1392,6 +1680,8 @@ describe('what the manager does not have to decode', () => {
       },
     })
     await renderPage()
+    // Folded until asked for (Task 23): the source is now two steps away, and still all of it is there.
+    await openLines(user)
 
     // In the table: below 1024 pixels the same line is also a card (Task 12), with its own "Mənbəyə bax".
     await user.click(linesTable().getByRole('button', { name: 'Mənbəyə bax' }))
@@ -1432,6 +1722,7 @@ describe('a blank price', () => {
       },
     } as never))
     await renderPage()
+    await openLines()
 
     const table = within(document.querySelector('table')!)
     expect(table.getByText('Qiymət yoxdur')).toHaveClass('text-amber-800')
@@ -1448,6 +1739,7 @@ describe('a blank price', () => {
       },
     } as never))
     await renderPage()
+    await openLines()
 
     const table = within(document.querySelector('table')!)
     // Not "Qiymət yoxdur", and above all not amber: nobody is meant to go looking for this number.
@@ -1476,6 +1768,7 @@ describe('a blank price', () => {
       },
     } as never))
     await renderPage()
+    await openLines()
 
     const table = within(document.querySelector('table')!)
     expect(table.getByText('Daxili: Azpetrol baza')).toBeInTheDocument()
@@ -1494,6 +1787,7 @@ describe('a blank price', () => {
       },
     } as never))
     await renderPage()
+    await openLines()
 
     const table = within(document.querySelector('table')!)
     expect(table.queryByText('Daxili təminat')).toBeNull()
@@ -1815,6 +2109,7 @@ describe('closing the product history and the source', () => {
       source: null,
     })
     await renderPage()
+    await openLines(user)
 
     await user.click(within(screen.getByRole('list', { name: 'Sətirlər' })).getByRole('button', { name: 'Mənbəyə bax' }))
     const dialog = await screen.findByRole('dialog', { name: 'Mənbə' })
@@ -2210,7 +2505,8 @@ describe('the product history in the address', () => {
       </MemoryRouter>,
     )
     await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
-    // The order's own lines too: the history needs both the order and its comparison.
+    // The order's own lines too: the history needs both the order and its comparison. Folded until asked (Task 23).
+    await openLines()
     await within(screen.getByRole('list', { name: 'Sətirlər' })).findByText('York qatlama salfet')
   }
 
@@ -2392,6 +2688,7 @@ describe('the product history in the address', () => {
       </MemoryRouter>,
     )
 
+    await openLines()
     await within(screen.getByRole('list', { name: 'Sətirlər' })).findByText('York qatlama salfet')
     await waitFor(() => expect(decisionsApi.fetchDecisionContext).toHaveBeenCalled())
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -2498,6 +2795,7 @@ describe('the product history in the address', () => {
       </MemoryRouter>,
     )
     await screen.findByRole('region', { name: 'Dəyişikliyin səbəbləri' })
+    await openLines(user)
     await within(screen.getByRole('list', { name: 'Sətirlər' })).findByText('York qatlama salfet')
 
     await user.click(row('Rosmarinus'))

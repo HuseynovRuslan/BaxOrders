@@ -995,8 +995,12 @@ describe('no retired word on the manager’s screens', () => {
       'Bu sifarişdə 40 məhsul var, müqayisə bazası ilə birlikdə 45. «Hamısı» onlardan dəyişən 4 məhsulu sayır.',
     )
     expect(container).not.toHaveTextContent(/yaxşı|pis/i)
-    expect(screen.getByRole('columnheader', { name: 'Vahid' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Müqayisə üçün data azdır — bu nə deməkdir?' })).toBeInTheDocument()
+
+    // Task 23: the lines are folded until asked for. Swept folded above; opened, and swept again, here.
+    await userEvent.click(screen.getByRole('button', { name: /^Sətirlər/ }))
+    expectNoOldTerms(container)
+    expect(screen.getByRole('columnheader', { name: 'Vahid' })).toBeInTheDocument()
     // Task 12: the same lines as cards for a phone, swept on their own as well as with the page.
     const lineCards = screen.getByRole('list', { name: 'Sətirlər' })
     expect(within(lineCards).getAllByRole('listitem').length).toBeGreaterThan(0)

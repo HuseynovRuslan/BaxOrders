@@ -414,6 +414,59 @@ describe('what "Hamısı" counts', () => {
     )).toBeInTheDocument()
     expect(screen.queryByText(/dəyişməyib/)).toBeNull()
   })
+
+  /**
+   * Brief (Task 23): the sentence explains how the list counts, so it is not the first thing read under the heading.
+   * It moved, word for word, behind the ⓘ beside «Əsas dəyişikliklər», which names the question it answers (23.3).
+   */
+  it('says it behind the ⓘ beside the heading, word for word, hidden until asked for', async () => {
+    const line = 'Bu sifarişdə 76 məhsul var, müqayisə bazası ilə birlikdə 100. «Hamısı» onlardan dəyişən 91 məhsulu sayır. '
+      + '9 məhsulun məbləği dəyişməyib.'
+    renderList([driver()], vi.fn(), productsOf([driver()], { inCurrentOrderCount: 76, comparedCount: 100, listedCount: 91 }))
+    const section = screen.getByRole('region', { name: 'Əsas dəyişikliklər' })
+
+    // No longer a paragraph of the section's body.
+    expect(Array.from(section.querySelectorAll('p')).map((paragraph) => paragraph.textContent)).not.toContain(line)
+    expect(section.querySelectorAll('p')[0]).toHaveTextContent(/^Artıb: /)
+
+    const hint = within(section).getByRole('button', { name: '«Hamısı» nəyi sayır?' })
+    const note = document.getElementById(hint.getAttribute('aria-controls') ?? '')!
+    expect(note).toHaveAttribute('role', 'note')
+    expect(note.textContent).toBe(line)
+    expect(note).not.toBeVisible()
+    expect(hint).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(hint)
+
+    expect(note).toBeVisible()
+    expect(hint).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  /** Task 18 scrolls to this heading: its name, its element and its reference are what they were. */
+  it('leaves the heading its own name, with the ⓘ beside it rather than inside it', () => {
+    const headingRef = createRef<HTMLHeadingElement>()
+    render(
+      <Controlled drivers={[driver()]} steady={[]} products={productsOf([driver()])} onHistory={vi.fn()} headingRef={headingRef} />,
+    )
+
+    const heading = screen.getByRole('heading', { level: 2 })
+    expect(heading).toHaveAccessibleName('Əsas dəyişikliklər')
+    expect(heading).toBe(headingRef.current)
+    expect(heading).toHaveClass('scroll-mt-20')
+    const hint = screen.getByRole('button', { name: '«Hamısı» nəyi sayır?' })
+    expect(heading).not.toContainElement(hint)
+    expect(heading.parentElement).toContainElement(hint)
+  })
+
+  /** 23.3 moves the explanation only: the state counts are figures, and they stay in view under the heading. */
+  it('keeps the state counts as the line under the heading, in view', () => {
+    renderList([driver()], vi.fn(), productsOf([driver()], { increasedCount: 12, decreasedCount: 9, serviceCount: 1 }))
+
+    const counts = screen.getByText('Artıb: 12 · Azalıb: 9 · Xidmətlər: 1')
+    expect(counts.tagName).toBe('P')
+    expect(counts).toBeVisible()
+    expect(counts.closest('[role="note"]')).toBeNull()
+  })
 })
 
 describe('the filters', () => {

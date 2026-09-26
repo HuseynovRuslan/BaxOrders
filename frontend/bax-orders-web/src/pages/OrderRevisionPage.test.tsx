@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
@@ -233,6 +233,14 @@ function lineCards() {
   return within(screen.getByRole('list', { name: 'Sətirlər' }))
 }
 
+/**
+ * The lines are folded until asked for (Task 23), and a line's buttons with them, so a test opens them first — also
+ * before saying a button is not there, or it would say so of a folded section.
+ */
+async function openLines(user: Pick<UserEvent, 'click'> = userEvent) {
+  await user.click(screen.getByRole('button', { name: /^Sətirlər/ }))
+}
+
 // ---- creating a correction -------------------------------------------------------------------------
 
 describe('a returned order', () => {
@@ -324,6 +332,7 @@ describe('a returned order', () => {
       canEditRevision: false,
     }))
     await renderPage()
+    await openLines()
 
     expect(screen.getByRole('button', { name: 'Yeni düzəliş versiyası yarat' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Redaktə et' })).toBeNull()
@@ -428,6 +437,7 @@ describe('the header and the summary', () => {
 describe('what the screen offers', () => {
   it('offers editing only where the server allows it', async () => {
     await renderPage()
+    await openLines()
 
     expect(linesTable().getByRole('button', { name: 'Redaktə et' })).toBeInTheDocument()
     expect(linesTable().getByRole('button', { name: 'Sil' })).toBeInTheDocument()
@@ -437,6 +447,7 @@ describe('what the screen offers', () => {
   it('offers nothing when the server says this person may not edit', async () => {
     revisionsApi.fetchRevision.mockResolvedValue(revision({ canEditRevision: false }))
     await renderPage()
+    await openLines()
 
     expect(screen.queryByRole('button', { name: 'Redaktə et' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Sil' })).toBeNull()
@@ -454,6 +465,7 @@ describe('what the screen offers', () => {
       canEditRevision: false,
     }))
     await renderPage()
+    await openLines()
 
     expect(screen.queryByRole('button', { name: 'Redaktə et' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Sətir əlavə et' })).toBeNull()
@@ -495,6 +507,7 @@ describe('what a Rəhbər is shown', () => {
     workflowApi.fetchWorkflow.mockResolvedValue({ ...deciding, status })
     await renderPage()
     await waitFor(() => expect(workflowApi.fetchWorkflow).toHaveBeenCalled())
+    await openLines()
 
     expect(screen.queryByRole('button', { name: /düzəliş versiyası yarat/i })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Redaktə et' })).toBeNull()
@@ -510,6 +523,7 @@ describe('editing a line', () => {
   it('sends only the quantity when only the quantity was touched', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
@@ -527,6 +541,7 @@ describe('editing a line', () => {
   it('clears a price deliberately, and never as a zero', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
@@ -543,6 +558,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     ordersApi.fetchOrder.mockResolvedValue(detail({ items: { items: [item({ unitPrice: null, lineTotal: null })] } as never }))
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
@@ -560,6 +576,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     ordersApi.fetchOrder.mockResolvedValue(detail({ items: { items: [item({ supplierId: 7, supplierName: 'Anbar' })] } as never }))
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
@@ -575,6 +592,7 @@ describe('editing a line', () => {
   it('will not save a quantity of zero, and says why', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
@@ -590,6 +608,7 @@ describe('editing a line', () => {
   it('does not offer the product for editing', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
     const dialog = screen.getByRole('dialog')
@@ -602,6 +621,7 @@ describe('editing a line', () => {
     const user = userEvent.setup()
     revisionsApi.editOrderItem.mockRejectedValue(new ApiError(409, 'Dəyişib'))
     await renderPage()
+    await openLines(user)
     const before = ordersApi.fetchOrder.mock.calls.length
 
     await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
@@ -617,6 +637,35 @@ describe('editing a line', () => {
   })
 })
 
+/**
+ * Task 23 (criterion 8): the lines a reader opened on a correction stay open through the page's own reload after a
+ * change, so the next line is one click away rather than two.
+ */
+describe('the opened lines through a change', () => {
+  it('stay open after a line is saved and the page reads everything again', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await openLines(user)
+    const fetches = ordersApi.fetchOrder.mock.calls.length
+
+    await user.click(linesTable().getByRole('button', { name: 'Redaktə et' }))
+    const dialog = screen.getByRole('dialog')
+    const quantity = within(dialog).getByLabelText('Miqdar')
+    await user.clear(quantity)
+    await user.type(quantity, '12.5')
+    await user.click(within(dialog).getByRole('button', { name: 'Yadda saxla' }))
+
+    // The save reloads the page's data (afterChange): the lines are read again, and the dialog is gone.
+    await waitFor(() => expect(ordersApi.fetchOrder.mock.calls.length).toBeGreaterThan(fetches))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    expect(screen.getByRole('button', { name: /^Sətirlər/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(await linesTable().findByText('Bel')).toBeInTheDocument()
+    expect(linesTable().getByRole('button', { name: 'Redaktə et' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sətir əlavə et' })).toBeInTheDocument()
+  })
+})
+
 // ---- adding and removing ---------------------------------------------------------------------------
 
 describe('adding a line', () => {
@@ -628,6 +677,7 @@ describe('adding a line', () => {
     )
     reviewApi.searchProductVariants.mockResolvedValue([{ id: 31, label: '10 litr · ədəd', secondary: null }])
     await renderPage()
+    await openLines(user)
 
     await user.click(screen.getByRole('button', { name: 'Sətir əlavə et' }))
     const dialog = screen.getByRole('dialog')
@@ -650,6 +700,7 @@ describe('adding a line', () => {
     const user = userEvent.setup()
     reviewApi.searchReference.mockResolvedValue([{ id: 11, label: 'Vedrə', secondary: null }])
     await renderPage()
+    await openLines(user)
 
     await user.click(screen.getByRole('button', { name: 'Sətir əlavə et' }))
     const dialog = screen.getByRole('dialog')
@@ -663,6 +714,7 @@ describe('removing a line', () => {
   it('asks first, and says how far the removal reaches', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Sil' }))
     const dialog = screen.getByRole('dialog')
@@ -675,6 +727,7 @@ describe('removing a line', () => {
   it('removes it once confirmed, with the row version it read', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Sil' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sil' }))
@@ -688,6 +741,7 @@ describe('a line on a phone', () => {
   it('edits and removes from the card through the same dialogs', async () => {
     const user = userEvent.setup()
     await renderPage()
+    await openLines(user)
 
     await user.click(lineCards().getByRole('button', { name: 'Redaktə et' }))
     const edit = screen.getByRole('dialog')
@@ -712,6 +766,7 @@ describe('a line on a phone', () => {
   it('offers neither when the server says this person may not edit', async () => {
     revisionsApi.fetchRevision.mockResolvedValue(revision({ canEditRevision: false }))
     await renderPage()
+    await openLines()
 
     expect(lineCards().getByRole('button', { name: 'Mənbəyə bax' })).toBeInTheDocument()
     expect(lineCards().queryByRole('button', { name: 'Redaktə et' })).toBeNull()
@@ -887,6 +942,7 @@ describe('where a line came from', () => {
     const user = userEvent.setup()
     ordersApi.fetchOrderItemSource.mockResolvedValue(provenance())
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Mənbəyə bax' }))
 
@@ -909,6 +965,7 @@ describe('where a line came from', () => {
       lineage: [{ orderRequestItemId: 501, orderRequestId: 105, version: 2, status: 'Draft', isImported: false }],
     }))
     await renderPage()
+    await openLines(user)
 
     await user.click(linesTable().getByRole('button', { name: 'Mənbəyə bax' }))
 
