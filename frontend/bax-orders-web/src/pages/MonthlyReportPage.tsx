@@ -9,6 +9,21 @@ import { SummaryMetric } from '../components/SummaryMetric'
 import { formatCount, formatMoney } from '../components/analytics/format'
 import { MonthlyReportTable, MonthlyReportYearList } from '../components/reports/MonthlyReportTable'
 import { useScrollMemory } from '../navigation/useScrollMemory'
+import {
+  combinedSpendLabel,
+  monthlyAmountLabel,
+  outsideMonthlyAmountLabel,
+  unclassifiedOutsideAnalyticsNote,
+} from '../orderLines/lineType'
+
+/**
+ * What the company actually spent: the monthly money, the one-off money and the lines nobody classified added
+ * together. Unknown money stays unknown — a year with nothing priced at all has no total, not a zero.
+ */
+function combined(report: MonthlyReport): number | null {
+  const parts = [report.knownAmount, report.outsideMonthlyKnownAmount, report.unclassifiedKnownAmount]
+  return parts.every((part) => part === null) ? null : parts.reduce<number>((sum, part) => sum + (part ?? 0), 0)
+}
 
 type State =
   | { status: 'loading' }
@@ -123,8 +138,18 @@ export function MonthlyReportPage() {
       {state.status === 'error' && <ErrorState message={state.message} />}
 
       {data && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="İlin xülasəsi">
-          <SummaryMetric label="İlin məbləği" value={formatMoney(data.knownAmount)} size="lg" />
+        <>
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="İlin xülasəsi">
+          {/* The month-on-month grid below reads monthly lines alone, so the headline says which money it is.
+              The one-off spend sits beside it as its own fact, and the factual total is offered once so nobody
+              has to add the two in their head. */}
+          <SummaryMetric label={monthlyAmountLabel} value={formatMoney(data.knownAmount)} size="lg" />
+          <SummaryMetric
+            label={outsideMonthlyAmountLabel}
+            value={formatMoney(data.outsideMonthlyKnownAmount)}
+            note={data.outsideMonthlyItemCount > 0 ? `${formatCount(data.outsideMonthlyItemCount)} sətir` : undefined}
+          />
+          <SummaryMetric label={combinedSpendLabel} value={formatMoney(combined(data))} />
           <SummaryMetric label="Sifariş" value={formatCount(data.requestCount)} />
           <SummaryMetric label="Obyekt" value={formatCount(data.locationCount)} />
           <SummaryMetric
@@ -134,6 +159,13 @@ export function MonthlyReportPage() {
             note={data.missingPriceItemCount > 0 ? amountIncompleteLabel : undefined}
           />
         </div>
+
+        {data.unclassifiedItemCount > 0 && (
+          <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+            {unclassifiedOutsideAnalyticsNote(data.unclassifiedItemCount, formatMoney(data.unclassifiedKnownAmount))}
+          </p>
+        )}
+        </>
       )}
 
       {state.status === 'loading' && <LoadingRows label="Hesabat yüklənir" />}

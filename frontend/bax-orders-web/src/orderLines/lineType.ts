@@ -75,6 +75,24 @@ export const monthlyOrdersLabel = 'Aylıq sifarişlər'
 export const outsideMonthlyOrdersLabel = 'Aylıqdan Kənar sifarişlər'
 
 /**
+ * The three figures a year-at-a-glance report has to keep apart: what the comparison is built on, what was
+ * bought outside the plan, and what the two come to. Named as amounts rather than as kinds, because on that
+ * screen they head money and not lines.
+ */
+export const monthlyAmountLabel = 'Aylıq sifarişlərin məbləği'
+export const outsideMonthlyAmountLabel = 'Aylıqdan kənar məbləğ'
+export const combinedSpendLabel = 'Ümumi faktiki xərc'
+
+/**
+ * Said once, where a reader might otherwise wonder why the figures do not add up to what they remember: lines
+ * nobody has classified are in neither, on purpose.
+ */
+export function unclassifiedOutsideAnalyticsNote(count: number, amount: string): string {
+  return `${count} sətir təsnif edilməyib (${amount}). Nə aylıq müqayisəyə, nə də aylıqdan kənar məbləğə daxil deyil — `
+    + 'sətrin növü deyilməyincə heç birinə yazılmır.'
+}
+
+/**
  * What an import calls a line whose «Növ» cell says nothing it can read.
  *
  * Deliberately not «Təsnif edilməyib», which the price classification already owns: on the confirmation screen

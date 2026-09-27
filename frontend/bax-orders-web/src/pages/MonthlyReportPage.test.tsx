@@ -38,6 +38,10 @@ function cell(month: number, overrides: Partial<MonthlyReportCell> = {}): Monthl
     recentAveragePercent: null,
     isUnusual: false,
     isHistoricalImport: false,
+    outsideMonthlyKnownAmount: null,
+    outsideMonthlyItemCount: 0,
+    unclassifiedKnownAmount: null,
+    unclassifiedItemCount: 0,
     ...overrides,
   }
 }
@@ -68,6 +72,10 @@ function row(overrides: Partial<MonthlyReportRow> = {}): MonthlyReportRow {
     missingPriceItemCount: 0,
     monthsWithoutRequest: months.filter((month) => month.orderRequestId === null).length,
     hasAnyRequest: true,
+    outsideMonthlyKnownAmount: null,
+    outsideMonthlyItemCount: 0,
+    unclassifiedKnownAmount: null,
+    unclassifiedItemCount: 0,
     ...overrides,
     months,
   }
@@ -82,6 +90,10 @@ function companyMonth(month: number, overrides: Partial<MonthlyReportMonth> = {}
     knownAmount: 1000,
     missingPriceItemCount: 0,
     amountIsComplete: true,
+    outsideMonthlyKnownAmount: null,
+    outsideMonthlyItemCount: 0,
+    unclassifiedKnownAmount: null,
+    unclassifiedItemCount: 0,
     ...overrides,
   }
 }
@@ -98,6 +110,10 @@ function report(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
     knownAmount: 431670.91,
     missingPriceItemCount: 0,
     amountIsComplete: true,
+    outsideMonthlyKnownAmount: null,
+    outsideMonthlyItemCount: 0,
+    unclassifiedKnownAmount: null,
+    unclassifiedItemCount: 0,
     ...overrides,
   }
 }
@@ -1376,5 +1392,51 @@ describe('coming back from an order', () => {
     // One Back leaves the report: neither search pushed an entry of its own.
     await userEvent.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
     expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The grid compares months, and a month-on-month comparison only means something about material the company
+ * orders every month. So the headline names which money it is, the one-off spend sits beside it as its own
+ * fact, and the factual total is offered once — a manager should not have to add two numbers in their head.
+ */
+describe('the three kinds of money', () => {
+  /** A metric of the year summary, read by the label above it. */
+  function metric(label: string) {
+    const summary = screen.getByRole('group', { name: 'İlin xülasəsi' })
+    return within(summary).getByText(label).closest('div') as HTMLElement
+  }
+
+  it('heads the year with the monthly amount, the outside one and the two together', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+      knownAmount: 428000,
+      outsideMonthlyKnownAmount: 3051.16,
+      outsideMonthlyItemCount: 325,
+    }))
+    await renderPage()
+
+    expect(metric('Aylıq sifarişlərin məbləği')).toHaveTextContent('428.000,00 ₼')
+    expect(metric('Aylıqdan kənar məbləğ')).toHaveTextContent('3.051,16 ₼')
+    expect(metric('Aylıqdan kənar məbləğ')).toHaveTextContent('325 sətir')
+    expect(metric('Ümumi faktiki xərc')).toHaveTextContent('431.051,16 ₼')
+  })
+
+  it('says nothing about lines nobody classified when there are none', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report())
+    await renderPage()
+
+    expect(screen.queryByText(/təsnif edilməyib/)).not.toBeInTheDocument()
+  })
+
+  it('warns that unclassified lines are in neither figure', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+      unclassifiedKnownAmount: 28,
+      unclassifiedItemCount: 1,
+    }))
+    await renderPage()
+
+    const note = screen.getByText(/1 sətir təsnif edilməyib/)
+    expect(note).toHaveTextContent('28,00 ₼')
+    expect(note).toHaveTextContent('Nə aylıq müqayisəyə, nə də aylıqdan kənar məbləğə daxil deyil')
   })
 })

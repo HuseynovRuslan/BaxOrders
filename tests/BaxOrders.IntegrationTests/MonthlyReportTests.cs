@@ -1,4 +1,4 @@
-using BaxOrders.Application.Analytics;
+﻿using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Reports;
 using BaxOrders.Domain.Catalog;
@@ -577,6 +577,138 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
 
     private static Task<MonthlyReportDto> ReportAsync(BaxOrdersDbContext db, int year, string? search = null) =>
         new MonthlyReportQueries(db).GetAsync(new MonthlyReportQuery(year, search), None);
+
+    // ---- what a comparison is allowed to read --------------------------------------------------------
+
+    /// <summary>
+    /// A one-off purchase is not this month's demand: it stays out of the month's figure, out of the difference
+    /// and out of the judgement of whether the month was unusual — and it is reported beside them, not lost.
+    /// </summary>
+    /// <remarks>
+    /// The company's own workbook carries 325 such lines. Counting them as demand would make a month look like
+    /// a rise where a pump simply broke, which is the whole reason the classification exists.
+    /// </remarks>
+    [PostgresFact]
+    public async Task An_outside_monthly_line_is_kept_out_of_the_comparison_and_reported_beside_it()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var row = Row(await ReportAsync(db, 2026), world.LocationId);
+        var june = row.Months[5];
+        var july = row.Months[6];
+
+        // June: 100 of monthly material and 500 of a one-off. The month's figure is the 100.
+        Assert.Equal(100m, june.KnownAmount);
+        Assert.Equal(500m, june.OutsideMonthlyKnownAmount);
+        Assert.Equal(1, june.OutsideMonthlyItemCount);
+
+        // July orders the same 100 of monthly material, so nothing changed — which is what the reader must see.
+        Assert.Equal(100m, july.KnownAmount);
+        Assert.Equal(0m, july.DeltaAmount);
+        Assert.Null(july.OutsideMonthlyKnownAmount);
+        Assert.Equal(0, july.OutsideMonthlyItemCount);
+        Assert.False(july.IsUnusual);
+    }
+
+    /// <summary>A line nobody has classified is in neither figure, and says so in one of its own.</summary>
+    [PostgresFact]
+    public async Task An_unclassified_line_enters_neither_figure()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var august = Row(await ReportAsync(db, 2026), world.LocationId).Months[7];
+
+        Assert.Equal(100m, august.KnownAmount);
+        Assert.Null(august.OutsideMonthlyKnownAmount);
+        Assert.Equal(7m, august.UnclassifiedKnownAmount);
+        Assert.Equal(1, august.UnclassifiedItemCount);
+    }
+
+    /// <summary>The year, the month column and the company all carry the three figures apart.</summary>
+    [PostgresFact]
+    public async Task Every_total_keeps_the_three_apart()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var report = await ReportAsync(db, 2026);
+        var row = Row(report, world.LocationId);
+
+        // Three months of 100 monthly material; two one-offs, 42 in May and 500 in June; one unclassified 7.
+        Assert.Equal(300m, row.KnownAmount);
+        Assert.Equal(542m, row.OutsideMonthlyKnownAmount);
+        Assert.Equal(2, row.OutsideMonthlyItemCount);
+        Assert.Equal(7m, row.UnclassifiedKnownAmount);
+        Assert.Equal(1, row.UnclassifiedItemCount);
+
+        var june = report.Months[5];
+        Assert.Equal(500m, june.OutsideMonthlyKnownAmount);
+        Assert.Equal(1, june.OutsideMonthlyItemCount);
+
+        // The company's own totals are the rows added up, and nothing has been folded into anything.
+        Assert.Equal(report.Rows.Sum(item => item.KnownAmount ?? 0m), report.KnownAmount);
+        Assert.Equal(report.Rows.Sum(item => item.OutsideMonthlyKnownAmount ?? 0m), report.OutsideMonthlyKnownAmount);
+        Assert.Equal(report.Rows.Sum(item => item.UnclassifiedKnownAmount ?? 0m), report.UnclassifiedKnownAmount);
+    }
+
+    /// <summary>A month of nothing but one-off purchases has no monthly figure — unknown demand, not zero demand.</summary>
+    [PostgresFact]
+    public async Task A_month_of_only_one_off_purchases_claims_no_monthly_figure()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var may = Row(await ReportAsync(db, 2026), world.LocationId).Months[4];
+
+        Assert.Null(may.KnownAmount);
+        Assert.Equal(42m, may.OutsideMonthlyKnownAmount);
+        Assert.Equal(1, may.OutsideMonthlyItemCount);
+        Assert.NotNull(may.OrderRequestId);
+    }
+
+    /// <summary>
+    /// May: nothing but a 42 one-off · June: 100 monthly and a 500 one-off · July: 100 monthly ·
+    /// August: 100 monthly and an unclassified 7.
+    /// </summary>
+    private static async Task<World> LineTypeWorldAsync(BaxOrdersDbContext db)
+    {
+        var tag = Unique();
+
+        var location = new Location(
+            await new PostgresLocationCodeGenerator(db).NextAsync(None), $"Növ obyekti {tag}");
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var product = await ProductAsync(db, new PostgresProductCodeGenerator(db), $"Növ malı {tag}");
+        await db.SaveChangesAsync();
+        var variant = product.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        var june = new OrderRequest(location, new DateOnly(2026, 6, 1));
+        june.AddItem(variant, 10m, 10m);
+        june.AddItem(variant, 1m, 500m, orderLineType: OrderLineType.OutsideMonthly);
+
+        var july = new OrderRequest(location, new DateOnly(2026, 7, 1));
+        july.AddItem(variant, 10m, 10m);
+
+        var august = new OrderRequest(location, new DateOnly(2026, 8, 1));
+        august.AddItem(variant, 10m, 10m);
+        august.AddItem(variant, 1m, 7m, orderLineType: OrderLineType.Unclassified);
+
+        // May rather than September on purpose: September is the month the company-wide dashboard tests read as
+        // current, and a month of nothing but one-off lines has no monthly figure at all — a shape those tests
+        // were not written for, and one this report is the right place to pin.
+        var may = new OrderRequest(location, new DateOnly(2026, 5, 1));
+        may.AddItem(variant, 1m, 42m, orderLineType: OrderLineType.OutsideMonthly);
+
+        db.OrderRequests.AddRange(may, june, july, august);
+        await db.SaveChangesAsync();
+
+        return new World(location.Id, location.Name, june.Id);
+    }
 
     private static MonthlyReportRowDto Row(MonthlyReportDto report, int locationId) =>
         report.Rows.Single(row => row.LocationId == locationId);

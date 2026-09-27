@@ -7,6 +7,11 @@ import type { OrderRequestStatus } from './orders'
  * A month the location has no request for comes back with `orderRequestId: null` and no amount. That is not a
  * month it spent nothing in, and the report must not draw it as one.
  */
+/**
+ * One location's month. `knownAmount` — and the difference, average and «unusual» built from it — is the
+ * month's **monthly** money alone, because that is the only population a month-on-month comparison means
+ * anything about. What was bought outside the plan, and what nobody classified, ride beside it.
+ */
 export interface MonthlyReportCell {
   /** 1–12. */
   month: number
@@ -18,6 +23,12 @@ export interface MonthlyReportCell {
   knownAmount: number | null
   itemCount: number
   missingPriceItemCount: number
+  /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  outsideMonthlyKnownAmount: number | null
+  outsideMonthlyItemCount: number
+  /** Lines nobody has classified: in neither figure, shown so they are not lost. */
+  unclassifiedKnownAmount: number | null
+  unclassifiedItemCount: number
   amountIsComplete: boolean
   /** The month before — for January, the December of the year before. Null when it has no request. */
   previousMonthKnownAmount: number | null
@@ -46,6 +57,12 @@ export interface MonthlyReportRow {
   requestCount: number
   knownAmount: number | null
   missingPriceItemCount: number
+  /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  outsideMonthlyKnownAmount: number | null
+  outsideMonthlyItemCount: number
+  /** Lines nobody has classified: in neither figure, shown so they are not lost. */
+  unclassifiedKnownAmount: number | null
+  unclassifiedItemCount: number
   monthsWithoutRequest: number
   /**
    * Whether the location has a request in any month up to the end of the year being read. False is the
@@ -60,6 +77,12 @@ export interface MonthlyReportMonth {
   locationsWithRequest: number
   knownAmount: number | null
   missingPriceItemCount: number
+  /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  outsideMonthlyKnownAmount: number | null
+  outsideMonthlyItemCount: number
+  /** Lines nobody has classified: in neither figure, shown so they are not lost. */
+  unclassifiedKnownAmount: number | null
+  unclassifiedItemCount: number
   amountIsComplete: boolean
 }
 
@@ -74,6 +97,12 @@ export interface MonthlyReport {
   requestCount: number
   knownAmount: number | null
   missingPriceItemCount: number
+  /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  outsideMonthlyKnownAmount: number | null
+  outsideMonthlyItemCount: number
+  /** Lines nobody has classified: in neither figure, shown so they are not lost. */
+  unclassifiedKnownAmount: number | null
+  unclassifiedItemCount: number
   amountIsComplete: boolean
 }
 

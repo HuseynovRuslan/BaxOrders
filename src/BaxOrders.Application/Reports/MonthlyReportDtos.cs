@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Orders;
+﻿using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Reports;
 
@@ -36,6 +36,15 @@ namespace BaxOrders.Application.Reports;
 /// <see cref="Orders.Workflow.HistoricalImportRule"/>, the same as the order page's <c>DecisionFacts.IsHistoricalImport</c>;
 /// it never changes the status, which stays <c>Approved</c>. False when the month has no request.
 /// </param>
+/// <summary>
+/// One location's month.
+/// </summary>
+/// <remarks>
+/// <c>KnownAmount</c> and every figure derived from it — the difference from the month before, the recent
+/// average and <c>IsUnusual</c> — are the month's <b>monthly</b> money and nothing else, because that is the
+/// only population a month-on-month comparison means anything about. What was bought outside the month's plan,
+/// and what nobody has classified, are carried beside it so the screen can still show what was actually spent.
+/// </remarks>
 public sealed record MonthlyReportCellDto(
     int Month,
     DateOnly Period,
@@ -52,7 +61,11 @@ public sealed record MonthlyReportCellDto(
     decimal? RecentAverageKnownAmount,
     decimal? RecentAveragePercent,
     bool IsUnusual,
-    bool IsHistoricalImport = false);
+    bool IsHistoricalImport = false,
+    decimal? OutsideMonthlyKnownAmount = null,
+    int OutsideMonthlyItemCount = 0,
+    decimal? UnclassifiedKnownAmount = null,
+    int UnclassifiedItemCount = 0);
 
 /// <param name="Months">Twelve cells, January first, whether or not the location ordered in them.</param>
 /// <param name="KnownAmount">The year's priced money for this location. Null when it ordered nothing priced.</param>
@@ -71,7 +84,11 @@ public sealed record MonthlyReportRowDto(
     decimal? KnownAmount,
     int MissingPriceItemCount,
     int MonthsWithoutRequest,
-    bool HasAnyRequest);
+    bool HasAnyRequest,
+    decimal? OutsideMonthlyKnownAmount = null,
+    int OutsideMonthlyItemCount = 0,
+    decimal? UnclassifiedKnownAmount = null,
+    int UnclassifiedItemCount = 0);
 
 /// <summary>One month across every location, so a column can be read as well as a row.</summary>
 public sealed record MonthlyReportMonthDto(
@@ -80,7 +97,11 @@ public sealed record MonthlyReportMonthDto(
     int LocationsWithRequest,
     decimal? KnownAmount,
     int MissingPriceItemCount,
-    bool AmountIsComplete);
+    bool AmountIsComplete,
+    decimal? OutsideMonthlyKnownAmount = null,
+    int OutsideMonthlyItemCount = 0,
+    decimal? UnclassifiedKnownAmount = null,
+    int UnclassifiedItemCount = 0);
 
 /// <param name="Months">Describes the whole company, never the searched subset.</param>
 /// <param name="FilteredLocationCount">How many rows the search left; <see cref="LocationCount"/> is the total.</param>
@@ -94,7 +115,11 @@ public sealed record MonthlyReportDto(
     int RequestCount,
     decimal? KnownAmount,
     int MissingPriceItemCount,
-    bool AmountIsComplete);
+    bool AmountIsComplete,
+    decimal? OutsideMonthlyKnownAmount = null,
+    int OutsideMonthlyItemCount = 0,
+    decimal? UnclassifiedKnownAmount = null,
+    int UnclassifiedItemCount = 0);
 
 /// <param name="Year">Null asks for the most recent year that has any request.</param>
 public sealed record MonthlyReportQuery(int? Year = null, string? Search = null);
