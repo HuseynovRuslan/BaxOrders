@@ -1,4 +1,4 @@
-using BaxOrders.Application.Imports.Evaluation;
+﻿using BaxOrders.Application.Imports.Evaluation;
 using BaxOrders.Application.Imports.Parsing;
 using static BaxOrders.UnitTests.Imports.ImportTestData;
 
@@ -36,6 +36,10 @@ public sealed class DuplicateRowDetectorTests
     [InlineData(ImportField.ResponsiblePerson, "Elmir")]
     [InlineData(ImportField.SubCategory, "Əlcək")]
     [InlineData(ImportField.RequestDate, "01.04.2026")]
+    [InlineData(ImportField.ModelCode, "BOSCH")]
+    [InlineData(ImportField.SpecificationUnit, "mm")]
+    [InlineData(ImportField.MainCategory, "Tikinti")]
+    [InlineData(ImportField.MiddleCategory, "Boya")]
     public void Same_product_with_a_different_business_field_is_not_a_duplicate(ImportField field, object value)
     {
         Assert.Empty(Detect(RowAt(4), RowAt(5, (field, value))));

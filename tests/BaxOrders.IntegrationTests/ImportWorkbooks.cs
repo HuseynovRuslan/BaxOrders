@@ -30,6 +30,11 @@ internal sealed record OrderLine(
     string? SpecificationValue = null,
     string? SpecificationUnit = null,
     /// <summary>
+    /// The "Model/Kod" cell: a brand, an article number or a grit. It is part of what tells one variant of a
+    /// product from its siblings, so a line meaning a particular make says so here and nowhere else.
+    /// </summary>
+    string? Model = null,
+    /// <summary>
     /// The "Növ" cell. Defaults to the month's planned material, which is what almost every line of a real
     /// workbook is and what these fixtures mean; a test about an unclassified or an unreadable line says so.
     /// </summary>
@@ -44,7 +49,7 @@ internal static class ImportWorkbooks
 {
     private static readonly object?[] Header =
     [
-        "№", "Ana kateqoriya", "Orta kateqoriya", "Alt kateqoriya", "Malın adı", "Ölçü", "Vahid",
+        "№", "Ana kateqoriya", "Orta kateqoriya", "Alt kateqoriya", "Malın adı", "Ölçü", "Vahid", "Model/Kod",
         "Miqdarı", "Ö/v", "Qiyməti", "Cəmi", "Şirkət", "Obyekt", "Tarix", "Cavabdeh şəxs", "Növ",
     ];
 
@@ -75,9 +80,9 @@ internal static class ImportWorkbooks
     public static ExcelWorkbook OrdersWithoutEitherColumn(params OrderLine[] lines) =>
         Build(lines, [PersonColumn, LineTypeColumn]);
 
-    private const int LineTotalColumn = 10;
-    private const int PersonColumn = 14;
-    private const int LineTypeColumn = 15;
+    private const int LineTotalColumn = 11;
+    private const int PersonColumn = 15;
+    private const int LineTypeColumn = 16;
 
     /// <summary>
     /// The workbook, with the named columns left out of the header and of every row alike — which is what a
@@ -101,8 +106,8 @@ internal static class ImportWorkbooks
     private static object?[] CellsOf(OrderLine line, int index) =>
     [
         (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
-        line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
-        line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
+        line.SpecificationValue, line.SpecificationUnit, line.Model, line.Quantity, line.OrderUnit, line.Price,
+        line.Total, line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
     ];
 
     /// <summary>

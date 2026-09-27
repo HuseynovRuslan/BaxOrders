@@ -364,6 +364,112 @@ public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
         Assert.Empty(await queries.SearchProductVariantsAsync(other.Id, null, CancellationToken.None));
     }
 
+    /// <summary>
+    /// Two makes of one article are two variants of one product, and deciding them creates no product at all.
+    /// </summary>
+    /// <remarks>
+    /// The real workbook does this on 17 lines: it names a product the catalog already has and puts a brand or a
+    /// grit — BOSCH, Staunch, P40, P60 — in "Model/Kod". The catalog is inconsistent about it, holding some grits
+    /// as products of their own. One product per real article is what a manager compares month over month, so the
+    /// make belongs to the variant; five products called almost the same thing would split one trend into five.
+    /// </remarks>
+    [PostgresFact]
+    public async Task Two_makes_of_one_article_are_two_variants_of_the_same_product()
+    {
+        await using var db = database.CreateContext();
+        var product = await AddProductAsync(db, $"Laqonda daşı almaz {Unique()}");
+        var batchId = await StageAsync(db,
+            new OrderLine(Product: product.Name, Model: "BOSCH"),
+            new OrderLine(Product: product.Name, Model: "Staunch"));
+        var productsBefore = await db.Products.CountAsync();
+
+        // Each make is a decision of its own, because the model is part of what a variant is.
+        var queries = new ImportReviewQueries(db);
+        var page = await queries.GetUnresolvedAsync(
+            batchId, new UnresolvedQuery(ImportResolutionKind.ProductVariant), CancellationToken.None);
+        Assert.Equal(2, page!.Items.Count);
+        Assert.All(page.Items, item => Assert.Equal(1, item.AffectedRowCount));
+
+        var service = ResolutionService(db);
+        foreach (var item in page.Items)
+        {
+            var plan = await queries.GetVariantPlanAsync(batchId, item.SourceKey, CancellationToken.None);
+            Assert.True(plan!.CanCreate);
+            await service.CreateProductVariantAsync(
+                new CreateProductVariantCommand(batchId, item.SourceKey), CancellationToken.None);
+        }
+
+        await using var check = database.CreateContext();
+        var variants = await check.ProductVariants.Where(variant => variant.ProductId == product.Id).ToListAsync();
+        Assert.Equal(2, variants.Count);
+        Assert.Equal<string?>(["BOSCH", "Staunch"], variants.Select(variant => variant.ModelCode).OrderBy(code => code, StringComparer.Ordinal));
+
+        // Nothing was added to the product catalog: a make is not an article.
+        Assert.Equal(productsBefore, await check.Products.CountAsync());
+
+        var rows = await RowsAsync(check, batchId);
+        Assert.All(rows, row => Assert.Equal<long?>(product.Id, row.MatchedProductId));
+        Assert.Equal(2, rows.Select(row => row.MatchedProductVariantId).Distinct().Count());
+        Assert.All(rows, row => Assert.DoesNotContain(row.Issues, issue => issue.IssueType == ImportIssueType.UnknownProductVariant));
+
+        // And the cell the operator read is still on the row, spelled as the workbook spells it.
+        Assert.Equal<string?>(["BOSCH", "Staunch"], rows.Select(row => row.OriginalModelCode).OrderBy(code => code, StringComparer.Ordinal));
+    }
+
+    /// <summary>One article number typed with different spacing is one variant, not two decisions.</summary>
+    /// <remarks>
+    /// The workbook's models are typed by hand: "№611320" appears beside "№ 611 320". <c>ModelCodeNormalizer</c>
+    /// removes every space for exactly this reason, so the review has to offer this as a single piece of work —
+    /// otherwise one make would be created twice and two orders for it would stop being comparable.
+    /// </remarks>
+    [PostgresFact]
+    public async Task One_article_number_typed_two_ways_is_one_variant()
+    {
+        await using var db = database.CreateContext();
+        var product = await AddProductAsync(db, $"Laqonda daşı almaz {Unique()}");
+        var batchId = await StageAsync(db,
+            new OrderLine(Product: product.Name, Model: "№611320"),
+            new OrderLine(Product: product.Name, Model: "№ 611 320"));
+
+        var queries = new ImportReviewQueries(db);
+        var page = await queries.GetUnresolvedAsync(
+            batchId, new UnresolvedQuery(ImportResolutionKind.ProductVariant), CancellationToken.None);
+        var value = Assert.Single(page!.Items);
+        Assert.Equal(2, value.AffectedRowCount);
+
+        await ResolutionService(db).CreateProductVariantAsync(
+            new CreateProductVariantCommand(batchId, value.SourceKey), CancellationToken.None);
+
+        await using var check = database.CreateContext();
+        var variant = Assert.Single(await check.ProductVariants.Where(item => item.ProductId == product.Id).ToListAsync());
+        var rows = await RowsAsync(check, batchId);
+        Assert.All(rows, row => Assert.Equal<long?>(variant.Id, row.MatchedProductVariantId));
+
+        // One variant, and both spellings still readable on their own rows.
+        Assert.Equal<string?>(["№ 611 320", "№611320"], rows.Select(row => row.OriginalModelCode).OrderBy(code => code, StringComparer.Ordinal));
+    }
+
+    /// <summary>A make and the plain article are different variants: an empty model is a value of its own.</summary>
+    [PostgresFact]
+    public async Task An_article_with_no_make_is_not_the_same_variant_as_one_with_a_make()
+    {
+        await using var db = database.CreateContext();
+        var product = await AddProductAsync(db, $"Şkurka {Unique()}");
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var plain = product.AddVariant(null, null, null, pieces);
+        await db.SaveChangesAsync();
+
+        var batchId = await StageAsync(db,
+            new OrderLine(Product: product.Name),
+            new OrderLine(Product: product.Name, Model: "P40"));
+
+        var rows = await RowsAsync(db, batchId);
+        Assert.Equal<long?>(plain.Id, rows[0].MatchedProductVariantId);
+        Assert.Null(rows[1].MatchedProductVariantId);
+        Assert.DoesNotContain(rows[0].Issues, issue => issue.IssueType == ImportIssueType.UnknownProductVariant);
+        Assert.Contains(rows[1].Issues, issue => issue.IssueType == ImportIssueType.UnknownProductVariant);
+    }
+
     private static async Task<Product> AddProductAsync(BaxOrdersDbContext db, string name)
     {
         var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
