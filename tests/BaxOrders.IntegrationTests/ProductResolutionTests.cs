@@ -543,6 +543,81 @@ public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
         Assert.Equal("12", Assert.Single(await RowsAsync(check, batchId)).OriginalSpecificationValue);
     }
 
+    /// <summary>
+    /// One name the catalog does not have becomes one product with a variant per size and make — and the
+    /// products that look like it are left exactly where they are.
+    /// </summary>
+    /// <remarks>
+    /// The company's workbook writes seventeen lines under a single generic name where the catalog holds six
+    /// older products spelled differently. The owner ruled that the workbook is the current truth and the six
+    /// stay as historical fact, so the review makes one product and lets the specification and the model tell
+    /// its variants apart. Two things have to hold for that to be safe: the catalog gains one product and not
+    /// one per make, and nothing is written that would fold the older six into it — the decision is for this
+    /// import, so no alias is saved.
+    /// </remarks>
+    [PostgresFact]
+    public async Task One_generic_name_becomes_one_product_with_a_variant_for_each_make()
+    {
+        await using var db = database.CreateContext();
+        var marker = Unique();
+        var older = await AddProductAsync(db, $"Laqonda daşı dəmir üçün {marker}");
+        var pieces = await db.UnitsOfMeasure.SingleAsync(unit => unit.Code == "PCS");
+        var olderVariant = await AddVariantAsync(db, older, pieces, "115");
+
+        var name = $"Laqonda daşı metal üçün {marker}";
+        var batchId = await StageAsync(db,
+            new OrderLine(Product: name, SpecificationValue: "115", SpecificationUnit: "mm", Model: "Alevs"),
+            new OrderLine(Product: name, SpecificationValue: "115", SpecificationUnit: "mm", Model: "Alevs"),
+            // The same make and size, ordered in a unit somebody typed with a capital: one variant, not two.
+            new OrderLine(Product: name, SpecificationValue: "115", SpecificationUnit: "mm", Model: "Skom", OrderUnit: "Ədəd"),
+            new OrderLine(Product: name, SpecificationValue: "115", SpecificationUnit: "mm", Model: "Skom"),
+            new OrderLine(Product: name, SpecificationValue: "230", SpecificationUnit: "mm"));
+        var productsBefore = await db.Products.CountAsync();
+        var service = ResolutionService(db);
+
+        var product = await service.CreateProductAsync(
+            new CreateProductCommand(batchId, ImportSourceKeys.Name(name)!, name, null, ResolutionScope.BatchOnly),
+            CancellationToken.None);
+        Assert.Equal((ResolutionOutcome.Applied, 5, false), (product.Outcome, product.AffectedRows, product.AliasSaved));
+
+        await using var reviewing = database.CreateContext();
+        var queries = new ImportReviewQueries(reviewing);
+        var page = await queries.GetUnresolvedAsync(
+            batchId, new UnresolvedQuery(ImportResolutionKind.ProductVariant), CancellationToken.None);
+
+        // Three variants for five lines: size and make tell them apart, the capital letter does not.
+        Assert.Equal(3, page!.Items.Count);
+        Assert.Equal([1, 2, 2], page.Items.Select(item => item.AffectedRowCount).Order());
+
+        foreach (var item in page.Items)
+        {
+            await ResolutionService(reviewing).CreateProductVariantAsync(
+                new CreateProductVariantCommand(batchId, item.SourceKey), CancellationToken.None);
+        }
+
+        await using var check = database.CreateContext();
+        var created = await check.ProductVariants
+            .Where(variant => variant.ProductId == product.TargetId).ToListAsync();
+        Assert.Equal(3, created.Count);
+        Assert.Equal<string?>(
+            [null, "Alevs", "Skom"],
+            created.Select(variant => variant.ModelCode).OrderBy(code => code, StringComparer.Ordinal));
+
+        // One product, not one per make, and the older one is untouched — still there, still with its own variant.
+        Assert.Equal(productsBefore + 1, await check.Products.CountAsync());
+        Assert.True(await check.Products.AnyAsync(item => item.Id == older.Id && item.IsActive));
+        Assert.Single(await check.ProductVariants.Where(variant => variant.ProductId == older.Id).ToListAsync());
+        Assert.Equal(older.Id, (await check.ProductVariants.SingleAsync(v => v.Id == olderVariant.Id)).ProductId);
+
+        // Nothing was written that would make the older name resolve to the new product in a later import.
+        Assert.Empty(await check.ProductAliases.Where(alias => alias.ProductId == product.TargetId).ToListAsync());
+
+        var rows = await RowsAsync(check, batchId);
+        Assert.All(rows, row => Assert.Equal<long?>(product.TargetId, row.MatchedProductId));
+        Assert.All(rows, row => Assert.NotNull(row.MatchedProductVariantId));
+        Assert.Equal(rows[2].MatchedProductVariantId, rows[3].MatchedProductVariantId);
+    }
+
     private static async Task<Product> AddProductAsync(BaxOrdersDbContext db, string name)
     {
         var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
