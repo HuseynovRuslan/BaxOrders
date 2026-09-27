@@ -310,6 +310,45 @@ public sealed class BulkResolutionTests(PostgresDatabaseFixture database)
         Assert.Equal((ImportStatus.ReadyToImport, 0, 0), (batch.Status, batch.InvalidRows, batch.WarningRows));
     }
 
+    /// <summary>A bulk creation builds each variant from the corrected cell, exactly as a single one does.</summary>
+    /// <remarks>
+    /// This is the button that decides a whole batch at once, so a cell read from the workbook rather than from
+    /// the operator's correction would be written into the catalog many times over.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_bulk_creation_builds_the_variant_from_the_corrected_cell()
+    {
+        await using var db = database.CreateContext();
+        var names = Names(1);
+        var batchId = await StageAsync(db,
+        [
+            new OrderLine(Product: names[0], SpecificationValue: "25", SpecificationUnit: "kq", Model: new DateTime(2021, 11, 11)),
+        ]);
+
+        await BulkService(db).ApplyAsync(batchId, CreateProducts(names), CancellationToken.None);
+
+        await using var correcting = database.CreateContext();
+        var staged = Assert.Single(await RowsAsync(correcting, batchId));
+        Assert.Equal("2021-11-11", staged.OriginalModelCode);
+        await CorrectionService(correcting).ApplyAsync(
+            new ApplyCorrectionCommand(batchId, staged.Id, ImportCorrectionField.ModelCode, "11 11 21"), CancellationToken.None);
+
+        await using var reviewing = database.CreateContext();
+        var corrected = Assert.Single(await RowsAsync(reviewing, batchId));
+        var request = Items([new BulkResolutionItem(
+            ImportResolutionKind.ProductVariant, corrected.VariantSourceKey!, BulkResolutionAction.CreateFromValue)]);
+
+        var preview = await BulkService(reviewing).PreviewAsync(batchId, request, CancellationToken.None);
+        Assert.Equal(1, preview.Summary.Ready);
+        await BulkService(reviewing).ApplyAsync(batchId, request, CancellationToken.None);
+
+        await using var check = database.CreateContext();
+        var variant = Assert.Single(await check.ProductVariants
+            .Where(item => item.Product.Name == names[0]).ToListAsync());
+        Assert.Equal("11 11 21", variant.ModelCode);
+        Assert.Equal("2021-11-11", Assert.Single(await RowsAsync(check, batchId)).OriginalModelCode);
+    }
+
     [PostgresFact]
     public async Task A_variant_whose_dependencies_are_missing_cannot_be_applied()
     {

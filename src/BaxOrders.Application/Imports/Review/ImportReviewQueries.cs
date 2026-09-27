@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Normalization;
 using Microsoft.EntityFrameworkCore;
@@ -204,18 +204,11 @@ public sealed class ImportReviewQueries(IBaxOrdersDbContext db)
     /// </summary>
     public async Task<VariantPlan?> GetVariantPlanAsync(long importBatchId, string sourceKey, CancellationToken cancellationToken)
     {
+        // With its corrections, because what would be created is the cell as the operator settled it — the
+        // workbook text is what the correction exists to replace.
         var sample = await db.ImportRows.AsNoTracking()
+            .Include(row => row.Corrections)
             .Where(row => row.ImportBatchId == importBatchId && row.VariantSourceKey == sourceKey)
-            .Select(row => new
-            {
-                row.MatchedProductId,
-                row.MatchedOrderUnitId,
-                row.MatchedSpecificationUnitId,
-                row.OriginalSpecificationValue,
-                row.OriginalModelCode,
-                row.OriginalProductName,
-                row.SpecificationDescriptor,
-            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (sample is null)
@@ -225,7 +218,9 @@ public sealed class ImportReviewQueries(IBaxOrdersDbContext db)
 
         if (sample.MatchedProductId is not { } productId)
         {
-            return new VariantPlan(sourceKey, 0, sample.OriginalProductName?.Trim() ?? string.Empty, null, null, null, string.Empty, false,
+            return new VariantPlan(
+                sourceKey, 0, sample.Effective(ImportCorrectionField.ProductName)?.Trim() ?? string.Empty,
+                null, null, null, string.Empty, false,
                 "The product and its units must be resolved before the variant can be created.");
         }
 
@@ -247,9 +242,9 @@ public sealed class ImportReviewQueries(IBaxOrdersDbContext db)
             sourceKey,
             productId,
             product,
-            Trimmed(sample.OriginalSpecificationValue),
+            Trimmed(sample.Effective(ImportCorrectionField.SpecificationValue)),
             specificationUnit,
-            Trimmed(sample.OriginalModelCode),
+            Trimmed(sample.Effective(ImportCorrectionField.ModelCode)),
             orderUnit,
             true,
             null,

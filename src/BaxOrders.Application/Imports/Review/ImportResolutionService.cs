@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Catalog;
@@ -515,17 +515,12 @@ public sealed class ImportResolutionService(
     /// </summary>
     private async Task<VariantContext> VariantContextAsync(long importBatchId, string sourceKey, CancellationToken cancellationToken)
     {
+        // With its corrections: the row is keyed by the values it effectively has, so the variant has to be
+        // built from those same values. Reading the workbook text here would either put back the very cell the
+        // operator corrected or fail the key check below with a message about rows that nobody changed.
         var sample = await db.ImportRows.AsNoTracking()
+            .Include(row => row.Corrections)
             .Where(row => row.ImportBatchId == importBatchId && row.VariantSourceKey == sourceKey)
-            .Select(row => new
-            {
-                row.MatchedProductId,
-                row.MatchedOrderUnitId,
-                row.MatchedSpecificationUnitId,
-                row.OriginalSpecificationValue,
-                row.OriginalModelCode,
-                row.SpecificationDescriptor,
-            })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException($"No staged row of import #{importBatchId} has the variant '{sourceKey}'.");
 
@@ -545,8 +540,8 @@ public sealed class ImportResolutionService(
             productId,
             sample.MatchedOrderUnitId,
             sample.MatchedSpecificationUnitId,
-            sample.OriginalSpecificationValue,
-            sample.OriginalModelCode,
+            sample.Effective(ImportCorrectionField.SpecificationValue),
+            sample.Effective(ImportCorrectionField.ModelCode),
             sample.SpecificationDescriptor);
     }
 

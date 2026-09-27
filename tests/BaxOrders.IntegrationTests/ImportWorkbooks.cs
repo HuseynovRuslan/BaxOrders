@@ -33,7 +33,7 @@ internal sealed record OrderLine(
     /// The "Model/Kod" cell: a brand, an article number or a grit. It is part of what tells one variant of a
     /// product from its siblings, so a line meaning a particular make says so here and nowhere else.
     /// </summary>
-    string? Model = null,
+    object? Model = null,
     /// <summary>
     /// The "Növ" cell. Defaults to the month's planned material, which is what almost every line of a real
     /// workbook is and what these fixtures mean; a test about an unclassified or an unreadable line says so.

@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Normalization;
@@ -368,18 +368,11 @@ public sealed class BulkResolutionPlanner(IBaxOrdersDbContext db, ImportReviewQu
     private async Task<(Dictionary<string, PlannedVariant>, Dictionary<(long, string), long>, Dictionary<long, string>)> VariantContextAsync(
         long importBatchId, IReadOnlyCollection<string> keys, CancellationToken cancellationToken)
     {
+        // With their corrections: a row is keyed by the values it effectively has, so what would be created
+        // has to be built from those same values and not from the cell the operator already corrected.
         var rows = await db.ImportRows.AsNoTracking()
+            .Include(row => row.Corrections)
             .Where(row => row.ImportBatchId == importBatchId && row.VariantSourceKey != null && keys.Contains(row.VariantSourceKey))
-            .Select(row => new
-            {
-                row.VariantSourceKey,
-                row.MatchedProductId,
-                row.MatchedOrderUnitId,
-                row.MatchedSpecificationUnitId,
-                row.OriginalSpecificationValue,
-                row.OriginalModelCode,
-                row.SpecificationDescriptor,
-            })
             .ToListAsync(cancellationToken);
 
         var variants = new Dictionary<string, PlannedVariant>(StringComparer.Ordinal);
@@ -400,8 +393,8 @@ public sealed class BulkResolutionPlanner(IBaxOrdersDbContext db, ImportReviewQu
                 productId,
                 sample.MatchedOrderUnitId,
                 sample.MatchedSpecificationUnitId,
-                sample.OriginalSpecificationValue,
-                sample.OriginalModelCode,
+                sample.Effective(ImportCorrectionField.SpecificationValue),
+                sample.Effective(ImportCorrectionField.ModelCode),
                 ImportSourceKeys.ReadVariantKey(row.Key),
                 sample.SpecificationDescriptor);
         }

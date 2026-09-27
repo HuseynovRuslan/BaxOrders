@@ -470,6 +470,79 @@ public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
         Assert.Contains(rows[1].Issues, issue => issue.IssueType == ImportIssueType.UnknownProductVariant);
     }
 
+    /// <summary>
+    /// A variant is created from the cell as the operator corrected it, never from the text the workbook holds.
+    /// </summary>
+    /// <remarks>
+    /// Excel turns a model code like "11 11 21" into the date 2021-11-11, and the import says so on the row. The
+    /// operator then states what the cell should have said — and the whole point of that correction is that the
+    /// catalog gets the typed value, not the date. Reading the workbook text here would either write the date
+    /// into the catalog for good or refuse the creation with a message about rows that nobody changed.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_variant_is_created_from_the_corrected_cell_and_not_from_the_workbook_text()
+    {
+        await using var db = database.CreateContext();
+        var product = await AddProductAsync(db, $"Yaramilla {Unique()}");
+        var batchId = await StageAsync(db, new OrderLine(
+            Product: product.Name, SpecificationValue: "25", SpecificationUnit: "kq", Model: new DateTime(2021, 11, 11)));
+
+        var staged = Assert.Single(await RowsAsync(db, batchId));
+        Assert.Equal("2021-11-11", staged.OriginalModelCode);
+        Assert.Contains(staged.Issues, issue =>
+            issue.IssueType == ImportIssueType.Other && issue.Message.Contains("stored this cell as a date"));
+
+        await CorrectionService(db).ApplyAsync(
+            new ApplyCorrectionCommand(batchId, staged.Id, ImportCorrectionField.ModelCode, "11 11 21"), CancellationToken.None);
+
+        await using var reviewing = database.CreateContext();
+        var corrected = Assert.Single(await RowsAsync(reviewing, batchId));
+        var plan = await new ImportReviewQueries(reviewing).GetVariantPlanAsync(
+            batchId, corrected.VariantSourceKey!, CancellationToken.None);
+
+        // What the screen offers to create has to be what the operator asked for.
+        Assert.Equal("11 11 21", plan!.ModelCode);
+        Assert.True(plan.CanCreate);
+
+        var result = await ResolutionService(reviewing).CreateProductVariantAsync(
+            new CreateProductVariantCommand(batchId, corrected.VariantSourceKey!), CancellationToken.None);
+
+        await using var check = database.CreateContext();
+        var variant = await check.ProductVariants.SingleAsync(item => item.Id == result.TargetId);
+        Assert.Equal("11 11 21", variant.ModelCode);
+
+        // And the workbook still says what it always said.
+        var finished = Assert.Single(await RowsAsync(check, batchId));
+        Assert.Equal("2021-11-11", finished.OriginalModelCode);
+        Assert.Equal<long?>(variant.Id, finished.MatchedProductVariantId);
+    }
+
+    /// <summary>The same for the specification: a corrected «Ölçü» is what the variant is built from.</summary>
+    [PostgresFact]
+    public async Task A_variant_is_created_from_the_corrected_specification()
+    {
+        await using var db = database.CreateContext();
+        var product = await AddProductAsync(db, $"Laqonda naqilli {Unique()}");
+        var batchId = await StageAsync(db, new OrderLine(Product: product.Name, SpecificationValue: "12", SpecificationUnit: "mm"));
+
+        var staged = Assert.Single(await RowsAsync(db, batchId));
+        await CorrectionService(db).ApplyAsync(
+            new ApplyCorrectionCommand(batchId, staged.Id, ImportCorrectionField.SpecificationValue, "125"), CancellationToken.None);
+
+        await using var reviewing = database.CreateContext();
+        var corrected = Assert.Single(await RowsAsync(reviewing, batchId));
+        var plan = await new ImportReviewQueries(reviewing).GetVariantPlanAsync(
+            batchId, corrected.VariantSourceKey!, CancellationToken.None);
+        Assert.Equal("125", plan!.SpecificationValue);
+
+        var result = await ResolutionService(reviewing).CreateProductVariantAsync(
+            new CreateProductVariantCommand(batchId, corrected.VariantSourceKey!), CancellationToken.None);
+
+        await using var check = database.CreateContext();
+        Assert.Equal("125", (await check.ProductVariants.SingleAsync(item => item.Id == result.TargetId)).SpecificationValue);
+        Assert.Equal("12", Assert.Single(await RowsAsync(check, batchId)).OriginalSpecificationValue);
+    }
+
     private static async Task<Product> AddProductAsync(BaxOrdersDbContext db, string name)
     {
         var product = new Product(await new PostgresProductCodeGenerator(db).NextAsync(CancellationToken.None), name);
