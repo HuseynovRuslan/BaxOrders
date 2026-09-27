@@ -39,6 +39,9 @@ function location(overrides: Partial<LocationOrderSummary> = {}): LocationOrderS
     knownAmountTotal: 13534.12,
     missingPriceItemCount: 0,
     latestKnownAmount: 1520.4,
+    latestOutsideMonthlyKnownAmount: null,
+    latestOutsideMonthlyItemCount: 0,
+    latestUnclassifiedItemCount: 0,
     latestItemCount: 6,
     latestMissingPriceItemCount: 0,
     latestPriceNotRequiredItemCount: 0,
@@ -344,5 +347,33 @@ describe('the status of an order carried in from Excel', () => {
 
     expect(cell).toHaveTextContent('sifariş yoxdur')
     expect(cell).not.toHaveTextContent('Tarixi sifariş')
+  })
+})
+
+/**
+ * The money in this column and the difference beside it are the month's monthly material, because that is the
+ * only population a month-on-month comparison means anything about. A one-off purchase is still a fact about
+ * the month, so the row says it rather than folding it into a number the comparison reads.
+ */
+describe('a one-off purchase in the latest month', () => {
+  it('is named under the money, never added to it', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({
+      latestKnownAmount: 1520.4,
+      latestOutsideMonthlyKnownAmount: 900,
+      latestOutsideMonthlyItemCount: 1,
+    }))
+    await renderPage()
+
+    const row = (await screen.findByText('Fəvvarələr meydanı')).closest('tr') as HTMLElement
+    expect(within(row).getByText('1.520,40 ₼')).toBeInTheDocument()
+    expect(within(row).getByText(/Aylıqdan kənar:/)).toHaveTextContent('900,00 ₼')
+  })
+
+  it('says nothing when the month bought nothing outside its plan', async () => {
+    ordersApi.fetchLocationOrders.mockResolvedValue(withRows({ latestKnownAmount: 1520.4 }))
+    await renderPage()
+
+    await screen.findByText('Fəvvarələr meydanı')
+    expect(screen.queryByText(/Aylıqdan kənar:/)).not.toBeInTheDocument()
   })
 })

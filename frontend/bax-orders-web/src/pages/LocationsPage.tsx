@@ -17,6 +17,7 @@ import {
   formatPercent,
   unknownValue,
 } from '../components/analytics/format'
+import { outsideMonthlyBesideLabel } from '../orderLines/lineType'
 
 const pageSize = 25
 
@@ -166,6 +167,14 @@ export function LocationsPage() {
 
                 <td className="px-4 py-2.5 text-right">
                   <p className="whitespace-nowrap font-medium text-slate-900">{formatMoney(location.latestKnownAmount)}</p>
+                  {/* The figure above and the difference beside it are the month's monthly money. What was
+                      bought outside the plan is a fact about the month, so it is said here rather than folded
+                      into a number a comparison reads. */}
+                  {location.latestOutsideMonthlyItemCount > 0 && (
+                    <p className="whitespace-nowrap text-xs text-slate-500">
+                      {outsideMonthlyBesideLabel} {formatMoney(location.latestOutsideMonthlyKnownAmount)}
+                    </p>
+                  )}
                   {location.latestMissingPriceItemCount > 0 && (
                     <p className="text-xs text-amber-800">
                       {missingPriceCount(location.latestMissingPriceItemCount)}

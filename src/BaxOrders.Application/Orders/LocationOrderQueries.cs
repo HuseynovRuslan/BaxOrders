@@ -136,9 +136,17 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
     /// Fills in what each listed location ordered last, and how that compares with the month before it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Two queries for the whole page, not two per row: the previous months of every listed location at once,
     /// then the lines of both sides at once. The work is bounded by the page size, so a catalogue of thousands
     /// costs the same as one of thirty.
+    /// </para>
+    /// <para>
+    /// The difference is the difference between the two months' <b>monthly</b> money — see
+    /// <see cref="MonthlyComparisonPopulation"/>, and the analytics screens this row promises to agree with. A
+    /// one-off purchase is carried beside it as its own figure, so the row can still say what the month cost
+    /// without a broken pump reading as a rise in demand.
+    /// </para>
     /// </remarks>
     private async Task<List<LocationOrderSummaryDto>> WithLatestOrderAsync(
         List<LocationOrderSummaryDto> items, CancellationToken cancellationToken)
@@ -177,10 +185,11 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
 
         var totals = await db.OrderRequestItems.AsNoTracking()
             .Where(item => requestIds.Contains(item.OrderRequestId))
-            .GroupBy(item => item.OrderRequestId)
+            .GroupBy(item => new { item.OrderRequestId, item.OrderLineType })
             .Select(group => new
             {
-                OrderRequestId = group.Key,
+                group.Key.OrderRequestId,
+                group.Key.OrderLineType,
                 ItemCount = group.Count(),
                 KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
                 // A price is only missing when it was owed, and the line itself says whether it was — see
@@ -192,12 +201,25 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                     && item.PricingMode == PricingMode.InternalFreeSupply),
                 PricedAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
             })
-            .ToDictionaryAsync(row => row.OrderRequestId, cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        decimal? KnownAmount(long requestId) =>
-            totals.TryGetValue(requestId, out var found) && found.KnownPriceItemCount > 0
-                ? found.PricedAmount
-                : null;
+        var byRequest = totals.GroupBy(row => row.OrderRequestId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        // The money of one kind of line, or null when that kind has nothing priced: unknown, never zero.
+        decimal? AmountOf(long requestId, OrderLineType type)
+        {
+            var row = byRequest.GetValueOrDefault(requestId)?
+                .FirstOrDefault(candidate => candidate.OrderLineType == type);
+            return row is null || row.KnownPriceItemCount == 0 ? null : row.PricedAmount;
+        }
+
+        int CountOf(long requestId, OrderLineType type) =>
+            byRequest.GetValueOrDefault(requestId)?
+                .FirstOrDefault(candidate => candidate.OrderLineType == type)?.ItemCount ?? 0;
+
+        // What a comparison reads. Everything the row says about a difference is built from this.
+        decimal? KnownAmount(long requestId) => AmountOf(requestId, OrderLineType.Monthly);
 
         return
         [
@@ -209,7 +231,7 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 }
 
                 var previousPeriod = latestPeriod.AddMonths(-1);
-                var latest = totals.GetValueOrDefault(latestId);
+                var latest = byRequest.GetValueOrDefault(latestId);
                 var latestAmount = KnownAmount(latestId);
                 var previousAmount = previousByLocation.TryGetValue((row.LocationId, previousPeriod), out var previousId)
                     ? KnownAmount(previousId)
@@ -219,12 +241,15 @@ public sealed class LocationOrderQueries(IBaxOrdersDbContext db)
                 return row with
                 {
                     LatestKnownAmount = latestAmount,
-                    LatestItemCount = latest?.ItemCount ?? 0,
+                    LatestItemCount = latest?.Sum(side => side.ItemCount) ?? 0,
+                    LatestOutsideMonthlyKnownAmount = AmountOf(latestId, OrderLineType.OutsideMonthly),
+                    LatestOutsideMonthlyItemCount = CountOf(latestId, OrderLineType.OutsideMonthly),
+                    LatestUnclassifiedItemCount = CountOf(latestId, OrderLineType.Unclassified),
                     // Only the prices somebody owes. Material issued from the company's own store carries
                     // no purchase price and is not a shortfall, so it never lands in this count.
-                    LatestMissingPriceItemCount = latest?.MissingRequiredPriceItemCount ?? 0,
-                    LatestPriceNotRequiredItemCount = latest?.PriceNotRequiredItemCount ?? 0,
-                    LatestAmountIsComplete = (latest?.MissingRequiredPriceItemCount ?? 0) == 0,
+                    LatestMissingPriceItemCount = latest?.Sum(side => side.MissingRequiredPriceItemCount) ?? 0,
+                    LatestPriceNotRequiredItemCount = latest?.Sum(side => side.PriceNotRequiredItemCount) ?? 0,
+                    LatestAmountIsComplete = (latest?.Sum(side => side.MissingRequiredPriceItemCount) ?? 0) == 0,
                     PreviousPeriod = previousPeriod,
                     PreviousKnownAmount = previousAmount,
                     KnownAmountDelta = delta,

@@ -48,7 +48,11 @@ export interface LocationOrderSummary {
   /** Everything the location has ever ordered. Only the lines whose price is known; null when it has none. */
   knownAmountTotal: number | null
   missingPriceItemCount: number
-  /** The latest order alone — what this place ordered last, which is what a list of objects is read for. */
+  /**
+   * The latest order alone — what this place ordered last, which is what a list of objects is read for. Its
+   * **monthly** money: the difference beside it is a month-on-month comparison and only means something about
+   * material the company orders every month.
+   */
   latestKnownAmount: number | null
   latestItemCount: number
   latestMissingPriceItemCount: number
@@ -60,6 +64,11 @@ export interface LocationOrderSummary {
   previousKnownAmount: number | null
   knownAmountDelta: number | null
   knownAmountPercentChange: number | null
+  /** What the latest order bought outside the month's plan. A fact about the month, outside every comparison. */
+  latestOutsideMonthlyKnownAmount: number | null
+  latestOutsideMonthlyItemCount: number
+  /** Lines of the latest order nobody has classified: in neither figure. */
+  latestUnclassifiedItemCount: number
   /**
    * Whether the latest order was carried in from Excel as already approved: the workflow's recorded fact, by the same
    * rule as the order page. True only with `latestRequestStatus === 'Approved'`, and never inferred from a missing

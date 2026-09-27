@@ -1,4 +1,4 @@
-using BaxOrders.Application.Orders;
+﻿using BaxOrders.Application.Orders;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
@@ -138,6 +138,50 @@ public sealed class LocationLatestOrderTests(PostgresDatabaseFixture database)
     }
 
     // ---- fixture -------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A one-off purchase is not a bigger month: it stays out of the row's money and out of its difference, and
+    /// is reported beside them.
+    /// </summary>
+    /// <remarks>
+    /// The comment above this query promises the difference is the one the analytics screens show, and those
+    /// have read monthly lines alone since <c>MonthlyComparisonPopulation</c>. It used to add every line
+    /// together, so the promise was not kept and a broken pump read as a rise in demand.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_one_off_purchase_is_kept_out_of_the_money_and_the_difference()
+    {
+        await using var db = database.CreateContext();
+        var (location, variant) = await CatalogueAsync(db, "Növlü son sifariş");
+
+        var june = new OrderRequest(location, new DateOnly(2026, 6, 1));
+        june.AddItem(variant, 20m, 10m);
+
+        var july = new OrderRequest(location, new DateOnly(2026, 7, 1));
+        july.AddItem(variant, 20m, 10m);
+        july.AddItem(variant, 1m, 900m, orderLineType: OrderLineType.OutsideMonthly);
+        july.AddItem(variant, 1m, 5m, orderLineType: OrderLineType.Unclassified);
+
+        db.OrderRequests.AddRange(june, july);
+        await db.SaveChangesAsync();
+
+        var list = await new LocationOrderQueries(db).ListAsync(
+            new LocationOrderListQuery(Search: location.Name), None);
+        var row = list.Locations.Items.Single(item => item.LocationId == location.Id);
+
+        // The same monthly material in both months, so nothing changed — which is what the reader must see.
+        Assert.Equal(200m, row.LatestKnownAmount);
+        Assert.Equal(200m, row.PreviousKnownAmount);
+        Assert.Equal(0m, row.KnownAmountDelta);
+
+        // And the one-off is not lost: it is a fact about the month, reported on its own.
+        Assert.Equal(900m, row.LatestOutsideMonthlyKnownAmount);
+        Assert.Equal(1, row.LatestOutsideMonthlyItemCount);
+        Assert.Equal(1, row.LatestUnclassifiedItemCount);
+
+        // The month's line count is still every line of it, whatever kind they are.
+        Assert.Equal(3, row.LatestItemCount);
+    }
 
     private static async Task<LocationOrderSummaryDto> RowAsync(BaxOrdersDbContext db, World world)
     {

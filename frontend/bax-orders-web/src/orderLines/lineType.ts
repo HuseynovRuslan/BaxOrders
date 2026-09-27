@@ -83,6 +83,9 @@ export const monthlyAmountLabel = 'Aylıq sifarişlərin məbləği'
 export const outsideMonthlyAmountLabel = 'Aylıqdan kənar məbləğ'
 export const combinedSpendLabel = 'Ümumi faktiki xərc'
 
+/** Beside a month's money in a list, where there is no room for a sentence. */
+export const outsideMonthlyBesideLabel = 'Aylıqdan kənar:'
+
 /**
  * Said once, where a reader might otherwise wonder why the figures do not add up to what they remember: lines
  * nobody has classified are in neither, on purpose.

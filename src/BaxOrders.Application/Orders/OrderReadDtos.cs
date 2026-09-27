@@ -66,7 +66,16 @@ public sealed record LocationOrderSummaryDto(
     decimal? PreviousKnownAmount = null,
     decimal? KnownAmountDelta = null,
     decimal? KnownAmountPercentChange = null,
-    bool LatestRequestIsHistoricalImport = false);
+    bool LatestRequestIsHistoricalImport = false,
+    /// <summary>
+    /// What the latest month bought outside its plan. Deliberately outside every figure above that a
+    /// comparison touches — <c>LatestKnownAmount</c> and the difference are monthly money — and shown beside
+    /// them so the row can still say what the month actually cost.
+    /// </summary>
+    decimal? LatestOutsideMonthlyKnownAmount = null,
+    int LatestOutsideMonthlyItemCount = 0,
+    /// <summary>Lines of the latest month nobody has classified: in neither figure, counted so they are not lost.</summary>
+    int LatestUnclassifiedItemCount = 0);
 
 /// <param name="LocationsWithOrders">How many of the listed locations have at least one request.</param>
 public sealed record LocationOrderListDto(
