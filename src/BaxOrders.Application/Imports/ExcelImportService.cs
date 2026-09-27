@@ -135,6 +135,14 @@ public sealed class ExcelImportService(
             var workbook = workbookReader.Read(content, format, cancellationToken);
             var sourceRows = FindDataRows(workbook, settings.HeaderSearchRowLimit, sheets);
 
+            // Asked before anything else about headers: a workbook with no "Aylıq" sheet is refused in those
+            // words, rather than told that no sheet has the required columns — which would be true of the
+            // sheets it does have and would read as an invitation to import one of them instead.
+            if (!sheets.Any(sheet => ImportSheets.IsAuthoritative(sheet.SheetName)))
+            {
+                return await FailAsync(batch, ImportSheets.MissingAuthoritativeSheet, sheets);
+            }
+
             if (sheets.All(sheet => sheet.HeaderRowNumber is null))
             {
                 return await FailAsync(batch, DescribeMissingHeader(sheets), sheets);
@@ -238,6 +246,15 @@ public sealed class ExcelImportService(
 
         foreach (var sheet in workbook.Sheets)
         {
+            // One sheet is read and it is named (see ImportSheets). Another sheet is reported so the person who
+            // uploaded the file can see it was left alone, and takes no further part: no rows, no issues, and
+            // nothing for duplicate detection to pair its twin against.
+            if (!ImportSheets.IsAuthoritative(sheet.Name))
+            {
+                sheets.Add(new SheetDetection(sheet.Name, null, 0, [], ImportSheets.NotTheAuthoritativeSheet));
+                continue;
+            }
+
             if (sheet.IsHidden)
             {
                 sheets.Add(new SheetDetection(sheet.Name, null, 0, [], "Hidden sheets are not imported."));
@@ -254,7 +271,10 @@ public sealed class ExcelImportService(
             var dataRows = sheet.Rows
                 .Where(row => row.RowNumber > layout.HeaderRowNumber)
                 .Select(row => new SourceRow(sheet.Name, row, layout))
-                .Where(row => !row.IsBlank)
+                // A blank row and the sheet's own total line are both skipped: neither says anything about an
+                // order. A row that states something and is missing something else is still a row, and its
+                // gaps are reported rather than hidden — see SourceRow.IsBusinessRow.
+                .Where(row => row.IsBusinessRow)
                 .ToList();
 
             // The sheet has every column the header search looks for, so it is read — but a missing "Növ" or
@@ -297,9 +317,18 @@ public sealed class ExcelImportService(
         return problems.Count == 0 ? null : string.Join(" ", problems);
     }
 
+    /// <summary>
+    /// Why the sheet that was supposed to be read could not be.
+    /// </summary>
+    /// <remarks>
+    /// Only the authoritative sheet is described. The others were never candidates, and naming their columns
+    /// here would suggest one of them could be used instead.
+    /// </remarks>
     private static string DescribeMissingHeader(IReadOnlyList<SheetDetection> sheets)
     {
-        var details = sheets.Select(sheet => sheet.MissingRequiredColumns.Count > 0
+        var details = sheets
+            .Where(sheet => ImportSheets.IsAuthoritative(sheet.SheetName))
+            .Select(sheet => sheet.MissingRequiredColumns.Count > 0
             ? $"'{sheet.SheetName}': missing {string.Join(", ", sheet.MissingRequiredColumns.Select(field => ImportHeaders.ExpectedHeaders[field]))}"
             : $"'{sheet.SheetName}': {sheet.Problem}");
 

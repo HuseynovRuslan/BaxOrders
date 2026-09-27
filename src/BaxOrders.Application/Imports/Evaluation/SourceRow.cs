@@ -9,8 +9,37 @@ public sealed record SourceRow(string SheetName, ExcelRow Row, HeaderLayout Layo
 {
     public int RowNumber => Row.RowNumber;
 
-    /// <summary>A row is blank when every recognised column is empty. Blank rows are skipped.</summary>
+    /// <summary>A row is blank when every recognised column is empty.</summary>
     public bool IsBlank => Layout.Columns.Values.All(column => ImportCellParser.IsBlank(Row[column]));
+
+    /// <summary>
+    /// The columns that say nothing about what was ordered.
+    /// </summary>
+    /// <remarks>
+    /// "№" numbers the lines and "Cəmi" is quantity × price restated; neither is a request. Everything else —
+    /// the product, its size and unit, the model, the quantity, the price, the supplier, the object, the date,
+    /// the responsible person, the kind — is something somebody stated about a line.
+    /// </remarks>
+    private static readonly ImportField[] Bookkeeping = [ImportField.SequenceNumber, ImportField.LineTotal];
+
+    /// <summary>
+    /// Whether this row says anything about an order at all.
+    /// </summary>
+    /// <remarks>
+    /// The rule a summary line fails: a row is business data when at least one column outside
+    /// <see cref="Bookkeeping"/> carries something. The workbook ends with a row holding only the sheet's own
+    /// total in "Cəmi", and that is not a line somebody ordered — staging it produced a row with no product, no
+    /// quantity, no object and no date, and four errors describing a line that never existed.
+    /// <para>
+    /// Deliberately not "the row is near the bottom" and not a row number: where a total sits is a matter of
+    /// layout. And deliberately not "a required column is empty" either, which would silently swallow a real
+    /// line somebody forgot to finish — such a row still stages, and its missing values are still reported.
+    /// A sparse row that names a product, or a quantity, or an object, is a line and is read as one.
+    /// </para>
+    /// </remarks>
+    public bool IsBusinessRow => Layout.Columns
+        .Where(column => !Bookkeeping.Contains(column.Key))
+        .Any(column => !ImportCellParser.IsBlank(Row[column.Value]));
 
     public object? Cell(ImportField field) => Layout.ColumnOf(field) is { } column ? Row[column] : null;
 

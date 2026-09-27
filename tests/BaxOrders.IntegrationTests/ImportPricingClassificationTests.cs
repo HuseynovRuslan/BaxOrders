@@ -1,5 +1,6 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
+using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Application.Imports.Review;
@@ -92,7 +93,7 @@ public sealed class ImportPricingClassificationTests(PostgresDatabaseFixture dat
         Assert.Equal(PricingMode.PriceRequired, bought.Classification);
         Assert.Equal("Leyla Koordinator", bought.ClassifiedByDisplayName);
         Assert.NotNull(bought.ClassifiedAtUtc);
-        Assert.Equal("Əsas", bought.SheetName);
+        Assert.Equal(ImportSheets.Authoritative, bought.SheetName);
     }
 
     [PostgresFact]

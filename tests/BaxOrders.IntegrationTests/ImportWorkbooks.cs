@@ -2,6 +2,7 @@
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Matching;
+using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Application.Imports.Review;
@@ -74,6 +75,7 @@ internal static class ImportWorkbooks
     public static ExcelWorkbook OrdersWithoutEitherColumn(params OrderLine[] lines) =>
         Build(lines, [PersonColumn, LineTypeColumn]);
 
+    private const int LineTotalColumn = 10;
     private const int PersonColumn = 14;
     private const int LineTypeColumn = 15;
 
@@ -81,24 +83,57 @@ internal static class ImportWorkbooks
     /// The workbook, with the named columns left out of the header and of every row alike — which is what a
     /// sheet that never had the column looks like, as opposed to one whose cells are blank.
     /// </summary>
-    private static ExcelWorkbook Build(OrderLine[] lines, int[] without)
+    private static ExcelWorkbook Build(OrderLine[] lines, int[] without) =>
+        new([Sheet(ImportSheets.Authoritative, lines, without)]);
+
+    /// <summary>One sheet of an order workbook: two title rows, the header on row 3, data from row 4.</summary>
+    private static ExcelSheet Sheet(string name, OrderLine[] lines, int[] without)
     {
         int[] columns = [.. Enumerable.Range(0, Header.Length).Where(column => !without.Contains(column))];
 
         var rows = new List<ExcelRow> { new(1, []), new(2, []), new(3, [.. columns.Select(column => Header[column])]) };
         rows.AddRange(lines.Select((line, index) =>
-        {
-            object?[] cells =
-            [
-                (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
-                line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
-                line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
-            ];
+            new ExcelRow(index + 4, [.. columns.Select(column => CellsOf(line, index)[column])])));
 
-            return new ExcelRow(index + 4, [.. columns.Select(column => cells[column])]);
-        }));
+        return new ExcelSheet(name, rows);
+    }
 
-        return new ExcelWorkbook([new ExcelSheet("Əsas", rows)]);
+    private static object?[] CellsOf(OrderLine line, int index) =>
+    [
+        (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
+        line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
+        line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
+    ];
+
+    /// <summary>
+    /// The real workbook's shape: the authoritative "Aylıq" sheet beside an "Əsas" sheet holding the same lines
+    /// without the "Növ" column.
+    /// </summary>
+    /// <remarks>
+    /// This is the file that showed the bug. Reading both sheets staged every line twice, made each one the
+    /// other's duplicate, and blocked the batch on the sheet that cannot state a classification.
+    /// </remarks>
+    public static ExcelWorkbook OrdersOnBothSheets(params OrderLine[] lines) =>
+        new([Sheet("Əsas", lines, [LineTypeColumn]), Sheet(ImportSheets.Authoritative, lines, [])]);
+
+    /// <summary>A workbook whose only sheet is not the authoritative one.</summary>
+    public static ExcelWorkbook OrdersOnSheet(string sheetName, params OrderLine[] lines) =>
+        new([Sheet(sheetName, lines, [])]);
+
+    /// <summary>
+    /// The authoritative sheet as the real file ends it: the lines, a blank row, then a row holding nothing but
+    /// the sheet's own total in "Cəmi".
+    /// </summary>
+    public static ExcelWorkbook OrdersWithSummaryFooter(params OrderLine[] lines)
+    {
+        var sheet = Sheet(ImportSheets.Authoritative, lines, []);
+        var rows = new List<ExcelRow>(sheet.Rows) { new(sheet.Rows.Count + 1, []) };
+
+        object?[] footer = new object?[Header.Length];
+        footer[LineTotalColumn] = lines.Sum(line => (line.Quantity ?? 0) * (line.Price ?? 0));
+        rows.Add(new ExcelRow(sheet.Rows.Count + 2, footer));
+
+        return new ExcelWorkbook([sheet with { Rows = rows }]);
     }
 
     /// <summary>

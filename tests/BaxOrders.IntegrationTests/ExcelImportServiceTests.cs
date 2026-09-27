@@ -1,5 +1,6 @@
 ﻿using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Matching;
+using BaxOrders.Application.Imports.Parsing;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Imports;
@@ -288,8 +289,39 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
         Assert.NotEqual(failed.ImportBatchId, retried.ImportBatchId);
     }
 
+    /// <summary>
+    /// The authoritative sheet is there but its columns are not, and the failure says which ones.
+    /// </summary>
+    /// <remarks>
+    /// The old monthly form — a tab per month, with "Şirkətlər" and no object or date — reaches this through a
+    /// different door now: a workbook with no "Aylıq" sheet is refused for that, before its columns are read.
+    /// Both are worth keeping apart, so this one puts the deficient header on the sheet that is read.
+    /// </remarks>
     [PostgresFact]
     public async Task Workbook_without_the_required_columns_fails_with_details()
+    {
+        await using var db = database.CreateContext();
+        var legacyForm = new ExcelWorkbook(
+        [
+            new ExcelSheet(
+                ImportSheets.Authoritative,
+                [new ExcelRow(7, ["№", "Malın adı", "Miqdarı", "Ö/v", "Qiyməti", "Cəmi", "Şirkətlər"])]),
+        ]);
+
+        var result = await Service(db, () => legacyForm).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+
+        Assert.Equal(ImportOutcome.Failed, result.Outcome);
+        Assert.Contains("Obyekt", result.Message);
+        Assert.Contains("Tarix", result.Message);
+        Assert.Equal(0, await db.ImportRows.CountAsync(r => r.ImportBatchId == result.ImportBatchId));
+    }
+
+    /// <summary>
+    /// The same old form under its own tab name is refused for the sheet, not for the columns — and is never
+    /// read as a fallback just because it is the only sheet there.
+    /// </summary>
+    [PostgresFact]
+    public async Task Workbook_whose_only_sheet_is_a_legacy_monthly_tab_is_refused_for_the_sheet()
     {
         await using var db = database.CreateContext();
         var legacyForm = new ExcelWorkbook(
@@ -300,8 +332,7 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
         var result = await Service(db, () => legacyForm).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
 
         Assert.Equal(ImportOutcome.Failed, result.Outcome);
-        Assert.Contains("Obyekt", result.Message);
-        Assert.Contains("Tarix", result.Message);
+        Assert.Equal(ImportSheets.MissingAuthoritativeSheet, result.Message);
         Assert.Equal(0, await db.ImportRows.CountAsync(r => r.ImportBatchId == result.ImportBatchId));
     }
 
