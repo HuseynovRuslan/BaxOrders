@@ -154,9 +154,11 @@ public sealed class ImportReviewQueries(IBaxOrdersDbContext db)
     /// </summary>
     public async Task<CategoryPathPlan?> GetCategoryPathPlanAsync(long importBatchId, string sourceKey, CancellationToken cancellationToken)
     {
+        // With its corrections: the path is keyed by the levels the row effectively has, so the names created
+        // under it have to be those same levels and not the spelling the operator already corrected.
         var sample = await db.ImportRows.AsNoTracking()
+            .Include(row => row.Corrections)
             .Where(row => row.ImportBatchId == importBatchId && row.NormalizedCategoryPath == sourceKey)
-            .Select(row => new { row.OriginalMainCategory, row.OriginalMiddleCategory, row.OriginalSubCategory })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (sample is null)
@@ -171,7 +173,12 @@ public sealed class ImportReviewQueries(IBaxOrdersDbContext db)
         }
 
         var normalizedLevels = ImportSourceKeys.CategoryLevels(sourceKey);
-        var displayLevels = new[] { sample.OriginalMainCategory, sample.OriginalMiddleCategory, sample.OriginalSubCategory }
+        var displayLevels = new[]
+            {
+                sample.Effective(ImportCorrectionField.MainCategory),
+                sample.Effective(ImportCorrectionField.MiddleCategory),
+                sample.Effective(ImportCorrectionField.SubCategory),
+            }
             .Select(level => level?.Trim())
             .Where(level => !string.IsNullOrEmpty(level))
             .ToList();

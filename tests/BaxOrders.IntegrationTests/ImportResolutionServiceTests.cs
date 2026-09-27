@@ -1,4 +1,4 @@
-using BaxOrders.Application.Common;
+﻿using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Domain.Catalog;
@@ -211,6 +211,45 @@ public sealed class ImportResolutionServiceTests(PostgresDatabaseFixture databas
         var row = Assert.Single(await RowsAsync(check, batchId));
         Assert.Equal((centimeter.Id, pieces.Id), (row.MatchedSpecificationUnitId, row.MatchedOrderUnitId));
         Assert.DoesNotContain(row.Issues, issue => issue.IssueType == ImportIssueType.UnknownUnit);
+    }
+
+    /// <summary>A category is created under the name the operator corrected, not the one the workbook holds.</summary>
+    /// <remarks>
+    /// The path is keyed by the levels the row effectively has, so a correction moves the row to a different
+    /// path — and the level created for it has to carry the same name. Built from the workbook text instead, the
+    /// catalog would keep the misspelling the correction exists to remove, under a key that does not match it.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_category_level_is_created_under_the_corrected_name()
+    {
+        await using var db = database.CreateContext();
+        var marker = Unique();
+        var batchId = await StageAsync(db, new OrderLine(MainCategory: $"Təmzlik {marker}", MiddleCategory: "Süpürgə"));
+
+        var staged = Assert.Single(await RowsAsync(db, batchId));
+        await CorrectionService(db).ApplyAsync(
+            new ApplyCorrectionCommand(batchId, staged.Id, ImportCorrectionField.MainCategory, $"Təmizlik {marker}"),
+            CancellationToken.None);
+
+        await using var reviewing = database.CreateContext();
+        var corrected = Assert.Single(await RowsAsync(reviewing, batchId));
+        var key = corrected.NormalizedCategoryPath!;
+
+        var plan = await new ImportReviewQueries(reviewing).GetCategoryPathPlanAsync(batchId, key, CancellationToken.None);
+        Assert.Equal($"Təmizlik {marker}", plan!.Levels[0].Name);
+
+        await ResolutionService(reviewing).CreateCategoryPathAsync(
+            new CreateCategoryPathCommand(batchId, key), CancellationToken.None);
+
+        await using var check = database.CreateContext();
+        var root = Assert.Single(await check.Categories.Where(category => category.Name == $"Təmizlik {marker}").ToListAsync());
+        Assert.Empty(await check.Categories.Where(category => category.Name == $"Təmzlik {marker}").ToListAsync());
+
+        // The workbook still says what it always said, and the row now sits under the level it asked for.
+        var finished = Assert.Single(await RowsAsync(check, batchId));
+        Assert.Equal($"Təmzlik {marker}", finished.OriginalMainCategory);
+        Assert.Equal(root.Id, await check.Categories.Where(category => category.Id == finished.MatchedCategoryId)
+            .Select(category => category.ParentId).SingleAsync());
     }
 
     [PostgresFact]
