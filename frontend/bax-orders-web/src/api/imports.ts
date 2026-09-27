@@ -1,4 +1,4 @@
-import { ApiError, getJson, postJson, toApiError } from './client'
+import { ApiError, antiforgeryHeader, getJson, postJson, toApiError } from './client'
 
 export type ImportStatus = 'Uploaded' | 'Parsing' | 'Validating' | 'NeedsReview' | 'ReadyToImport' | 'Imported' | 'Failed'
 export type RowStatus = 'Pending' | 'Valid' | 'NeedsReview' | 'Invalid'
@@ -133,12 +133,21 @@ export interface ImportRowQuery {
 /**
  * Uploads a workbook. Uses XMLHttpRequest so the caller learns when the file has been sent and the
  * server is reading and validating it. Rejects with ApiError (ProblemDetails) on 4xx/5xx.
+ *
+ * It is the one write that does not go through `client`, so it has to ask `client` for the antiforgery header
+ * rather than keep its own copy of that rule. Without it the server refuses the workbook before reading a
+ * single row, and the first step of the whole import is the one that fails.
  */
-export function uploadImport(file: File, onFileSent: () => void): Promise<ImportUploadResponse> {
+export async function uploadImport(file: File, onFileSent: () => void): Promise<ImportUploadResponse> {
+  const headers = await antiforgeryHeader()
+
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
     request.open('POST', '/api/v1/imports/excel')
     request.setRequestHeader('Accept', 'application/json')
+    for (const [name, value] of Object.entries(headers)) {
+      request.setRequestHeader(name, value)
+    }
     request.upload.onload = onFileSent
     request.onload = () => {
       if (request.status >= 200 && request.status < 300) {

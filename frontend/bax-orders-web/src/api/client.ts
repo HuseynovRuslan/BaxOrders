@@ -65,6 +65,22 @@ async function csrfToken(): Promise<string | null> {
   return readCookie(csrfCookie)
 }
 
+/**
+ * The antiforgery header a write must carry, ready to set.
+ *
+ * Every write here goes through `fetch` and gets it without asking. The workbook upload cannot: it needs
+ * XMLHttpRequest to report when the file has finished travelling, so it builds its own request. This is how it
+ * borrows the same token instead of keeping a second copy of the rule — which is what went wrong before, when
+ * the upload sent no token at all and the server refused every workbook with "Sorğu təsdiq nişanı olmadan
+ * göndərilib".
+ *
+ * @returns the header name and value, or an empty object when the server issued no token.
+ */
+export async function antiforgeryHeader(): Promise<Record<string, string>> {
+  const token = await csrfToken()
+  return token ? { [csrfHeader]: token } : {}
+}
+
 /** Called when the server says the session is gone, so the application can stop showing private data. */
 let onUnauthenticated: (() => void) | null = null
 
