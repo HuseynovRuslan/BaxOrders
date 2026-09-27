@@ -63,7 +63,7 @@ import {
   monthlyReportLink,
   openedFromMonthlyReport,
 } from '../navigation/monthlyReportReturn'
-import { latestOrderLinkLabel } from '../terminology/terms'
+import { latestOrderLinkLabel, replacedOrderLinkLabel, replacesEarlierOrderNote } from '../terminology/terms'
 import {
   formatAmount,
   formatNumber,
@@ -475,6 +475,15 @@ export function OrderDetailPage() {
             />
           )}
           {revision && <RevisionPanel revision={revision} onChanged={reload} />}
+          {decision && decision.previousOrderRequestId !== null && (
+            <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" role="status">
+              {replacesEarlierOrderNote}{' '}
+              {/* With the reader's basis, like every other link out of this page. */}
+              <Link to={orderLink(decision.previousOrderRequestId, selection)} className="font-medium underline">
+                {replacedOrderLinkLabel}
+              </Link>
+            </p>
+          )}
           {decision && !decision.isLatestVersion && decision.latestOrderRequestId !== null && (
             <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" role="status">
               Bu ay üçün bu obyektin daha yeni sifarişi var. Rəqəmlər açdığınız sifarişə aiddir.{' '}

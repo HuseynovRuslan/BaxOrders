@@ -129,6 +129,8 @@ function context(overrides: Partial<OrderDecisionContext> = {}): OrderDecisionCo
     isLatestVersion: true,
     latestOrderRequestId: 105,
     latestVersion: 2,
+    previousOrderRequestId: null,
+    previousVersion: null,
     current: {
       knownAmount: 4800,
       itemCount: 40,
@@ -1196,6 +1198,36 @@ describe('the decision', () => {
     expect(within(header).getByText('Təsdiqlənib')).toHaveClass(...workflowStatusClass.Approved.split(' '))
     expect(document.body).not.toHaveTextContent(/Tarixi sifariş/)
     expect(document.body).not.toHaveTextContent(/Təsdiq məlumatı mövcud deyil/)
+  })
+})
+
+describe('an order written over an earlier one', () => {
+  /**
+   * Every order an import creates for a month the company has already ordered in is written beside the approved
+   * one — 166 at once on the company's own workbook. Somebody approving the new order is entitled to know that,
+   * and to reach what it replaces in one step. In business words, like the notice for the opposite direction:
+   * the earlier order of the month, never "Versiya 1".
+   */
+  it('says what it replaces and links to it, keeping the basis the reader chose', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({
+      version: 2,
+      isLatestVersion: true,
+      previousOrderRequestId: 104,
+      previousVersion: 1,
+    }))
+    await renderPage()
+
+    expect(screen.getByText(/Bu sifariş bu ay üçün əvvəlki sifarişi əvəz edir\./)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Əvəz etdiyi sifarişə bax' })).toHaveAttribute('href', '/orders/104?basis=last')
+    expect(document.body).not.toHaveTextContent(/versiya/i)
+  })
+
+  it('says nothing of the kind on a first version', async () => {
+    decisionsApi.fetchDecisionContext.mockResolvedValue(context({ version: 1, previousOrderRequestId: null }))
+    await renderPage()
+
+    expect(screen.queryByText(/əvvəlki sifarişi əvəz edir/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Əvəz etdiyi sifarişə bax' })).not.toBeInTheDocument()
   })
 })
 

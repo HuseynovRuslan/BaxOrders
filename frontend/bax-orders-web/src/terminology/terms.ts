@@ -179,6 +179,20 @@ export const latestOrderLinkLabel = 'Ən son sifarişə bax'
 /** Under an older order of a month on the object page, where a later one of the same month replaced it. */
 export const supersededOrderNote = 'Əvvəlki sifariş — sonradan yenilənib'
 
+/**
+ * On an order that was written over an earlier one for the same month — which every order an import creates is,
+ * wherever the month already had one. The mirror of the notice an older order shows, and the answer to the
+ * question somebody approving it has: what does this replace?
+ */
+export const replacesEarlierOrderNote = 'Bu sifariş bu ay üçün əvvəlki sifarişi əvəz edir.'
+
+/**
+ * The link from that notice. Deliberately not «Əvvəlki sifarişə bax», which the correction panel already uses
+ * for a different thing — the returned order a correction was made from. A reader on one page must not meet the
+ * same words pointing at two different orders.
+ */
+export const replacedOrderLinkLabel = 'Əvəz etdiyi sifarişə bax'
+
 // ---- the object page (Task 11) ---------------------------------------------------------------------------
 
 /**

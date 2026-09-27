@@ -74,6 +74,21 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
                 db.OrderRequests
                     .Where(other => other.LocationId == request.LocationId
                         && other.RequestPeriod == request.RequestPeriod)
+                    .Max(other => (int?)other.Version),
+                // The order this one was written over: the highest version below it for the same month. An
+                // import writes a new version beside an approved one, so on a fresh import this is the order
+                // the company has been working to until now.
+                db.OrderRequests
+                    .Where(other => other.LocationId == request.LocationId
+                        && other.RequestPeriod == request.RequestPeriod
+                        && other.Version < request.Version)
+                    .OrderByDescending(other => other.Version)
+                    .Select(other => (long?)other.Id)
+                    .FirstOrDefault(),
+                db.OrderRequests
+                    .Where(other => other.LocationId == request.LocationId
+                        && other.RequestPeriod == request.RequestPeriod
+                        && other.Version < request.Version)
                     .Max(other => (int?)other.Version)))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -160,6 +175,8 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
             order.LatestVersion == order.Version,
             order.LatestOrderRequestId,
             order.LatestVersion,
+            order.PreviousOrderRequestId,
+            order.PreviousVersion,
             current,
             primary.Dto,
             [.. comparisons.Skip(1).Select(item => item.Dto)],
@@ -436,7 +453,9 @@ public sealed class OrderDecisionContextQueries(IBaxOrdersDbContext db)
         int Version,
         OrderRequestStatus Status,
         long? LatestOrderRequestId,
-        int? LatestVersion);
+        int? LatestVersion,
+        long? PreviousOrderRequestId,
+        int? PreviousVersion);
 
     private sealed record VariantRef(VariantIdentityDto Identity, AnalyticsKind Kind);
 }

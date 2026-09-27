@@ -193,6 +193,11 @@ public sealed record DecisionDecompositionDto(
 /// <remarks>
 /// A person deciding an order is looking at one version of it. If this read model quietly answered about the
 /// newest version instead, the figures on the screen would not be the figures being approved. So the request
+/// <para>
+/// <c>PreviousOrderRequestId</c> is the order this one was written over: the highest version below it for the
+/// same location and month, null on a first version. An import writes a new version beside the approved one, so
+/// a reader who opens the new order can see what it replaces — the mirror of the notice an older version shows.
+/// </para>
 /// asked for is the request answered about, whether or not a later version exists — <see cref="IsLatestVersion"/>
 /// says which case it is, and the screen can offer the newer one rather than substituting it.
 /// </remarks>
@@ -234,6 +239,8 @@ public sealed record OrderDecisionContextDto(
     bool IsLatestVersion,
     long? LatestOrderRequestId,
     int? LatestVersion,
+    long? PreviousOrderRequestId,
+    int? PreviousVersion,
     DecisionAmountDto Current,
     DecisionComparisonDto Primary,
     IReadOnlyList<DecisionComparisonDto> Secondary,

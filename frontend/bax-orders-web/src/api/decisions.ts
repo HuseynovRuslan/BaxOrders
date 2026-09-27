@@ -190,6 +190,9 @@ export interface OrderDecisionContext {
   version: number
   status: OrderRequestStatus
   isLatestVersion: boolean
+  /** The order this one was written over — the version below it for the same month. Null on a first version. */
+  previousOrderRequestId: number | null
+  previousVersion: number | null
   latestOrderRequestId: number | null
   latestVersion: number | null
   current: DecisionAmount

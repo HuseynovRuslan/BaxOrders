@@ -66,6 +66,29 @@ public sealed class OrderDecisionContextTests(PostgresDatabaseFixture database)
         Assert.Equal(40m, second.Current.KnownAmount);
     }
 
+    /// <summary>The newest version names the order it was written over, so a reader can see what it replaces.</summary>
+    /// <remarks>
+    /// Every order an import creates for a month the company has already ordered in is a version written beside
+    /// an approved one — 166 of them at once on the company's own workbook. Somebody approving the new one is
+    /// entitled to know that, and to get to the order it supersedes in one step. The mirror of the answer an
+    /// older version already carries.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_version_names_the_order_it_was_written_over()
+    {
+        await using var db = database.CreateContext();
+        var world = await VersionedWorldAsync(db);
+
+        var second = await ContextAsync(db, world.SecondVersionId);
+        Assert.Equal(world.FirstVersionId, second.PreviousOrderRequestId);
+        Assert.Equal(1, second.PreviousVersion);
+
+        // A first version was written over nothing.
+        var first = await ContextAsync(db, world.FirstVersionId);
+        Assert.Null(first.PreviousOrderRequestId);
+        Assert.Null(first.PreviousVersion);
+    }
+
     [PostgresFact]
     public async Task An_order_that_does_not_exist_is_answered_with_nothing()
     {
