@@ -81,7 +81,8 @@ export function ReadinessPanel({ importId, version, batchStatus, onNavigate, onL
     readiness.rowIssues.invalidPeriod +
     readiness.rowIssues.missingRequiredValue +
     readiness.rowIssues.ambiguousMatch +
-    readiness.rowIssues.otherErrors
+    readiness.rowIssues.otherErrors +
+    readiness.rowIssues.missingSourceColumn
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white">
@@ -131,6 +132,8 @@ export function ReadinessPanel({ importId, version, batchStatus, onNavigate, onL
             ['Məcburi dəyər yoxdur', readiness.rowIssues.missingRequiredValue],
             ['Qeyri-müəyyən uyğunluq', readiness.rowIssues.ambiguousMatch],
             ['Digər xətalar', readiness.rowIssues.otherErrors],
+            // One fact about the sheet, carried on every row of it: the workbook is what has to change.
+            ['Mənbədə sütun yoxdur', readiness.rowIssues.missingSourceColumn],
           ]}
           empty={rowErrors === 0}
           blocking

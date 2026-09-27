@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Evaluation;
 using BaxOrders.Application.Imports.Parsing;
@@ -23,13 +23,21 @@ public sealed record UnresolvedReferences(
 /// <param name="DependencyBlockedRows">Rows whose variant cannot even be reviewed until product and units are decided.</param>
 public sealed record ProductReadiness(int UnresolvedProducts, int UnresolvedVariants, int DependencyBlockedRows);
 
-/// <summary>Row-specific problems: they live in one cell of one row, so no distinct-value decision settles them.</summary>
+/// <summary>
+/// Row-specific problems: they live in one cell of one row, so no distinct-value decision settles them.
+/// </summary>
+/// <param name="MissingSourceColumn">
+/// Rows from a sheet that has no «Növ» or «Cavabdeh şəxs» column at all. It is one fact about the sheet carried
+/// on every row of it, so no value decision settles it either — the workbook is what has to change. Counted
+/// here so a batch blocked by nothing else does not show a column of zeros beside a blocker of thousands.
+/// </param>
 public sealed record RowBlockers(
     int InvalidQuantity,
     int InvalidPeriod,
     int MissingRequiredValue,
     int AmbiguousMatch,
-    int OtherErrors);
+    int OtherErrors,
+    int MissingSourceColumn);
 
 /// <summary>Problems that are worth seeing but never keep an import back.</summary>
 /// <remarks>
@@ -159,7 +167,11 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
                 RowsWith(ImportIssueType.InvalidDate),
                 RowsWith(ImportIssueType.MissingRequiredValue),
                 RowsWith(ImportIssueType.AmbiguousMatch, IssueSeverity.Error),
-                RowsWith(ImportIssueType.Other, IssueSeverity.Error)),
+                RowsWith(ImportIssueType.Other, IssueSeverity.Error),
+                // Only the Error of either kind means the column is absent; a blank cell or an unreadable word
+                // is a warning about one line and belongs nowhere near a blocker.
+                RowsWith(ImportIssueType.UnknownOrderLineType, IssueSeverity.Error)
+                    + RowsWith(ImportIssueType.UnknownResponsiblePerson, IssueSeverity.Error)),
             new ReadinessWarnings(
                 pricing.MissingPrice,
                 pricing.InternalSupply,
@@ -267,6 +279,8 @@ public sealed class ImportReadinessQueries(IBaxOrdersDbContext db, ImportReviewQ
         ImportIssueType.InvalidQuantity => $"{rows} rows have an unusable quantity.",
         ImportIssueType.InvalidDate => $"{rows} rows have an unusable period (Tarix).",
         ImportIssueType.MissingRequiredValue => $"{rows} rows are missing a required value.",
+        ImportIssueType.UnknownOrderLineType => $"{rows} rows come from a sheet with no classification column.",
+        ImportIssueType.UnknownResponsiblePerson => $"{rows} rows come from a sheet with no responsible-person column.",
         _ => $"{rows} rows have a blocking problem.",
     };
 }

@@ -38,7 +38,14 @@ export function importReadiness(
       categoryPaths: 0,
     },
     products: { unresolvedProducts: 0, unresolvedVariants: 0, dependencyBlockedRows: 0 },
-    rowIssues: { invalidQuantity: 0, invalidPeriod: 0, missingRequiredValue: 0, ambiguousMatch: 0, otherErrors: 0 },
+    rowIssues: {
+      invalidQuantity: 0,
+      invalidPeriod: 0,
+      missingRequiredValue: 0,
+      ambiguousMatch: 0,
+      otherErrors: 0,
+      missingSourceColumn: 0,
+    },
     warnings: {
       missingPrice: 7,
       invalidPrice: 0,

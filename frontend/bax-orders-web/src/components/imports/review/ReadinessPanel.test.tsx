@@ -114,6 +114,26 @@ describe('the price strip', () => {
   })
 
   /**
+   * A batch blocked only by a missing column used to show zeros in every numeric row-error slot beside a blocker
+   * of thousands. The count belongs with the row errors: it is one fact about the sheet, on every row of it.
+   */
+  it('counts the rows of a sheet that has no such column', async () => {
+    rowsApi.fetchReadiness.mockResolvedValue(
+      readiness({}, {
+        canImport: false,
+        rowIssues: { invalidQuantity: 0, invalidPeriod: 0, missingRequiredValue: 0, ambiguousMatch: 0, otherErrors: 0, missingSourceColumn: 3619 },
+        blockers: [
+          { area: 'Rows', issueType: 'UnknownOrderLineType', rowCount: 3619, message: '3619 rows come from a sheet with no classification column.' },
+        ],
+      }),
+    )
+    renderPanel()
+
+    const label = await screen.findByText('Mənbədə sütun yoxdur')
+    expect(label.parentElement).toHaveTextContent('3619')
+  })
+
+  /**
    * A blocker the browser had no word for rendered as the literal "undefined" beside its row count. It happened:
    * the classification issue was added to the server and not here, and the authoritative workbook raises it on
    * 480 rows. Every blocking family has to be able to say what it is.

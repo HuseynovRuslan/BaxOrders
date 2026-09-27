@@ -131,6 +131,8 @@ export interface ImportReadiness {
     missingRequiredValue: number
     ambiguousMatch: number
     otherErrors: number
+  /** Rows from a sheet with no «Növ» or «Cavabdeh şəxs» column. One fact about the sheet, on every row of it. */
+  missingSourceColumn: number
   }
   warnings: {
     /** Task 2's «N sətirdə qiymət yoxdur»: always `unclassifiedPrice` + `priceRequired`. */

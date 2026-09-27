@@ -317,6 +317,50 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
     }
 
     /// <summary>
+    /// A batch blocked only by a missing column says so in numbers as well as in its blocker.
+    /// </summary>
+    /// <remarks>
+    /// It used to show a column of zeros under «Sətir xətaları» beside a blocker of three and a half thousand
+    /// rows, because the count had buckets for five kinds of row error and this was none of them. It is one fact
+    /// about the sheet carried on every row of it, so no value decision settles it — which is exactly why it
+    /// belongs with the row errors rather than with the unresolved values.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_batch_blocked_by_a_missing_column_counts_those_rows_as_well_as_naming_them()
+    {
+        await using var db = database.CreateContext();
+        var workbook = OrdersWithoutResponsiblePersonColumn(
+            new OrderLine(Location: "H.Ə.M"), new OrderLine(Location: "H.Ə.M"), new OrderLine(Location: "H.Ə.M"));
+
+        var result = await Service(db, () => workbook).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+        var readiness = await ReadinessQueries(db).GetReadinessAsync(result.ImportBatchId!.Value, CancellationToken.None);
+
+        Assert.NotNull(readiness);
+        Assert.Equal(3, readiness!.RowIssues.MissingSourceColumn);
+        Assert.Equal(0, readiness.RowIssues.OtherErrors);
+
+        // And the blocker beside it says what the problem is rather than that there is one.
+        var blocker = Assert.Single(readiness.Blockers,
+            item => item.IssueType == ImportIssueType.UnknownResponsiblePerson);
+        Assert.Equal(3, blocker.RowCount);
+        Assert.Contains("responsible-person column", blocker.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A blank cell is one line waiting on one person and is counted nowhere near a blocker.</summary>
+    [PostgresFact]
+    public async Task A_blank_cell_is_not_counted_as_a_missing_column()
+    {
+        await using var db = database.CreateContext();
+        var workbook = Orders(new OrderLine(Location: "H.Ə.M", LineType: null, Person: null));
+
+        var result = await Service(db, () => workbook).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+        var readiness = await ReadinessQueries(db).GetReadinessAsync(result.ImportBatchId!.Value, CancellationToken.None);
+
+        Assert.NotNull(readiness);
+        Assert.Equal(0, readiness!.RowIssues.MissingSourceColumn);
+    }
+
+    /// <summary>
     /// The same old form under its own tab name is refused for the sheet, not for the columns — and is never
     /// read as a fallback just because it is the only sheet there.
     /// </summary>
