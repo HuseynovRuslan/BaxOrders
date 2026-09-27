@@ -89,17 +89,24 @@ export function MonthlyReportTable({ report, today = new Date() }: MonthlyReport
           page, comes to rest in the middle of the table and lets rows pass over it. So the box may only be one
           where scrolling is genuinely needed, and not one pixel wider.
 
-          It is needed in exactly one narrow band. The layout gives this table min(window, max-w-7xl) less lg:px-8,
-          so 1216 pixels at most and 960 at 1024, the narrowest width the twelve-month table is shown at all. The
-          table's own minimum is 1000 — 144 for the name, 64 for each of the twelve months, 88 for the year — which
-          is the owner's "at least 64 pixels a month". The two only disagree below a 1064-pixel window; from there
-          up, the table fits and nothing scrolls.
-
           The rule used to read "scroll below 1340px", which made a scroll container across the whole of 1024–1339
           whether or not anything overflowed — overflow-x: auto makes one even with nothing to scroll — and that is
-          what broke the header on an ordinary 1280-pixel laptop. Now the container exists only under 1064, where a
-          month would otherwise fall below its 64 pixels. There, and only there, the sticky header is given up so
-          the months keep their width. */}
+          what broke the header on an ordinary 1280-pixel laptop. The container now exists only under 1064, and
+          there the sticky header is given up so the twelve months keep their width.
+
+          The table's own minimum is 1000 — 144 for the name, 64 for each of the twelve months, 88 for the year —
+          which is the owner's "at least 64 pixels a month".
+
+          What the arithmetic behind 1064 left out is the 256-pixel sidebar: the box is window less 256 less the
+          lg:px-8, so 880 at a 1200-pixel window, not 1136. Measured in a browser, the page itself scrolls
+          sideways under a 1290-pixel window — 9 pixels at 1280, 89 at 1200, 225 at 1064 — so between 1064 and
+          1289 neither mechanism holds: no container to scroll in, and the document scrolls instead. The header
+          does stick there, which is the half that was being paid for.
+
+          Left as it is on purpose. Closing that band means either taking the sticky header back off an ordinary
+          laptop — the defect this rule was written to fix — or giving the table its own vertical scroll so the
+          header can stick inside the container, which changes how the manager's main report scrolls. That is the
+          owner's choice, recorded as B-07. */}
       <div className="rounded-lg border border-slate-200 bg-white max-[1063px]:overflow-x-auto">
         <table className="w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-[11px] min-[1440px]:text-xs">
           <caption className="sr-only">Obyektlər üzrə aylıq sifariş məbləğləri</caption>
