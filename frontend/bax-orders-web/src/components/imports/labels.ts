@@ -35,6 +35,9 @@ export const issueTypeLabels: Record<IssueType, string> = {
   UnknownUnit: 'Naməlum vahid',
   UnknownCategory: 'Naməlum kateqoriya',
   UnknownResponsiblePerson: 'Naməlum cavabdeh şəxs',
+  // True of all three silences the column can hold: no column at all, an empty cell, or a word nobody
+  // can read. None of them says what the line is, and none of them is guessed at.
+  UnknownOrderLineType: 'Sifariş növü oxunmadı',
   AmbiguousMatch: 'Qeyri-müəyyən uyğunluq',
   MissingRequiredValue: 'Məcburi dəyər yoxdur',
   InvalidQuantity: 'Yanlış miqdar',

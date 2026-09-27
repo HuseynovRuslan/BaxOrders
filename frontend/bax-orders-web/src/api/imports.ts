@@ -11,6 +11,8 @@ export type IssueType =
   | 'UnknownUnit'
   | 'UnknownCategory'
   | 'UnknownResponsiblePerson'
+  /** The «Növ» column is absent (an error), or its cell is empty or holds a word this system cannot read. */
+  | 'UnknownOrderLineType'
   | 'AmbiguousMatch'
   | 'MissingRequiredValue'
   | 'InvalidQuantity'

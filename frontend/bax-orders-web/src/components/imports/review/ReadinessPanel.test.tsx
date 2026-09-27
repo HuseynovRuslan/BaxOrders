@@ -113,6 +113,28 @@ describe('the price strip', () => {
     expect(screen.queryByText('Qalan maneələr')).toBeNull()
   })
 
+  /**
+   * A blocker the browser had no word for rendered as the literal "undefined" beside its row count. It happened:
+   * the classification issue was added to the server and not here, and the authoritative workbook raises it on
+   * 480 rows. Every blocking family has to be able to say what it is.
+   */
+  it('names the classification blocker instead of rendering "undefined"', async () => {
+    rowsApi.fetchReadiness.mockResolvedValue(
+      readiness({}, {
+        canImport: false,
+        blockers: [
+          { area: 'Rows', issueType: 'UnknownOrderLineType', rowCount: 3619, message: '3619 rows have a blocking problem.' },
+        ],
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByText('Qalan maneələr')).toBeInTheDocument()
+    const blocker = screen.getByRole('button', { name: /3619 sətir/ })
+    expect(blocker).toHaveTextContent('Sifariş növü oxunmadı')
+    expect(blocker.textContent).not.toContain('undefined')
+  })
+
   it('does not say "will land", nor offer «Təsnif et», about a batch already imported', async () => {
     rowsApi.fetchReadiness.mockResolvedValue(readiness({}, { batchStatus: 'Imported' }))
     renderPanel()
