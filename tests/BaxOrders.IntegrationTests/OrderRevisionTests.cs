@@ -757,6 +757,39 @@ public sealed class OrderRevisionTests(PostgresDatabaseFixture database)
         };
     }
 
+    // ---- what a line was classified as -----------------------------------------------------------------
+
+    /// <summary>
+    /// Moving a line between the monthly plan and the ad-hoc orders, against a real database.
+    /// </summary>
+    /// <remarks>
+    /// This is here because it did not work. The database refuses an edit-history entry whose action is not in
+    /// the list of actions that name a field, and the classification was never added to that list, so every
+    /// attempt failed at save time with a constraint violation. The unit tests could not see it: they never
+    /// reach a database. This one does.
+    /// </remarks>
+    [PostgresFact]
+    public async Task Changing_what_a_line_was_classified_as_is_recorded()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var line = await LineAsync(v2, 10m);
+
+        await EditAsync(world.Coordinator, v2, line,
+            new EditOrderItemCommand(null, OrderLineType: new(OrderLineType.OutsideMonthly)));
+
+        await using var db = database.CreateContext();
+        var entry = await db.OrderRequestEditEvents.AsNoTracking()
+            .SingleAsync(item => item.OrderRequestId == v2 && item.Action == OrderEditAction.ItemOrderLineTypeChanged, None);
+        Assert.Equal(OrderEditField.OrderLineType, entry.Field);
+        // Stored as a JSON string, because every value in this column is read back as JSON.
+        Assert.Equal(("\"Monthly\"", "\"OutsideMonthly\""), (entry.OldValue, entry.NewValue));
+        Assert.Equal(
+            OrderLineType.OutsideMonthly,
+            await db.OrderRequestItems.AsNoTracking().Where(item => item.Id == line)
+                .Select(item => item.OrderLineType).SingleAsync(None));
+    }
+
     private async Task<Supplier> SupplierAsync()
     {
         await using var db = database.CreateContext();

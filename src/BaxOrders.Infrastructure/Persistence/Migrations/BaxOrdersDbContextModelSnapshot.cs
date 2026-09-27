@@ -1630,7 +1630,7 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
                     b.ToTable("OrderRequestEditEvents", null, t =>
                         {
-                            t.HasCheckConstraint("CK_OrderRequestEditEvents_FieldMatchesAction", "(\"Action\" IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged') AND \"Field\" IS NOT NULL) OR (\"Action\" NOT IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged') AND \"Field\" IS NULL)");
+                            t.HasCheckConstraint("CK_OrderRequestEditEvents_FieldMatchesAction", "(\"Action\" IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged') AND \"Field\" IS NOT NULL) OR (\"Action\" NOT IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged') AND \"Field\" IS NULL)");
 
                             t.HasCheckConstraint("CK_OrderRequestEditEvents_ItemEventNamesItem", "\"Action\" = 'RevisionCreated' OR (\"OrderRequestItemId\" IS NOT NULL AND \"ProductVariantId\" IS NOT NULL)");
                         });

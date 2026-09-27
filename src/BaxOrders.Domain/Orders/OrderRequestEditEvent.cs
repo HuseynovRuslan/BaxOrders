@@ -165,7 +165,12 @@ public static class EditAuditValue
     /// <summary>
     /// The classification by name, never by number, so the history stays readable if the enum ever moves.
     /// </summary>
-    public static string Of(OrderLineType value) => value.ToString();
+    /// <remarks>
+    /// Serialized rather than written bare, because every value in this column is read back as JSON. A bare
+    /// <c>Monthly</c> is not JSON and threw on the way out, which made the history of a request unreadable as
+    /// soon as it held one — so the value is the JSON string <c>"Monthly"</c>.
+    /// </remarks>
+    public static string Of(OrderLineType value) => JsonSerializer.Serialize(value.ToString(), Options);
 
     /// <summary>The supplier as it was named at the time, or null for none.</summary>
     public static string? Of(Supplier? supplier) =>

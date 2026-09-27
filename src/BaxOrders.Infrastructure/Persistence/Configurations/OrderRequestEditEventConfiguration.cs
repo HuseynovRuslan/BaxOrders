@@ -7,7 +7,16 @@ namespace BaxOrders.Infrastructure.Persistence.Configurations;
 
 internal sealed class OrderRequestEditEventConfiguration : IEntityTypeConfiguration<OrderRequestEditEvent>
 {
-    private const string ChangedActions = "'ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged'";
+    /// <summary>
+    /// The actions that name a field, which is every action that changes one value of a line.
+    /// </summary>
+    /// <remarks>
+    /// Every entry here has to be listed, because the constraint below reads the list both ways: an action in it
+    /// must carry a field and an action outside it must not. A "changed" action left out of it cannot be saved
+    /// at all — which is what happened to the classification when it was added, and is why it is named here now.
+    /// </remarks>
+    internal const string ChangedActions =
+        "'ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged'";
 
     public void Configure(EntityTypeBuilder<OrderRequestEditEvent> builder)
     {
