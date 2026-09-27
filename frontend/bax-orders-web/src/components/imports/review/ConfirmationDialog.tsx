@@ -157,6 +157,9 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
       title="İdxalı təsdiqlə"
       subtitle={preview ? `${preview.groupCount} qrup · ${preview.rowsToImport} sətir` : undefined}
       onClose={onClose}
+      // Ten columns, one of them a set of radio buttons: at the form width every cell wraps, the headers touch
+      // and a group takes four lines to read.
+      width="wide"
       footer={
         <>
           <button type="button" onClick={onClose} disabled={busy} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm">
@@ -256,16 +259,16 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
             <table className="w-full text-left text-xs">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="pb-1 font-medium">Obyekt</th>
-                  <th className="pb-1 font-medium">Dövr</th>
-                  <th className="pb-1 text-right font-medium">Sətir</th>
-                  <th className="pb-1 text-right font-medium">Məbləğ</th>
-                  <th className="pb-1 text-right font-medium">{missingPriceShortLabel}</th>
-                  <th className="pb-1 text-right font-medium">{unclassifiedLineTypeShortLabel}</th>
-                  <th className="pb-1 text-right font-medium">Təkrar</th>
-                  <th className="pb-1 font-medium">Mövcud sifariş</th>
-                  <th className="pb-1 font-medium">Versiya</th>
-                  <th className="pb-1 font-medium">Qərar</th>
+                  <th className="pb-1 pr-2 font-medium">Obyekt</th>
+                  <th className="pb-1 pr-2 font-medium">Dövr</th>
+                  <th className="pb-1 pr-2 text-right font-medium">Sətir</th>
+                  <th className="pb-1 pr-2 text-right font-medium">Məbləğ</th>
+                  <th className="pb-1 pr-2 text-right font-medium">{missingPriceShortLabel}</th>
+                  <th className="pb-1 pr-2 text-right font-medium">{unclassifiedLineTypeShortLabel}</th>
+                  <th className="pb-1 pr-2 text-right font-medium">Təkrar</th>
+                  <th className="pb-1 pr-2 font-medium">Mövcud sifariş</th>
+                  <th className="pb-1 pr-2 font-medium">Versiya</th>
+                  <th className="pb-1 pr-2 font-medium">Qərar</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
