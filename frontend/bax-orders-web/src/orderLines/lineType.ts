@@ -73,3 +73,28 @@ export const monthlyComparisonScopeLabel = 'Aylıq sifarişlər üzrə müqayis�
 /** The heading of the month's money, split by kind. */
 export const monthlyOrdersLabel = 'Aylıq sifarişlər'
 export const outsideMonthlyOrdersLabel = 'Aylıqdan Kənar sifarişlər'
+
+/**
+ * What an import calls a line whose «Növ» cell says nothing it can read.
+ *
+ * Deliberately not «Təsnif edilməyib», which the price classification already owns: on the confirmation screen
+ * both counts sit in one grid, and two different facts must not share a word. This one names the column, because
+ * that is where the silence is.
+ */
+export const unclassifiedLineTypeShortLabel = 'Növü göstərilməyib'
+
+/** What the operator is told before confirming an import that carries such rows. */
+export function unclassifiedLineTypeBeforeImportNote(
+  unclassified: number,
+  monthly: number,
+  outsideMonthly: number,
+): string {
+  return (
+    `${unclassified} sətrin «Növ» sütunu boşdur və ya oxunmur; həmin sətirlər təsnif edilməmiş idxal olunacaq. ` +
+    `Bu idxalda ${monthly} aylıq, ${outsideMonthly} aylıqdan kənar sətir var.`
+  )
+}
+
+/** Said beside the note: the classification is a line-level fact and is changed on the order, not guessed here. */
+export const classifyLinesAfterImportHint =
+  'Təsnifat sətir səviyyəsindədir: idxaldan sonra sifariş səhifəsində dəyişdirilir. İdxal bunu ayın adına görə təxmin etmir.'

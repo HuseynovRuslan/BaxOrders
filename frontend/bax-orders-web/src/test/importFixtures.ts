@@ -128,6 +128,9 @@ export function confirmationGroup(overrides: Partial<ConfirmationGroupPreview> =
     unclassifiedPriceItemCount: 4,
     priceRequiredItemCount: 1,
     internalSupplyItemCount: 1,
+    monthlyItemCount: 9,
+    outsideMonthlyItemCount: 1,
+    unclassifiedLineTypeItemCount: 0,
     ...overrides,
   }
 }
@@ -177,6 +180,10 @@ export function confirmationPreview(overrides: Partial<ImportConfirmationPreview
     unclassifiedPriceRows: 5,
     priceRequiredRows: 2,
     internalSupplyRows: 2,
+    // 15 rows to import: 12 planned, 2 on top of the plan, 1 the source says nothing readable about.
+    monthlyRows: 12,
+    outsideMonthlyRows: 2,
+    unclassifiedLineTypeRows: 1,
     ...overrides,
   }
 }

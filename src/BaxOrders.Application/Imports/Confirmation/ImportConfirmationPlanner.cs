@@ -251,7 +251,10 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 required,
                 groupPricing.Unclassified,
                 groupPricing.PriceRequired,
-                groupPricing.InternalSupply);
+                groupPricing.InternalSupply,
+                group.Rows.Count(row => row.OrderLineType == OrderLineType.Monthly),
+                group.Rows.Count(row => row.OrderLineType == OrderLineType.OutsideMonthly),
+                group.Rows.Count(row => row.OrderLineType == OrderLineType.Unclassified));
         }).ToList();
 
         var undecided = plan.Groups.Count(group =>
@@ -286,7 +289,10 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
             plan.Existing is null ? null : ResultOf(plan.Existing, plan.Batch, durationMilliseconds: 0),
             pricing.Unclassified,
             pricing.PriceRequired,
-            pricing.InternalSupply);
+            pricing.InternalSupply,
+            rows.Count(row => row.OrderLineType == OrderLineType.Monthly),
+            rows.Count(row => row.OrderLineType == OrderLineType.OutsideMonthly),
+            rows.Count(row => row.OrderLineType == OrderLineType.Unclassified));
     }
 
     /// <summary>A group with no existing request needs no decision; one with an existing request always does.</summary>

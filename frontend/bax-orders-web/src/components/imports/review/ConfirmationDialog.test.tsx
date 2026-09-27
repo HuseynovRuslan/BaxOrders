@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { confirmationPreview, confirmationResult } from '../../../test/importFixtures'
+import { confirmationGroup, confirmationPreview, confirmationResult, groupB } from '../../../test/importFixtures'
 import { findOldPriceTerms } from '../../../test/oldTerms'
 import { ConfirmationDialog } from './ConfirmationDialog'
 
@@ -163,4 +163,57 @@ it('says no old price word', async () => {
 
   expect(findOldPriceTerms(document.body)).toEqual([])
   expect(screen.queryByText('Qiyməti olmayan')).toBeNull()
+})
+
+/**
+ * The screen where an import is confirmed is the last place anybody sees what it is about to write. A month
+ * whose «Növ» column says nothing arrives unclassified, and that should be readable here rather than found
+ * afterwards on the orders.
+ */
+describe('the classification the import would write', () => {
+  it('says how many rows would arrive with no classification, and what the rest are', async () => {
+    importsApi.fetchConfirmationPreview.mockResolvedValue(
+      confirmationPreview({ monthlyRows: 100, outsideMonthlyRows: 20, unclassifiedLineTypeRows: 480 }),
+    )
+    renderDialog()
+
+    // The label names both a fact and the groups table's column, so the fact is read by its own helper.
+    expect(await screen.findByText(/480 sətrin «Növ» sütunu boşdur/)).toBeInTheDocument()
+    expect(fact('Növü göstərilməyib')).toHaveTextContent('480')
+    expect(screen.getByText(/100 aylıq, 20 aylıqdan kənar/)).toBeInTheDocument()
+    // And it does not offer to work the classification out from the month.
+    expect(screen.getByText(/ayın adına görə təxmin etmir/)).toBeInTheDocument()
+  })
+
+  it('says nothing about classification when every row states one', async () => {
+    importsApi.fetchConfirmationPreview.mockResolvedValue(
+      confirmationPreview({ monthlyRows: 15, outsideMonthlyRows: 0, unclassifiedLineTypeRows: 0 }),
+    )
+    renderDialog()
+
+    expect(await screen.findByText('İdxalı təsdiqlə')).toBeInTheDocument()
+    expect(screen.queryByText(/«Növ» sütunu boşdur/)).toBeNull()
+  })
+
+  /** A group the operator will not import takes its unclassified rows with it, as the price figures already do. */
+  it('subtracts a skipped group from the classification figures', async () => {
+    const user = userEvent.setup()
+    importsApi.fetchConfirmationPreview.mockResolvedValue(
+      confirmationPreview({
+        monthlyRows: 12,
+        outsideMonthlyRows: 2,
+        unclassifiedLineTypeRows: 6,
+        groups: [
+          confirmationGroup({ unclassifiedLineTypeItemCount: 0 }),
+          { ...groupB, unclassifiedLineTypeItemCount: 6 },
+        ],
+      }),
+    )
+    renderDialog()
+
+    await screen.findByText(/6 sətrin «Növ» sütunu boşdur/)
+    await user.click(screen.getByRole('radio', { name: 'Bu qrupu idxal etmə' }))
+
+    expect(screen.queryByText(/«Növ» sütunu boşdur/)).toBeNull()
+  })
 })

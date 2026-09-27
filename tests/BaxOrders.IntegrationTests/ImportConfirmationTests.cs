@@ -1,4 +1,4 @@
-using BaxOrders.Application.Common;
+﻿using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Confirmation;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Domain;
@@ -400,6 +400,90 @@ public sealed class ImportConfirmationTests(PostgresDatabaseFixture database)
     private sealed record Fixture(long BatchId, int LocationId, DateOnly Period, string Product);
 
     /// <param name="location">Null means the test's own location, so no two tests share a request group.</param>
+    // ---- what the preview says the import would classify ----------------------------------------------
+
+    /// <summary>
+    /// The preview counts the classification the import would write, per group and over the batch.
+    /// </summary>
+    /// <remarks>
+    /// The screen where an import is confirmed is the last place anybody sees what it is about to create, and a
+    /// month whose «Növ» column says nothing arrives unclassified. Counting it here is what lets that be read
+    /// before the orders exist rather than found on them afterwards.
+    /// </remarks>
+    [PostgresFact]
+    public async Task The_preview_counts_what_each_group_would_be_classified_as()
+    {
+        await using var db = database.CreateContext();
+        var fixture = await ReadyAsync(
+            db,
+            Line() with { LineType = "Aylıq sifariş" },
+            Line() with { LineType = "Aylıq sifariş" },
+            Line() with { LineType = "Aylıqdan kənar" },
+            Line() with { LineType = null },
+            Line() with { LineType = "Təcili" });
+
+        var preview = await ConfirmationPlanner(db).PreviewAsync(fixture.BatchId, CancellationToken.None);
+
+        Assert.NotNull(preview);
+        // A blank cell and a word nobody can read are both unclassified; neither is guessed at.
+        Assert.Equal((2, 1, 2), (preview!.MonthlyRows, preview.OutsideMonthlyRows, preview.UnclassifiedLineTypeRows));
+        Assert.Equal(preview.RowsToImport,
+            preview.MonthlyRows + preview.OutsideMonthlyRows + preview.UnclassifiedLineTypeRows);
+
+        var group = Assert.Single(preview.Groups);
+        Assert.Equal((2, 1, 2),
+            (group.MonthlyItemCount, group.OutsideMonthlyItemCount, group.UnclassifiedLineTypeItemCount));
+        Assert.Equal(group.SourceRowCount,
+            group.MonthlyItemCount + group.OutsideMonthlyItemCount + group.UnclassifiedLineTypeItemCount);
+    }
+
+    /// <summary>Two groups each carry their own figures, so a group can be left out by its own numbers.</summary>
+    [PostgresFact]
+    public async Task Each_group_carries_its_own_classification_figures()
+    {
+        await using var db = database.CreateContext();
+        var second = $"Sınaq obyekti {Guid.NewGuid():N}"[..24];
+        var fixture = await ReadyAsync(
+            db,
+            Line() with { LineType = "Aylıq sifariş" },
+            Line() with { LineType = null },
+            Line(location: second) with { LineType = "Aylıqdan kənar" });
+
+        var preview = await ConfirmationPlanner(db).PreviewAsync(fixture.BatchId, CancellationToken.None);
+
+        Assert.NotNull(preview);
+        Assert.Equal(2, preview!.Groups.Count);
+        Assert.Equal(1, preview.Groups.Sum(group => group.MonthlyItemCount));
+        Assert.Equal(1, preview.Groups.Sum(group => group.OutsideMonthlyItemCount));
+        Assert.Equal(1, preview.Groups.Sum(group => group.UnclassifiedLineTypeItemCount));
+        Assert.Equal(preview.MonthlyRows, preview.Groups.Sum(group => group.MonthlyItemCount));
+        Assert.Equal(preview.UnclassifiedLineTypeRows, preview.Groups.Sum(group => group.UnclassifiedLineTypeItemCount));
+    }
+
+    /// <summary>Counting is all it does: the preview still writes nothing and classifies nothing.</summary>
+    [PostgresFact]
+    public async Task Counting_the_classification_changes_no_row()
+    {
+        await using var db = database.CreateContext();
+        var fixture = await ReadyAsync(db, Line() with { LineType = null }, Line() with { LineType = "Aylıq sifariş" });
+
+        var raw = await db.ImportRows.AsNoTracking()
+            .Where(row => row.ImportBatchId == fixture.BatchId)
+            .OrderBy(row => row.RowNumber)
+            .Select(row => row.OriginalOrderLineType)
+            .ToListAsync();
+
+        await ConfirmationPlanner(db).PreviewAsync(fixture.BatchId, CancellationToken.None);
+
+        await using var check = database.CreateContext();
+        Assert.Equal([null, "Aylıq sifariş"], raw);
+        Assert.Equal(raw, await check.ImportRows.AsNoTracking()
+            .Where(row => row.ImportBatchId == fixture.BatchId)
+            .OrderBy(row => row.RowNumber)
+            .Select(row => row.OriginalOrderLineType)
+            .ToListAsync());
+    }
+
     private static OrderLine Line(
         double? quantity = 10, double? price = 2, string? supplier = null, string? location = null, DateTime? date = null) =>
         new(Product: null, Quantity: quantity, Price: price, Supplier: supplier, Location: location, Date: date);

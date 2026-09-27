@@ -197,6 +197,12 @@ export interface ConfirmationGroupPreview {
   priceRequiredItemCount: number
   /** Unpriced rows a reviewer said are supplied free. Never a warning. */
   internalSupplyItemCount: number
+  /** Rows this group would import as the month's planned material. */
+  monthlyItemCount: number
+  /** Rows it would import as ordered on top of the plan. */
+  outsideMonthlyItemCount: number
+  /** Rows whose «Növ» cell says nothing readable, so they would arrive unclassified. */
+  unclassifiedLineTypeItemCount: number
 }
 
 export interface ImportConfirmationResult {
@@ -247,6 +253,12 @@ export interface ImportConfirmationPreview {
    * share is its `unclassifiedPriceItemCount`). `missingPriceRows` = this + `priceRequiredRows`.
    */
   unclassifiedPriceRows: number
+  /** Rows that would be imported as the month's planned material, before any group is skipped. */
+  monthlyRows: number
+  /** Rows that would be imported as ordered on top of the plan. */
+  outsideMonthlyRows: number
+  /** Rows that would arrive unclassified because the source says nothing readable. Never inferred. */
+  unclassifiedLineTypeRows: number
   /** Rows that will land as «Alış qiyməti tələb olunur», before any group is skipped. */
   priceRequiredRows: number
   /** Rows that will land as «Ödənişsiz daxili təminat», before any group is skipped. */

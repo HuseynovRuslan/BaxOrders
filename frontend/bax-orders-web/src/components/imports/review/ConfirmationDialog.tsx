@@ -19,6 +19,11 @@ import {
 } from '../../../pricing/labels'
 import { formatNumber, formatPeriod } from '../labels'
 import { Modal } from './Modal'
+import {
+  classifyLinesAfterImportHint,
+  unclassifiedLineTypeBeforeImportNote,
+  unclassifiedLineTypeShortLabel,
+} from '../../../orderLines/lineType'
 
 const pageSize = 12
 
@@ -81,6 +86,11 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
   const missingPrice = (preview?.missingPriceRows ?? 0) - skippedSum((group) => group.missingPriceItemCount)
   const unclassifiedPrice = (preview?.unclassifiedPriceRows ?? 0) - skippedSum((group) => group.unclassifiedPriceItemCount)
   const internalSupply = (preview?.internalSupplyRows ?? 0) - skippedSum((group) => group.internalSupplyItemCount)
+  // The same subtraction for the classification: what the import would actually write once the skips are taken.
+  const unclassifiedLineType =
+    (preview?.unclassifiedLineTypeRows ?? 0) - skippedSum((group) => group.unclassifiedLineTypeItemCount)
+  const monthly = (preview?.monthlyRows ?? 0) - skippedSum((group) => group.monthlyItemCount)
+  const outsideMonthly = (preview?.outsideMonthlyRows ?? 0) - skippedSum((group) => group.outsideMonthlyItemCount)
   const missingReason = Object.values(decisions).some(
     (decision) => decision.action === 'Skip' && decision.reason.trim().length === 0,
   )
@@ -156,6 +166,11 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
             <Fact label="Təchizatçısı məlum olmayan" value={formatNumber(preview.missingSupplierRows)} warn={preview.missingSupplierRows > 0} />
             <Fact label="Vahidsiz xidmət sətri" value={formatNumber(preview.unitlessVariantRows)} />
             <Fact label="Təsvirli spesifikasiya" value={formatNumber(preview.descriptorVariantRows)} />
+            <Fact
+              label={unclassifiedLineTypeShortLabel}
+              value={formatNumber(unclassifiedLineType)}
+              warn={unclassifiedLineType > 0}
+            />
             <Fact label="Mövcud sifarişi olan qrup" value={formatNumber(preview.existingRequestConflictGroups)} warn={preview.existingRequestConflictGroups > 0} />
           </dl>
 
@@ -176,6 +191,15 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
                   {pricingReviewLinkLabel}
                 </a>
               </p>
+            </div>
+          )}
+
+          {unclassifiedLineType > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+              <p className="font-medium">
+                {unclassifiedLineTypeBeforeImportNote(unclassifiedLineType, monthly, outsideMonthly)}
+              </p>
+              <p className="mt-0.5">{classifyLinesAfterImportHint}</p>
             </div>
           )}
 
@@ -205,6 +229,7 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
                   <th className="pb-1 text-right font-medium">Sətir</th>
                   <th className="pb-1 text-right font-medium">Məbləğ</th>
                   <th className="pb-1 text-right font-medium">{missingPriceShortLabel}</th>
+                  <th className="pb-1 text-right font-medium">{unclassifiedLineTypeShortLabel}</th>
                   <th className="pb-1 text-right font-medium">Təkrar</th>
                   <th className="pb-1 font-medium">Mövcud sifariş</th>
                   <th className="pb-1 font-medium">Versiya</th>
@@ -223,6 +248,7 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
                         {group.knownAmountTotal === null ? '—' : formatNumber(group.knownAmountTotal)}
                       </td>
                       <td className="py-1.5 pr-2 text-right text-slate-500">{group.missingPriceItemCount || '—'}</td>
+                      <td className="py-1.5 pr-2 text-right text-slate-500">{group.unclassifiedLineTypeItemCount || '—'}</td>
                       <td className="py-1.5 pr-2 text-right text-slate-500">{group.possibleDuplicateItemCount || '—'}</td>
                       <td className="py-1.5 pr-2">
                         {group.existingRequest ? (

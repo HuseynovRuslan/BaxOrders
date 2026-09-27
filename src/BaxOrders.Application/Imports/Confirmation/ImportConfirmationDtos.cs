@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Imports;
+﻿using BaxOrders.Domain.Imports;
 
 namespace BaxOrders.Application.Imports.Confirmation;
 
@@ -40,6 +40,13 @@ public enum GroupDecisionAction
 /// <param name="UnclassifiedPriceItemCount">Unpriced rows nobody classified: «Təsnif edilməyib» once imported.</param>
 /// <param name="PriceRequiredItemCount">Unpriced rows a reviewer said are bought.</param>
 /// <param name="InternalSupplyItemCount">Unpriced rows a reviewer said are supplied free. Never a warning.</param>
+/// <param name="MonthlyItemCount">Rows this group would import as the month's planned material.</param>
+/// <param name="OutsideMonthlyItemCount">Rows it would import as ordered on top of the plan.</param>
+/// <param name="UnclassifiedLineTypeItemCount">
+/// Rows whose «Növ» cell says nothing this system can read, so they would arrive «Təsnif edilməyib». Said here
+/// because this is the screen where the group is confirmed: the operator should not have to open the rows to
+/// find out that a whole month arrives unclassified.
+/// </param>
 public sealed record ConfirmationGroupPreview(
     int LocationId,
     string LocationCode,
@@ -58,7 +65,10 @@ public sealed record ConfirmationGroupPreview(
     GroupDecisionAction? RequiredDecision,
     int UnclassifiedPriceItemCount,
     int PriceRequiredItemCount,
-    int InternalSupplyItemCount);
+    int InternalSupplyItemCount,
+    int MonthlyItemCount,
+    int OutsideMonthlyItemCount,
+    int UnclassifiedLineTypeItemCount);
 
 /// <summary>
 /// Everything the operator needs before turning staged rows into orders. Reads only; nothing is written.
@@ -78,6 +88,12 @@ public sealed record ConfirmationGroupPreview(
 /// </param>
 /// <param name="PriceRequiredRows">Rows that will land as «Alış qiyməti tələb olunur», before any group is skipped.</param>
 /// <param name="InternalSupplyRows">Rows that will land as «Ödənişsiz daxili təminat», before any group is skipped.</param>
+/// <param name="MonthlyRows">Rows that would be imported as the month's planned material, before any group is skipped.</param>
+/// <param name="OutsideMonthlyRows">Rows that would be imported as ordered on top of the plan.</param>
+/// <param name="UnclassifiedLineTypeRows">
+/// Rows that would arrive «Təsnif edilməyib» because the source says nothing readable about them. Never inferred
+/// from the month or from anything else — see the classification rules.
+/// </param>
 public sealed record ImportConfirmationPreview(
     long ImportBatchId,
     ImportStatus BatchStatus,
@@ -101,7 +117,10 @@ public sealed record ImportConfirmationPreview(
     ImportConfirmationResult? Result,
     int UnclassifiedPriceRows,
     int PriceRequiredRows,
-    int InternalSupplyRows);
+    int InternalSupplyRows,
+    int MonthlyRows,
+    int OutsideMonthlyRows,
+    int UnclassifiedLineTypeRows);
 
 /// <param name="Reason">Required for <see cref="GroupDecisionAction.Skip"/>, forbidden otherwise.</param>
 public sealed record ConfirmationGroupDecision(
