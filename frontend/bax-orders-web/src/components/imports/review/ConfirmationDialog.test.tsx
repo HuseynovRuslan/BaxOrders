@@ -217,3 +217,67 @@ describe('the classification the import would write', () => {
     expect(screen.queryByText(/«Növ» sütunu boşdur/)).toBeNull()
   })
 })
+
+/**
+ * The company's own workbook restates nine months across 166 groups, every one of which already has an approved
+ * request. Without a way to take that one decision at once it is 166 identical clicks across paged tables, and a
+ * single missed row leaves the operator hunting for it with the import refusing to start.
+ */
+describe('deciding every waiting group at once', () => {
+  const threeWaiting = () =>
+    confirmationPreview({
+      groups: [
+        confirmationGroup(),
+        groupB,
+        confirmationGroup({
+          locationId: 22,
+          locationCode: 'LOC-000022',
+          locationName: 'Dənizkənarı bulvar',
+          existingRequest: true,
+          existingVersions: 2,
+          latestVersion: 2,
+          proposedVersion: null,
+          conflictState: 'ExistingRequest',
+          requiredDecision: 'CreateNewVersion',
+        }),
+      ],
+    })
+
+  it('takes the decision for every group still waiting, and then the import can start', async () => {
+    importsApi.fetchConfirmationPreview.mockResolvedValue(threeWaiting())
+    renderDialog()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Hamısına yeni versiya (2)' }))
+
+    // Both waiting groups are decided, the group that needed nothing is untouched, and the warning is gone.
+    for (const name of ['Fəvvarələr meydanı', 'Dənizkənarı bulvar']) {
+      const row = screen.getByText(name).closest('tr') as HTMLElement
+      expect(within(row).getByRole('radio', { name: 'Yeni versiya yarat' })).toBeChecked()
+    }
+    expect(screen.queryByText(/qrupun artıq sifarişi var/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sətir yarat/ })).toBeEnabled()
+  })
+
+  it('never touches a group the operator has already left out', async () => {
+    importsApi.fetchConfirmationPreview.mockResolvedValue(threeWaiting())
+    renderDialog()
+    await screen.findByText('Fəvvarələr meydanı')
+    const user = await skipGroupB()
+
+    await user.click(screen.getByRole('button', { name: 'Hamısına yeni versiya (1)' }))
+
+    const skippedRow = screen.getByText('Fəvvarələr meydanı').closest('tr') as HTMLElement
+    expect(within(skippedRow).getByRole('radio', { name: 'Bu qrupu idxal etmə' })).toBeChecked()
+    expect(within(skippedRow).getByRole('radio', { name: 'Yeni versiya yarat' })).not.toBeChecked()
+    expect(within(skippedRow).getByDisplayValue('Növbəti ay')).toBeInTheDocument()
+  })
+
+  it('is not offered when no group is waiting', async () => {
+    importsApi.fetchConfirmationPreview.mockResolvedValue(confirmationPreview({ groups: [confirmationGroup()] }))
+    renderDialog()
+
+    expect(await screen.findByRole('button', { name: /sətir yarat/ })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /Hamısına yeni versiya/ })).not.toBeInTheDocument()
+  })
+})

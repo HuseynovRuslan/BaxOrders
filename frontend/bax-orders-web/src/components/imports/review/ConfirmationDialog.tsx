@@ -75,6 +75,9 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
   const undecided = (preview?.groups ?? []).filter(
     (group) => group.requiredDecision !== null && decisions[groupKey(group)] === undefined,
   )
+  // Groups still waiting whose only sensible answer is the same one: a request exists and the import adds a
+  // version beside it. Groups already decided — including skipped ones — are not among them.
+  const undecidedNewVersions = undecided.filter((group) => group.requiredDecision === 'CreateNewVersion')
   const skipped = Object.values(decisions).filter((decision) => decision.action === 'Skip')
   const skippedGroups = (preview?.groups ?? []).filter((group) => decisions[groupKey(group)]?.action === 'Skip')
   const skippedRows = skippedGroups.reduce((sum, group) => sum + group.sourceRowCount, 0)
@@ -101,6 +104,26 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
 
   function decide(group: ConfirmationGroupPreview, action: GroupDecisionAction) {
     setDecisions((current) => ({ ...current, [groupKey(group)]: { action, reason: current[groupKey(group)]?.reason ?? '' } }))
+  }
+
+  /**
+   * Takes the one decision that is the same for every group at once: keep what is there and add the next
+   * version. The company's own workbook restates nine months in 166 groups, so this is 166 identical clicks
+   * otherwise, and one missed row leaves the operator hunting through pages for it.
+   *
+   * Only ever «yeni versiya», and only on groups nobody has decided yet — a skip is per-group, needs its own
+   * reason, and is the direction that loses lines, so it is never taken in bulk or overwritten here.
+   */
+  function decideAllNewVersions() {
+    setDecisions((current) => {
+      const next = { ...current }
+      for (const group of preview?.groups ?? []) {
+        if (group.requiredDecision === 'CreateNewVersion' && next[groupKey(group)] === undefined) {
+          next[groupKey(group)] = { action: 'CreateNewVersion', reason: '' }
+        }
+      }
+      return next
+    })
   }
 
   async function submit() {
@@ -204,9 +227,18 @@ export function ConfirmationDialog({ importId, onClose, onImported }: Confirmati
           )}
 
           {undecided.length > 0 && (
-            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
-              {undecided.length} qrupun artıq sifarişi var. Hər biri üçün qərar seçilməyincə idxal başlamır.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+              <p>{undecided.length} qrupun artıq sifarişi var. Hər biri üçün qərar seçilməyincə idxal başlamır.</p>
+              {undecidedNewVersions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={decideAllNewVersions}
+                  className="rounded-md border border-red-300 bg-white px-2 py-1 font-medium text-red-900 hover:bg-red-100"
+                >
+                  Hamısına yeni versiya ({undecidedNewVersions.length})
+                </button>
+              )}
+            </div>
           )}
 
           <div>
