@@ -5,6 +5,7 @@ import { searchProductVariants, searchReference, type ReferenceOption } from '..
 import { noPriceLabel, unknownSupplierLabel } from '../../imports/labels'
 import { Modal } from '../../imports/review/Modal'
 import { SupplierPicker } from './SupplierPicker'
+import { ResponsiblePersonPicker } from './ResponsiblePersonPicker'
 import { addLineLabel, revisionErrors } from './labels'
 
 interface AddLineDialogProps {
@@ -33,6 +34,7 @@ export function AddLineDialog({ orderRequestId, rowVersion, onClose, onSaved, on
   const [price, setPrice] = useState('')
   const [priceKnown, setPriceKnown] = useState(false)
   const [supplierId, setSupplierId] = useState<number | null>(null)
+  const [personId, setPersonId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -84,6 +86,9 @@ export function AddLineDialog({ orderRequestId, rowVersion, onClose, onSaved, on
         // Left out rather than sent as zero: a new line may legitimately have no price yet.
         unitPrice: priceKnown ? parsedPrice : null,
         supplierId,
+        // Left out rather than guessed when nobody was chosen: a line with no responsible person is a
+        // truthful line, and picking one for it would put a name on somebody else's request.
+        responsiblePersonId: personId,
       })
       onSaved()
     } catch (problem: unknown) {
@@ -221,6 +226,8 @@ export function AddLineDialog({ orderRequestId, rowVersion, onClose, onSaved, on
           onChange={setSupplierId}
           emptyLabel={unknownSupplierLabel}
         />
+
+        <ResponsiblePersonPicker value={personId} currentName={null} onChange={setPersonId} />
 
         {error && (
           <p className="rounded-md border border-red-200 bg-red-50 p-2 text-red-700" role="alert">

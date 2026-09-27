@@ -8,10 +8,12 @@ export type OrderEditAction =
   | 'ItemQuantityChanged'
   | 'ItemPriceChanged'
   | 'ItemSupplierChanged'
+  | 'ItemOrderLineTypeChanged'
+  | 'ItemResponsiblePersonChanged'
   | 'ItemAdded'
   | 'ItemRemoved'
 
-export type OrderEditField = 'Quantity' | 'UnitPrice' | 'Supplier'
+export type OrderEditField = 'Quantity' | 'UnitPrice' | 'Supplier' | 'OrderLineType' | 'ResponsiblePerson'
 
 /** One end of a correction: the version on the other side, and who made the correction when. */
 export interface RevisionLink {
@@ -52,8 +54,8 @@ export interface OrderEditEvent {
   productCode: string | null
   productName: string | null
   field: OrderEditField | null
-  oldValue: number | EditedSupplier | EditedLine | null
-  newValue: number | EditedSupplier | EditedLine | null
+  oldValue: number | string | EditedSupplier | EditedLine | null
+  newValue: number | string | EditedSupplier | EditedLine | null
   actorUserId: string
   actorDisplayName: string
   occurredAtUtc: string
@@ -116,6 +118,8 @@ export interface EditOrderItemCommand {
   supplierId?: FieldChange<number | null>
   /** Whether the line is the month's planned material or was ordered on top of it. */
   orderLineType?: FieldChange<OrderLineType>
+  /** Who asked for the line. An existing canonical person, or `{ value: null }` for none. */
+  responsiblePersonId?: FieldChange<number | null>
 }
 
 export interface AddOrderItemCommand {
@@ -126,6 +130,8 @@ export interface AddOrderItemCommand {
   supplierId?: number | null
   /** Left out, the server takes the month's planned material — what a line added to a monthly order is. */
   orderLineType?: OrderLineType
+  /** Who asked for it, when that is known. Left out, the line names nobody rather than guessing. */
+  responsiblePersonId?: number | null
 }
 
 export function fetchRevision(orderRequestId: number, signal?: AbortSignal): Promise<OrderRevision> {

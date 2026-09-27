@@ -1,4 +1,5 @@
 ﻿using BaxOrders.Domain.Catalog;
+using BaxOrders.Domain.ResponsiblePeople;
 using BaxOrders.Domain.Suppliers;
 
 namespace BaxOrders.Domain.Orders;
@@ -30,6 +31,9 @@ public sealed class OrderRequestItem
     /// A line built by hand is the ordinary case, the month's planned material, and the person adding it is
     /// shown that as the choice already made and may change it before the request is sent.
     /// </param>
+    /// <param name="responsiblePerson">
+    /// Who asked for this line, when the source says. Null is "not stated", never a person chosen for it.
+    /// </param>
     internal OrderRequestItem(
         OrderRequest orderRequest,
         ProductVariant productVariant,
@@ -39,7 +43,8 @@ public sealed class OrderRequestItem
         string? originalProductName,
         string? notes,
         PricingMode? pricingMode = null,
-        OrderLineType orderLineType = OrderLineType.Monthly)
+        OrderLineType orderLineType = OrderLineType.Monthly,
+        ResponsiblePerson? responsiblePerson = null)
     {
         ArgumentNullException.ThrowIfNull(productVariant);
 
@@ -51,6 +56,11 @@ public sealed class OrderRequestItem
         if (supplier is { IsActive: false })
         {
             throw new DomainException($"Supplier '{supplier.Name}' is inactive.");
+        }
+
+        if (responsiblePerson is { IsActive: false })
+        {
+            throw new DomainException($"Responsible person '{responsiblePerson.Name}' is inactive.");
         }
 
         OrderRequest = orderRequest;
@@ -72,6 +82,8 @@ public sealed class OrderRequestItem
         OriginalProductName = Guard.OptionalText(originalProductName, OriginalProductNameMaxLength, nameof(OriginalProductName));
         Notes = Guard.OptionalText(notes, NotesMaxLength, nameof(Notes));
         OrderLineType = ValidLineType(orderLineType);
+        ResponsiblePerson = responsiblePerson;
+        ResponsiblePersonId = responsiblePerson is { Id: > 0 } ? responsiblePerson.Id : null;
     }
 
     public long Id { get; private set; }
@@ -111,6 +123,24 @@ public sealed class OrderRequestItem
     /// routinely holds both kinds. It is never inferred — see <see cref="OrderLineType"/>.
     /// </remarks>
     public OrderLineType OrderLineType { get; private set; } = OrderLineType.Unclassified;
+
+    /// <summary>
+    /// Who asked for this line. Null when nothing says.
+    /// </summary>
+    /// <remarks>
+    /// The line is where this fact belongs, because it is where the source states it: the order workbook
+    /// carries "Cavabdeh şəxs" as a column, one cell per line, and one request routinely holds the lines of
+    /// two or three different people — the cleaning material of one, the fuel and machinery of another. A
+    /// request-level answer has to pick one of them or none, and both of those lose what the source said.
+    /// <para>
+    /// <see cref="OrderRequest.ResponsiblePersonId"/> is a different statement, not a summary of this one: it
+    /// is the whole order assigned to somebody by an explicit decision. Where it is null, a reader is shown
+    /// the person these lines agree on, or that there are several. Neither is ever guessed by counting lines.
+    /// </para>
+    /// </remarks>
+    public int? ResponsiblePersonId { get; private set; }
+
+    public ResponsiblePerson? ResponsiblePerson { get; private set; }
 
     /// <summary>
     /// What this line's price situation is, read through the one rule the whole system shares.
@@ -174,6 +204,10 @@ public sealed class OrderRequestItem
         // And whether it was planned for the month. A correction that lost this would quietly drop the line
         // out of the monthly figures it has always been counted in.
         OrderLineType = OrderLineType,
+        // And who asked for it. A correction that lost this would leave the line looking like nobody's, and
+        // would change what the request as a whole reads as — from one person's order to several, or back.
+        ResponsiblePerson = ResponsiblePerson,
+        ResponsiblePersonId = ResponsiblePersonId,
         OriginalProductName = OriginalProductName,
         Notes = Notes,
         SourceOrderRequestItem = this,
@@ -239,6 +273,22 @@ public sealed class OrderRequestItem
 
         Supplier = supplier;
         SupplierId = supplier is { Id: > 0 } ? supplier.Id : null;
+    }
+
+    /// <remarks>
+    /// Only a canonical record, and only an active one: a person is never created here out of typed text, the
+    /// way a supplier never is. Null is allowed and means "nobody is recorded for this line", which is a
+    /// truthful answer and the one every unanswered line already gives.
+    /// </remarks>
+    internal void ChangeResponsiblePerson(ResponsiblePerson? responsiblePerson)
+    {
+        if (responsiblePerson is { IsActive: false })
+        {
+            throw new DomainException($"Responsible person '{responsiblePerson.Name}' is inactive.");
+        }
+
+        ResponsiblePerson = responsiblePerson;
+        ResponsiblePersonId = responsiblePerson is { Id: > 0 } ? responsiblePerson.Id : null;
     }
 
     private static PricingMode ValidInitialMode(PricingMode mode, decimal? unitPrice)

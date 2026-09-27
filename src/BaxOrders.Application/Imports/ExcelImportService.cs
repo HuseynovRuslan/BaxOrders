@@ -257,20 +257,44 @@ public sealed class ExcelImportService(
                 .Where(row => !row.IsBlank)
                 .ToList();
 
-            // The sheet has every column an import needs, so it is read — but a missing "Növ" column is said
-            // here as well as on each row, because this is what the person who uploaded the file sees first.
+            // The sheet has every column the header search looks for, so it is read — but a missing "Növ" or
+            // "Cavabdeh şəxs" column is said here as well as on each row, because this is what the person who
+            // uploaded the file sees first. Both can be missing at once, and then both are named.
             sheets.Add(new SheetDetection(
                 sheet.Name,
                 layout.HeaderRowNumber,
                 dataRows.Count,
                 [],
-                layout.ColumnOf(ImportField.OrderLineType) is null
-                    ? ImportRowEvaluator.MissingOrderLineTypeColumn
-                    : null));
+                MissingColumnProblem(layout)));
             rows.AddRange(dataRows);
         }
 
         return rows;
+    }
+
+    /// <summary>
+    /// The columns a workbook must have to state what it is being asked to state, named in one sentence.
+    /// </summary>
+    /// <remarks>
+    /// Neither column is part of finding the header row: a sheet that lacks one is still read, so the rows can
+    /// be seen and the problem can be described in the words of the column that is missing. Each row carries
+    /// the same message as an error of its own, which is what actually keeps the batch from being imported.
+    /// </remarks>
+    private static string? MissingColumnProblem(HeaderLayout layout)
+    {
+        var problems = new List<string>(2);
+
+        if (layout.ColumnOf(ImportField.OrderLineType) is null)
+        {
+            problems.Add(ImportRowEvaluator.MissingOrderLineTypeColumn);
+        }
+
+        if (layout.ColumnOf(ImportField.ResponsiblePerson) is null)
+        {
+            problems.Add(ImportRowEvaluator.MissingResponsiblePersonColumn);
+        }
+
+        return problems.Count == 0 ? null : string.Join(" ", problems);
     }
 
     private static string DescribeMissingHeader(IReadOnlyList<SheetDetection> sheets)

@@ -44,6 +44,12 @@ import { DecisionHeadline } from '../components/decisions/DecisionHeadline'
 import { DriverList } from '../components/decisions/DriverList'
 import { ItemSourceDrawer } from '../components/orders/ItemSourceDrawer'
 import { OrderLineTypeBadge } from '../components/orders/OrderLineTypeBadge'
+import { LineResponsibleNote } from '../components/orders/LineResponsibleNote'
+import {
+  orderResponsibilityNote,
+  orderResponsibilityText,
+  responsiblePersonLabel,
+} from '../orderLines/responsibility'
 import { AddLineDialog } from '../components/orders/revision/AddLineDialog'
 import { EditLineDialog } from '../components/orders/revision/EditLineDialog'
 import { HistoryTabs } from '../components/orders/revision/HistoryTabs'
@@ -379,6 +385,30 @@ export function OrderDetailPage() {
         }
       />
 
+      {/*
+        Whose order this is, directly under its name. Four honest answers and no fifth: an assignment somebody
+        made, the one person every line names, several people, or nobody. Never the person with the most lines
+        — an order of forty cleaning lines and one fuel line is not the cleaner's order — so where the lines
+        disagree this points at the lines, which carry the answer each of them actually has.
+      */}
+      {data && (
+        <p className="mt-2 text-sm text-slate-600">
+          {responsiblePersonLabel}:{' '}
+          <span
+            className={
+              data.responsibility.kind === 'None' || data.responsibility.kind === 'Several'
+                ? 'text-slate-500'
+                : 'font-medium text-slate-900'
+            }
+          >
+            {orderResponsibilityText(data.responsibility)}
+          </span>
+          {orderResponsibilityNote(data.responsibility) && (
+            <span className="text-slate-400"> · {orderResponsibilityNote(data.responsibility)}</span>
+          )}
+        </p>
+      )}
+
       {notice && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900" role="status">
           {notice}
@@ -595,8 +625,9 @@ export function OrderDetailPage() {
                       <td className="px-3 py-2 text-xs text-slate-400">{(data.items.page - 1) * data.items.pageSize + index + 1}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium text-slate-900">{item.productName}</p>
-                        <p className="mt-0.5">
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <OrderLineTypeBadge type={item.orderLineType} />
+                          <LineResponsibleNote item={item} />
                         </p>
                       </td>
                       <td className="px-3 py-2 text-slate-700">
@@ -883,8 +914,9 @@ function LineCard({ item, number, detail, editable, onSource, onEdit, onRemove }
               <SpecificationCell item={item} detail={detail} />
             </p>
           )}
-          <p className="mt-1">
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
             <OrderLineTypeBadge type={item.orderLineType} />
+            <LineResponsibleNote item={item} />
           </p>
         </div>
         <p className="shrink-0 text-right">

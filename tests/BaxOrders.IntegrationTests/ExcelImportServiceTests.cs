@@ -93,6 +93,65 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
     }
 
     /// <summary>
+    /// A workbook with no "Cavabdeh şəxs" column at all gets the same treatment, in its own words.
+    /// </summary>
+    /// <remarks>
+    /// The same reasoning as the classification column. Such a workbook cannot say whose lines these are — for
+    /// any of them — so importing it would create thousands of lines answerable to nobody and leave the orders
+    /// they form reading as unassigned rather than unread. The rows are still staged whole, because the source
+    /// is the evidence.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_workbook_with_no_responsible_person_column_is_staged_but_cannot_be_imported()
+    {
+        await using var db = database.CreateContext();
+        var workbook = OrdersWithoutResponsiblePersonColumn(
+            new OrderLine(Location: "H.Ə.M"), new OrderLine(Location: "H.Ə.M"));
+
+        var result = await Service(db, () => workbook).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+
+        Assert.Equal(ImportOutcome.Staged, result.Outcome);
+        Assert.Equal(
+            "Cavabdeh şəxs sütunu tapılmadı. Sətir üzrə cavabdeh oxuna bilmədi.",
+            Assert.Single(result.Sheets).Problem);
+
+        var preview = result.Preview!;
+        Assert.Equal(ImportStatus.NeedsReview, preview.Batch.Status);
+        Assert.Equal(2, preview.Batch.InvalidRows);
+        Assert.Contains(preview.IssueSummary, issue => issue.IssueType == ImportIssueType.UnknownResponsiblePerson);
+
+        var rows = await db.ImportRows.AsNoTracking()
+            .Where(row => row.ImportBatchId == result.ImportBatchId)
+            .ToListAsync();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, row => Assert.False(row.SourceHadResponsiblePersonColumn));
+        Assert.All(rows, row => Assert.Null(row.OriginalResponsiblePersonName));
+
+        // The classification column is there, so it is read as usual: one missing column is one problem.
+        Assert.All(rows, row => Assert.True(row.SourceHadOrderLineTypeColumn));
+        Assert.All(rows, row => Assert.Equal("Aylıq sifariş", row.OriginalOrderLineType));
+        Assert.All(rows, row => Assert.Equal("Test malı", row.OriginalProductName));
+    }
+
+    /// <summary>
+    /// Both columns missing is two problems, and the person who uploaded the file is told both. One message
+    /// hiding the other would send somebody to fix half a workbook and upload it again.
+    /// </summary>
+    [PostgresFact]
+    public async Task A_workbook_missing_both_columns_is_told_about_both()
+    {
+        await using var db = database.CreateContext();
+        var workbook = OrdersWithoutEitherColumn(new OrderLine(Location: "H.Ə.M"));
+
+        var result = await Service(db, () => workbook).ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
+
+        var problem = Assert.Single(result.Sheets).Problem;
+        Assert.Contains("Növ sütunu tapılmadı", problem!, StringComparison.Ordinal);
+        Assert.Contains("Cavabdeh şəxs sütunu tapılmadı", problem!, StringComparison.Ordinal);
+        Assert.Equal(ImportStatus.NeedsReview, result.Preview!.Batch.Status);
+    }
+
+    /// <summary>
     /// The same workbook with the column present and its cells empty is a different answer: two lines waiting
     /// on somebody, not a workbook that cannot be read. Warnings, and the batch is not made invalid by them.
     /// </summary>
@@ -144,7 +203,12 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
         db.Products.Add(product);
         await db.SaveChangesAsync();
 
-        var result = await Service(db, () => Orders(new OrderLine(Product: name, Quantity: 10d, OrderUnit: "əd.", Price: 3d, Total: 30d)))
+        // A row with nothing left to decide, which now includes the person the workbook names on it: an empty
+        // "Cavabdeh şəxs" cell is a warning of its own and would leave the row needing review.
+        var person = await ResponsiblePersonAsync(db);
+
+        var result = await Service(db, () => Orders(
+                new OrderLine(Product: name, Quantity: 10d, OrderUnit: "əd.", Price: 3d, Total: 30d, Person: person)))
             .ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
 
         Assert.Equal(ImportStatus.ReadyToImport, result.Preview!.Batch.Status);
@@ -166,10 +230,13 @@ public sealed class ExcelImportServiceTests(PostgresDatabaseFixture database)
         db.Products.Add(product);
         await db.SaveChangesAsync();
 
+        // Every line names a person, so the only warning left is the one this test is about: the bad price.
+        var person = await ResponsiblePersonAsync(db);
+
         var result = await Service(db, () => Orders(
-                new OrderLine(Product: name, Price: 3, Total: 30),
-                new OrderLine(Product: name, Price: 3, Total: 30),
-                new OrderLine(Product: name, Quantity: 4, Price: -1, Total: 12)))
+                new OrderLine(Product: name, Price: 3, Total: 30, Person: person),
+                new OrderLine(Product: name, Price: 3, Total: 30, Person: person),
+                new OrderLine(Product: name, Quantity: 4, Price: -1, Total: 12, Person: person)))
             .ImportAsync(Upload(UniqueXlsxBytes()), CancellationToken.None);
 
         var preview = result.Preview!;

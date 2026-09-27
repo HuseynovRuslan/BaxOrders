@@ -2,6 +2,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
+using BaxOrders.Domain.ResponsiblePeople;
 using BaxOrders.Domain.Suppliers;
 
 namespace BaxOrders.Domain.Orders;
@@ -16,6 +17,7 @@ public enum OrderEditAction
     ItemAdded = 5,
     ItemRemoved = 6,
     ItemOrderLineTypeChanged = 7,
+    ItemResponsiblePersonChanged = 8,
 }
 
 /// <summary>The field of a line a change was made to.</summary>
@@ -25,6 +27,7 @@ public enum OrderEditField
     UnitPrice = 2,
     Supplier = 3,
     OrderLineType = 4,
+    ResponsiblePerson = 5,
 }
 
 /// <summary>
@@ -137,6 +140,11 @@ public sealed class OrderRequestEditEvent
         new(request, OrderEditAction.ItemOrderLineTypeChanged, item, OrderEditField.OrderLineType,
             EditAuditValue.Of(from), EditAuditValue.Of(to), actor, utcNow);
 
+    internal static OrderRequestEditEvent ResponsiblePersonChanged(
+        OrderRequest request, OrderRequestItem item, ResponsiblePerson? from, ResponsiblePerson? to, WorkflowActor actor, DateTime utcNow) =>
+        new(request, OrderEditAction.ItemResponsiblePersonChanged, item, OrderEditField.ResponsiblePerson,
+            EditAuditValue.Of(from), EditAuditValue.Of(to), actor, utcNow);
+
     internal static OrderRequestEditEvent ItemAdded(
         OrderRequest request, OrderRequestItem item, WorkflowActor actor, DateTime utcNow) =>
         new(request, OrderEditAction.ItemAdded, item, null, null, EditAuditValue.Line(item), actor, utcNow);
@@ -176,6 +184,16 @@ public static class EditAuditValue
     public static string? Of(Supplier? supplier) =>
         supplier is null ? null : JsonSerializer.Serialize(new SupplierValue(supplier.Id, supplier.Name), Options);
 
+    /// <summary>
+    /// The responsible person as they were named at the time, or null for none.
+    /// </summary>
+    /// <remarks>
+    /// A snapshot of the name, like the supplier's: an entry saying a line moved from Eldar to Çingiz still
+    /// reads that way after either of them has been renamed, and the id beside it is what ties it to the record.
+    /// </remarks>
+    public static string? Of(ResponsiblePerson? person) =>
+        person is null ? null : JsonSerializer.Serialize(new PersonValue(person.Id, person.Name), Options);
+
     /// <summary>A whole line: what an added line was added as, or what a removed line was before it went.</summary>
     public static string Line(OrderRequestItem item)
     {
@@ -208,6 +226,8 @@ public static class EditAuditValue
     public static decimal Canonical(decimal value) => value / 1.0000000000000000000000000000m;
 
     private sealed record SupplierValue(int Id, string Name);
+
+    private sealed record PersonValue(int Id, string Name);
 
     private sealed record LineValue(
         long ProductVariantId,

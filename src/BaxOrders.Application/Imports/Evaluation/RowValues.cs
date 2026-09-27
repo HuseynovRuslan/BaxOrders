@@ -31,9 +31,9 @@ public interface IRowValues
     /// </summary>
     /// <remarks>
     /// A cell somebody left empty and a column that was never there are not the same fact, and for the "Növ"
-    /// column they need different answers: the first is a line nobody has classified, the second is a workbook
-    /// that cannot be classified at all. Everything else is read the same either way, so the default is true
-    /// and only the callers that know better say otherwise.
+    /// and "Cavabdeh şəxs" columns they need different answers: the first is one line waiting on one person,
+    /// the second is a workbook that cannot answer for any of its lines. Everything else is read the same
+    /// either way, so the default is true and only the callers that know better say otherwise.
     /// </remarks>
     bool HasColumn(ImportField field) => true;
 }
@@ -115,8 +115,12 @@ public sealed class EffectiveRowValues(ImportRow row) : IRowValues
     /// was present, but because re-reading an old batch is not the moment to start blocking it. New imports
     /// always record the answer, so only history can be silent.
     /// </remarks>
-    public bool HasColumn(ImportField field) =>
-        field != ImportField.OrderLineType || row.SourceHadOrderLineTypeColumn != false;
+    public bool HasColumn(ImportField field) => field switch
+    {
+        ImportField.OrderLineType => row.SourceHadOrderLineTypeColumn != false,
+        ImportField.ResponsiblePerson => row.SourceHadResponsiblePersonColumn != false,
+        _ => true,
+    };
 
     /// <summary>
     /// A staged cell is text, so the date Excel produced is recognised by its shape. The importer only reports it;

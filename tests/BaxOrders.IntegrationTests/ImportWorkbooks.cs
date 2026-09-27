@@ -5,6 +5,7 @@ using BaxOrders.Application.Imports.Matching;
 using BaxOrders.Application.Imports.Pricing;
 using BaxOrders.Application.Imports.Reading;
 using BaxOrders.Application.Imports.Review;
+using BaxOrders.Domain.ResponsiblePeople;
 using BaxOrders.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -47,18 +48,7 @@ internal static class ImportWorkbooks
     ];
 
     /// <summary>A workbook shaped like the real one: two title rows, header on row 3, data from row 4.</summary>
-    public static ExcelWorkbook Orders(params OrderLine[] lines)
-    {
-        var rows = new List<ExcelRow> { new(1, []), new(2, []), new(3, Header) };
-        rows.AddRange(lines.Select((line, index) => new ExcelRow(index + 4,
-        [
-            (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
-            line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
-            line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
-        ])));
-
-        return new ExcelWorkbook([new ExcelSheet("Əsas", rows)]);
-    }
+    public static ExcelWorkbook Orders(params OrderLine[] lines) => Build(lines, []);
 
     /// <summary>
     /// The same workbook as an older one: every column an import needs, and no "Növ" column at all.
@@ -67,17 +57,64 @@ internal static class ImportWorkbooks
     /// Not the same thing as a workbook whose "Növ" cells are empty. This one cannot say which of its lines
     /// are the month's plan and which are not, and the import is expected to say so rather than decide.
     /// </remarks>
-    public static ExcelWorkbook OrdersWithoutLineTypeColumn(params OrderLine[] lines)
+    public static ExcelWorkbook OrdersWithoutLineTypeColumn(params OrderLine[] lines) =>
+        Build(lines, [LineTypeColumn]);
+
+    /// <summary>
+    /// The same workbook with no "Cavabdeh şəxs" column at all.
+    /// </summary>
+    /// <remarks>
+    /// Not the same thing as a workbook whose "Cavabdeh şəxs" cells are empty. This one cannot say whose lines
+    /// these are — for any of them — and the import is expected to say so rather than import them as nobody's.
+    /// </remarks>
+    public static ExcelWorkbook OrdersWithoutResponsiblePersonColumn(params OrderLine[] lines) =>
+        Build(lines, [PersonColumn]);
+
+    /// <summary>A workbook missing both columns, which is two problems and not one.</summary>
+    public static ExcelWorkbook OrdersWithoutEitherColumn(params OrderLine[] lines) =>
+        Build(lines, [PersonColumn, LineTypeColumn]);
+
+    private const int PersonColumn = 14;
+    private const int LineTypeColumn = 15;
+
+    /// <summary>
+    /// The workbook, with the named columns left out of the header and of every row alike — which is what a
+    /// sheet that never had the column looks like, as opposed to one whose cells are blank.
+    /// </summary>
+    private static ExcelWorkbook Build(OrderLine[] lines, int[] without)
     {
-        var rows = new List<ExcelRow> { new(1, []), new(2, []), new(3, Header[..^1]) };
-        rows.AddRange(lines.Select((line, index) => new ExcelRow(index + 4,
-        [
-            (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
-            line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
-            line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person,
-        ])));
+        int[] columns = [.. Enumerable.Range(0, Header.Length).Where(column => !without.Contains(column))];
+
+        var rows = new List<ExcelRow> { new(1, []), new(2, []), new(3, [.. columns.Select(column => Header[column])]) };
+        rows.AddRange(lines.Select((line, index) =>
+        {
+            object?[] cells =
+            [
+                (double)(index + 1), line.MainCategory, line.MiddleCategory, line.SubCategory, line.Product,
+                line.SpecificationValue, line.SpecificationUnit, line.Quantity, line.OrderUnit, line.Price, line.Total,
+                line.Supplier, line.Location, line.Date ?? new DateTime(2026, 3, 1), line.Person, line.LineType,
+            ];
+
+            return new ExcelRow(index + 4, [.. columns.Select(column => cells[column])]);
+        }));
 
         return new ExcelWorkbook([new ExcelSheet("Əsas", rows)]);
+    }
+
+    /// <summary>
+    /// A canonical responsible person, so a fixture line can name somebody the import resolves.
+    /// </summary>
+    /// <remarks>
+    /// A workbook the import reads without a single warning names a person on every line, because that is what
+    /// the real workbook does — the history has one on all 3618 of its lines. A fixture that wants that state
+    /// needs a record for the name to resolve to, and this is it. Unique per call, so tests do not share one.
+    /// </remarks>
+    public static async Task<string> ResponsiblePersonAsync(BaxOrdersDbContext db)
+    {
+        var name = $"Sınaq cavabdehi {Guid.NewGuid():N}"[..26];
+        db.ResponsiblePeople.Add(new ResponsiblePerson(name));
+        await db.SaveChangesAsync();
+        return name;
     }
 
     /// <summary>Unique content with a valid .xlsx (ZIP) signature; the fake reader supplies the cells.</summary>

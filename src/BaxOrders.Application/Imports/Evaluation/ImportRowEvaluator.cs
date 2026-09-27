@@ -47,6 +47,7 @@ public static class ImportRowEvaluator
 
         ReportCellsStoredAsDates(row, issues);
         ReportLineType(row, issues);
+        ReportResponsiblePerson(row, issues);
 
         return new RowEvaluation(quantity, unitPrice, lineTotal, requestPeriod, matching.Matches, issues);
     }
@@ -209,6 +210,44 @@ public static class ImportRowEvaluator
     /// <summary>What a workbook with no "Növ" column is told, in one sentence, wherever it is told.</summary>
     public const string MissingOrderLineTypeColumn =
         "Növ sütunu tapılmadı. Sifariş növü təsnifatı oxuna bilmədi.";
+
+    /// <summary>
+    /// What the "Cavabdeh şəxs" column says about this line, and what it means when it says nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same three silences as "Növ", and the same reasoning. A column that is not there is a workbook that
+    /// cannot say whose lines these are — for any of them. That is an <b>error</b>, and an import carrying one
+    /// cannot be ready to import, because bringing it in would create thousands of lines answerable to nobody
+    /// and leave the requests they form looking unassigned rather than unread.
+    /// </para>
+    /// <para>
+    /// An empty cell in a column that exists is one line waiting on one person: a <b>warning</b>. The line
+    /// imports and arrives with no responsible person, which is what the source says. A name nobody can
+    /// resolve is reported by the matcher, which already knows the candidates and the review path for it, so
+    /// it is not repeated here. In no case is a person invented for a line.
+    /// </para>
+    /// </remarks>
+    private static void ReportResponsiblePerson(IRowValues row, List<ImportIssueDraft> issues)
+    {
+        if (!row.HasColumn(ImportField.ResponsiblePerson))
+        {
+            issues.Add(Issue(ImportIssueType.UnknownResponsiblePerson, IssueSeverity.Error, ImportIssueOrigin.Parsing,
+                ImportField.ResponsiblePerson, MissingResponsiblePersonColumn));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(row.Text(ImportField.ResponsiblePerson)))
+        {
+            issues.Add(Issue(ImportIssueType.UnknownResponsiblePerson, IssueSeverity.Warning, ImportIssueOrigin.Validation,
+                ImportField.ResponsiblePerson,
+                "Cavabdeh şəxs boşdur; sətir cavabdehsiz qalır. Cavabdeh yalnız mənbədə yazıldığı halda təyin edilir."));
+        }
+    }
+
+    /// <summary>What a workbook with no "Cavabdeh şəxs" column is told, wherever it is told.</summary>
+    public const string MissingResponsiblePersonColumn =
+        "Cavabdeh şəxs sütunu tapılmadı. Sətir üzrə cavabdeh oxuna bilmədi.";
 
     private static ImportIssueDraft Issue(ImportIssueType type, IssueSeverity severity, ImportIssueOrigin origin, ImportField field, string message) =>
         new(type, severity, origin, ImportHeaders.ExpectedHeaders[field], message);

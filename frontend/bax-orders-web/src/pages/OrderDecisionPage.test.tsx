@@ -234,6 +234,8 @@ function item(): OrderRequestItem {
     source: null,
     sourceOrderRequestItemId: null,
     orderLineType: 'Monthly',
+    responsiblePersonId: null,
+    responsiblePersonName: null,
   }
 }
 
@@ -263,6 +265,13 @@ function detail(overrides: Partial<OrderRequestDetail> = {}): OrderRequestDetail
     revisionVersion: null,
     canCreateRevision: false,
     canEditRevision: false,
+    responsibility: {
+      kind: 'None',
+      personId: null,
+      personName: null,
+      distinctPersonCount: 0,
+      namedLineCount: 0,
+    },
     ...overrides,
     items: { items, page: 1, pageSize: 50, totalCount: items.length, ...overrides.items },
   }
@@ -282,6 +291,13 @@ function revision(): OrderRevision {
     isLatestVersion: true,
     canCreateRevision: false,
     canEditRevision: false,
+    responsibility: {
+      kind: 'None',
+      personId: null,
+      personName: null,
+      distinctPersonCount: 0,
+      namedLineCount: 0,
+    },
     rowVersion: '00FF01',
     itemCount: 40,
     missingPriceItemCount: 0,
@@ -546,6 +562,75 @@ describe('the first screenful', () => {
  * said it could. An available other basis is now a button's box, its name and its figure alike; one with nothing in
  * its window has nothing to select, and no box.
  */
+/**
+ * Whose order this is, and whose each line is.
+ *
+ * The workbook names a person beside every line, and one order routinely holds two or three people's lines. So
+ * the heading has four honest answers and the fifth is what these tests refuse: the person with the most lines.
+ */
+describe('who asked for it', () => {
+  it('names the person when every line agrees', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(
+      detail({
+        responsibility: { kind: 'AgreedOnLines', personId: 7, personName: 'Eldar', distinctPersonCount: 1, namedLineCount: 1 },
+      }),
+    )
+
+    await renderPage()
+
+    expect(screen.getByText(/^Cavabdeh:/)).toBeInTheDocument()
+    expect(screen.getByText('Eldar')).toBeInTheDocument()
+  })
+
+  it('says an assignment is a decision about the whole order', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(
+      detail({
+        responsibility: { kind: 'Assigned', personId: 4, personName: 'Çingiz', distinctPersonCount: 2, namedLineCount: 41 },
+      }),
+    )
+
+    await renderPage()
+
+    expect(screen.getByText('Çingiz')).toBeInTheDocument()
+    expect(screen.getByText(/bütövlükdə bu şəxsə təyin edilib/)).toBeInTheDocument()
+  })
+
+  /** Thirty-seven lines to one person and two to another is still two people, and neither is named up top. */
+  it('says there are several rather than naming the one with the most lines', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(
+      detail({
+        responsibility: { kind: 'Several', personId: null, personName: null, distinctPersonCount: 2, namedLineCount: 39 },
+        items: {
+          items: [
+            { ...item(), orderRequestItemId: 501, responsiblePersonId: 7, responsiblePersonName: 'Eldar' },
+            { ...item(), orderRequestItemId: 502, productName: 'Benzin', responsiblePersonId: 4, responsiblePersonName: 'Çingiz' },
+          ],
+          page: 1,
+          pageSize: 50,
+          totalCount: 2,
+        },
+      }),
+    )
+
+    await renderPage()
+
+    expect(screen.getByText('Bir neçə cavabdeh')).toBeInTheDocument()
+    expect(screen.getByText(/Hər sətrin cavabdehi/)).toBeInTheDocument()
+
+    // And the answer each line does have is beside the line.
+    await openLines()
+    const lines = screen.getByRole('table')
+    expect(within(lines).getByText('Eldar')).toBeInTheDocument()
+    expect(within(lines).getByText('Çingiz')).toBeInTheDocument()
+  })
+
+  it('says nobody is recorded rather than leaving the heading empty', async () => {
+    await renderPage()
+
+    expect(screen.getAllByText(/Cavabdeh təyin edilməyib/).length).toBeGreaterThan(0)
+  })
+})
+
 describe('the other bases, as buttons', () => {
   /** The router's own URL, so a test can watch what the page writes back to it. */
   function Search() {

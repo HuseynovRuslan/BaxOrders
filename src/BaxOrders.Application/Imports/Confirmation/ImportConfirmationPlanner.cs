@@ -15,6 +15,11 @@ namespace BaxOrders.Application.Imports.Confirmation;
 /// column is absent, blank, or holds something this system does not recognise — never guessed at.
 /// </param>
 /// <param name="ClassifiedByUserId">Who said it, answerable for it on the line's history.</param>
+/// <param name="ResponsiblePersonId">
+/// The canonical person the row's "Cavabdeh şəxs" cell was resolved to, null when the cell was empty or its
+/// name is still unresolved. It travels to the line it becomes: dropping it here is what used to leave every
+/// imported line answerable to nobody.
+/// </param>
 internal sealed record PlannedRow(
     long ImportRowId,
     int LocationId,
@@ -30,7 +35,8 @@ internal sealed record PlannedRow(
     PricingMode? Classification,
     Guid? ClassifiedByUserId,
     string? ClassifiedByDisplayName,
-    OrderLineType OrderLineType)
+    OrderLineType OrderLineType,
+    int? ResponsiblePersonId)
 {
     /// <summary>The mode the line is written with (<see cref="ImportLinePricing.ModeOf"/>).</summary>
     public PricingMode PricingMode => ImportLinePricing.ModeOf(UnitPrice, Classification);
@@ -138,6 +144,7 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 row.PricingClassifiedByUserId,
                 row.PricingClassifiedByDisplayName,
                 row.OriginalOrderLineType,
+                row.MatchedResponsiblePersonId,
             })
             .ToListAsync(cancellationToken);
 
@@ -156,7 +163,8 @@ public sealed class ImportConfirmationPlanner(IBaxOrdersDbContext db)
                 row.PricingClassification,
                 row.PricingClassifiedByUserId,
                 row.PricingClassifiedByDisplayName,
-                OrderLineTypes.Read(row.OriginalOrderLineType) ?? OrderLineType.Unclassified))
+                OrderLineTypes.Read(row.OriginalOrderLineType) ?? OrderLineType.Unclassified,
+                row.MatchedResponsiblePersonId))
             .ToList();
 
         var locationIds = planned.Select(row => row.LocationId).Distinct().ToList();

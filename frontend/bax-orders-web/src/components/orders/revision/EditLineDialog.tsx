@@ -13,6 +13,7 @@ import { SupplierPicker } from './SupplierPicker'
 import { revisionErrors } from './labels'
 import type { OrderLineType } from '../../../orderLines/lineType'
 import { OrderLineTypePicker } from './OrderLineTypePicker'
+import { ResponsiblePersonPicker } from './ResponsiblePersonPicker'
 
 interface EditLineDialogProps {
   orderRequestId: number
@@ -44,6 +45,7 @@ export function EditLineDialog({
   const [priceKnown, setPriceKnown] = useState(item.unitPrice !== null)
   const [supplierId, setSupplierId] = useState<number | null>(item.supplierId)
   const [lineType, setLineType] = useState<OrderLineType>(item.orderLineType)
+  const [personId, setPersonId] = useState<number | null>(item.responsiblePersonId)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,7 +60,8 @@ export function EditLineDialog({
   const changedPrice = priceValid && nextPrice !== item.unitPrice
   const changedSupplier = supplierId !== item.supplierId
   const changedLineType = lineType !== item.orderLineType
-  const changedAnything = changedQuantity || changedPrice || changedSupplier || changedLineType
+  const changedPerson = personId !== item.responsiblePersonId
+  const changedAnything = changedQuantity || changedPrice || changedSupplier || changedLineType || changedPerson
 
   async function save() {
     setBusy(true)
@@ -71,6 +74,7 @@ export function EditLineDialog({
     if (changedPrice) command.unitPrice = { value: nextPrice }
     if (changedSupplier) command.supplierId = { value: supplierId }
     if (changedLineType) command.orderLineType = { value: lineType }
+    if (changedPerson) command.responsiblePersonId = { value: personId }
 
     try {
       await editOrderItem(orderRequestId, item.orderRequestItemId, command)
@@ -178,6 +182,12 @@ export function EditLineDialog({
         />
 
         <OrderLineTypePicker value={lineType} onChange={setLineType} />
+
+        <ResponsiblePersonPicker
+          value={personId}
+          currentName={item.responsiblePersonName}
+          onChange={setPersonId}
+        />
 
         {error && (
           <p className="rounded-md border border-red-200 bg-red-50 p-2 text-red-700" role="alert">

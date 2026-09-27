@@ -1,10 +1,11 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Imports;
 using BaxOrders.Domain.Locations;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.ResponsiblePeople;
 using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -107,6 +108,12 @@ public sealed class ImportConfirmationService(
             {
                 var variant = catalog.Variants[row.ProductVariantId];
                 var supplier = row.SupplierId is { } supplierId ? catalog.Suppliers[supplierId] : null;
+                // Who the row's own "Cavabdeh şəxs" cell was resolved to. The request cannot hold this — a
+                // group routinely holds several people's rows — so it goes where the source states it: the
+                // line. An unresolved or empty cell stays null; nobody is chosen for a line.
+                var responsiblePerson = row.ResponsiblePersonId is { } personId
+                    ? catalog.ResponsiblePeople.GetValueOrDefault(personId)
+                    : null;
 
                 // Quantity and price come from the staged row as it stands; an unknown price stays unknown. The
                 // mode comes from the price and the review and never from the supplier, which is still attached
@@ -117,7 +124,8 @@ public sealed class ImportConfirmationService(
                 var item = request.AddItem(
                     variant, row.Quantity, row.UnitPrice, supplier, row.OriginalProductName,
                     pricingMode: classification is null ? row.PricingMode : PricingMode.Unresolved,
-                    orderLineType: row.OrderLineType);
+                    orderLineType: row.OrderLineType,
+                    responsiblePerson: responsiblePerson);
 
                 if (classification is { } mode)
                 {
@@ -348,6 +356,7 @@ public sealed class ImportConfirmationService(
         var rows = plan.Groups.SelectMany(group => group.Rows).ToList();
         var variantIds = rows.Select(row => row.ProductVariantId).Distinct().ToList();
         var supplierIds = rows.Where(row => row.SupplierId is not null).Select(row => row.SupplierId!.Value).Distinct().ToList();
+        var personIds = rows.Where(row => row.ResponsiblePersonId is not null).Select(row => row.ResponsiblePersonId!.Value).Distinct().ToList();
         var locationIds = plan.Groups.Select(group => group.LocationId).Distinct().ToList();
         var versionedGroups = plan.Groups.Where(group => group.ExistingRequest).ToList();
 
@@ -360,6 +369,11 @@ public sealed class ImportConfirmationService(
         var locations = await db.Locations
             .Where(location => locationIds.Contains(location.Id))
             .ToDictionaryAsync(location => location.Id, cancellationToken);
+        // Only the active ones. A row resolved to somebody who has since been deactivated imports without a
+        // person rather than failing: the line is real, and the domain refuses an inactive person outright.
+        var responsiblePeople = await db.ResponsiblePeople
+            .Where(person => personIds.Contains(person.Id) && person.IsActive)
+            .ToDictionaryAsync(person => person.Id, cancellationToken);
 
         var latestRequests = new Dictionary<(int, DateOnly), OrderRequest>();
         if (versionedGroups.Count > 0)
@@ -384,13 +398,14 @@ public sealed class ImportConfirmationService(
             throw new ConflictException($"Product variant #{missingVariant} disappeared while the import was being confirmed. Reload the preview.");
         }
 
-        return new ConfirmationCatalog(variants, suppliers, locations, latestRequests);
+        return new ConfirmationCatalog(variants, suppliers, locations, responsiblePeople, latestRequests);
     }
 
     private sealed record ConfirmationCatalog(
         Dictionary<long, ProductVariant> Variants,
         Dictionary<int, Supplier> Suppliers,
         Dictionary<int, Location> Locations,
+        Dictionary<int, ResponsiblePerson> ResponsiblePeople,
         Dictionary<(int LocationId, DateOnly RequestPeriod), OrderRequest> LatestRequests);
 
     private sealed record ImportRowMaterializationDraft(long ImportRowId);

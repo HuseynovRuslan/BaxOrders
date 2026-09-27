@@ -197,15 +197,38 @@ public sealed class ImportRowEvaluatorTests
         Assert.DoesNotContain(result.Issues, i => i.Severity == IssueSeverity.Error);
     }
 
+    /// <summary>
+    /// A name nobody can resolve is a warning for both, and a blank supplier is simply no supplier.
+    /// </summary>
+    /// <remarks>
+    /// A blank "Cavabdeh şəxs" is not in the same class, which is why it is asserted separately below: the
+    /// workbook is meant to say whose line it is, so an empty cell in that column is one line waiting on one
+    /// person rather than a line that legitimately has nobody.
+    /// </remarks>
     [Fact]
-    public void Unknown_optional_identities_are_warnings_and_blank_ones_are_fine()
+    public void Unknown_optional_identities_are_warnings_and_a_blank_supplier_is_fine()
     {
         var unknown = ImportRowEvaluator.Evaluate(Row((ImportField.Supplier, "Azclean"), (ImportField.ResponsiblePerson, "Xəyal - Əbülfəz")), TestCatalog());
-        var blank = ImportRowEvaluator.Evaluate(Row((ImportField.Supplier, null), (ImportField.ResponsiblePerson, "")), TestCatalog());
+        var blank = ImportRowEvaluator.Evaluate(Row((ImportField.Supplier, null)), TestCatalog());
 
         Assert.Contains(unknown.Issues, i => i is { IssueType: ImportIssueType.UnknownSupplier, Severity: IssueSeverity.Warning });
         Assert.Contains(unknown.Issues, i => i is { IssueType: ImportIssueType.UnknownResponsiblePerson, Severity: IssueSeverity.Warning });
         Assert.Empty(blank.Issues);
+    }
+
+    /// <summary>
+    /// An empty "Cavabdeh şəxs" cell imports the line and asks somebody, rather than choosing a person for it.
+    /// </summary>
+    [Fact]
+    public void A_blank_responsible_person_is_a_warning_and_no_person_is_matched()
+    {
+        var result = ImportRowEvaluator.Evaluate(Row((ImportField.ResponsiblePerson, "")), TestCatalog());
+
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal((ImportIssueType.UnknownResponsiblePerson, IssueSeverity.Warning), (issue.IssueType, issue.Severity));
+        Assert.Equal("Cavabdeh şəxs", issue.FieldName);
+        Assert.Null(result.Matches.ResponsiblePersonId);
+        Assert.False(ImportIssueRules.IsBlocking(issue.IssueType, issue.Severity));
     }
 
     [Fact]

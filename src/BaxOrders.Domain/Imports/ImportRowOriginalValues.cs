@@ -53,6 +53,12 @@ public sealed record ImportRowOriginalValues
     /// <summary>"Cavabdeh şəxs"</summary>
     public string? ResponsiblePersonName { get; init; }
 
+    /// <summary>
+    /// Whether the sheet had a "Cavabdeh şəxs" column at all, which is not the same fact as an empty cell in one.
+    /// </summary>
+    /// <remarks>Null only where nobody looked: a reader that knows always says true or false.</remarks>
+    public bool? HasResponsiblePersonColumn { get; init; }
+
     /// <summary>"Növ" — "Aylıq sifariş" or "Aylıqdan kənar", as written. Absent in older workbooks.</summary>
     public string? OrderLineType { get; init; }
 

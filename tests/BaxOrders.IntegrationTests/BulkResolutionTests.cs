@@ -1,4 +1,4 @@
-using BaxOrders.Application.Common;
+﻿using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Imports;
@@ -268,11 +268,13 @@ public sealed class BulkResolutionTests(PostgresDatabaseFixture database)
     {
         await using var db = database.CreateContext();
         var names = Names(2);
+        // Named on every line, because this test ends by asserting the batch has nothing left to decide.
+        var person = await ResponsiblePersonAsync(db);
         var batchId = await StageAsync(db,
         [
-            new OrderLine(Product: names[0], SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "ədəd"),
-            new OrderLine(Product: names[0], SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "əd"),
-            new OrderLine(Product: names[1], OrderUnit: "ədəd"),
+            new OrderLine(Product: names[0], SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "ədəd", Person: person),
+            new OrderLine(Product: names[0], SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "əd", Person: person),
+            new OrderLine(Product: names[1], OrderUnit: "ədəd", Person: person),
         ]);
 
         await BulkService(db).ApplyAsync(batchId, CreateProducts(names), CancellationToken.None);

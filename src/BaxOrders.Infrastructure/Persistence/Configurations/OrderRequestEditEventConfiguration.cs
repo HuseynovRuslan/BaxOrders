@@ -16,7 +16,8 @@ internal sealed class OrderRequestEditEventConfiguration : IEntityTypeConfigurat
     /// at all — which is what happened to the classification when it was added, and is why it is named here now.
     /// </remarks>
     internal const string ChangedActions =
-        "'ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged'";
+        "'ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged', " +
+        "'ItemResponsiblePersonChanged'";
 
     public void Configure(EntityTypeBuilder<OrderRequestEditEvent> builder)
     {

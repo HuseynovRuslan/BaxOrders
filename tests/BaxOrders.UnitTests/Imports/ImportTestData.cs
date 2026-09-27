@@ -67,9 +67,15 @@ internal static class ImportTestData
     /// A row from a workbook that predates the "Növ" column: the layout does not hold the field at all, which
     /// is a different fact from a cell somebody left blank.
     /// </summary>
-    public static SourceRow RowWithoutLineTypeColumn()
+    public static SourceRow RowWithoutLineTypeColumn() => RowWithout(ImportField.OrderLineType);
+
+    /// <summary>The same thing for "Cavabdeh şəxs": a sheet that cannot say whose lines these are.</summary>
+    public static SourceRow RowWithoutResponsiblePersonColumn() => RowWithout(ImportField.ResponsiblePerson);
+
+    /// <summary>A valid row read through a layout that does not hold the given columns at all.</summary>
+    public static SourceRow RowWithout(params ImportField[] missing)
     {
-        var fields = Enum.GetValues<ImportField>().Where(field => field != ImportField.OrderLineType).ToArray();
+        var fields = Enum.GetValues<ImportField>().Where(field => !missing.Contains(field)).ToArray();
         var layout = new HeaderLayout(1, fields.Select((field, column) => (field, column))
             .ToDictionary(pair => pair.field, pair => pair.column));
 
@@ -83,7 +89,13 @@ internal static class ImportTestData
     /// What the row remembers about its sheet: true, false, or null for a row staged before anybody recorded
     /// it. Null is not false, and the difference is the point of the parameter.
     /// </param>
-    public static ImportRow StagedRow(bool? hasOrderLineTypeColumn, string? cell = null)
+    /// <param name="hasResponsiblePersonColumn">The same three-way answer for the "Cavabdeh şəxs" column.</param>
+    /// <param name="person">The "Cavabdeh şəxs" cell as staged.</param>
+    public static ImportRow StagedRow(
+        bool? hasOrderLineTypeColumn,
+        string? cell = null,
+        bool? hasResponsiblePersonColumn = null,
+        string? person = null)
     {
         var batch = new ImportBatch("sifarisler.xlsx", new string('a', 64), DateTime.UtcNow);
         return batch.AddRow("Əsas", 2, new ImportRowOriginalValues
@@ -95,6 +107,8 @@ internal static class ImportTestData
             RequestDate = "2026-03-01",
             OrderLineType = cell,
             HasOrderLineTypeColumn = hasOrderLineTypeColumn,
+            ResponsiblePersonName = person,
+            HasResponsiblePersonColumn = hasResponsiblePersonColumn,
         });
     }
 

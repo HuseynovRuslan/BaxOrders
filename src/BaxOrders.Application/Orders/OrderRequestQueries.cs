@@ -48,6 +48,14 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
                 MissingPrice = request.Items.Count(item => item.UnitPrice == null
                     && item.PricingMode != PricingMode.InternalFreeSupply),
                 KnownAmount = request.Items.Sum(item => (decimal?)(item.Quantity * item.UnitPrice)),
+                // The request's own assignment, and every person its lines name. Read over all of the lines,
+                // never the page: which page somebody is looking at cannot change whose order this is.
+                request.ResponsiblePersonId,
+                AssignedPersonName = request.ResponsiblePerson != null ? request.ResponsiblePerson.Name : null,
+                LinePeople = request.Items
+                    .Where(item => item.ResponsiblePersonId != null)
+                    .Select(item => new { PersonId = item.ResponsiblePersonId!.Value, PersonName = item.ResponsiblePerson!.Name })
+                    .ToList(),
                 RevisedFrom = db.OrderRequestRevisions
                     .Where(revision => revision.RevisionOrderRequestId == request.Id)
                     .Select(revision => new { Id = revision.SourceOrderRequestId, revision.SourceOrderRequest.Version })
@@ -133,6 +141,10 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
                 // of our own store and never had a purchase price" — and from "nobody has said which".
                 PricingMode = row.Item.PricingMode,
                 row.Item.OrderLineType,
+                // Who asked for the line. Carried here rather than derived from the request, because the
+                // request may hold several people's lines and this one names its own.
+                row.Item.ResponsiblePersonId,
+                ResponsiblePersonName = row.Item.ResponsiblePerson != null ? row.Item.ResponsiblePerson.Name : null,
                 // The workbook's own supplier cell. For an internally supplied line it is often the only
                 // record of which store it came out of — "Azpetrol baza" never matched a catalogue supplier —
                 // so the screen can say "Daxili: Azpetrol baza" instead of "Məlum deyil", which reads like a
@@ -193,7 +205,9 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
                 ? null
                 : new OrderItemSourceRefDto(row.Source.ImportBatchId, row.Source.ImportRowId, row.Source.SheetName, row.Source.RowNumber),
             row.SourceOrderRequestItemId,
-            row.OrderLineType))
+            row.OrderLineType,
+            row.ResponsiblePersonId,
+            row.ResponsiblePersonName))
             .ToList();
 
         var isRevision = header.RevisedFrom is not null;
@@ -222,6 +236,10 @@ public sealed class OrderRequestQueries(IBaxOrdersDbContext db, ICurrentUserCont
             header.RevisedInto?.Version,
             Revisions.RevisionPermissions.CanCreate(header.Status, hasRevision, !header.HasNewerVersion, currentUser),
             Revisions.RevisionPermissions.CanEdit(header.Status, isRevision, currentUser),
+            OrderResponsibility.Of(
+                header.ResponsiblePersonId,
+                header.AssignedPersonName,
+                [.. header.LinePeople.Select(person => (person.PersonId, person.PersonName))]),
             new PagedResult<OrderRequestItemDto>(dtos, page, pageSize, totalCount));
     }
 

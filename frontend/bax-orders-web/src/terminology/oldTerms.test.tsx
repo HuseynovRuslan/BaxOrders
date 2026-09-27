@@ -458,6 +458,8 @@ function orderItem(overrides: Partial<OrderRequestItem> = {}): OrderRequestItem 
     source: null,
     sourceOrderRequestItemId: null,
     orderLineType: 'Monthly',
+    responsiblePersonId: null,
+    responsiblePersonName: null,
     ...overrides,
   }
 }
@@ -493,6 +495,13 @@ function orderDetail(overrides: Partial<OrderRequestDetail> = {}): OrderRequestD
     revisionVersion: null,
     canCreateRevision: false,
     canEditRevision: false,
+    responsibility: {
+      kind: 'None',
+      personId: null,
+      personName: null,
+      distinctPersonCount: 0,
+      namedLineCount: 0,
+    },
     ...overrides,
     items: { items, page: 1, pageSize: 50, totalCount: items.length },
   }
@@ -512,6 +521,13 @@ function orderRevision(overrides: Partial<OrderRevision> = {}): OrderRevision {
     isLatestVersion: true,
     canCreateRevision: false,
     canEditRevision: false,
+    responsibility: {
+      kind: 'None',
+      personId: null,
+      personName: null,
+      distinctPersonCount: 0,
+      namedLineCount: 0,
+    },
     rowVersion: '00FF01',
     itemCount: 40,
     missingPriceItemCount: 2,

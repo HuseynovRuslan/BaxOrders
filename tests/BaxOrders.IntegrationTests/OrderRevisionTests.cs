@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
@@ -9,6 +9,7 @@ using BaxOrders.Application.Orders.Workflow;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Catalog;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.ResponsiblePeople;
 using BaxOrders.Domain.Suppliers;
 using BaxOrders.Infrastructure.Identity;
 using BaxOrders.Infrastructure.Persistence;
@@ -788,6 +789,154 @@ public sealed class OrderRevisionTests(PostgresDatabaseFixture database)
             OrderLineType.OutsideMonthly,
             await db.OrderRequestItems.AsNoTracking().Where(item => item.Id == line)
                 .Select(item => item.OrderLineType).SingleAsync(None));
+    }
+
+    // ---- who asked for a line ------------------------------------------------------------------------
+
+    /// <summary>
+    /// Moving one line of a correction to another person: audited by name, and only that line moves. The other
+    /// lines of the request are not brought into line with it, because each one says whose it is.
+    /// </summary>
+    [PostgresFact]
+    public async Task Moving_a_line_to_another_person_is_audited_and_leaves_the_other_lines_alone()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var line = await LineAsync(v2, 10m);
+        var person = await ResponsiblePersonAsync();
+
+        await EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(person.Id)));
+
+        await using var db = database.CreateContext();
+        var entry = await db.OrderRequestEditEvents.AsNoTracking()
+            .SingleAsync(item => item.OrderRequestId == v2 && item.Action == OrderEditAction.ItemResponsiblePersonChanged, None);
+        Assert.Equal(OrderEditField.ResponsiblePerson, entry.Field);
+        Assert.Equal(line, entry.OrderRequestItemId);
+        Assert.Null(entry.OldValue);
+        Assert.Equal($$"""{"id":{{person.Id}},"name":"{{person.Name}}"}""", entry.NewValue);
+        Assert.Equal(world.Coordinator.UserId, entry.ActorUserId);
+
+        var people = await db.OrderRequestItems.AsNoTracking()
+            .Where(item => item.OrderRequestId == v2)
+            .Select(item => new { item.Id, item.ResponsiblePersonId })
+            .ToListAsync(None);
+        Assert.Equal(person.Id, people.Single(item => item.Id == line).ResponsiblePersonId);
+        Assert.All(people.Where(item => item.Id != line), item => Assert.Null(item.ResponsiblePersonId));
+    }
+
+    /// <summary>Taking the person off a line is a real change, and the person who was there is named in it.</summary>
+    [PostgresFact]
+    public async Task Taking_the_person_off_a_line_is_audited_with_the_person_who_was_there()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var line = await LineAsync(v2, 10m);
+        var person = await ResponsiblePersonAsync();
+        await EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(person.Id)));
+
+        await EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(null)));
+
+        await using var db = database.CreateContext();
+        var entries = await db.OrderRequestEditEvents.AsNoTracking()
+            .Where(item => item.OrderRequestId == v2 && item.Action == OrderEditAction.ItemResponsiblePersonChanged)
+            .OrderBy(item => item.Id)
+            .ToListAsync(None);
+        Assert.Equal(2, entries.Count);
+        Assert.Contains(person.Name, entries[1].OldValue!, StringComparison.Ordinal);
+        Assert.Null(entries[1].NewValue);
+    }
+
+    /// <summary>Naming the person a line already names records nothing and moves nothing.</summary>
+    [PostgresFact]
+    public async Task Naming_the_person_a_line_already_names_records_nothing()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var line = await LineAsync(v2, 10m);
+        var person = await ResponsiblePersonAsync();
+        await EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(person.Id)));
+        var after = await SnapshotAsync(v2);
+
+        await EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(person.Id)));
+
+        await using var db = database.CreateContext();
+        Assert.Equal(after, await SnapshotAsync(v2));
+        Assert.Single(await db.OrderRequestEditEvents.AsNoTracking()
+            .Where(item => item.OrderRequestId == v2 && item.Action == OrderEditAction.ItemResponsiblePersonChanged)
+            .ToListAsync(None));
+    }
+
+    /// <summary>A person nobody has a record for is refused; a name is never turned into a person here.</summary>
+    [PostgresFact]
+    public async Task A_person_that_does_not_exist_is_refused()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var line = await LineAsync(v2, 10m);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(987654))));
+
+        await using var db = database.CreateContext();
+        Assert.Empty(await db.OrderRequestEditEvents.AsNoTracking()
+            .Where(item => item.OrderRequestId == v2 && item.Action == OrderEditAction.ItemResponsiblePersonChanged)
+            .ToListAsync(None));
+    }
+
+    /// <summary>A line added by hand can name somebody, and the line it becomes carries that person.</summary>
+    [PostgresFact]
+    public async Task A_line_added_to_a_correction_can_name_who_asked_for_it()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var variant = await NewVariantAsync();
+        var person = await ResponsiblePersonAsync();
+
+        var added = await RevisingAs(world.Coordinator, async service =>
+        {
+            var current = (await service.GetAsync(v2, None))!;
+            return await service.AddItemAsync(
+                v2,
+                new AddOrderItemCommand(current.RowVersion, variant, 4m, 2.5m, ResponsiblePersonId: person.Id),
+                None);
+        });
+
+        await using var db = database.CreateContext();
+        var line = await db.OrderRequestItems.AsNoTracking()
+            .SingleAsync(item => item.Id == added.OrderRequestItemId, None);
+        Assert.Equal(person.Id, line.ResponsiblePersonId);
+    }
+
+    /// <summary>
+    /// The person survives a second correction: a correction of a correction copies the lines, and a line that
+    /// lost who asked for it would leave the order reading as nobody's after two rounds of review.
+    /// </summary>
+    [PostgresFact]
+    public async Task A_second_correction_still_carries_who_asked_for_each_line()
+    {
+        var world = await ReturnedAsync();
+        var v2 = (await RevisingAs(world.Coordinator, service => service.CreateAsync(world.V1, None))).OrderRequestId;
+        var line = await LineAsync(v2, 10m);
+        var person = await ResponsiblePersonAsync();
+        await EditAsync(world.Coordinator, v2, line, new EditOrderItemCommand(null, ResponsiblePersonId: new(person.Id)));
+
+        var v3 = await CorrectAgainAsync(world, v2);
+
+        await using var db = database.CreateContext();
+        var copied = await db.OrderRequestItems.AsNoTracking()
+            .Where(item => item.OrderRequestId == v3 && item.ResponsiblePersonId != null)
+            .Select(item => item.ResponsiblePersonId)
+            .ToListAsync(None);
+        Assert.Equal([person.Id], copied);
+    }
+
+    private async Task<ResponsiblePerson> ResponsiblePersonAsync()
+    {
+        await using var db = database.CreateContext();
+        var person = new ResponsiblePerson($"Sınaq cavabdehi {Guid.NewGuid():N}"[..26]);
+        db.ResponsiblePeople.Add(person);
+        await db.SaveChangesAsync();
+        return person;
     }
 
     private async Task<Supplier> SupplierAsync()

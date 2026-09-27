@@ -2,6 +2,7 @@
 using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain.Orders;
+using BaxOrders.Domain.ResponsiblePeople;
 using BaxOrders.Domain.Suppliers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -113,13 +114,16 @@ public sealed class OrderRevisionService(
         if (!command.ChangesAnything)
         {
             throw new ValidationException(
-                "Nothing to change: send at least one of quantity, unitPrice, supplierId or orderLineType.");
+                "Nothing to change: send at least one of quantity, unitPrice, supplierId, orderLineType or responsiblePersonId.");
         }
 
         var request = await EditableAsync(orderRequestId, token, cancellationToken);
         var item = LineOf(request, orderRequestItemId);
         var supplier = command.SupplierId is { Value: { } supplierId }
             ? await SupplierAsync(supplierId, cancellationToken)
+            : null;
+        var person = command.ResponsiblePersonId is { Value: { } personId }
+            ? await ResponsiblePersonAsync(personId, cancellationToken)
             : null;
 
         var now = DateTime.UtcNow;
@@ -143,6 +147,11 @@ public sealed class OrderRevisionService(
         if (command.OrderLineType is { } orderLineType)
         {
             changed |= request.ChangeItemOrderLineType(item, orderLineType.Value, actor, now) is not null;
+        }
+
+        if (command.ResponsiblePersonId is not null)
+        {
+            changed |= request.ChangeItemResponsiblePerson(item, person, actor, now) is not null;
         }
 
         // Asking for the value a line already has changes nothing, so it records nothing and moves nothing.
@@ -172,9 +181,12 @@ public sealed class OrderRevisionService(
         var variant = await db.ProductVariants.FirstOrDefaultAsync(item => item.Id == command.ProductVariantId, cancellationToken)
                       ?? throw new ValidationException($"Product variant #{command.ProductVariantId} does not exist.");
         var supplier = command.SupplierId is { } supplierId ? await SupplierAsync(supplierId, cancellationToken) : null;
+        var person = command.ResponsiblePersonId is { } personId
+            ? await ResponsiblePersonAsync(personId, cancellationToken)
+            : null;
 
         var item = request.AddRevisionItem(
-            variant, command.Quantity, command.UnitPrice, supplier, actor, command.OrderLineType);
+            variant, command.Quantity, command.UnitPrice, supplier, actor, command.OrderLineType, person);
         Touch(request);
         await SaveAsync(cancellationToken);
 
@@ -228,6 +240,9 @@ public sealed class OrderRevisionService(
         var request = await db.OrderRequests
             .Include(order => order.RevisedFrom)
             .Include(order => order.Items).ThenInclude(item => item.Supplier)
+            // Loaded because the edit history names the person a line is moving away from, and a name cannot
+            // be written from an id alone. The domain refuses the change rather than recording half of it.
+            .Include(order => order.Items).ThenInclude(item => item.ResponsiblePerson)
             .FirstOrDefaultAsync(order => order.Id == orderRequestId, cancellationToken)
             ?? throw new NotFoundException($"Order request #{orderRequestId} was not found.");
 
@@ -248,6 +263,18 @@ public sealed class OrderRevisionService(
     private async Task<Supplier> SupplierAsync(int supplierId, CancellationToken cancellationToken) =>
         await db.Suppliers.FirstOrDefaultAsync(supplier => supplier.Id == supplierId, cancellationToken)
         ?? throw new ValidationException($"Supplier #{supplierId} does not exist.");
+
+    /// <summary>
+    /// A canonical responsible person, by id.
+    /// </summary>
+    /// <remarks>
+    /// Never created here from typed text: naming a person on somebody's order is a statement about a real
+    /// colleague, and the record it points at is made deliberately, in the import review or by an
+    /// administrator. The domain refuses an inactive one, so this only has to find it.
+    /// </remarks>
+    private async Task<ResponsiblePerson> ResponsiblePersonAsync(int personId, CancellationToken cancellationToken) =>
+        await db.ResponsiblePeople.FirstOrDefaultAsync(person => person.Id == personId, cancellationToken)
+        ?? throw new ValidationException($"Responsible person #{personId} does not exist.");
 
     /// <summary>
     /// A change to a line is a change to the request. Touching the request's own row moves its row version, so

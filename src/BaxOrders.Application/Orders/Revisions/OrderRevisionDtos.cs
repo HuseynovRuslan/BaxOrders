@@ -105,11 +105,17 @@ public sealed record EditOrderItemCommand(
     /// Whether the line is the month's planned material or was ordered on top of it. Moving it moves money
     /// between the monthly comparison and the ad-hoc summary, so it is an audited change like the others.
     /// </summary>
-    FieldChange<OrderLineType>? OrderLineType = null)
+    FieldChange<OrderLineType>? OrderLineType = null,
+    /// <summary>
+    /// Who asked for the line. An existing canonical person, or <c>{"value": null}</c> for none — a person is
+    /// never created here from typed text, the way a supplier never is.
+    /// </summary>
+    FieldChange<int?>? ResponsiblePersonId = null)
 {
     [JsonIgnore]
     public bool ChangesAnything =>
-        Quantity is not null || UnitPrice is not null || SupplierId is not null || OrderLineType is not null;
+        Quantity is not null || UnitPrice is not null || SupplierId is not null || OrderLineType is not null
+        || ResponsiblePersonId is not null;
 }
 
 /// <summary>A new line for a correction draft: a catalog variant and a quantity, with a price and a supplier if known.</summary>
@@ -125,7 +131,9 @@ public sealed record AddOrderItemCommand(
     /// What kind of demand the new line is. Left out it is the month's planned material, which is what a
     /// person adding a line to a monthly order almost always means and what the screen offers already chosen.
     /// </summary>
-    OrderLineType OrderLineType = OrderLineType.Monthly);
+    OrderLineType OrderLineType = OrderLineType.Monthly,
+    /// <summary>Who asked for it, when that is known. Left out, the line names nobody rather than guessing.</summary>
+    int? ResponsiblePersonId = null);
 
 /// <summary>Reads <see cref="FieldChange{T}"/> strictly: <c>{"value": …}</c> and nothing else.</summary>
 public sealed class FieldChangeJsonConverterFactory : JsonConverterFactory

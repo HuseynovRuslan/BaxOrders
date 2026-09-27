@@ -1153,6 +1153,9 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Property<bool?>("SourceHadOrderLineTypeColumn")
                         .HasColumnType("boolean");
 
+                    b.Property<bool?>("SourceHadResponsiblePersonColumn")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("SpecificationDescriptor")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -1630,7 +1633,7 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
                     b.ToTable("OrderRequestEditEvents", null, t =>
                         {
-                            t.HasCheckConstraint("CK_OrderRequestEditEvents_FieldMatchesAction", "(\"Action\" IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged') AND \"Field\" IS NOT NULL) OR (\"Action\" NOT IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged') AND \"Field\" IS NULL)");
+                            t.HasCheckConstraint("CK_OrderRequestEditEvents_FieldMatchesAction", "(\"Action\" IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged', 'ItemResponsiblePersonChanged') AND \"Field\" IS NOT NULL) OR (\"Action\" NOT IN ('ItemQuantityChanged', 'ItemPriceChanged', 'ItemSupplierChanged', 'ItemOrderLineTypeChanged', 'ItemResponsiblePersonChanged') AND \"Field\" IS NULL)");
 
                             t.HasCheckConstraint("CK_OrderRequestEditEvents_ItemEventNamesItem", "\"Action\" = 'RevisionCreated' OR (\"OrderRequestItemId\" IS NOT NULL AND \"ProductVariantId\" IS NOT NULL)");
                         });
@@ -1679,6 +1682,9 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
 
+                    b.Property<int?>("ResponsiblePersonId")
+                        .HasColumnType("integer");
+
                     b.Property<long?>("SourceOrderRequestItemId")
                         .HasColumnType("bigint");
 
@@ -1695,11 +1701,15 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProductVariantId");
 
+                    b.HasIndex("ResponsiblePersonId");
+
                     b.HasIndex("SourceOrderRequestItemId");
 
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("OrderRequestId", "OrderLineType");
+
+                    b.HasIndex("OrderRequestId", "ResponsiblePersonId");
 
                     b.ToTable("OrderRequestItems", null, t =>
                         {
@@ -2590,6 +2600,11 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BaxOrders.Domain.ResponsiblePeople.ResponsiblePerson", "ResponsiblePerson")
+                        .WithMany()
+                        .HasForeignKey("ResponsiblePersonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BaxOrders.Domain.Orders.OrderRequestItem", "SourceOrderRequestItem")
                         .WithMany()
                         .HasForeignKey("SourceOrderRequestItemId")
@@ -2603,6 +2618,8 @@ namespace BaxOrders.Infrastructure.Persistence.Migrations
                     b.Navigation("OrderRequest");
 
                     b.Navigation("ProductVariant");
+
+                    b.Navigation("ResponsiblePerson");
 
                     b.Navigation("SourceOrderRequestItem");
 

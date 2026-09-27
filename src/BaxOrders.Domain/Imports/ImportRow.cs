@@ -66,6 +66,7 @@ public sealed class ImportRow
         OriginalResponsiblePersonName = Guard.SourceText(original.ResponsiblePersonName, SourceTextMaxLength, nameof(OriginalResponsiblePersonName));
         OriginalOrderLineType = Guard.SourceText(original.OrderLineType, SourceValueMaxLength, nameof(OriginalOrderLineType));
         SourceHadOrderLineTypeColumn = original.HasOrderLineTypeColumn;
+        SourceHadResponsiblePersonColumn = original.HasResponsiblePersonColumn;
 
         RefreshSourceKeys();
 
@@ -135,6 +136,17 @@ public sealed class ImportRow
     /// is read as "do not block", because a batch already in review is not made invalid retroactively.
     /// </remarks>
     public bool? SourceHadOrderLineTypeColumn { get; private set; }
+
+    /// <summary>
+    /// Whether the sheet this row was read from had a "Cavabdeh şəxs" column at all.
+    /// </summary>
+    /// <remarks>
+    /// The same three-way fact as <see cref="SourceHadOrderLineTypeColumn"/>, for the same reason. False
+    /// blocks the import: a workbook with no such column cannot say whose lines these are, and every line of
+    /// it would arrive answerable to nobody. Null belongs to rows staged before this was recorded and is read
+    /// as "do not block" — a batch already in review is not made invalid retroactively.
+    /// </remarks>
+    public bool? SourceHadResponsiblePersonColumn { get; private set; }
 
     public string? NormalizedProductName { get; private set; }
 

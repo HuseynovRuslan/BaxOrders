@@ -42,6 +42,7 @@ public sealed record SourceRow(string SheetName, ExcelRow Row, HeaderLayout Layo
         LocationName = Fit(ImportField.Location, ImportRow.SourceTextMaxLength, issues),
         RequestDate = Fit(ImportField.RequestDate, ImportRow.SourceValueMaxLength, issues),
         ResponsiblePersonName = Fit(ImportField.ResponsiblePerson, ImportRow.SourceTextMaxLength, issues),
+        HasResponsiblePersonColumn = HasColumn(ImportField.ResponsiblePerson),
         OrderLineType = Fit(ImportField.OrderLineType, ImportRow.SourceValueMaxLength, issues),
         HasOrderLineTypeColumn = HasColumn(ImportField.OrderLineType),
     };

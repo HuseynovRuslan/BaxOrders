@@ -1,4 +1,4 @@
-using BaxOrders.Application.Common;
+﻿using BaxOrders.Application.Common;
 using BaxOrders.Application.Imports.Review;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Catalog;
@@ -186,9 +186,11 @@ public sealed class ProductResolutionTests(PostgresDatabaseFixture database)
     {
         await using var db = database.CreateContext();
         var product = await AddProductAsync(db, $"Süngər {Unique()}");
+        // Named on both lines, because this test ends by asserting the batch has nothing left to decide.
+        var person = await ResponsiblePersonAsync(db);
         var batchId = await StageAsync(db,
-            new OrderLine(Product: product.Name, SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "ədəd"),
-            new OrderLine(Product: product.Name, SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "əd"));
+            new OrderLine(Product: product.Name, SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "ədəd", Person: person),
+            new OrderLine(Product: product.Name, SpecificationValue: "50", SpecificationUnit: "sm", OrderUnit: "əd", Person: person));
         var queries = new ImportReviewQueries(db);
 
         // Two spellings of one unit are one variant, because the key is built from unit codes.

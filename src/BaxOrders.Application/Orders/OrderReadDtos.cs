@@ -193,7 +193,14 @@ public sealed record OrderRequestItemDto(
     /// Whether this line is the month's planned material or was ordered on top of the plan. Line-level
     /// because one request routinely holds both, and the monthly comparison reads only the monthly ones.
     /// </summary>
-    OrderLineType OrderLineType);
+    OrderLineType OrderLineType,
+    /// <summary>
+    /// Who asked for this line. Null when nothing says — never a person picked for it. Line-level for the
+    /// same reason as the classification: the workbook states it per line, and one request routinely holds
+    /// the lines of two or three different people.
+    /// </summary>
+    int? ResponsiblePersonId,
+    string? ResponsiblePersonName);
 
 /// <param name="IsRevision">True when this version was made as the correction of a returned one.</param>
 /// <param name="SourceOrderRequestId">The returned version this one corrects, when it is a correction.</param>
@@ -227,6 +234,12 @@ public sealed record OrderRequestDetailDto(
     int? RevisionVersion,
     bool CanCreateRevision,
     bool CanEditRevision,
+    /// <summary>
+    /// Who the request as a whole is answerable to, and how that was arrived at — an explicit assignment, the
+    /// one person its lines agree on, several people, or nobody. Read over every line of the request, not the
+    /// page being shown, so paging cannot change the answer. See <see cref="OrderResponsibility"/>.
+    /// </summary>
+    OrderResponsibilityDto Responsibility,
     PagedResult<OrderRequestItemDto> Items);
 
 /// <param name="Search">Matches the product name, the product code or the model code.</param>

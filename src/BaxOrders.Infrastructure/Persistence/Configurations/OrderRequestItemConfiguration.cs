@@ -34,6 +34,13 @@ internal sealed class OrderRequestItemConfiguration : IEntityTypeConfiguration<O
             .HasForeignKey(item => item.SupplierId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Who asked for the line. Restricted like every other canonical reference: a person named on years of
+        // order lines is not deleted out from under them, and the database says so rather than nulling them.
+        builder.HasOne(item => item.ResponsiblePerson)
+            .WithMany()
+            .HasForeignKey(item => item.ResponsiblePersonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // A copied line points at the line of the previous version it was copied from. Not cascading: a
         // reviewed version is never deleted while a correction descends from it, and the database says so.
         builder.HasOne(item => item.SourceOrderRequestItem)
@@ -60,5 +67,9 @@ internal sealed class OrderRequestItemConfiguration : IEntityTypeConfiguration<O
 
         builder.HasIndex(item => item.SupplierId);
         builder.HasIndex(item => item.SourceOrderRequestItemId);
+        // "Which lines are this person's" is asked per request and across a period, so the index carries the
+        // person beside the request the same way the classification one does.
+        builder.HasIndex(item => new { item.OrderRequestId, item.ResponsiblePersonId });
+        builder.HasIndex(item => item.ResponsiblePersonId);
     }
 }

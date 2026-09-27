@@ -1,4 +1,5 @@
 import type { OrderLineType } from '../orderLines/lineType'
+import type { OrderResponsibility } from '../orderLines/responsibility'
 import { getJson } from './client'
 
 /** A request lives in one of these states. Task 5 only ever displays them. */
@@ -164,6 +165,12 @@ export interface OrderRequestItem {
    * one order routinely holds both; see `src/orderLines/lineType`.
    */
   orderLineType: OrderLineType
+  /**
+   * Who asked for this line. Null when nothing says — never a person chosen for it. Line-level for the same
+   * reason as `orderLineType`: the workbook states it per line; see `src/orderLines/responsibility`.
+   */
+  responsiblePersonId: number | null
+  responsiblePersonName: string | null
 }
 
 export interface OrderRequestDetail {
@@ -192,6 +199,11 @@ export interface OrderRequestDetail {
   /** Decided by the server, like every other permission. The endpoints check again. */
   canCreateRevision: boolean
   canEditRevision: boolean
+  /**
+   * Who the order as a whole is answerable to, and how that was arrived at. Read over every line of the
+   * order, not the page on screen, so paging cannot change the answer.
+   */
+  responsibility: OrderResponsibility
   items: PagedResult<OrderRequestItem>
 }
 

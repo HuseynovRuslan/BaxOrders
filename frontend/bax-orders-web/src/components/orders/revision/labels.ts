@@ -1,5 +1,7 @@
 import type { EditedLine, EditedSupplier, OrderEditAction, OrderEditEvent } from '../../../api/revisions'
 import { formatAmount, formatQuantity, noPriceLabel, unknownSupplierLabel } from '../../imports/labels'
+import { orderLineTypeLabels, type OrderLineType } from '../../../orderLines/lineType'
+import { noResponsiblePersonLabel, responsiblePersonLabel } from '../../../orderLines/responsibility'
 
 export const createRevisionLabel = 'Düzəliş versiyası yarat'
 export const createNextRevisionLabel = 'Yeni düzəliş versiyası yarat'
@@ -40,6 +42,8 @@ export const editActionLabels: Record<OrderEditAction, string> = {
   ItemQuantityChanged: 'Miqdar dəyişdirildi',
   ItemPriceChanged: 'Qiymət dəyişdirildi',
   ItemSupplierChanged: 'Təchizatçı dəyişdirildi',
+  ItemOrderLineTypeChanged: 'Sifariş növü dəyişdirildi',
+  ItemResponsiblePersonChanged: 'Cavabdeh dəyişdirildi',
   ItemAdded: 'Sətir əlavə edildi',
   ItemRemoved: 'Sətir silindi',
 }
@@ -50,6 +54,8 @@ export const editActionClass: Record<OrderEditAction, string> = {
   ItemQuantityChanged: 'bg-sky-100 text-sky-800',
   ItemPriceChanged: 'bg-sky-100 text-sky-800',
   ItemSupplierChanged: 'bg-sky-100 text-sky-800',
+  ItemOrderLineTypeChanged: 'bg-sky-100 text-sky-800',
+  ItemResponsiblePersonChanged: 'bg-sky-100 text-sky-800',
   ItemAdded: 'bg-emerald-100 text-emerald-800',
   ItemRemoved: 'bg-amber-100 text-amber-800',
 }
@@ -58,6 +64,8 @@ const changedFieldLabels: Record<string, string> = {
   Quantity: 'Miqdar',
   UnitPrice: 'Qiymət',
   Supplier: 'Təchizatçı',
+  OrderLineType: 'Növ',
+  ResponsiblePerson: responsiblePersonLabel,
 }
 
 function isSupplier(value: unknown): value is EditedSupplier {
@@ -76,9 +84,18 @@ function isLine(value: unknown): value is EditedLine {
  * supplier — and never a zero.
  * </para>
  */
-export function formatEditValue(value: number | EditedSupplier | EditedLine | null, field: string | null): string {
+export function formatEditValue(
+  value: number | string | EditedSupplier | EditedLine | null,
+  field: string | null,
+): string {
+  // A person and a supplier are both stored as {id, name}; either way the name is what a reader needs.
   if (isSupplier(value)) {
     return value.name
+  }
+
+  // The classification is stored by name, so the history keeps reading correctly if the enum ever moves.
+  if (typeof value === 'string') {
+    return orderLineTypeLabels[value as OrderLineType] ?? value
   }
 
   if (isLine(value)) {
@@ -87,7 +104,16 @@ export function formatEditValue(value: number | EditedSupplier | EditedLine | nu
   }
 
   if (value === null) {
-    return field === 'Supplier' ? unknownSupplierLabel : noPriceLabel
+    if (field === 'Supplier') {
+      return unknownSupplierLabel
+    }
+
+    // "Nobody recorded" is a real answer for a line, and reads nothing like a missing price.
+    if (field === 'ResponsiblePerson') {
+      return noResponsiblePersonLabel
+    }
+
+    return noPriceLabel
   }
 
   return field === 'UnitPrice' ? formatAmount(value) : formatQuantity(value)

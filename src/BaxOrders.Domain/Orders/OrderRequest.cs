@@ -285,6 +285,10 @@ public sealed class OrderRequest
     /// What the line starts as. An import always says (brief 16); null keeps the supplier's seed for a line built by
     /// hand — see <see cref="OrderRequestItem"/>.
     /// </param>
+    /// <param name="responsiblePerson">
+    /// Who asked for this line, when the source says. An import passes what the row's "Cavabdeh şəxs" cell was
+    /// resolved to; null is "not stated" and never a person picked for the line.
+    /// </param>
     public OrderRequestItem AddItem(
         ProductVariant productVariant,
         decimal quantity,
@@ -293,13 +297,15 @@ public sealed class OrderRequest
         string? originalProductName = null,
         string? notes = null,
         PricingMode? pricingMode = null,
-        OrderLineType orderLineType = OrderLineType.Monthly)
+        OrderLineType orderLineType = OrderLineType.Monthly,
+        ResponsiblePerson? responsiblePerson = null)
     {
         EnsureStatus("add items to", OrderRequestStatus.Draft);
         EnsureNotRevision();
 
         var item = new OrderRequestItem(
-            this, productVariant, supplier, quantity, unitPrice, originalProductName, notes, pricingMode, orderLineType);
+            this, productVariant, supplier, quantity, unitPrice, originalProductName, notes, pricingMode,
+            orderLineType, responsiblePerson);
         _items.Add(item);
         return item;
     }
@@ -393,6 +399,38 @@ public sealed class OrderRequest
     }
 
     /// <summary>
+    /// Records who asked for a line.
+    /// </summary>
+    /// <remarks>
+    /// Line-level for the same reason as the classification: the source states it per line and one request
+    /// routinely holds two or three people's lines. Changing it can change what the request as a whole reads
+    /// as — one person's order, or several — so it goes through the audited edits like every other statement
+    /// about a line.
+    /// </remarks>
+    /// <param name="responsiblePerson">An active canonical person, or null for none. Never created here from text.</param>
+    /// <returns>The history entry, or null when the line already named that person.</returns>
+    public OrderRequestEditEvent? ChangeItemResponsiblePerson(
+        OrderRequestItem item, ResponsiblePerson? responsiblePerson, WorkflowActor actor, DateTime utcNow)
+    {
+        var line = EditableLine(item, actor);
+
+        // The old person goes into the history by name, so the record has to be there to be named.
+        if (line.ResponsiblePersonId is not null && line.ResponsiblePerson is null)
+        {
+            throw new InvalidOperationException("The line's responsible person must be loaded to change it.");
+        }
+
+        var from = line.ResponsiblePerson;
+        if (SamePerson(from, responsiblePerson))
+        {
+            return null;
+        }
+
+        line.ChangeResponsiblePerson(responsiblePerson);
+        return RecordEdit(OrderRequestEditEvent.ResponsiblePersonChanged(this, line, from, responsiblePerson, actor, utcNow));
+    }
+
+    /// <summary>
     /// Adds a line to a correction version. The line is new: it copies nothing and claims no workbook row.
     /// </summary>
     /// <remarks>
@@ -405,13 +443,14 @@ public sealed class OrderRequest
         decimal? unitPrice,
         Supplier? supplier,
         WorkflowActor actor,
-        OrderLineType orderLineType = OrderLineType.Monthly)
+        OrderLineType orderLineType = OrderLineType.Monthly,
+        ResponsiblePerson? responsiblePerson = null)
     {
         EnsureEditableRevision(actor);
 
         var item = new OrderRequestItem(
             this, productVariant, supplier, quantity, unitPrice, originalProductName: null, notes: null,
-            pricingMode: null, orderLineType: orderLineType);
+            pricingMode: null, orderLineType: orderLineType, responsiblePerson: responsiblePerson);
         _items.Add(item);
         return item;
     }
@@ -491,6 +530,16 @@ public sealed class OrderRequest
     }
 
     private static bool SameSupplier(Supplier? left, Supplier? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
+        return ReferenceEquals(left, right) || (left.Id > 0 && left.Id == right.Id);
+    }
+
+    private static bool SamePerson(ResponsiblePerson? left, ResponsiblePerson? right)
     {
         if (left is null || right is null)
         {
