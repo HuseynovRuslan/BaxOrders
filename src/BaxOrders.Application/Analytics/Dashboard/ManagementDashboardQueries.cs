@@ -127,7 +127,7 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
         // An approved spelling match is one product from here on, so the cause names the kept spelling (13b).
         var matches = await ApprovedMatches.ReadAsync(db, cancellationToken);
-        var snapshots = matches.Spelling.Apply(await SnapshotsAsync(requestIds, cancellationToken));
+        var snapshots = matches.Spelling.Apply(await SnapshotsAsync(requestIds, query.Scope, cancellationToken));
         var (kinds, names, products) = await VariantsAsync(snapshots.Values.SelectMany(byVariant => byVariant.Keys).Distinct().ToArray(), cancellationToken);
 
         // An approved variant transition is one cause, "Variant dəyişib", named by its base (13.1a).
@@ -485,16 +485,17 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     }
 
     /// <remarks>
-    /// Monthly lines alone - see <see cref="MonthlyComparisonPopulation"/>. Everything built from these
-    /// snapshots is comparative, and a one-off purchase compared against a month that did not have one reads
-    /// as a change in demand when it is nothing of the kind. The rest of the month is accounted for by
-    /// <see cref="LineTypeSplitAsync"/>.
+    /// The lines of the asked-for scope, and nothing else — see <see cref="MonthlyComparisonPopulation"/>.
+    /// Everything built from these snapshots is comparative, so on the default scope a one-off purchase
+    /// compared against a month that did not have one would read as a change in demand when it is nothing of
+    /// the kind. A screen that asks for another scope is answered about that one and says so in its words; the
+    /// month's own split is unaffected and still comes from <see cref="LineTypeSplitAsync"/>.
     /// </remarks>
     private async Task<Dictionary<long, Dictionary<long, VariantPeriodSnapshot>>> SnapshotsAsync(
-        long[] requestIds, CancellationToken cancellationToken)
+        long[] requestIds, AnalyticsScope scope, CancellationToken cancellationToken)
     {
         var rows = await db.OrderRequestItems.AsNoTracking()
-            .OnlyMonthly()
+            .InScope(scope)
             .Where(item => requestIds.Contains(item.OrderRequestId))
             .GroupBy(item => new { item.OrderRequestId, item.ProductVariantId })
             .Select(group => new

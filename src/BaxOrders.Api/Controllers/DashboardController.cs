@@ -75,6 +75,9 @@ public sealed class DashboardController(
 
         Require(query.Basis, nameof(DashboardQuery.Basis));
         Require(query.Sort, nameof(DashboardQuery.Sort));
+        // An enum binds any number by default, and a scope outside the contract would quietly answer about a
+        // population nobody asked for.
+        Require(query.Scope, nameof(DashboardQuery.Scope));
         if (query.HistoryCoverage is { } historyCoverage)
         {
             Require(historyCoverage, nameof(DashboardQuery.HistoryCoverage));

@@ -248,7 +248,12 @@ public sealed record DashboardQuery(
     string? CustomStart = null,
     string? CustomEnd = null,
     PortfolioGroup? Group = null,
-    bool? MissingPrice = null)
+    bool? MissingPrice = null,
+    /// <summary>
+    /// Which lines the whole answer is about. The default is the month's planned material, because that is the
+    /// only population a month-on-month comparison may be read as demand.
+    /// </summary>
+    AnalyticsScope Scope = AnalyticsScope.Monthly)
 {
     /// <summary>The window this query asks for, with its months checked against the month being looked at.</summary>
     public ComparisonSelection SelectionFor(DateOnly currentPeriod) => ComparisonSelection.Of(
