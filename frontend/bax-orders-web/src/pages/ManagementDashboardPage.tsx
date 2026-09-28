@@ -6,6 +6,7 @@ import {
   fetchDashboardPeriods,
   type DashboardPeriods,
   type HistoryCoverageState,
+  type AnalyticsScope,
   type ManagementDashboard,
 } from '../api/dashboard'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
@@ -27,6 +28,8 @@ import {
 import { formatCount, formatMonth, toMonthKey } from '../components/analytics/format'
 import { BasisPicker } from '../components/analytics/BasisPicker'
 import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
+import { isScope } from '../analytics/scope'
+import { ScopeSelector } from '../components/analytics/ScopeSelector'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
 import { useScrollMemory } from '../navigation/useScrollMemory'
@@ -86,6 +89,10 @@ export function ManagementDashboardPage() {
   const priceCoverage: PriceCoverageState | undefined = isPriceCoverage(params.get('priceCoverage'))
     ? (params.get('priceCoverage') as PriceCoverageState)
     : undefined
+  // Which lines the whole screen is about. In the URL like every other reading, so a link carries the question
+  // as well as the answer.
+  const scopeParam = params.get('scope')
+  const scope: AnalyticsScope = isScope(scopeParam) ? scopeParam : 'Monthly'
   const groupParam = params.get('group')
   const group = isPortfolioGroup(groupParam) ? groupParam : undefined
   const missingPrice = params.get('missingPrice') === 'true' ? true : undefined
@@ -141,6 +148,9 @@ export function ManagementDashboardPage() {
   const query = useMemo(
     () => ({
       ...request,
+      // The default scope travels as nothing at all, so an ordinary link stays short and the server's own
+      // default is the one in force.
+      scope: scope === 'Monthly' ? undefined : scope,
       search: search || undefined,
       historyCoverage,
       priceCoverage,
@@ -153,7 +163,7 @@ export function ManagementDashboardPage() {
       pageSize,
     }) as const,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [basisKey, search, historyCoverage, priceCoverage, hasCurrentRequest, group, missingPrice, sortOption, page],
+    [basisKey, scope, search, historyCoverage, priceCoverage, hasCurrentRequest, group, missingPrice, sortOption, page],
   )
 
   // One request per selection; the key keeps a stale answer from replacing a newer one.
@@ -261,6 +271,12 @@ export function ManagementDashboardPage() {
                 ))}
               </select>
             </label>
+
+            {/* Which lines everything below is about. Beside the month, because together they are the whole
+                question: this month, these lines. */}
+            <div className="self-end">
+              <ScopeSelector value={scope} onChange={(next) => update({ scope: next === 'Monthly' ? undefined : next })} />
+            </div>
 
             {period !== null && (
               <BasisPicker

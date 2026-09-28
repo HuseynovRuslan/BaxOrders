@@ -259,8 +259,16 @@ export interface ManagementDashboard {
   rows: PagedResult<LocationDashboardRow>
 }
 
+/**
+ * Which lines an answer is about. One word for the question the manager keeps asking in three ways, so it means
+ * the same on every screen — and `All` is the factual total, never "monthly demand".
+ */
+export type AnalyticsScope = 'Monthly' | 'OutsideMonthly' | 'All'
+
 export interface DashboardRequest {
   basis: AnalyticsComparisonBasis
+  /** The population the whole answer is about. Absent means the month's planned material. */
+  scope?: AnalyticsScope
   /** Both required by `CustomRange` and rejected by every other basis, as `yyyy-MM`. */
   customStart?: string
   customEnd?: string
@@ -345,6 +353,7 @@ export function fetchDashboard(
   if (query.hasCurrentRequest !== undefined) params.set('hasCurrentRequest', String(query.hasCurrentRequest))
   if (query.group) params.set('group', query.group)
   if (query.missingPrice !== undefined) params.set('missingPrice', String(query.missingPrice))
+  if (query.scope) params.set('scope', query.scope)
   if (query.sort) params.set('sort', query.sort)
   if (query.descending) params.set('descending', 'true')
   return getJson<ManagementDashboard>(`/api/v1/dashboard?${params.toString()}`, signal)

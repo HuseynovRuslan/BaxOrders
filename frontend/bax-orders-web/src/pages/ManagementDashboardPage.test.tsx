@@ -1012,3 +1012,39 @@ describe('coming back', () => {
     expect(window.history.scrollRestoration).toBe(before)
   })
 })
+
+/**
+ * The scope decides what every number on the screen means, so it belongs in the URL beside the month: a link
+ * has to carry the question as well as the answer.
+ */
+describe('the order scope', () => {
+  it('asks about the month’s planned material until the reader says otherwise', async () => {
+    await renderPage()
+
+
+    expect(screen.getByRole('button', { name: 'Aylıq sifarişlər' })).toHaveAttribute('aria-pressed', 'true')
+    const [, query] = dashboardApi.fetchDashboard.mock.calls.at(-1)!
+    expect(query.scope).toBeUndefined()
+  })
+
+  it('asks the server about the scope the reader picked, and remembers it in the address', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Aylıqdan kənar' }))
+
+    await vi.waitFor(() => {
+      const [, query] = dashboardApi.fetchDashboard.mock.calls.at(-1)!
+      expect(query.scope).toBe('OutsideMonthly')
+    })
+    expect(screen.getByTestId('search')).toHaveTextContent('scope=OutsideMonthly')
+  })
+
+  it('opens on the scope a pasted link carries', async () => {
+    await renderPage('/dashboard?period=2026-09&scope=All')
+
+    expect(screen.getByRole('button', { name: 'Hamısı' })).toHaveAttribute('aria-pressed', 'true')
+    const [, query] = dashboardApi.fetchDashboard.mock.calls.at(-1)!
+    expect(query.scope).toBe('All')
+  })
+})
