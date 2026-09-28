@@ -984,8 +984,10 @@ function expectNoOldTerms(root: HTMLElement) {
 
 describe('no retired word on the manager’s screens', () => {
   it('the dashboard', async () => {
-    // With a chip on (Task 09), so the pressed chip and the filtered table are swept as well.
-    const { container } = renderAt('/dashboard?period=2026-07&basis=all&missingPrice=true', '/dashboard', <ManagementDashboardPage />)
+    // With a chip on (Task 09), so the pressed chip and the filtered table are swept as well — and in
+    // «Ətraflı baxış», because that is the view that still carries every word this sweep is about. The simple
+    // view's own words are swept by its own tests.
+    const { container } = renderAt('/dashboard?period=2026-07&basis=all&missingPrice=true&view=etrafli', '/dashboard', <ManagementDashboardPage />)
     await screen.findAllByText('Nərimanov heykəli')
 
     expectNoOldTerms(container)

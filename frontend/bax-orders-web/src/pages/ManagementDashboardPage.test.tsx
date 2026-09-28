@@ -811,7 +811,9 @@ describe('the chips', () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
     try {
-      await renderPage()
+      // The price line lives in «Ətraflı baxış» now: the simple view answers the five questions the page is
+      // opened with, and a price somebody owes is the sixth.
+      await renderPage('/dashboard?period=2026-09&view=etrafli')
 
       await userEvent.click(screen.getByRole('button', { name: '10 obyektin sifarişində qiyməti olmayan sətir var' }))
 
@@ -1046,5 +1048,35 @@ describe('the order scope', () => {
     expect(screen.getByRole('button', { name: 'Hamısı' })).toHaveAttribute('aria-pressed', 'true')
     const [, query] = dashboardApi.fetchDashboard.mock.calls.at(-1)!
     expect(query.scope).toBe('All')
+  })
+})
+
+/**
+ * Two depths of one screen, not two screens. The simple view answers what the page is opened with; the
+ * detailed one keeps everything it has ever had.
+ */
+describe('how deep the reader wants to go', () => {
+  it('opens simple, with the month in three numbers', async () => {
+    await renderPage()
+
+    expect(screen.getByRole('button', { name: 'Sadə baxış' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('group', { name: 'Ayın xülasəsi' })).toBeInTheDocument()
+  })
+
+  it('keeps the old headline behind «Ətraflı baxış», and remembers the choice in the address', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Ətraflı baxış' }))
+
+    expect(screen.queryByRole('group', { name: 'Ayın xülasəsi' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('search')).toHaveTextContent('view=etrafli')
+  })
+
+  it('opens on the depth a pasted link carries', async () => {
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
+
+    expect(screen.getByRole('button', { name: 'Ətraflı baxış' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('group', { name: 'Ayın xülasəsi' })).not.toBeInTheDocument()
   })
 })

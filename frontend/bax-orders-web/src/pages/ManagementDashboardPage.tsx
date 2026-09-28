@@ -29,6 +29,9 @@ import { formatCount, formatMonth, toMonthKey } from '../components/analytics/fo
 import { BasisPicker } from '../components/analytics/BasisPicker'
 import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
 import { isScope } from '../analytics/scope'
+import { readView, viewParam, type DashboardView } from '../analytics/dashboardView'
+import { ViewSelector } from '../components/analytics/ViewSelector'
+import { ExecutiveHeadline } from '../components/dashboard/ExecutiveHeadline'
 import { ScopeSelector } from '../components/analytics/ScopeSelector'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
@@ -93,6 +96,9 @@ export function ManagementDashboardPage() {
   // as well as the answer.
   const scopeParam = params.get('scope')
   const scope: AnalyticsScope = isScope(scopeParam) ? scopeParam : 'Monthly'
+  // How deep. The simple view is the default and answers the questions the page is opened with; the detailed
+  // one keeps everything the screen has ever had.
+  const view: DashboardView = readView(params.get('view'))
   const groupParam = params.get('group')
   const group = isPortfolioGroup(groupParam) ? groupParam : undefined
   const missingPrice = params.get('missingPrice') === 'true' ? true : undefined
@@ -274,8 +280,9 @@ export function ManagementDashboardPage() {
 
             {/* Which lines everything below is about. Beside the month, because together they are the whole
                 question: this month, these lines. */}
-            <div className="self-end">
+            <div className="flex flex-wrap items-center gap-2 self-end">
               <ScopeSelector value={scope} onChange={(next) => update({ scope: next === 'Monthly' ? undefined : next })} />
+              <ViewSelector value={view} onChange={(next) => update({ view: viewParam(next) })} />
             </div>
 
             {period !== null && (
@@ -308,11 +315,15 @@ export function ManagementDashboardPage() {
             straight under the month, on the first screen (Task 9), and Back still finds the card it left from.
           */}
           <div className="max-lg:flex max-lg:flex-col">
-            <DashboardHeadline
-              summary={data.summary}
-              onShowMissingPrices={showMissingPrices}
-              onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
-            />
+            {view === 'Simple' ? (
+              <ExecutiveHeadline summary={data.summary} scope={scope} />
+            ) : (
+              <DashboardHeadline
+                summary={data.summary}
+                onShowMissingPrices={showMissingPrices}
+                onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
+              />
+            )}
             {outsideMonthlyOpen && (
               <OutsideMonthlyPanel
                 period={data.summary.selectedPeriod.slice(0, 7)}
