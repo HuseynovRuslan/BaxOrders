@@ -39,6 +39,8 @@ function item(): OrderRequestItem {
     source: null,
     sourceOrderRequestItemId: null,
     orderLineType: 'Monthly',
+    responsiblePersonId: null,
+    responsiblePersonName: null,
   }
 }
 

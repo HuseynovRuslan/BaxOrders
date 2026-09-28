@@ -293,13 +293,6 @@ function revision(): OrderRevision {
     isLatestVersion: true,
     canCreateRevision: false,
     canEditRevision: false,
-    responsibility: {
-      kind: 'None',
-      personId: null,
-      personName: null,
-      distinctPersonCount: 0,
-      namedLineCount: 0,
-    },
     rowVersion: '00FF01',
     itemCount: 40,
     missingPriceItemCount: 0,

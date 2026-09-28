@@ -42,7 +42,7 @@ export function ProductHistoryPage() {
         if (controller.signal.aborted) return
         setState({
           status: 'error',
-          message: problem instanceof ApiError ? problem.detail : 'Məhsul tarixçəsi yüklənmədi.',
+          message: problem instanceof ApiError ? problem.message : 'Məhsul tarixçəsi yüklənmədi.',
         })
       })
     return () => controller.abort()

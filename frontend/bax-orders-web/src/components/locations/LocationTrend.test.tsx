@@ -66,6 +66,8 @@ function context(primary: DecisionComparison = comparison()): OrderDecisionConte
     version: 1,
     status: 'Draft',
     isLatestVersion: true,
+    previousOrderRequestId: null,
+    previousVersion: null,
     latestOrderRequestId: 9,
     latestVersion: 1,
     current: {

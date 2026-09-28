@@ -333,7 +333,7 @@ function SubmitAllCreated({ imported }: { imported: ImportConfirmationResult }) 
       const result = await submitManyForApproval(ids)
       setState({ submitted: result.submitted, refused: result.refused })
     } catch (problem) {
-      setState({ error: problem instanceof ApiError ? problem.detail : 'Sifarişlər göndərilə bilmədi.' })
+      setState({ error: problem instanceof ApiError ? problem.message : 'Sifarişlər göndərilə bilmədi.' })
     }
   }
 

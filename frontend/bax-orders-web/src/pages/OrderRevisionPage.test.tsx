@@ -153,13 +153,6 @@ function revision(overrides: Partial<OrderRevision> = {}): OrderRevision {
     isLatestVersion: true,
     canCreateRevision: false,
     canEditRevision: true,
-    responsibility: {
-      kind: 'None',
-      personId: null,
-      personName: null,
-      distinctPersonCount: 0,
-      namedLineCount: 0,
-    },
     rowVersion: '00FF01',
     itemCount: 1,
     missingPriceItemCount: 0,
@@ -269,13 +262,6 @@ describe('a returned order', () => {
       revisedFrom: null,
       canCreateRevision: true,
       canEditRevision: false,
-      responsibility: {
-        kind: 'None',
-        personId: null,
-        personName: null,
-        distinctPersonCount: 0,
-        namedLineCount: 0,
-      },
     })
 
   it('offers the correction, and says what will and will not happen', async () => {
@@ -334,13 +320,6 @@ describe('a returned order', () => {
       revisedFrom: null,
       canCreateRevision: false,
       canEditRevision: false,
-      responsibility: {
-        kind: 'None',
-        personId: null,
-        personName: null,
-        distinctPersonCount: 0,
-        namedLineCount: 0,
-      },
       revisedInto: {
         orderRequestId: 900,
         version: 2,
@@ -361,13 +340,6 @@ describe('a returned order', () => {
       status: 'ReturnedForCorrection',
       canCreateRevision: true,
       canEditRevision: false,
-      responsibility: {
-        kind: 'None',
-        personId: null,
-        personName: null,
-        distinctPersonCount: 0,
-        namedLineCount: 0,
-      },
     }))
     await renderPage()
     await openLines()
@@ -419,13 +391,6 @@ describe('where this version sits', () => {
       revisedFrom: null,
       canCreateRevision: true,
       canEditRevision: false,
-      responsibility: {
-        kind: 'None',
-        personId: null,
-        personName: null,
-        distinctPersonCount: 0,
-        namedLineCount: 0,
-      },
     }))
     await renderPage()
 
@@ -508,13 +473,6 @@ describe('what the screen offers', () => {
       revisedFrom: null,
       canCreateRevision: false,
       canEditRevision: false,
-      responsibility: {
-        kind: 'None',
-        personId: null,
-        personName: null,
-        distinctPersonCount: 0,
-        namedLineCount: 0,
-      },
     }))
     await renderPage()
     await openLines()
@@ -555,13 +513,6 @@ describe('what a Rəhbər is shown', () => {
       revisedFrom: isRevision ? revision().revisedFrom : null,
       canCreateRevision: false,
       canEditRevision: false,
-      responsibility: {
-        kind: 'None',
-        personId: null,
-        personName: null,
-        distinctPersonCount: 0,
-        namedLineCount: 0,
-      },
     }))
     workflowApi.fetchWorkflow.mockResolvedValue({ ...deciding, status })
     await renderPage()

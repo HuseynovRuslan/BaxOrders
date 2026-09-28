@@ -125,6 +125,8 @@ function contextFor(basis: DecisionComparison['basis']): OrderDecisionContext {
     version: 2,
     status: 'PendingApproval',
     isLatestVersion: true,
+    previousOrderRequestId: null,
+    previousVersion: null,
     latestOrderRequestId: 107,
     latestVersion: 2,
     current: {
