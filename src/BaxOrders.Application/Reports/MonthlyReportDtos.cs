@@ -1,4 +1,5 @@
-﻿using BaxOrders.Domain.Orders;
+﻿using BaxOrders.Application.Analytics;
+using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Reports;
 
@@ -62,6 +63,8 @@ public sealed record MonthlyReportCellDto(
     decimal? RecentAveragePercent,
     bool IsUnusual,
     bool IsHistoricalImport = false,
+    decimal? MonthlyKnownAmount = null,
+    int MonthlyItemCount = 0,
     decimal? OutsideMonthlyKnownAmount = null,
     int OutsideMonthlyItemCount = 0,
     decimal? UnclassifiedKnownAmount = null,
@@ -85,6 +88,8 @@ public sealed record MonthlyReportRowDto(
     int MissingPriceItemCount,
     int MonthsWithoutRequest,
     bool HasAnyRequest,
+    decimal? MonthlyKnownAmount = null,
+    int MonthlyItemCount = 0,
     decimal? OutsideMonthlyKnownAmount = null,
     int OutsideMonthlyItemCount = 0,
     decimal? UnclassifiedKnownAmount = null,
@@ -98,6 +103,8 @@ public sealed record MonthlyReportMonthDto(
     decimal? KnownAmount,
     int MissingPriceItemCount,
     bool AmountIsComplete,
+    decimal? MonthlyKnownAmount = null,
+    int MonthlyItemCount = 0,
     decimal? OutsideMonthlyKnownAmount = null,
     int OutsideMonthlyItemCount = 0,
     decimal? UnclassifiedKnownAmount = null,
@@ -116,10 +123,18 @@ public sealed record MonthlyReportDto(
     decimal? KnownAmount,
     int MissingPriceItemCount,
     bool AmountIsComplete,
+    decimal? MonthlyKnownAmount = null,
+    int MonthlyItemCount = 0,
     decimal? OutsideMonthlyKnownAmount = null,
     int OutsideMonthlyItemCount = 0,
     decimal? UnclassifiedKnownAmount = null,
     int UnclassifiedItemCount = 0);
 
 /// <param name="Year">Null asks for the most recent year that has any request.</param>
-public sealed record MonthlyReportQuery(int? Year = null, string? Search = null);
+/// <param name="Scope">
+/// The population every figure in the grid is about. The default is the month's planned material, because that
+/// is what a year read side by side is a comparison of; another scope answers about that one instead and the
+/// screen says which. The split beside each figure describes the month itself and never moves with it.
+/// </param>
+public sealed record MonthlyReportQuery(
+    int? Year = null, string? Search = null, AnalyticsScope Scope = AnalyticsScope.Monthly);

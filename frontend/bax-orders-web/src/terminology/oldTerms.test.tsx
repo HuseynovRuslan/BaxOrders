@@ -751,6 +751,8 @@ function reportCell(month: number, overrides: Partial<MonthlyReportCell> = {}): 
     knownAmount: 1000.25 + month,
     itemCount: 10,
     missingPriceItemCount: month === 3 ? 2 : 0,
+    monthlyKnownAmount: null,
+    monthlyItemCount: 0,
     outsideMonthlyKnownAmount: null,
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
@@ -796,6 +798,8 @@ function monthlyReport(): MonthlyReport {
       missingPriceItemCount: 2,
       monthsWithoutRequest: 1,
       hasAnyRequest: true,
+      monthlyKnownAmount: null,
+      monthlyItemCount: 0,
       outsideMonthlyKnownAmount: null,
       outsideMonthlyItemCount: 0,
       unclassifiedKnownAmount: null,
@@ -812,6 +816,8 @@ function monthlyReport(): MonthlyReport {
       missingPriceItemCount: 0,
       monthsWithoutRequest: 12,
       hasAnyRequest: false,
+      monthlyKnownAmount: null,
+      monthlyItemCount: 0,
       outsideMonthlyKnownAmount: null,
       outsideMonthlyItemCount: 0,
       unclassifiedKnownAmount: null,
@@ -840,6 +846,8 @@ function monthlyReport(): MonthlyReport {
       knownAmount: cell.knownAmount,
       missingPriceItemCount: cell.missingPriceItemCount,
       amountIsComplete: cell.amountIsComplete,
+      monthlyKnownAmount: null,
+      monthlyItemCount: 0,
       outsideMonthlyKnownAmount: null,
       outsideMonthlyItemCount: 0,
       unclassifiedKnownAmount: null,
@@ -850,6 +858,8 @@ function monthlyReport(): MonthlyReport {
     requestCount: 11,
     knownAmount: 431670.91,
     missingPriceItemCount: 2,
+    monthlyKnownAmount: null,
+    monthlyItemCount: 0,
     outsideMonthlyKnownAmount: null,
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
@@ -1264,7 +1274,7 @@ describe('no retired word on the manager’s screens', () => {
           <MonthlyReportPage />
         </MemoryRouter>,
       )
-      await screen.findByRole('group', { name: 'İlin xülasəsi' })
+      await screen.findByRole('region', { name: 'İlin xülasəsi' })
 
       expectNoOldTerms(container)
       // The Task 08 words are on the screen being swept: the totals row, the legend, an unusual month, a future
@@ -1345,7 +1355,7 @@ describe('no retired word on the manager’s screens', () => {
         <MonthlyReportPage />
       </MemoryRouter>,
     )
-    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+    await screen.findByRole('region', { name: 'İlin xülasəsi' })
 
     const described = screen.getAllByTitle(/Tarixi sifariş · sistemə təsdiqlənmiş kimi köçürülüb$/)
     // The table's cell and the phone card's.

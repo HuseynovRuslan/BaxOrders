@@ -95,7 +95,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         var rows = new List<MonthlyReportRowDto>(locations.Count);
         foreach (var location in locations.OrderByName(location => location.Name))
         {
-            rows.Add(Build(location, year, byLocation.GetValueOrDefault(location.Id) ?? [], totals, historical));
+            rows.Add(Build(location, year, byLocation.GetValueOrDefault(location.Id) ?? [], totals, historical, query.Scope));
         }
 
         var months = Months(year, rows);
@@ -117,6 +117,8 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             company.KnownAmount,
             company.MissingPriceItemCount,
             company.MissingPriceItemCount == 0,
+            company.MonthlyKnownAmount,
+            company.MonthlyItemCount,
             company.OutsideMonthlyKnownAmount,
             company.OutsideMonthlyItemCount,
             company.UnclassifiedKnownAmount,
@@ -186,12 +188,15 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         int year,
         Dictionary<DateOnly, RequestRef> requests,
         Dictionary<long, RequestTotals> totals,
-        IReadOnlySet<long> historical)
+        IReadOnlySet<long> historical,
+        AnalyticsScope scope)
     {
         var cells = new List<MonthlyReportCellDto>(12);
         decimal? yearAmount = null;
+        decimal? yearMonthly = null;
         decimal? yearOutside = null;
         decimal? yearUnclassified = null;
+        var yearMonthlyItems = 0;
         var yearOutsideItems = 0;
         var yearUnclassifiedItems = 0;
         var yearMissing = 0;
@@ -203,7 +208,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         var available = new List<(DateOnly Period, decimal Amount)>();
         foreach (var request in requests.Values.OrderBy(request => request.Period))
         {
-            if (KnownAmountOf(request, totals) is { } known)
+            if (KnownAmountOf(request, totals, scope) is { } known)
             {
                 available.Add((request.Period, known));
             }
@@ -216,7 +221,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
                 .TakeWhile(candidate => candidate.Period < period)
                 .Select(candidate => candidate.Amount)
                 .ToList();
-            var cell = Cell(period, requests, totals, earlier, historical);
+            var cell = Cell(period, requests, totals, earlier, historical, scope);
             cells.Add(cell);
 
             if (cell.OrderRequestId is null)
@@ -227,9 +232,11 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
 
             requestCount++;
             yearMissing += cell.MissingPriceItemCount;
+            yearMonthlyItems += cell.MonthlyItemCount;
             yearOutsideItems += cell.OutsideMonthlyItemCount;
             yearUnclassifiedItems += cell.UnclassifiedItemCount;
             yearAmount = Add(yearAmount, cell.KnownAmount);
+            yearMonthly = Add(yearMonthly, cell.MonthlyKnownAmount);
             yearOutside = Add(yearOutside, cell.OutsideMonthlyKnownAmount);
             yearUnclassified = Add(yearUnclassified, cell.UnclassifiedKnownAmount);
         }
@@ -238,7 +245,7 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         return new MonthlyReportRowDto(
             location.Id, location.Code, location.Name, location.IsActive,
             cells, requestCount, yearAmount, yearMissing, without, requests.Count > 0,
-            yearOutside, yearOutsideItems, yearUnclassified, yearUnclassifiedItems);
+            yearMonthly, yearMonthlyItems, yearOutside, yearOutsideItems, yearUnclassified, yearUnclassifiedItems);
     }
 
     /// <param name="earlierAmounts">The location's available months before this one, oldest first.</param>
@@ -248,11 +255,12 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         Dictionary<DateOnly, RequestRef> requests,
         Dictionary<long, RequestTotals> totals,
         IReadOnlyList<decimal> earlierAmounts,
-        IReadOnlySet<long> historical)
+        IReadOnlySet<long> historical,
+        AnalyticsScope scope)
     {
         // The month before, which for January is the December of the year before.
         var previousAmount = requests.TryGetValue(period.AddMonths(-1), out var previous)
-            ? KnownAmountOf(previous, totals)
+            ? KnownAmountOf(previous, totals, scope)
             : null;
 
         if (!requests.TryGetValue(period, out var request))
@@ -260,11 +268,11 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             // No request: no amount, no difference, and nothing that could be mistaken for a zero.
             return new MonthlyReportCellDto(
                 period.Month, period, null, null, null, null, 0, 0, true, previousAmount, null, null, null, null, false,
-                false, null, 0, null, 0);
+                false, null, 0, null, 0, null, 0);
         }
 
         var found = Found(request, totals);
-        var amount = KnownAmountOf(request, totals);
+        var amount = KnownAmountOf(request, totals, scope);
         var (delta, percent) = OrderAnalyticsCalculator.AmountDifference(amount, previousAmount);
         var recent = UnusualMonth.Of(amount, earlierAmounts);
 
@@ -285,15 +293,39 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
             recent.RecentAveragePercent,
             recent.IsUnusual,
             historical.Contains(request.OrderRequestId),
+            // The month's own composition, which describes what was ordered rather than what was asked about:
+            // the same three figures whatever the scope, exactly as the dashboard's split is.
+            AmountOf(found.Monthly),
+            found.Monthly.ItemCount,
             AmountOf(found.OutsideMonthly),
             found.OutsideMonthly.ItemCount,
             AmountOf(found.Unclassified),
             found.Unclassified.ItemCount);
     }
 
-    /// <summary>The month's monthly money: what every comparison on this report is built from.</summary>
-    private static decimal? KnownAmountOf(RequestRef request, Dictionary<long, RequestTotals> totals) =>
-        AmountOf(Found(request, totals).Monthly);
+    /// <summary>
+    /// The month's money in the scope the report was asked about: what every comparison on it is built from.
+    /// </summary>
+    /// <remarks>
+    /// The one place the scope decides anything. The grid, each month's difference, the running average and
+    /// «Qeyri-adi ay» are all this figure or built from it, so they cannot disagree about which lines they are
+    /// about. The split shown beside a cell is the month's own and is unaffected — see
+    /// <see cref="MonthlyReportCellDto"/>.
+    /// </remarks>
+    private static decimal? KnownAmountOf(
+        RequestRef request, Dictionary<long, RequestTotals> totals, AnalyticsScope scope)
+    {
+        var found = Found(request, totals);
+        return scope switch
+        {
+            AnalyticsScope.Monthly => AmountOf(found.Monthly),
+            AnalyticsScope.OutsideMonthly => AmountOf(found.OutsideMonthly),
+            // Added from the three sides rather than from the request's own total, so the figure a reader adds
+            // up from the cells beside it is the figure at the top of the column.
+            AnalyticsScope.All => Add(Add(AmountOf(found.Monthly), AmountOf(found.OutsideMonthly)), AmountOf(found.Unclassified)),
+            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown analytics scope."),
+        };
+    }
 
     private static RequestTotals Found(RequestRef request, Dictionary<long, RequestTotals> totals) =>
         totals.GetValueOrDefault(request.OrderRequestId) ?? RequestTotals.Empty;
@@ -311,8 +343,10 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         {
             var index = month - 1;
             decimal? amount = null;
+            decimal? monthly = null;
             decimal? outside = null;
             decimal? unclassified = null;
+            var monthlyItems = 0;
             var outsideItems = 0;
             var unclassifiedItems = 0;
             var missing = 0;
@@ -328,16 +362,18 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
 
                 withRequest++;
                 missing += cell.MissingPriceItemCount;
+                monthlyItems += cell.MonthlyItemCount;
                 outsideItems += cell.OutsideMonthlyItemCount;
                 unclassifiedItems += cell.UnclassifiedItemCount;
                 amount = Add(amount, cell.KnownAmount);
+                monthly = Add(monthly, cell.MonthlyKnownAmount);
                 outside = Add(outside, cell.OutsideMonthlyKnownAmount);
                 unclassified = Add(unclassified, cell.UnclassifiedKnownAmount);
             }
 
             months.Add(new MonthlyReportMonthDto(
                 month, new DateOnly(year, month, 1), withRequest, amount, missing, missing == 0,
-                outside, outsideItems, unclassified, unclassifiedItems));
+                monthly, monthlyItems, outside, outsideItems, unclassified, unclassifiedItems));
         }
 
         return months;
@@ -346,8 +382,10 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
     private static CompanyTotalsResult CompanyTotals(List<MonthlyReportRowDto> rows)
     {
         decimal? amount = null;
+        decimal? monthly = null;
         decimal? outside = null;
         decimal? unclassified = null;
+        var monthlyItems = 0;
         var outsideItems = 0;
         var unclassifiedItems = 0;
         var missing = 0;
@@ -357,14 +395,17 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         {
             requests += row.RequestCount;
             missing += row.MissingPriceItemCount;
+            monthlyItems += row.MonthlyItemCount;
             outsideItems += row.OutsideMonthlyItemCount;
             unclassifiedItems += row.UnclassifiedItemCount;
             amount = Add(amount, row.KnownAmount);
+            monthly = Add(monthly, row.MonthlyKnownAmount);
             outside = Add(outside, row.OutsideMonthlyKnownAmount);
             unclassified = Add(unclassified, row.UnclassifiedKnownAmount);
         }
 
-        return new CompanyTotalsResult(amount, missing, requests, outside, outsideItems, unclassified, unclassifiedItems);
+        return new CompanyTotalsResult(
+            amount, missing, requests, monthly, monthlyItems, outside, outsideItems, unclassified, unclassifiedItems);
     }
 
     /// <summary>Unknown money stays unknown: a null plus a null is a null, never a zero.</summary>
@@ -375,6 +416,8 @@ public sealed class MonthlyReportQueries(IBaxOrdersDbContext db)
         decimal? KnownAmount,
         int MissingPriceItemCount,
         int RequestCount,
+        decimal? MonthlyKnownAmount,
+        int MonthlyItemCount,
         decimal? OutsideMonthlyKnownAmount,
         int OutsideMonthlyItemCount,
         decimal? UnclassifiedKnownAmount,

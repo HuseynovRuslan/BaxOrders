@@ -1,3 +1,4 @@
+import type { AnalyticsScope } from './dashboard'
 import { getJson } from './client'
 import type { OrderRequestStatus } from './orders'
 
@@ -24,6 +25,9 @@ export interface MonthlyReportCell {
   itemCount: number
   missingPriceItemCount: number
   /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  /** What the month held of planned material. The composition of the month, never the scope it was read in. */
+  monthlyKnownAmount: number | null
+  monthlyItemCount: number
   outsideMonthlyKnownAmount: number | null
   outsideMonthlyItemCount: number
   /** Lines nobody has classified: in neither figure, shown so they are not lost. */
@@ -58,6 +62,9 @@ export interface MonthlyReportRow {
   knownAmount: number | null
   missingPriceItemCount: number
   /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  /** What the month held of planned material. The composition of the month, never the scope it was read in. */
+  monthlyKnownAmount: number | null
+  monthlyItemCount: number
   outsideMonthlyKnownAmount: number | null
   outsideMonthlyItemCount: number
   /** Lines nobody has classified: in neither figure, shown so they are not lost. */
@@ -78,6 +85,9 @@ export interface MonthlyReportMonth {
   knownAmount: number | null
   missingPriceItemCount: number
   /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  /** What the month held of planned material. The composition of the month, never the scope it was read in. */
+  monthlyKnownAmount: number | null
+  monthlyItemCount: number
   outsideMonthlyKnownAmount: number | null
   outsideMonthlyItemCount: number
   /** Lines nobody has classified: in neither figure, shown so they are not lost. */
@@ -98,6 +108,9 @@ export interface MonthlyReport {
   knownAmount: number | null
   missingPriceItemCount: number
   /** What this bought outside the month's plan. Factual spend, deliberately outside every comparison. */
+  /** What the month held of planned material. The composition of the month, never the scope it was read in. */
+  monthlyKnownAmount: number | null
+  monthlyItemCount: number
   outsideMonthlyKnownAmount: number | null
   outsideMonthlyItemCount: number
   /** Lines nobody has classified: in neither figure, shown so they are not lost. */
@@ -107,7 +120,7 @@ export interface MonthlyReport {
 }
 
 export function fetchMonthlyReport(
-  query: { year?: number; search?: string },
+  query: { year?: number; search?: string; scope?: AnalyticsScope },
   signal?: AbortSignal,
 ): Promise<MonthlyReport> {
   const params = new URLSearchParams()
@@ -117,6 +130,11 @@ export function fetchMonthlyReport(
 
   if (query.search) {
     params.set('search', query.search)
+  }
+
+  // Absent means the month's planned material, which is what a year read side by side is a comparison of.
+  if (query.scope && query.scope !== 'Monthly') {
+    params.set('scope', query.scope)
   }
 
   const suffix = params.toString()

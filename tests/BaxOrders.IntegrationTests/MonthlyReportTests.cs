@@ -575,8 +575,10 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
 
     // ---- fixture -------------------------------------------------------------------------------------
 
-    private static Task<MonthlyReportDto> ReportAsync(BaxOrdersDbContext db, int year, string? search = null) =>
-        new MonthlyReportQueries(db).GetAsync(new MonthlyReportQuery(year, search), None);
+    private static Task<MonthlyReportDto> ReportAsync(
+        BaxOrdersDbContext db, int year, string? search = null,
+        AnalyticsScope scope = AnalyticsScope.Monthly) =>
+        new MonthlyReportQueries(db).GetAsync(new MonthlyReportQuery(year, search, scope), None);
 
     // ---- what a comparison is allowed to read --------------------------------------------------------
 
@@ -651,6 +653,126 @@ public sealed class MonthlyReportTests(PostgresDatabaseFixture database)
         Assert.Equal(report.Rows.Sum(item => item.KnownAmount ?? 0m), report.KnownAmount);
         Assert.Equal(report.Rows.Sum(item => item.OutsideMonthlyKnownAmount ?? 0m), report.OutsideMonthlyKnownAmount);
         Assert.Equal(report.Rows.Sum(item => item.UnclassifiedKnownAmount ?? 0m), report.UnclassifiedKnownAmount);
+    }
+
+    /// <summary>
+    /// Asked about off-plan spending, the whole grid answers about that — the figures, the differences between
+    /// them and the averages built on them. A screen that scoped the cells and left the differences behind
+    /// would be showing one population under another one's arithmetic.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_outside_scope_answers_the_whole_grid_about_off_plan_spending()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var row = Row(await ReportAsync(db, 2026, scope: AnalyticsScope.OutsideMonthly), world.LocationId);
+
+        // 42 in May, 500 in June, nothing off-plan afterwards.
+        Assert.Equal(42m, row.Months[4].KnownAmount);
+        Assert.Equal(500m, row.Months[5].KnownAmount);
+        Assert.Null(row.Months[6].KnownAmount);
+
+        // The difference is between the two figures the grid now shows, not between the monthly ones.
+        Assert.Equal(458m, row.Months[5].DeltaAmount);
+        Assert.Equal(542m, row.KnownAmount);
+    }
+
+    /// <summary>The factual total is every line of the month, added from the three sides the cells show.</summary>
+    [PostgresFact]
+    public async Task The_factual_total_scope_adds_the_three_sides_the_cells_report()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var row = Row(await ReportAsync(db, 2026, scope: AnalyticsScope.All), world.LocationId);
+
+        Assert.Equal(42m, row.Months[4].KnownAmount);
+        Assert.Equal(600m, row.Months[5].KnownAmount);
+        Assert.Equal(100m, row.Months[6].KnownAmount);
+        Assert.Equal(107m, row.Months[7].KnownAmount);
+        Assert.Equal(849m, row.KnownAmount);
+    }
+
+    /// <summary>
+    /// The split beside a cell describes the month, not the question the reader asked, so it is the same
+    /// whichever scope the grid is read in — exactly as the dashboard's own split is.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_months_own_split_does_not_move_with_the_scope()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var monthly = Row(await ReportAsync(db, 2026), world.LocationId).Months[5];
+        var outside = Row(await ReportAsync(db, 2026, scope: AnalyticsScope.OutsideMonthly), world.LocationId).Months[5];
+        var all = Row(await ReportAsync(db, 2026, scope: AnalyticsScope.All), world.LocationId).Months[5];
+
+        foreach (var june in new[] { monthly, outside, all })
+        {
+            Assert.Equal(500m, june.OutsideMonthlyKnownAmount);
+            Assert.Equal(1, june.OutsideMonthlyItemCount);
+        }
+
+        // And the three really are three different questions, or the assertion above holds for the wrong reason.
+        Assert.Equal(100m, monthly.KnownAmount);
+        Assert.Equal(500m, outside.KnownAmount);
+        Assert.Equal(600m, all.KnownAmount);
+    }
+
+    /// <summary>
+    /// «Qeyri-adi ay» is a judgement about the figure the grid is showing, so it is made over that figure's own
+    /// history. The same August is ordinary among three ordinary months of planned material and stands out among
+    /// three very unequal months of total spending — because those are two different questions.
+    /// </summary>
+    [PostgresFact]
+    public async Task An_unusual_month_is_unusual_about_the_figure_the_grid_shows()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var monthly = Row(await ReportAsync(db, 2026), world.LocationId).Months[7];
+        var all = Row(await ReportAsync(db, 2026, scope: AnalyticsScope.All), world.LocationId).Months[7];
+
+        // Planned material: 100 in June, July and August. Only two months stand before August, and two months
+        // are not a pattern to stand out from, so there is deliberately no verdict at all.
+        Assert.Equal(100m, monthly.KnownAmount);
+        Assert.Null(monthly.RecentAverageKnownAmount);
+        Assert.False(monthly.IsUnusual);
+
+        // Everything: 42, 600 and 100 before an August of 107. The average is 247,33 and August is 56,74% under
+        // it — the same month, a different question, a different answer.
+        Assert.Equal(107m, all.KnownAmount);
+        Assert.Equal(247.33m, all.RecentAverageKnownAmount);
+        Assert.Equal(-56.74m, all.RecentAveragePercent);
+        Assert.True(all.IsUnusual);
+    }
+
+    /// <summary>
+    /// The month's own composition — planned, off-plan, unclassified — reported whatever the grid was asked
+    /// about, so the reader can see what the headline figure is a part of without changing the question.
+    /// </summary>
+    [PostgresFact]
+    public async Task Every_cell_reports_the_months_composition_in_full()
+    {
+        await using var db = database.CreateContext();
+        var world = await LineTypeWorldAsync(db);
+
+        var june = Row(await ReportAsync(db, 2026, scope: AnalyticsScope.OutsideMonthly), world.LocationId).Months[5];
+
+        // Asked about off-plan spending, the cell shows 500 — and still says the month also held 100 of plan.
+        Assert.Equal(500m, june.KnownAmount);
+        Assert.Equal(100m, june.MonthlyKnownAmount);
+        Assert.Equal(1, june.MonthlyItemCount);
+        Assert.Equal(500m, june.OutsideMonthlyKnownAmount);
+
+        // And the three add up to the month, on the row and on the company, however the grid was read.
+        var report = await ReportAsync(db, 2026, scope: AnalyticsScope.OutsideMonthly);
+        var row = Row(report, world.LocationId);
+        Assert.Equal(300m, row.MonthlyKnownAmount);
+        Assert.Equal(542m, row.OutsideMonthlyKnownAmount);
+        Assert.Equal(7m, row.UnclassifiedKnownAmount);
+        Assert.Equal(report.Rows.Sum(item => item.MonthlyKnownAmount ?? 0m), report.MonthlyKnownAmount);
     }
 
     /// <summary>A month of nothing but one-off purchases has no monthly figure — unknown demand, not zero demand.</summary>

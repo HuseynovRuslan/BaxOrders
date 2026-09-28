@@ -38,6 +38,8 @@ function cell(month: number, overrides: Partial<MonthlyReportCell> = {}): Monthl
     recentAveragePercent: null,
     isUnusual: false,
     isHistoricalImport: false,
+    monthlyKnownAmount: null,
+    monthlyItemCount: 0,
     outsideMonthlyKnownAmount: null,
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
@@ -72,6 +74,8 @@ function row(overrides: Partial<MonthlyReportRow> = {}): MonthlyReportRow {
     missingPriceItemCount: 0,
     monthsWithoutRequest: months.filter((month) => month.orderRequestId === null).length,
     hasAnyRequest: true,
+    monthlyKnownAmount: null,
+    monthlyItemCount: 0,
     outsideMonthlyKnownAmount: null,
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
@@ -90,6 +94,8 @@ function companyMonth(month: number, overrides: Partial<MonthlyReportMonth> = {}
     knownAmount: 1000,
     missingPriceItemCount: 0,
     amountIsComplete: true,
+    monthlyKnownAmount: null,
+    monthlyItemCount: 0,
     outsideMonthlyKnownAmount: null,
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
@@ -110,6 +116,8 @@ function report(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
     knownAmount: 431670.91,
     missingPriceItemCount: 0,
     amountIsComplete: true,
+    monthlyKnownAmount: null,
+    monthlyItemCount: 0,
     outsideMonthlyKnownAmount: null,
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
@@ -161,7 +169,7 @@ async function renderPage(url = '/dashboard/monthly') {
       </MemoryRouter>
     </StrictMode>,
   )
-  await screen.findByRole('group', { name: 'İlin xülasəsi' })
+  await screen.findByRole('region', { name: 'İlin xülasəsi' })
 }
 
 function table() {
@@ -250,7 +258,7 @@ describe('the controls', () => {
     await renderPage('/dashboard/monthly?year=2025&search=meydan')
 
     expect(reportsApi.fetchMonthlyReport).toHaveBeenCalledWith(
-      { year: 2025, search: 'meydan' },
+      { year: 2025, search: 'meydan', scope: 'Monthly' },
       expect.anything(),
     )
   })
@@ -260,7 +268,7 @@ describe('the controls', () => {
     await renderPage('/dashboard/monthly?search=meydan')
 
     expect(screen.getByText('1 / 26 obyekt')).toBeInTheDocument()
-    const summary = screen.getByRole('group', { name: 'İlin xülasəsi' })
+    const summary = screen.getByRole('region', { name: 'İlin xülasəsi' })
     expect(within(summary).getByText('26')).toBeInTheDocument()
   })
 })
@@ -591,7 +599,7 @@ describe('the panorama', () => {
         <MonthlyReportPage />
       </MemoryRouter>,
     )
-    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+    await screen.findByRole('region', { name: 'İlin xülasəsi' })
 
     expect(container.querySelector('[class*="-mx-"]')).toBeNull()
   })
@@ -1241,7 +1249,7 @@ describe('coming back from an order', () => {
   }
 
   async function loaded() {
-    await screen.findByRole('group', { name: 'İlin xülasəsi' })
+    await screen.findByRole('region', { name: 'İlin xülasəsi' })
   }
 
   async function goBack() {
@@ -1333,7 +1341,7 @@ describe('coming back from an order', () => {
     expect(searchBox()).toHaveValue('Novxan')
     expect(reportsApi.fetchMonthlyReport).toHaveBeenCalled()
     for (const [query] of reportsApi.fetchMonthlyReport.mock.calls) {
-      expect(query).toEqual({ year: undefined, search: 'Novxan' })
+      expect(query).toEqual({ year: undefined, search: 'Novxan', scope: 'Monthly' })
     }
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
     expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-21')
@@ -1350,7 +1358,7 @@ describe('coming back from an order', () => {
     await goBack()
 
     expect(searchBox()).toHaveValue('Novxan')
-    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan' }, expect.anything())
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan', scope: 'Monthly' }, expect.anything())
     const url = address()
     expect(new URLSearchParams(url.split('?')[1]).get('search')).toBe('Novxan')
     first.unmount()
@@ -1361,7 +1369,7 @@ describe('coming back from an order', () => {
     await loaded()
 
     expect(searchBox()).toHaveValue('Novxan')
-    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan' }, expect.anything())
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan', scope: 'Monthly' }, expect.anything())
     expect(address()).toBe('/dashboard/monthly?search=Novxan')
   })
 
@@ -1397,27 +1405,61 @@ describe('coming back from an order', () => {
 
 /**
  * The grid compares months, and a month-on-month comparison only means something about material the company
- * orders every month. So the headline names which money it is, the one-off spend sits beside it as its own
- * fact, and the factual total is offered once — a manager should not have to add two numbers in their head.
+ * orders every month. So the headline is the figure the reader asked for, named in those words, and what the
+ * year was made of sits under it — nothing lost, nothing competing with the answer.
  */
 describe('the three kinds of money', () => {
   /** A metric of the year summary, read by the label above it. */
   function metric(label: string) {
-    const summary = screen.getByRole('group', { name: 'İlin xülasəsi' })
+    const summary = screen.getByRole('region', { name: 'İlin xülasəsi' })
     return within(summary).getByText(label).closest('div') as HTMLElement
   }
 
-  it('heads the year with the monthly amount, the outside one and the two together', async () => {
+  it('heads the year with one figure, in the words of the scope it was read in', async () => {
     reportsApi.fetchMonthlyReport.mockResolvedValue(report({
       knownAmount: 428000,
+      monthlyKnownAmount: 428000,
+      monthlyItemCount: 3293,
       outsideMonthlyKnownAmount: 3051.16,
       outsideMonthlyItemCount: 325,
     }))
     await renderPage()
 
-    expect(metric('Aylıq sifarişlərin məbləği')).toHaveTextContent('428.000,00 ₼')
-    expect(metric('Aylıqdan kənar məbləğ')).toHaveTextContent('3.051,16 ₼')
-    expect(metric('Aylıqdan kənar məbləğ')).toHaveTextContent('325 sətir')
+    const summary = screen.getByRole('region', { name: 'İlin xülasəsi' })
+    expect(within(summary).getByRole('heading', { name: 'Aylıq sifarişlərin məbləği' })).toBeInTheDocument()
+    // One number at headline size. The other two are in the composition below it, not beside it.
+    expect(within(summary).getAllByText('428.000,00 ₼')).toHaveLength(2)
+  })
+
+  it('says what the year was made of, under the figure rather than against it', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+      knownAmount: 428000,
+      monthlyKnownAmount: 428000,
+      monthlyItemCount: 3293,
+      outsideMonthlyKnownAmount: 3051.16,
+      outsideMonthlyItemCount: 325,
+    }))
+    await renderPage()
+
+    expect(metric('Aylıq sifarişlər')).toHaveTextContent('428.000,00 ₼')
+    expect(metric('Aylıqdan Kənar sifarişlər')).toHaveTextContent('3.051,16 ₼')
+    expect(metric('Ümumi faktiki xərc')).toHaveTextContent('431.051,16 ₼')
+  })
+
+  it('keeps the composition of the year itself, whichever scope the grid was read in', async () => {
+    // Read about off-plan spending the headline is 3 051,16 — and the year still held 428 000 of plan.
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report({
+      knownAmount: 3051.16,
+      monthlyKnownAmount: 428000,
+      monthlyItemCount: 3293,
+      outsideMonthlyKnownAmount: 3051.16,
+      outsideMonthlyItemCount: 325,
+    }))
+    await renderPage('/dashboard/monthly?scope=OutsideMonthly')
+
+    const summary = screen.getByRole('region', { name: 'İlin xülasəsi' })
+    expect(within(summary).getByRole('heading', { name: 'Aylıqdan kənar xərclər' })).toBeInTheDocument()
+    expect(metric('Aylıq sifarişlər')).toHaveTextContent('428.000,00 ₼')
     expect(metric('Ümumi faktiki xərc')).toHaveTextContent('431.051,16 ₼')
   })
 
@@ -1438,5 +1480,46 @@ describe('the three kinds of money', () => {
     const note = screen.getByText(/1 sətir təsnif edilməyib/)
     expect(note).toHaveTextContent('28,00 ₼')
     expect(note).toHaveTextContent('Nə aylıq müqayisəyə, nə də aylıqdan kənar məbləğə daxil deyil')
+  })
+})
+
+/**
+ * The same three questions the dashboard asks, in the same words. A manager who scopes one screen and moves to
+ * the other must not have to work out whether the two mean the same thing.
+ */
+describe('which lines the year is about', () => {
+  it('opens on the planned material, and asks the server for nothing else', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report())
+    await renderPage()
+
+    expect(screen.getByRole('button', { name: 'Aylıq sifarişlər' })).toHaveAttribute('aria-pressed', 'true')
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: 'Monthly' }), expect.anything())
+  })
+
+  it('asks again about the scope the reader chose, and keeps it in the address', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report())
+    await renderPage()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Aylıqdan kənar' }))
+
+    await waitFor(() => expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: 'OutsideMonthly' }), expect.anything()))
+  })
+
+  it('opens on the scope a pasted link carries', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report())
+    await renderPage('/dashboard/monthly?scope=All')
+
+    expect(screen.getByRole('button', { name: 'Hamısı' })).toHaveAttribute('aria-pressed', 'true')
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: 'All' }), expect.anything())
+  })
+
+  it('falls back to the planned material when the address says something it does not know', async () => {
+    reportsApi.fetchMonthlyReport.mockResolvedValue(report())
+    await renderPage('/dashboard/monthly?scope=Nonsense')
+
+    expect(screen.getByRole('button', { name: 'Aylıq sifarişlər' })).toHaveAttribute('aria-pressed', 'true')
   })
 })

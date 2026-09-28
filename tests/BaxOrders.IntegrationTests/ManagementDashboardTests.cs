@@ -520,6 +520,7 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
         void AssertSameSummary(ManagementDashboardSummaryDto expected, ManagementDashboardSummaryDto actual)
         {
             Assert.Equal(expected.BaselinePeriods, actual.BaselinePeriods);
+            Assert.Equal(expected.Trend, actual.Trend);
             Assert.Equal(expected.Partition.LocationCount, actual.Partition.LocationCount);
             Assert.Equal(expected.Partition.ComparableLocationCount, actual.Partition.ComparableLocationCount);
             Assert.Equal(expected.Partition.Compared, actual.Partition.Compared);
@@ -527,8 +528,8 @@ public sealed class ManagementDashboardTests(PostgresDatabaseFixture database)
             Assert.Equal(expected.Partition.NoBaseline, actual.Partition.NoBaseline);
             Assert.Equal(expected.Partition.NoHistory, actual.Partition.NoHistory);
             Assert.Equal(
-                expected with { BaselinePeriods = [], Partition = blank },
-                actual with { BaselinePeriods = [], Partition = blank });
+                expected with { BaselinePeriods = [], Partition = blank, Trend = [] },
+                actual with { BaselinePeriods = [], Partition = blank, Trend = [] });
         }
 
         AssertSameSummary(everything!.Summary, onePage!.Summary);

@@ -1,29 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { fetchMonthlyReport, type MonthlyReport } from '../api/reports'
+import type { AnalyticsScope } from '../api/dashboard'
+import { isScope } from '../analytics/scope'
+import { ScopeSelector } from '../components/analytics/ScopeSelector'
 import { ApiError } from '../api/client'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
-import { amountIncompleteLabel, missingPriceShortLabel } from '../pricing/labels'
-import { SummaryMetric } from '../components/SummaryMetric'
 import { formatCount, formatMoney } from '../components/analytics/format'
 import { MonthlyReportTable, MonthlyReportYearList } from '../components/reports/MonthlyReportTable'
+import { ReportHeadline } from '../components/reports/ReportHeadline'
 import { useScrollMemory } from '../navigation/useScrollMemory'
-import {
-  combinedSpendLabel,
-  monthlyAmountLabel,
-  outsideMonthlyAmountLabel,
-  unclassifiedOutsideAnalyticsNote,
-} from '../orderLines/lineType'
-
-/**
- * What the company actually spent: the monthly money, the one-off money and the lines nobody classified added
- * together. Unknown money stays unknown — a year with nothing priced at all has no total, not a zero.
- */
-function combined(report: MonthlyReport): number | null {
-  const parts = [report.knownAmount, report.outsideMonthlyKnownAmount, report.unclassifiedKnownAmount]
-  return parts.every((part) => part === null) ? null : parts.reduce<number>((sum, part) => sum + (part ?? 0), 0)
-}
+import { unclassifiedOutsideAnalyticsNote } from '../orderLines/lineType'
 
 type State =
   | { status: 'loading' }
@@ -43,18 +31,22 @@ export function MonthlyReportPage() {
 
   const year = Number(params.get('year')) || undefined
   const search = params.get('search') ?? ''
+  // The same three questions the dashboard asks, in the same words, so a reader moving between the two screens
+  // does not have to work out whether they mean the same thing.
+  const scopeParam = params.get('scope')
+  const scope: AnalyticsScope = isScope(scopeParam) ? scopeParam : 'Monthly'
 
   // The key discards a stale answer; it never skips the request. Guarding the fetch itself would deadlock
   // under StrictMode, whose second pass would see the key already set and never ask for anything.
   const lastKey = useRef('')
 
   useEffect(() => {
-    const key = `${year ?? ''}|${search}`
+    const key = `${year ?? ''}|${search}|${scope}`
     lastKey.current = key
     const controller = new AbortController()
     setState({ status: 'loading' })
 
-    fetchMonthlyReport({ year, search: search || undefined }, controller.signal)
+    fetchMonthlyReport({ year, search: search || undefined, scope }, controller.signal)
       .then((data) => {
         if (lastKey.current === key) {
           setState({ status: 'success', data })
@@ -70,7 +62,7 @@ export function MonthlyReportPage() {
       })
 
     return () => controller.abort()
-  }, [year, search])
+  }, [year, search, scope])
 
   function update(changes: Record<string, string | undefined>) {
     const next = new URLSearchParams(params)
@@ -128,6 +120,11 @@ export function MonthlyReportPage() {
           />
         </form>
 
+        <ScopeSelector
+          value={scope}
+          onChange={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
+        />
+
         {data && data.filteredLocationCount !== data.locationCount && (
           <p className="ml-auto text-xs text-slate-500">
             {formatCount(data.filteredLocationCount)} / {formatCount(data.locationCount)} obyekt
@@ -139,26 +136,7 @@ export function MonthlyReportPage() {
 
       {data && (
         <>
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="İlin xülasəsi">
-          {/* The month-on-month grid below reads monthly lines alone, so the headline says which money it is.
-              The one-off spend sits beside it as its own fact, and the factual total is offered once so nobody
-              has to add the two in their head. */}
-          <SummaryMetric label={monthlyAmountLabel} value={formatMoney(data.knownAmount)} size="lg" />
-          <SummaryMetric
-            label={outsideMonthlyAmountLabel}
-            value={formatMoney(data.outsideMonthlyKnownAmount)}
-            note={data.outsideMonthlyItemCount > 0 ? `${formatCount(data.outsideMonthlyItemCount)} sətir` : undefined}
-          />
-          <SummaryMetric label={combinedSpendLabel} value={formatMoney(combined(data))} />
-          <SummaryMetric label="Sifariş" value={formatCount(data.requestCount)} />
-          <SummaryMetric label="Obyekt" value={formatCount(data.locationCount)} />
-          <SummaryMetric
-            label={missingPriceShortLabel}
-            value={formatCount(data.missingPriceItemCount)}
-            noteAttention={data.missingPriceItemCount > 0}
-            note={data.missingPriceItemCount > 0 ? amountIncompleteLabel : undefined}
-          />
-        </div>
+        <ReportHeadline report={data} scope={scope} />
 
         {data.unclassifiedItemCount > 0 && (
           <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
