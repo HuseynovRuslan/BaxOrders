@@ -1105,3 +1105,43 @@ describe('how deep the reader wants to go', () => {
     expect(screen.queryByRole('group', { name: 'Ayın xülasəsi' })).not.toBeInTheDocument()
   })
 })
+
+/**
+ * Brief acceptance: LOOK → UNDERSTAND → CLICK FOR DETAIL. The third step is a drawer, so the reader who wants
+ * to know how a line was arrived at never loses the screen they were reading.
+ */
+describe('the detail beside the page', () => {
+  it('opens the decomposition of the object from the line that raised the question', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — təfərrüat' }))
+
+    const drawer = await screen.findByRole('dialog')
+    expect(within(drawer).getByRole('region', { name: 'Rəqəmlər' })).toHaveTextContent('1.000,00 ₼')
+    expect(within(drawer).getByRole('region', { name: 'Niyə dəyişib?' })).toHaveTextContent('Miqdar artımı')
+  })
+
+  it('leaves the screen it was opened from where it was', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — təfərrüat' }))
+    await screen.findByRole('dialog')
+
+    // The list and the table are still there behind it: this is a detail, not a page.
+    expect(screen.getByRole('region', { name: 'Nə dəyişdi?' })).toBeInTheDocument()
+    expect(locationsTable()).toBeInTheDocument()
+  })
+
+  it('closes and gives the page back', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — təfərrüat' }))
+    await screen.findByRole('dialog')
+    await user.click(screen.getByRole('button', { name: 'Bağla' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})

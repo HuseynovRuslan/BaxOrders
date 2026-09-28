@@ -35,6 +35,7 @@ import { ExecutiveHeadline } from '../components/dashboard/ExecutiveHeadline'
 import { SpendSplitBar } from '../components/dashboard/SpendSplitBar'
 import { SpendTrend } from '../components/dashboard/SpendTrend'
 import { WhatChangedList } from '../components/dashboard/WhatChangedList'
+import { ChangeDetailDrawer } from '../components/dashboard/ChangeDetailDrawer'
 import { ScopeSelector } from '../components/analytics/ScopeSelector'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
@@ -118,6 +119,10 @@ export function ManagementDashboardPage() {
   const [searchInput, setSearchInput] = useState(search)
   // The month's ad-hoc lines, opened from the figure that names them on the headline.
   const [outsideMonthlyOpen, setOutsideMonthlyOpen] = useState(false)
+
+  // Which object's decomposition is open beside the page, by id rather than by row: the answer is refetched on
+  // every basis and period, and holding the row itself would leave the drawer showing the month before.
+  const [detailLocationId, setDetailLocationId] = useState<number | null>(null)
   useEffect(() => setSearchInput(search), [search])
 
   useEffect(() => {
@@ -207,6 +212,14 @@ export function ManagementDashboardPage() {
 
   const data = dashboard.data
   const shownSelection = dashboard.selection ?? selection
+
+  // The attention list first, because that is what opens the drawer; the table next, so a row opened from a
+  // page the object is on works too. Not found in either — a new basis dropped it — and the drawer closes.
+  const detailRow = detailLocationId === null || data === null
+    ? null
+    : data.attention.find((item) => item.location.locationId === detailLocationId)?.location
+      ?? data.rows.items.find((row) => row.locationId === detailLocationId)
+      ?? null
   const root = useScrollMemory<HTMLDivElement>(data !== null)
 
   function update(changes: Record<string, string | undefined>, resetPage = true) {
@@ -343,6 +356,21 @@ export function ManagementDashboardPage() {
                 onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
               />
             )}
+            {/*
+              The object's own decomposition, beside the page rather than instead of it. Looked up in the answer
+              on screen, so a drawer left open across a change of basis shows the month the page is showing or
+              closes itself — never a figure from the answer before.
+            */}
+            {detailRow && (
+              <ChangeDetailDrawer
+                row={detailRow}
+                basis={data.summary.basis}
+                baselinePeriods={data.summary.baselinePeriods}
+                selection={shownSelection}
+                onClose={() => setDetailLocationId(null)}
+              />
+            )}
+
             {outsideMonthlyOpen && (
               <OutsideMonthlyPanel
                 period={data.summary.selectedPeriod.slice(0, 7)}
@@ -357,6 +385,7 @@ export function ManagementDashboardPage() {
                   attention={data.attention}
                   summary={data.summary}
                   selection={shownSelection}
+                  onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
                 />
               ) : (
                 <AttentionSection attention={data.attention} summary={data.summary} selection={shownSelection} />
