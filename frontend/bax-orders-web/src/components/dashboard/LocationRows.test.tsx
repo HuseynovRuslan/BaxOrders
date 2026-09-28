@@ -143,6 +143,7 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
     insufficientHistoryVariantCount: 0,
     amountOrientedServiceCount: 0,
     lineTypes: monthlyOnly(amount()),
+    trend: [],
   }
 
   return { ...base, lineTypes: monthlyOnly(base.current) }

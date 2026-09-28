@@ -85,6 +85,7 @@ function summary(overrides: Partial<ManagementDashboardSummary> = {}): Managemen
     insufficientHistoryVariantCount: 0,
     amountOrientedServiceCount: 0,
     lineTypes: monthlyOnly(amount()),
+    trend: [],
     ...overrides,
   }
 

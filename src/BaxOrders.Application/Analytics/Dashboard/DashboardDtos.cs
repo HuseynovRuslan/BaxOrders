@@ -64,6 +64,33 @@ public sealed record DashboardLineTypeSplitDto(
     DashboardAmountDto Unclassified,
     int UnclassifiedItemCount);
 
+/// <summary>
+/// One month of the company, in the scope the screen is about.
+/// </summary>
+/// <remarks>
+/// This is the whole company and not the cohort: it answers "is this month unusual for us", a question about
+/// the shape of a year rather than about one comparison, and narrowing it to the objects that happen to be
+/// comparable this month would make each point mean something different from the one beside it.
+/// </remarks>
+/// <param name="KnownAmount">
+/// Money over the priced lines of the month, rounded per object exactly as everywhere else. Null where nothing
+/// in the month is priced — a month whose prices have not been entered is not a month of zero.
+/// </param>
+/// <param name="LocationCount">
+/// How many objects ordered in that month at all, in this scope. A line that climbs because the company took
+/// on more objects is a different fact from one that climbs because each object ordered more, and the reader
+/// can only tell them apart if this is here.
+/// </param>
+/// <param name="MissingPriceItemCount">
+/// Lines somebody still owes a price for. A point standing on them is lower than the month really was, and
+/// the screen says so rather than drawing it as settled.
+/// </param>
+public sealed record DashboardTrendPointDto(
+    DateOnly Period,
+    decimal? KnownAmount,
+    int LocationCount,
+    int MissingPriceItemCount);
+
 /// <summary>What one location's selected month looks like beside its own history.</summary>
 /// <param name="HasCurrentRequest">
 /// False for an object that has ordered before but not this month. Its current money stays null: an object
@@ -209,7 +236,8 @@ public sealed record ManagementDashboardSummaryDto(
     int NoLongerOrderedVariantCount,
     int InsufficientHistoryVariantCount,
     int AmountOrientedServiceCount,
-    DashboardLineTypeSplitDto LineTypes);
+    DashboardLineTypeSplitDto LineTypes,
+    IReadOnlyList<DashboardTrendPointDto> Trend);
 
 /// <param name="FilteredLocationCount">
 /// How many locations the search and filters left. The summary above is unaffected by them.

@@ -33,6 +33,7 @@ import { readView, viewParam, type DashboardView } from '../analytics/dashboardV
 import { ViewSelector } from '../components/analytics/ViewSelector'
 import { ExecutiveHeadline } from '../components/dashboard/ExecutiveHeadline'
 import { SpendSplitBar } from '../components/dashboard/SpendSplitBar'
+import { SpendTrend } from '../components/dashboard/SpendTrend'
 import { ScopeSelector } from '../components/analytics/ScopeSelector'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
@@ -320,10 +321,19 @@ export function ManagementDashboardPage() {
               <>
                 <ExecutiveHeadline summary={data.summary} scope={scope} />
                 {/*
-                  Only here. The detailed headline carries its own split in a line of text; the simple view gets
-                  the same three figures as a shape, because that is the one the eye reads without stopping.
+                  Only here: the detailed headline carries the split in a line of text, and the simple view
+                  gets the same figures as a shape, which is what the eye reads without stopping. Side by side
+                  from a laptop, stacked on a phone — and the spacing lives on the two cards rather than on the
+                  grid, so a month with neither of them to show leaves no empty band behind.
                 */}
-                <SpendSplitBar summary={data.summary} onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)} />
+                <div className="grid gap-x-3 lg:grid-cols-2">
+                  <SpendSplitBar summary={data.summary} onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)} />
+                  <SpendTrend
+                    trend={data.summary.trend}
+                    scope={scope}
+                    selectedPeriod={data.summary.selectedPeriod}
+                  />
+                </div>
               </>
             ) : (
               <DashboardHeadline

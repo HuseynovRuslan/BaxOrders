@@ -217,6 +217,20 @@ export function formatMonth(period: string): string {
   return `${monthNames[Number(month) - 1] ?? month} ${year}`
 }
 
+const shortMonthNames = [
+  'Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn',
+  'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek',
+]
+
+/**
+ * "2026-07-01" → "İyl". For an axis of several months, where the full name would not fit and does not need to:
+ * the reader is looking at the shape, and the whole range is named once above it.
+ */
+export function formatShortMonth(period: string): string {
+  const month = Number(period.split('-')[1])
+  return shortMonthNames[month - 1] ?? period
+}
+
 /** The `yyyy-MM` the analytics API speaks, from either form. */
 export function toMonthKey(period: string): string {
   return period.slice(0, 7)

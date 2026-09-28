@@ -187,6 +187,7 @@ function summary(): ManagementDashboardSummary {
     insufficientHistoryVariantCount: 0,
     amountOrientedServiceCount: 0,
     lineTypes: monthlyOnly(amount()),
+    trend: [],
   }
 
   return { ...base, lineTypes: monthlyOnly(base.current) }

@@ -247,6 +247,24 @@ export interface ManagementDashboardSummary {
    * is about monthly lines alone; this is where the rest of the month is accounted for.
    */
   lineTypes: DashboardLineTypeSplit
+  /**
+   * The last six months the company ordered in, oldest first, ending at the selected one — and in the selected
+   * scope, so the line is about the same population as everything above it. Empty where there is only one
+   * month: a single point is not a trend.
+   */
+  trend: DashboardTrendPoint[]
+}
+
+/** One month of the company, for reading the selected one against the run of them. */
+export interface DashboardTrendPoint {
+  /** The month, as an ISO date on its first day. */
+  period: string
+  /** Null where nothing in the month is priced — a month of unentered prices is not a month of zero. */
+  knownAmount: number | null
+  /** Objects that ordered in that month, in this scope. More objects is not more ordering. */
+  locationCount: number
+  /** Lines still owed a price, so a point that stands on them can say it is lower than the month was. */
+  missingPriceItemCount: number
 }
 
 export interface ManagementDashboard {

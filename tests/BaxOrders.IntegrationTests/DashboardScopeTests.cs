@@ -109,6 +109,78 @@ public sealed class DashboardScopeTests(PostgresDatabaseFixture database)
     }
 
     /// <summary>
+    /// Half a year, ending at the month on the screen and never running past it.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_trend_ends_at_the_selected_month_and_carries_at_most_half_a_year()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var trend = (await SummaryAsync(db, world, AnalyticsScope.Monthly)).Trend;
+
+        Assert.InRange(trend.Count, 2, 6);
+        Assert.Equal(July, trend[^1].Period);
+        Assert.All(trend, point => Assert.True(point.Period <= July));
+    }
+
+    /// <summary>
+    /// Months the company ordered in, in order, each one once. A calendar count backwards would invent months
+    /// the company never had and draw the line through them.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_trend_is_made_of_months_the_company_actually_ordered_in()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var trend = (await SummaryAsync(db, world, AnalyticsScope.Monthly)).Trend;
+        var ordered = await db.OrderRequests.AsNoTracking()
+            .Select(request => request.RequestPeriod)
+            .Distinct()
+            .ToListAsync(None);
+
+        Assert.Equal(trend.Select(point => point.Period).Order(), trend.Select(point => point.Period));
+        Assert.Equal(trend.Select(point => point.Period).Distinct().Count(), trend.Count);
+        Assert.All(trend, point => Assert.Contains(point.Period, ordered));
+    }
+
+    /// <summary>
+    /// The line follows the scope. A line of monthly demand and a line of total expenditure are two different
+    /// stories, and drawing either under the other's name is exactly the mistake the comparison avoids.
+    /// </summary>
+    [PostgresFact]
+    public async Task The_trend_follows_the_scope_it_was_asked_about()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var monthly = (await SummaryAsync(db, world, AnalyticsScope.Monthly)).Trend.Single(point => point.Period == July);
+        var all = (await SummaryAsync(db, world, AnalyticsScope.All)).Trend.Single(point => point.Period == July);
+
+        // The company-wide figures also carry every other fixture of this suite, so the claim is the gap and
+        // not the totals: July's off-plan 900 and unclassified 7 are in one line and out of the other.
+        Assert.NotNull(monthly.KnownAmount);
+        Assert.NotNull(all.KnownAmount);
+        Assert.True(all.KnownAmount - monthly.KnownAmount >= 907m);
+    }
+
+    /// <summary>
+    /// A point says how many objects stand behind it, because a line that climbs on more objects is a different
+    /// fact from one that climbs on more ordering, and nothing else on the screen would tell them apart.
+    /// </summary>
+    [PostgresFact]
+    public async Task A_trend_point_carries_the_objects_that_ordered_in_it()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var july = (await SummaryAsync(db, world, AnalyticsScope.Monthly)).Trend.Single(point => point.Period == July);
+
+        Assert.True(july.LocationCount >= 1);
+    }
+
+    /// <summary>
     /// The location's own row, which the search really does narrow — the summary describes the whole company,
     /// and every other fixture in this suite orders in it too.
     /// </summary>

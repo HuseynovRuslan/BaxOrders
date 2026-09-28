@@ -49,6 +49,12 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
 
     /// <summary>A baseline small enough that its percentage says more about the divisor than the change.</summary>
     private const decimal MeaningfulBaseline = 100m;
+
+    /// <summary>
+    /// How many months the trend carries. Half a year is enough for a reader to see whether this month is
+    /// ordinary, and few enough that the line stays a shape rather than a chart to be studied.
+    /// </summary>
+    private const int TrendPeriods = 6;
     public const int MaxPageSize = 100;
 
     /// <summary>The months the company has permanent orders for, newest first.</summary>
@@ -150,7 +156,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         // above, which sees monthly lines only, so the three figures add up to the month rather than to the
         // part of it that is comparable.
         var lineTypes = await LineTypeSplitAsync(currentPeriod, requestIds, cancellationToken);
-        var summary = Summarize(currentPeriod, selection, baselinePeriods, rows, groups, lastOrders, lineTypes);
+        var trend = await TrendAsync(currentPeriod, query.Scope, cancellationToken);
+        var summary = Summarize(
+            currentPeriod, selection, baselinePeriods, rows, groups, lastOrders, lineTypes, trend);
 
         var filtered = Sort(Filter(rows, groups, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
@@ -484,6 +492,73 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             Of(OrderLineType.Monthly), Of(OrderLineType.OutsideMonthly), unclassified, unclassified.ItemCount);
     }
 
+    /// <summary>
+    /// The last few months of the company, so one month can be read against the run of them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The months are the ones the company actually ordered in, newest first and then reversed — never a
+    /// calendar count back from the selected month, which would invent empty months the company never had.
+    /// </para>
+    /// <para>
+    /// It follows the scope, because a line of monthly demand and a line of total expenditure are two
+    /// different stories and drawing either under the other's name would be the same mistake the comparison
+    /// takes such care to avoid.
+    /// </para>
+    /// <para>
+    /// Highest version per object and month, as everywhere else: a superseded draft is not a month.
+    /// </para>
+    /// </remarks>
+    private async Task<List<DashboardTrendPointDto>> TrendAsync(
+        DateOnly currentPeriod, AnalyticsScope scope, CancellationToken cancellationToken)
+    {
+        var periods = await db.OrderRequests.AsNoTracking()
+            .Where(request => request.RequestPeriod <= currentPeriod)
+            .Select(request => request.RequestPeriod)
+            .Distinct()
+            .OrderByDescending(period => period)
+            .Take(TrendPeriods)
+            .ToListAsync(cancellationToken);
+
+        // One point is not a trend, and drawing it as one would invite a reading of a line that does not exist.
+        if (periods.Count < 2)
+        {
+            return [];
+        }
+
+        var rows = await db.OrderRequestItems.AsNoTracking()
+            .InScope(scope)
+            .Where(item => periods.Contains(item.OrderRequest.RequestPeriod)
+                && !db.OrderRequests.Any(other =>
+                    other.LocationId == item.OrderRequest.LocationId
+                    && other.RequestPeriod == item.OrderRequest.RequestPeriod
+                    && other.Version > item.OrderRequest.Version))
+            .GroupBy(item => new { item.OrderRequest.RequestPeriod, item.OrderRequest.LocationId })
+            .Select(group => new
+            {
+                group.Key.RequestPeriod,
+                KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
+                MissingPriceItemCount = group.Count(item => item.UnitPrice == null
+                    && item.PricingMode != PricingMode.InternalFreeSupply),
+                KnownAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
+            })
+            .ToListAsync(cancellationToken);
+
+        return periods
+            .Order()
+            .Select(period =>
+            {
+                var side = rows.Where(row => row.RequestPeriod == period).ToList();
+                var known = side.Sum(row => row.KnownPriceItemCount);
+                return new DashboardTrendPointDto(
+                    period,
+                    known == 0 ? null : side.Sum(row => PortfolioCohort.Money(row.KnownAmount)),
+                    side.Count,
+                    side.Sum(row => row.MissingPriceItemCount));
+            })
+            .ToList();
+    }
+
     /// <remarks>
     /// The lines of the asked-for scope, and nothing else — see <see cref="MonthlyComparisonPopulation"/>.
     /// Everything built from these snapshots is comparative, so on the default scope a one-off purchase
@@ -718,7 +793,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         IReadOnlyList<LocationDashboardRowDto> rows,
         IReadOnlyDictionary<int, PortfolioGroup> groups,
         IReadOnlyDictionary<int, LastOrderRef> lastOrders,
-        DashboardLineTypeSplitDto lineTypes)
+        DashboardLineTypeSplitDto lineTypes,
+        IReadOnlyList<DashboardTrendPointDto> trend)
     {
         var rowMembers = rows.Select(row =>
         {
@@ -799,7 +875,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             rows.Sum(row => row.NoLongerOrderedVariantCount),
             rows.Sum(row => row.InsufficientHistoryVariantCount),
             rows.Sum(row => row.AmountOrientedServiceCount),
-            lineTypes);
+            lineTypes,
+            trend);
     }
 
     private sealed record LocationRef(int Id, string Code, string Name);

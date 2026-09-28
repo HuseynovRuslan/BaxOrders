@@ -259,6 +259,7 @@ function dashboard(): ManagementDashboard {
       insufficientHistoryVariantCount: 0,
       amountOrientedServiceCount: 0,
       lineTypes: monthlyOnly(amount()),
+      trend: [],
     },
     filteredLocationCount: 3,
     // A rank and a "Həm də" line (Task 09), so the card titles are swept in every form they take.

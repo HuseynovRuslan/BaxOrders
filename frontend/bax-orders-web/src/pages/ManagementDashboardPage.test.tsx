@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DashboardLineTypeSplit, DashboardAmount, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
+import type { DashboardAmount, DashboardLineTypeSplit, DashboardTrendPoint, LocationDashboardRow, ManagementDashboard } from '../api/dashboard'
 import { partition, partitionMember } from '../test/dashboardFixtures'
 import { readableText } from '../test/oldTerms'
 import { ManagementDashboardPage } from './ManagementDashboardPage'
@@ -23,6 +23,23 @@ function monthlyOnly(current: DashboardAmount): DashboardLineTypeSplit {
   }
 
   return { monthly: current, outsideMonthly: none, unclassified: none, unclassifiedItemCount: 0 }
+}
+
+/** Half a year of months, September last and highest, so the selected month is the one that stands out. */
+function trend(): DashboardTrendPoint[] {
+  return [
+    ['2026-04-01', 20_000],
+    ['2026-05-01', 24_000],
+    ['2026-06-01', 22_000],
+    ['2026-07-01', 30_000],
+    ['2026-08-01', 29_921.78],
+    ['2026-09-01', 70_855.25],
+  ].map(([period, knownAmount]) => ({
+    period: period as string,
+    knownAmount: knownAmount as number,
+    locationCount: 24,
+    missingPriceItemCount: 0,
+  }))
 }
 
 
@@ -111,6 +128,11 @@ function headlineAmount(): HTMLElement {
   return screen.getAllByText('71.210,29 ₼').find((node) => node.tagName === 'P')!
 }
 
+/** The objects table, by its own name: the page has other tables, and the first one is not always this one. */
+function locationsTable(): HTMLElement {
+  return screen.getByRole('table', { name: /obyektlər üzrə görünüşü/ })
+}
+
 function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashboard {
   return {
     summary: {
@@ -145,6 +167,7 @@ function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashbo
       insufficientHistoryVariantCount: 0,
       amountOrientedServiceCount: 0,
       lineTypes: monthlyOnly(amount()),
+      trend: trend(),
     },
     filteredLocationCount: 1,
     attention: [{ reason: 'LargestIncrease', location: row(), rank: 1, alsoFirstIn: [] }],
@@ -409,7 +432,7 @@ describe('the keyboard through the cards and the table', () => {
     const user = userEvent.setup()
     await renderPage()
     const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
-    const table = document.querySelector('table')!
+    const table = locationsTable()
 
     // Every stop on the page, once round; jsdom draws no layout, so the hidden phone list is scoped out by hand.
     const stops: Element[] = []
@@ -835,7 +858,7 @@ describe('the first screen', () => {
     const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
     const exceptions = screen.getByText('Müqayisədən kənarda qalan obyektlər')
     const chips = screen.getByText('Məlumatın əhatəsi')
-    const table = document.querySelector('table')!
+    const table = locationsTable()
 
     const inOrder = [headline, cards, exceptions, chips, table]
     for (let index = 1; index < inOrder.length; index++) {
@@ -898,7 +921,7 @@ describe('while the next answer loads', () => {
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ missingPrice: true }))
     expect(headlineAmount()).toBeInTheDocument()
-    expect(document.querySelector('table')).toHaveTextContent('Fəvvarələr meydanı')
+    expect(locationsTable()).toHaveTextContent('Fəvvarələr meydanı')
     expect(headlineAmount().closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
     expect(screen.queryByText('Panel yüklənir')).toBeNull()
 
@@ -983,7 +1006,7 @@ describe('coming back', () => {
   it('returns to a table row opened by a click on its figures', async () => {
     renderWithOrder()
     await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' })
-    await userEvent.click(within(document.querySelector('tbody')!).getByText('800,00 ₼'))
+    await userEvent.click(within(locationsTable().querySelector('tbody')!).getByText('800,00 ₼'))
     await screen.findByRole('button', { name: 'Geri' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Geri' }))
