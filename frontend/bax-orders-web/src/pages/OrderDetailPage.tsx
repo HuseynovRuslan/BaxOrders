@@ -633,7 +633,13 @@ export function OrderDetailPage() {
                     <tr key={item.orderRequestItemId} className="hover:bg-slate-50">
                       <td className="px-3 py-2 text-xs text-slate-400">{(data.items.page - 1) * data.items.pageSize + index + 1}</td>
                       <td className="px-3 py-2">
-                        <p className="font-medium text-slate-900">{item.productName}</p>
+                        {/* The way into this product's own past: a reader who wonders whether a line is a
+                            habit or a one-off should not have to go looking. */}
+                        <p className="font-medium text-slate-900">
+                          <Link to={`/products/${item.productId}/history`} className="hover:underline">
+                            {item.productName}
+                          </Link>
+                        </p>
                         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <OrderLineTypeBadge type={item.orderLineType} />
                           <LineResponsibleNote item={item} />
@@ -915,7 +921,11 @@ function LineCard({ item, number, detail, editable, onSource, onEdit, onRemove }
         <div className="min-w-0">
           <p className="break-words font-medium text-slate-900">
             <span className="mr-1.5 text-xs font-normal text-slate-400">{number}</span>
-            {item.productName}
+            {/* `break-words` on the link as well as the paragraph: a long product name still has to wrap
+                inside a phone card, and the name is the link now. */}
+            <Link to={`/products/${item.productId}/history`} className="break-words hover:underline">
+              {item.productName}
+            </Link>
           </p>
           {/* The table's dash for no specification is not repeated here: an absent line says the same. */}
           {specificationText(item, detail) !== null && (

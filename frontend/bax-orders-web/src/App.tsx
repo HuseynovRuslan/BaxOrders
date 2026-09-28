@@ -15,6 +15,7 @@ import { OrderDetailPage } from './pages/OrderDetailPage'
 import { ProductCategoriesPage } from './pages/ProductCategoriesPage'
 import { PricingModeReviewPage } from './pages/PricingModeReviewPage'
 import { ProductsPage } from './pages/ProductsPage'
+import { ProductHistoryPage } from './pages/ProductHistoryPage'
 import { SuppliersPage } from './pages/SuppliersPage'
 
 export function App() {
@@ -50,6 +51,8 @@ export function App() {
               them, and typing the address does not open them either (brief 14). */}
           <Route element={<RequirePermission permission="canManageCatalog" />}>
             <Route path="products" element={<ProductsPage />} />
+            {/* A product's own past, reached from a line that names it. */}
+            <Route path="products/:productId/history" element={<ProductHistoryPage />} />
             <Route path="products/categories" element={<ProductCategoriesPage />} />
           </Route>
           {/* A Rəhbər reads both of these and changes nothing on either (14.1): the suppliers from the menu, the

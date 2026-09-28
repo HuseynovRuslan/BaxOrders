@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<OrderRequestVersions>();
         services.AddScoped<LocationOrderQueries>();
         services.AddScoped<OrderRequestQueries>();
+        services.AddScoped<ProductHistoryQueries>();
         services.AddScoped<OrderWorkflowService>();
         services.AddScoped<OrderRevisionService>();
         services.AddScoped<OrderAnalyticsQueries>();
