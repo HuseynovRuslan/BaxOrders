@@ -131,7 +131,7 @@ export function SuppliersPage() {
       {data && data.suppliers.length === 0 && <EmptyState>Axtarışa uyğun təchizatçı tapılmadı.</EmptyState>}
 
       {data && data.suppliers.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="relative overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
               <tr>

@@ -102,7 +102,11 @@ export function LocationsPage() {
         />
       </form>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      {/* `relative` so the screen-reader-only text inside the rows positions against this box. Absolutely
+          positioned children with no positioned ancestor lay themselves out against the page instead, and
+          then they widen it — the table scrolls inside its box, but the page scrolled 227 pixels sideways on
+          a phone because of a handful of invisible spans. */}
+      <div className="relative overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
             <tr>
@@ -171,7 +175,7 @@ export function LocationsPage() {
                       bought outside the plan is a fact about the month, so it is said here rather than folded
                       into a number a comparison reads. */}
                   {location.latestOutsideMonthlyItemCount > 0 && (
-                    <p className="whitespace-nowrap text-xs text-slate-500">
+                    <p className="text-xs text-slate-500">
                       {outsideMonthlyBesideLabel} {formatMoney(location.latestOutsideMonthlyKnownAmount)}
                     </p>
                   )}
