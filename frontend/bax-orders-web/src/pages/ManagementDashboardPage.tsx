@@ -32,6 +32,7 @@ import { isScope } from '../analytics/scope'
 import { readView, viewParam, type DashboardView } from '../analytics/dashboardView'
 import { ViewSelector } from '../components/analytics/ViewSelector'
 import { ExecutiveHeadline } from '../components/dashboard/ExecutiveHeadline'
+import { SpendSplitBar } from '../components/dashboard/SpendSplitBar'
 import { ScopeSelector } from '../components/analytics/ScopeSelector'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
@@ -316,7 +317,14 @@ export function ManagementDashboardPage() {
           */}
           <div className="max-lg:flex max-lg:flex-col">
             {view === 'Simple' ? (
-              <ExecutiveHeadline summary={data.summary} scope={scope} />
+              <>
+                <ExecutiveHeadline summary={data.summary} scope={scope} />
+                {/*
+                  Only here. The detailed headline carries its own split in a line of text; the simple view gets
+                  the same three figures as a shape, because that is the one the eye reads without stopping.
+                */}
+                <SpendSplitBar summary={data.summary} onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)} />
+              </>
             ) : (
               <DashboardHeadline
                 summary={data.summary}
