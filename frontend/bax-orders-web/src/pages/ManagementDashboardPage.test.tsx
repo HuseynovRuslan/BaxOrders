@@ -382,7 +382,7 @@ describe('carrying the basis into the order', () => {
 
   /** Task 1's "…görə" stays; Task 09 finishes the sentence with the direction of the cost (9.1). */
   it('says on each attention card which basis its figures use', async () => {
-    await renderPage('/dashboard?period=2026-09&basis=avg3')
+    await renderPage('/dashboard?period=2026-09&basis=avg3&view=etrafli')
 
     const cards = within(screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' }))
     expect(cards.getAllByText('Son 3 ayın ortalamasına görə xərc artıb').length).toBeGreaterThan(0)
@@ -430,7 +430,7 @@ describe('the keyboard through the cards and the table', () => {
 
   it('stops once per card and once per row, in reading order, with the ⓘ before its card\'s link', async () => {
     const user = userEvent.setup()
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
     const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
     const table = locationsTable()
 
@@ -465,7 +465,7 @@ describe('the keyboard through the cards and the table', () => {
   })
 
   it('gives the percentage card one link as well, carrying the basis', async () => {
-    await renderPage('/dashboard?period=2026-09&basis=avg3')
+    await renderPage('/dashboard?period=2026-09&basis=avg3&view=etrafli')
 
     const card = document.getElementById('attention-22')!
     expect(within(card).getAllByRole('link')).toHaveLength(1)
@@ -473,7 +473,7 @@ describe('the keyboard through the cards and the table', () => {
   })
 
   it('shows the figures it showed before, on the cards, in the table and in its footer', async () => {
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
 
     // The difference and the main cause are both +200,00 ₼ here.
     const card = within(document.getElementById('attention-21')!)
@@ -520,7 +520,7 @@ describe('the product behind the main cause', () => {
       })
     })
 
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
     const cards = () => within(screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' }))
     expect(cards().getByText(/Əlcək/)).toHaveTextContent('(artımların 75%-i)')
 
@@ -616,7 +616,7 @@ describe('the baseline coverage on six months', () => {
   }
 
   it('says "Baza N/6 ay" with each partial object\'s own N, on its card and on both its rows', async () => {
-    await renderPage('/dashboard?period=2026-09&basis=avg6')
+    await renderPage('/dashboard?period=2026-09&basis=avg6&view=etrafli')
 
     for (const [locationId, label] of [[21, 'Baza 2/6 ay'], [22, 'Baza 4/6 ay']] as const) {
       for (const surface of surfaces(locationId)) {
@@ -634,7 +634,7 @@ describe('the baseline coverage on six months', () => {
   })
 
   it('leaves every percentage as it was and calls none of them "təxmini"', async () => {
-    await renderPage('/dashboard?period=2026-09&basis=avg6')
+    await renderPage('/dashboard?period=2026-09&basis=avg6&view=etrafli')
 
     expect(within(document.getElementById('attention-21')!).getByText('+25%')).toBeInTheDocument()
     expect(within(document.getElementById('attention-22')!).getByText('+200%')).toBeInTheDocument()
@@ -852,7 +852,7 @@ describe('the chips', () => {
 /** Brief acceptance 1: at 1366×768 the first card is on the first screen. The order on the page is what makes it so. */
 describe('the first screen', () => {
   it('reads: the month, the cards, who was left out, then the chips over the table', async () => {
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
 
     const headline = headlineAmount()
     const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
@@ -871,7 +871,7 @@ describe('the first screen', () => {
    * phone's layout moves it, by CSS order, so the page above — and Task 9's desktop order — stays as it is.
    */
   it('puts the exceptions directly under the headline on a phone, before the cards', async () => {
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
 
     const cards = screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })
     const exceptions = screen.getByText('Müqayisədən kənarda qalan obyektlər').closest('section')!
@@ -948,7 +948,7 @@ describe('coming back', () => {
 
   function renderWithOrder() {
     render(
-      <MemoryRouter initialEntries={['/dashboard?period=2026-09']}>
+      <MemoryRouter initialEntries={['/dashboard?period=2026-09&view=etrafli']}>
         <Search />
         <Routes>
           <Route path="/dashboard" element={<ManagementDashboardPage />} />
@@ -1020,8 +1020,10 @@ describe('coming back', () => {
     renderWithOrder()
     await openTheCard()
 
+    // A link straight to the panel, which is a fresh arrival — and at whatever view the link carries, so the
+    // wait is for the object itself rather than for anything one view has and the other does not.
     await userEvent.click(screen.getByRole('link', { name: 'Panelə' }))
-    await screen.findByRole('region', { name: 'Diqqət tələb edən obyektlər' })
+    await screen.findAllByText('Fəvvarələr meydanı')
 
     expect(scrollIntoView).not.toHaveBeenCalled()
   })
