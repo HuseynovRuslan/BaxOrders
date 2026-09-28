@@ -87,6 +87,24 @@ export const combinedSpendLabel = 'Ümumi faktiki xərc'
 export const outsideMonthlyBesideLabel = 'Aylıqdan kənar:'
 
 /**
+ * After an import, the coordinator's next act is on every order it wrote. Submitting is mechanical — it says
+ * the coordinator has finished, nothing more, and returning the order undoes it — so it is offered for all of
+ * them at once. Approving never is: that is the statement that somebody looked.
+ */
+export function submitAllCreatedLabel(count: number): string {
+  return `Hamısını təsdiqə göndər (${count})`
+}
+
+export const submitAllCreatedNote =
+  'Hər sifariş ayrıca göndərilir və öz tarixçəsinə yazılır. Təsdiq ayrı-ayrılıqda verilir.'
+
+export function submitAllDoneNote(submitted: number, refused: number): string {
+  return refused === 0
+    ? `${submitted} sifariş təsdiqə göndərildi.`
+    : `${submitted} sifariş təsdiqə göndərildi, ${refused} sifariş göndərilmədi.`
+}
+
+/**
  * Said once, where a reader might otherwise wonder why the figures do not add up to what they remember: lines
  * nobody has classified are in neither, on purpose.
  */

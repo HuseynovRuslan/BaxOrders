@@ -1,4 +1,4 @@
-using BaxOrders.Domain.Orders;
+﻿using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Domain.Imports;
 
@@ -56,6 +56,19 @@ public sealed class ImportMaterialization
     public int CreatedRequests => _groups.Count(group => group.Action != MaterializationAction.Skipped);
 
     public int CreatedItems => _rows.Count;
+
+    /// <summary>
+    /// The requests this import wrote, in the order it wrote them.
+    /// </summary>
+    /// <remarks>
+    /// Said out loud because the coordinator's next act is on exactly this set: an import of the company's
+    /// workbook leaves 166 drafts, and sending them for approval one screen at a time is not work anybody
+    /// should be asked to do. A skipped group wrote nothing and is not here.
+    /// </remarks>
+    public IReadOnlyList<long> CreatedOrderRequestIds =>
+        [.. _groups
+            .Where(group => group.Action != MaterializationAction.Skipped && group.OrderRequest is not null)
+            .Select(group => group.OrderRequest!.Id)];
 
     public int SkippedGroups => _groups.Count(group => group.Action == MaterializationAction.Skipped);
 

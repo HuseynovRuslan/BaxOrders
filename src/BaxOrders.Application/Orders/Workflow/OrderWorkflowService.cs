@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Common;
 using BaxOrders.Domain;
 using BaxOrders.Domain.Orders;
@@ -57,6 +57,74 @@ public sealed class OrderWorkflowService(IBaxOrdersDbContext db, ICurrentUserCon
             request => request.SubmitForApproval(Actor(), command.Comment, DateTime.UtcNow),
             cancellationToken);
     }
+
+    /// <summary>
+    /// Hands many drafts to whoever approves them, one at a time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Submitting is mechanical: it asserts nothing about the order except that the coordinator has finished
+    /// with it, and it is undone by returning the order. An import of the company's workbook leaves 166 drafts,
+    /// and asking somebody to open 166 screens to say "done" is not work, it is attrition.
+    /// </para>
+    /// <para>
+    /// Each order goes through exactly the path a single submission takes — its own lock, its own transaction,
+    /// its own workflow event with the acting person on it — so the history afterwards is indistinguishable
+    /// from 166 people having done it by hand. Nothing here is a bulk write.
+    /// </para>
+    /// <para>
+    /// <b>Approving is not offered this way</b>, and deliberately: approval is the statement that somebody
+    /// looked, and a button that makes it 166 times would be a statement nobody made.
+    /// </para>
+    /// <para>
+    /// One order's refusal does not stop the others. Every id comes back with what happened to it, because a
+    /// coordinator needs to know which ones still want them rather than being told "some failed".
+    /// </para>
+    /// </remarks>
+    public async Task<BulkSubmitResult> SubmitManyAsync(
+        BulkSubmitCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var ids = command.OrderRequestIds?.Distinct().ToList() ?? [];
+        if (ids.Count == 0)
+        {
+            throw new ValidationException("At least one order request is required.");
+        }
+
+        if (ids.Count > MaxBulkSubmit)
+        {
+            throw new ValidationException(
+                $"At most {MaxBulkSubmit} orders can be submitted at once (asked for {ids.Count}).");
+        }
+
+        var outcomes = new List<BulkSubmitOutcome>(ids.Count);
+        foreach (var id in ids)
+        {
+            try
+            {
+                await TransitionAsync(
+                    id, request => request.SubmitForApproval(Actor(), command.Comment, DateTime.UtcNow), cancellationToken);
+                outcomes.Add(new BulkSubmitOutcome(id, true, null));
+            }
+            catch (Exception problem) when (problem is DomainException or NotFoundException or ConflictException)
+            {
+                // The order said no, or somebody else moved it. The rest of the batch is still worth doing.
+                outcomes.Add(new BulkSubmitOutcome(id, false, problem.Message));
+            }
+        }
+
+        // No log line: every order that moved wrote its own workflow event, with the person on it, which is a
+        // better record than a sentence saying how many there were.
+        var submitted = outcomes.Count(outcome => outcome.Submitted);
+        return new BulkSubmitResult(submitted, ids.Count - submitted, outcomes);
+    }
+
+    /// <summary>
+    /// As many as one import of the company's workbook creates, with room to spare. A limit at all because an
+    /// unbounded loop of transactions is a way to hold the database open for minutes.
+    /// </summary>
+    public const int MaxBulkSubmit = 500;
 
     public Task<OrderWorkflowDto> ApproveAsync(
         long orderRequestId, ApproveOrderCommand command, CancellationToken cancellationToken)

@@ -191,7 +191,8 @@ public sealed class ImportConfirmationService(
             stopwatch.ElapsedMilliseconds,
             pricing.Unclassified,
             pricing.PriceRequired,
-            pricing.InternalSupply);
+            pricing.InternalSupply,
+            materialization.CreatedOrderRequestIds);
     }
 
     /// <summary>The person who classified the row in review: the one answerable for the line's mode.</summary>

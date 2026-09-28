@@ -234,6 +234,8 @@ export interface ImportConfirmationResult {
   priceRequiredItems: number
   /** Unpriced lines written as supplied free, as a reviewer said, after skips. */
   internalSupplyItems: number
+  /** The requests this import wrote. The coordinator's next act is on exactly this set. */
+  createdOrderRequestIds: number[] | null
 }
 
 export interface ImportConfirmationPreview {

@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Application.Analytics;
 using BaxOrders.Application.Analytics.Dashboard;
 using BaxOrders.Application.Common;
@@ -548,6 +548,117 @@ public sealed class OrderWorkflowTests(PostgresDatabaseFixture database)
     }
 
     // ---- fixture -------------------------------------------------------------------------------------
+
+    // ---- handing many over at once -------------------------------------------------------------------
+
+    /// <summary>
+    /// Every order takes the path a single submission takes: its own workflow event, with the person on it.
+    /// </summary>
+    /// <remarks>
+    /// An import of the company's workbook leaves 166 drafts. The history afterwards has to be the history of
+    /// 166 submissions, not of one bulk write, or nothing downstream can tell who handed what over.
+    /// </remarks>
+    [PostgresFact]
+    public async Task Submitting_many_moves_each_one_and_writes_each_ones_own_event()
+    {
+        await using var db = database.CreateContext();
+        var first = await WorldAsync(db);
+        var second = await WorldAsync(db);
+        long[] ids = [first.RequestId, second.RequestId];
+
+        var result = await Service(db, first.Submitter).SubmitManyAsync(
+            new BulkSubmitCommand(ids, "İdxaldan sonra hamısı yoxlanıldı"), CancellationToken.None);
+
+        Assert.Equal((2, 0), (result.Submitted, result.Refused));
+        Assert.All(result.Outcomes, outcome => Assert.True(outcome.Submitted));
+        Assert.Equal(ids, result.Outcomes.Select(outcome => outcome.OrderRequestId));
+
+        await using var check = database.CreateContext();
+        foreach (var id in ids)
+        {
+            var stored = await check.OrderRequests.SingleAsync(request => request.Id == id);
+            Assert.Equal(OrderRequestStatus.PendingApproval, stored.Status);
+            Assert.Equal(first.Submitter.UserId, stored.SubmittedByUserId);
+
+            var workflowEvent = Assert.Single(await check.OrderRequestWorkflowEvents
+                .Where(item => item.OrderRequestId == id).ToListAsync());
+            Assert.Equal(OrderWorkflowAction.SubmittedForApproval, workflowEvent.Action);
+            Assert.Equal(first.Submitter.UserId, workflowEvent.ActorUserId);
+            Assert.Equal("Sınaq koordinatoru", workflowEvent.ActorDisplayName);
+            Assert.Equal("İdxaldan sonra hamısı yoxlanıldı", workflowEvent.Comment);
+        }
+    }
+
+    /// <summary>One order's refusal leaves the others submitted, and the caller is told which said no.</summary>
+    [PostgresFact]
+    public async Task One_refusal_does_not_stop_the_rest_and_is_reported_on_its_own()
+    {
+        await using var db = database.CreateContext();
+        var ordinary = await WorldAsync(db);
+        var already = await WorldAsync(db);
+        await Service(db, already.Submitter).SubmitAsync(
+            already.RequestId, new SubmitForApprovalCommand(), CancellationToken.None);
+
+        const long missing = 987654321;
+        var result = await Service(db, ordinary.Submitter).SubmitManyAsync(
+            new BulkSubmitCommand([ordinary.RequestId, already.RequestId, missing]), CancellationToken.None);
+
+        Assert.Equal((1, 2), (result.Submitted, result.Refused));
+        Assert.True(result.Outcomes.Single(outcome => outcome.OrderRequestId == ordinary.RequestId).Submitted);
+
+        var refused = result.Outcomes.Single(outcome => outcome.OrderRequestId == already.RequestId);
+        Assert.False(refused.Submitted);
+        Assert.NotNull(refused.Problem);
+
+        var absent = result.Outcomes.Single(outcome => outcome.OrderRequestId == missing);
+        Assert.False(absent.Submitted);
+        Assert.Contains("987654321", absent.Problem);
+
+        // The one that worked really did, whatever the others did.
+        await using var check = database.CreateContext();
+        Assert.Equal(
+            OrderRequestStatus.PendingApproval,
+            (await check.OrderRequests.SingleAsync(request => request.Id == ordinary.RequestId)).Status);
+    }
+
+    /// <summary>The same id twice is one submission, not a submission and a refusal.</summary>
+    [PostgresFact]
+    public async Task The_same_order_named_twice_is_handed_over_once()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+
+        var result = await Service(db, world.Submitter).SubmitManyAsync(
+            new BulkSubmitCommand([world.RequestId, world.RequestId]), CancellationToken.None);
+
+        Assert.Equal((1, 0), (result.Submitted, result.Refused));
+
+        await using var check = database.CreateContext();
+        Assert.Single(await check.OrderRequestWorkflowEvents
+            .Where(item => item.OrderRequestId == world.RequestId).ToListAsync());
+    }
+
+    /// <summary>Asking for nothing, or for more than the limit, is refused before anything is read.</summary>
+    [PostgresFact]
+    public async Task An_empty_or_oversized_request_is_refused_outright()
+    {
+        await using var db = database.CreateContext();
+        var world = await WorldAsync(db);
+        var service = Service(db, world.Submitter);
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.SubmitManyAsync(
+            new BulkSubmitCommand([]), CancellationToken.None));
+
+        long[] tooMany = [.. Enumerable.Range(1, OrderWorkflowService.MaxBulkSubmit + 1).Select(id => (long)id)];
+        await Assert.ThrowsAsync<ValidationException>(() => service.SubmitManyAsync(
+            new BulkSubmitCommand(tooMany), CancellationToken.None));
+
+        // Nothing was touched by either refusal.
+        await using var check = database.CreateContext();
+        Assert.Equal(
+            OrderRequestStatus.Draft,
+            (await check.OrderRequests.SingleAsync(request => request.Id == world.RequestId)).Status);
+    }
 
     private static OrderWorkflowService Service(BaxOrdersDbContext db, ICurrentUserContext user) =>
         new(db, user, new PostgresOrderRequestLock(db));

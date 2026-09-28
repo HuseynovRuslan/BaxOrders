@@ -214,6 +214,7 @@ export function confirmationResult(overrides: Partial<ImportConfirmationResult> 
     unclassifiedPriceItems: 4,
     priceRequiredItems: 1,
     internalSupplyItems: 1,
+    createdOrderRequestIds: [101],
     ...overrides,
   }
 }

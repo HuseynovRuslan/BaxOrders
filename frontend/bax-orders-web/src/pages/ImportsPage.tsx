@@ -17,6 +17,8 @@ import { ImportSummary } from '../components/imports/ImportSummary'
 import { formatNumber } from '../components/imports/labels'
 import { ConfirmationDialog } from '../components/imports/review/ConfirmationDialog'
 import { ReviewCenter } from '../components/imports/review/ReviewCenter'
+import { submitAllCreatedLabel, submitAllCreatedNote, submitAllDoneNote } from '../orderLines/lineType'
+import { submitManyForApproval } from '../api/workflow'
 import {
   changeAfterImportHint,
   internalSupplyShortLabel,
@@ -229,7 +231,10 @@ function ImportConfirmationSection({
             {imported.alreadyImported ? (
               <p className="mt-2 text-xs text-emerald-900">Bu idxal artıq sifarişlərə çevrilib.</p>
             ) : (
-              <ImportedPriceNotes imported={imported} />
+              <>
+                <ImportedPriceNotes imported={imported} />
+                <SubmitAllCreated imported={imported} />
+              </>
             )}
           </>
         ) : (
@@ -304,6 +309,57 @@ function ImportedPriceNotes({ imported }: { imported: ImportConfirmationResult }
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * The coordinator's next act, offered where they already are.
+ *
+ * An import of the company's workbook writes 166 drafts, and every one of them needs handing to whoever
+ * approves it. Doing that a screen at a time is attrition, not work, so it is offered once — and only for
+ * submitting. Approving stays one order at a time, because it is the statement that somebody looked.
+ */
+function SubmitAllCreated({ imported }: { imported: ImportConfirmationResult }) {
+  const ids = imported.createdOrderRequestIds ?? []
+  const [state, setState] = useState<'idle' | 'busy' | { submitted: number; refused: number } | { error: string }>('idle')
+
+  if (ids.length === 0) {
+    return null
+  }
+
+  async function submitAll() {
+    setState('busy')
+    try {
+      const result = await submitManyForApproval(ids)
+      setState({ submitted: result.submitted, refused: result.refused })
+    } catch (problem) {
+      setState({ error: problem instanceof ApiError ? problem.detail : 'Sifarişlər göndərilə bilmədi.' })
+    }
+  }
+
+  if (typeof state === 'object' && 'submitted' in state) {
+    return (
+      <p className="mt-3 text-xs text-emerald-900" role="status">
+        {submitAllDoneNote(state.submitted, state.refused)}
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={submitAll}
+        disabled={state === 'busy'}
+        className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+      >
+        {submitAllCreatedLabel(ids.length)}
+      </button>
+      <p className="mt-1 text-xs text-emerald-900">{submitAllCreatedNote}</p>
+      {typeof state === 'object' && 'error' in state && (
+        <p className="mt-1 text-xs text-red-700" role="alert">{state.error}</p>
+      )}
+    </div>
   )
 }
 

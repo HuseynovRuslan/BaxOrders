@@ -155,3 +155,35 @@ export function returnForCorrection(
 ): Promise<OrderWorkflow> {
   return postJson<OrderWorkflow>(`/api/v1/orders/${orderRequestId}/workflow/return`, command, signal)
 }
+
+/** Why one order was not handed over, in the words the single action would have used. */
+export interface BulkSubmitOutcome {
+  orderRequestId: number
+  submitted: boolean
+  problem: string | null
+}
+
+export interface BulkSubmitResult {
+  submitted: number
+  refused: number
+  outcomes: BulkSubmitOutcome[]
+}
+
+/**
+ * Hands many drafts to whoever approves them.
+ *
+ * Each order takes the path a single submission takes and writes its own workflow event, so the history is the
+ * same as if somebody had opened every screen. There is deliberately no bulk approval: approving is the
+ * statement that somebody looked.
+ */
+export function submitManyForApproval(
+  orderRequestIds: number[],
+  comment?: string,
+  signal?: AbortSignal,
+): Promise<BulkSubmitResult> {
+  return postJson<BulkSubmitResult>(
+    '/api/v1/orders/workflow/submit-many',
+    { orderRequestIds, comment: comment ?? null },
+    signal,
+  )
+}

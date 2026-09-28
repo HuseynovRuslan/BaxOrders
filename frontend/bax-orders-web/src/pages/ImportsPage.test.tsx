@@ -27,10 +27,15 @@ const importsApi = vi.hoisted(() => ({
 const reviewApi = vi.hoisted(() => ({ fetchUnresolvedSummary: vi.fn() }))
 const rowsApi = vi.hoisted(() => ({ fetchReadiness: vi.fn() }))
 const pricingApi = vi.hoisted(() => ({ fetchImportPricing: vi.fn(), setImportPricing: vi.fn() }))
+const workflowApi = vi.hoisted(() => ({ submitManyForApproval: vi.fn() }))
 
 vi.mock('../api/imports', async () => ({
   ...(await vi.importActual<typeof import('../api/imports')>('../api/imports')),
   ...importsApi,
+}))
+vi.mock('../api/workflow', async () => ({
+  ...(await vi.importActual<typeof import('../api/workflow')>('../api/workflow')),
+  ...workflowApi,
 }))
 vi.mock('../api/review', async () => ({
   ...(await vi.importActual<typeof import('../api/review')>('../api/review')),
@@ -93,6 +98,7 @@ beforeEach(() => {
   rowsApi.fetchReadiness.mockReset().mockResolvedValue(importReadiness())
   pricingApi.fetchImportPricing.mockReset().mockResolvedValue(pricingReview())
   pricingApi.setImportPricing.mockReset()
+  workflowApi.submitManyForApproval.mockReset().mockResolvedValue({ submitted: 1, refused: 0, outcomes: [] })
 })
 
 afterEach(() => vi.clearAllMocks())
@@ -223,5 +229,41 @@ describe('the review', () => {
     const cells = within(groupRow).getAllByRole('cell')
     expect(cells[3]).toHaveTextContent(/^3$/)
     expect(cells[4]).toHaveTextContent(/^3$/)
+  })
+})
+
+/**
+ * An import of the company's workbook writes 166 drafts, and every one has to reach whoever approves it.
+ * Submitting says only that the coordinator has finished, and returning the order undoes it, so it is offered
+ * for all of them at once — right where the coordinator already is. Approving never is.
+ */
+describe('handing the new orders over', () => {
+  it('offers the orders it just created, and says what happened', async () => {
+    renderPage()
+    const user = await confirmWith(confirmationResult({ createdRequests: 3, createdOrderRequestIds: [11, 12, 13] }))
+
+    const panel = within(resultPanel())
+    await user.click(panel.getByRole('button', { name: 'Hamısını təsdiqə göndər (3)' }))
+
+    expect(workflowApi.submitManyForApproval).toHaveBeenCalledWith([11, 12, 13])
+    expect(await panel.findByText('1 sifariş təsdiqə göndərildi.')).toBeInTheDocument()
+  })
+
+  it('says how many were refused when some were', async () => {
+    workflowApi.submitManyForApproval.mockResolvedValue({ submitted: 2, refused: 1, outcomes: [] })
+    renderPage()
+    const user = await confirmWith(confirmationResult({ createdOrderRequestIds: [11, 12, 13] }))
+
+    const panel = within(resultPanel())
+    await user.click(panel.getByRole('button', { name: /Hamısını təsdiqə göndər/ }))
+
+    expect(await panel.findByText('2 sifariş təsdiqə göndərildi, 1 sifariş göndərilmədi.')).toBeInTheDocument()
+  })
+
+  it('never offers to approve them', async () => {
+    renderPage()
+    await confirmWith(confirmationResult({ createdOrderRequestIds: [11] }))
+
+    expect(within(resultPanel()).queryByRole('button', { name: /Təsdiqlə/ })).toBeNull()
   })
 })

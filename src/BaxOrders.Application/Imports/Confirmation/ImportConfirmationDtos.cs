@@ -162,4 +162,9 @@ public sealed record ImportConfirmationResult(
     long DurationMilliseconds,
     int UnclassifiedPriceItems,
     int PriceRequiredItems,
-    int InternalSupplyItems);
+    int InternalSupplyItems,
+    /// <summary>
+    /// The requests this confirmation created. The coordinator's next act is on exactly this set, so the
+    /// screen that shows the result can offer it rather than making somebody find 166 orders by hand.
+    /// </summary>
+    IReadOnlyList<long>? CreatedOrderRequestIds = null);

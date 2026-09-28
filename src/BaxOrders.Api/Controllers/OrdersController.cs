@@ -91,6 +91,23 @@ public sealed class OrdersController(
         workflow.SubmitAsync(orderRequestId, command, cancellationToken);
 
     /// <summary>
+    /// Hands many drafts over at once — the only bulk act in the workflow.
+    /// </summary>
+    /// <remarks>
+    /// Each order takes exactly the path a single submission takes and writes its own workflow event, so the
+    /// history is the same as if somebody had opened every screen. Approving is deliberately not offered this
+    /// way: it is the statement that somebody looked.
+    /// </remarks>
+    /// <response code="400">No orders were named, or too many were.</response>
+    [Authorize(Policy = BaxOrdersPolicies.CanSubmitOrders)]
+    [HttpPost("workflow/submit-many")]
+    [ProducesResponseType<BulkSubmitResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public Task<BulkSubmitResult> SubmitMany(
+        [FromBody] BulkSubmitCommand command, CancellationToken cancellationToken) =>
+        workflow.SubmitManyAsync(command, cancellationToken);
+
+    /// <summary>
     /// Approves a request that is waiting. A request with unpriced lines needs those acknowledged first: the
     /// missing price does not make the order wrong, but it does mean the approved amount is not the whole one.
     /// </summary>

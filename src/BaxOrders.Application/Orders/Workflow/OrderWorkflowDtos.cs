@@ -1,4 +1,4 @@
-using BaxOrders.Application.Abstractions;
+﻿using BaxOrders.Application.Abstractions;
 using BaxOrders.Domain.Orders;
 
 namespace BaxOrders.Application.Orders.Workflow;
@@ -258,6 +258,16 @@ public sealed record OrderWorkflowDto(
 /// else by putting a name in the body.
 /// </remarks>
 public sealed record SubmitForApprovalCommand(string? Comment = null);
+
+/// <param name="OrderRequestIds">The drafts to hand over. Duplicates are collapsed; the order is kept.</param>
+/// <param name="Comment">Said once, and written onto every order's own workflow event.</param>
+public sealed record BulkSubmitCommand(IReadOnlyList<long> OrderRequestIds, string? Comment = null);
+
+/// <param name="Problem">Why this one was not submitted, in the words the single action would have used.</param>
+public sealed record BulkSubmitOutcome(long OrderRequestId, bool Submitted, string? Problem);
+
+/// <summary>What a bulk submission did, order by order — a coordinator has to know which ones still want them.</summary>
+public sealed record BulkSubmitResult(int Submitted, int Refused, IReadOnlyList<BulkSubmitOutcome> Outcomes);
 
 /// <param name="AcknowledgeMissingPrices">
 /// Required when the request has lines without a price. The server counts those lines itself; a caller
