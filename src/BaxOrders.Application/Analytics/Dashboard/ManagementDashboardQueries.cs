@@ -146,11 +146,16 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         // An approved variant transition is one cause, "Variant dəyişib", named by its base (13.1a).
         var families = new FamilyContext(matches.RolesOf(products), matches.Families);
 
+        // Who each of the month's orders is answerable to, by the order screen's own rule.
+        var responsibilities = await ResponsibilitiesAsync(currentPeriod, requestIds, cancellationToken);
+
         var byLocation = requests.ToLookup(request => request.LocationId);
         var rows = new List<LocationDashboardRowDto>(locations.Count);
         foreach (var location in locations)
         {
-            rows.Add(Build(location, byLocation[location.Id], currentPeriod, baselinePeriods, selection, snapshots, kinds, names, families));
+            rows.Add(Build(
+                location, byLocation[location.Id], currentPeriod, baselinePeriods, selection,
+                snapshots, kinds, names, families, responsibilities));
         }
 
         rows = [.. rows.OrderByName(row => row.LocationName)];
@@ -191,7 +196,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         IReadOnlyDictionary<long, Dictionary<long, VariantPeriodSnapshot>> snapshots,
         IReadOnlyDictionary<long, AnalyticsKind> kinds,
         IReadOnlyDictionary<long, string> names,
-        FamilyContext families)
+        FamilyContext families,
+        IReadOnlyDictionary<long, OrderResponsibilityDto> responsibilities)
     {
         var all = requests.ToList();
         var current = all.FirstOrDefault(request => request.Period == currentPeriod);
@@ -335,7 +341,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
                 .Sum(cause => cause.Amount),
             // Said out loud rather than folded into the causes: money that moved because a product stopped
             // being bought and started coming out of the company's own store is not money the company saved.
-            available == 0 ? 0 : decomposition?.SupplyChangedVariantCount ?? 0);
+            available == 0 ? 0 : decomposition?.SupplyChangedVariantCount ?? 0,
+            // Null where nothing was ordered this month: there is no order to be answerable for.
+            current is null ? null : responsibilities.GetValueOrDefault(current.OrderRequestId));
     }
 
 
@@ -498,6 +506,59 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         var unclassified = Of(OrderLineType.Unclassified);
         return new DashboardLineTypeSplitDto(
             Of(OrderLineType.Monthly), Of(OrderLineType.OutsideMonthly), unclassified, unclassified.ItemCount);
+    }
+
+    /// <summary>
+    /// Who each of the month's orders is answerable to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same rule the order screen uses, from the same place: the explicit assignment if there is one, else
+    /// the one person every line names, else «Bir neçə cavabdeh», else nobody. Never the person with the most
+    /// lines — an order of forty cleaning lines and one fuel line is not the cleaner's order, and a card that
+    /// said so would put a name on a decision nobody made.
+    /// </para>
+    /// <para>
+    /// Deliberately not scoped. Who is answerable for an order is a fact about the order, not about the lines
+    /// the reader asked to compare, so it does not move when they change the question.
+    /// </para>
+    /// </remarks>
+    private async Task<Dictionary<long, OrderResponsibilityDto>> ResponsibilitiesAsync(
+        DateOnly currentPeriod, long[] requestIds, CancellationToken cancellationToken)
+    {
+        var assignments = await db.OrderRequests.AsNoTracking()
+            .Where(request => requestIds.Contains(request.Id) && request.RequestPeriod == currentPeriod)
+            .Select(request => new
+            {
+                request.Id,
+                request.ResponsiblePersonId,
+                AssignedPersonName = request.ResponsiblePerson == null ? null : request.ResponsiblePerson.Name,
+            })
+            .ToListAsync(cancellationToken);
+
+        if (assignments.Count == 0)
+        {
+            return [];
+        }
+
+        // One row per order and person rather than per line: the rule only needs who is named and how often.
+        var linePeople = await db.OrderRequestItems.AsNoTracking()
+            .Where(item => requestIds.Contains(item.OrderRequestId)
+                && item.OrderRequest.RequestPeriod == currentPeriod
+                && item.ResponsiblePersonId != null)
+            .GroupBy(item => new { item.OrderRequestId, PersonId = item.ResponsiblePersonId!.Value, item.ResponsiblePerson!.Name })
+            .Select(group => new { group.Key.OrderRequestId, group.Key.PersonId, group.Key.Name, LineCount = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        var byRequest = linePeople.ToLookup(row => row.OrderRequestId);
+
+        return assignments.ToDictionary(
+            assignment => assignment.Id,
+            assignment => OrderResponsibility.Of(
+                assignment.ResponsiblePersonId,
+                assignment.AssignedPersonName,
+                // Expanded back to one entry per line, which is what the rule counts.
+                [.. byRequest[assignment.Id].SelectMany(row => Enumerable.Repeat((row.PersonId, row.Name), row.LineCount))]));
     }
 
     /// <summary>

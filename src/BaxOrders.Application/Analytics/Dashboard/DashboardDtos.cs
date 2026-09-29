@@ -198,7 +198,14 @@ public sealed record LocationDashboardRowDto(
     bool ExplanationIsComplete,
     decimal UnattributedAmount,
     /// <summary>Products this object paid for in one of the two months and had supplied internally in the other.</summary>
-    int SupplyChangedVariantCount);
+    int SupplyChangedVariantCount,
+    /// <summary>
+    /// Who this month's order is answerable to, by the one rule the whole product uses
+    /// (<see cref="Orders.OrderResponsibility"/>): the explicit assignment, or the one person every line names,
+    /// or «Bir neçə cavabdeh», or nobody. Never the person with the most lines.
+    /// <para>Null where the object has no request this month — there is then no order to be answerable for.</para>
+    /// </summary>
+    Orders.OrderResponsibilityDto? Responsibility);
 
 /// <summary>
 /// The company's selected month.
