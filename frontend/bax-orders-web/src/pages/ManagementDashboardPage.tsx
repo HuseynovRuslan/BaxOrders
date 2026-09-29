@@ -26,10 +26,7 @@ import { formatCount, formatMonth, toMonthKey } from '../components/analytics/fo
 import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
 import { isScope } from '../analytics/scope'
 import { readView, viewParam, dashboardViewOrder, dashboardViewLabels, type DashboardView } from '../analytics/dashboardView'
-import { ExecutiveHeadline } from '../components/dashboard/ExecutiveHeadline'
-import { SpendSplitBar } from '../components/dashboard/SpendSplitBar'
-import { SpendTrend } from '../components/dashboard/SpendTrend'
-import { WhatChangedList } from '../components/dashboard/WhatChangedList'
+import { SimpleDashboard } from '../components/dashboard/figma/SimpleDashboard'
 import { ChangeDetailDrawer } from '../components/dashboard/ChangeDetailDrawer'
 import { FilterRibbon } from '../components/dashboard/stitch/FilterRibbon'
 import { KpiGrid } from '../components/dashboard/stitch/KpiGrid'
@@ -268,63 +265,67 @@ export function ManagementDashboardPage() {
 
   return (
     <div ref={root}>
-      {/*
-        The approved design's opening: who this is for, what it is, and the one control that decides how much
-        of it is shown. The eyebrow names the organisation because this screen is printed and forwarded.
-      */}
-      <div className="mb-space-md flex flex-col justify-between gap-space-md lg:flex-row lg:items-center">
-        <div className="min-w-0">
-          <p className="mb-1 flex flex-wrap items-center gap-space-sm font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
-            <span>İdarəetmə mərkəzi</span>
-            <span aria-hidden="true">•</span>
-            <span className="font-medium text-secondary">Bakı Abadlıq Xidməti MMC</span>
-          </p>
-          <h1 className="font-headline-lg text-headline-lg font-bold tracking-tight text-on-surface">İdarəetmə paneli</h1>
-          <p className="mt-0.5 font-body-md text-body-md text-on-surface-variant">
-            {data
-              ? `${formatMonth(data.summary.selectedPeriod)} üzrə material sifarişlərinin analitikası və obyektlərin xərc dinamikası`
-              : 'Material sifarişlərinin analitikası və obyektlərin xərc dinamikası'}
-          </p>
-        </div>
+      {view === 'Detailed' && (
+        <>
+        {/*
+          The approved design's opening: who this is for, what it is, and the one control that decides how much
+          of it is shown. The eyebrow names the organisation because this screen is printed and forwarded.
+        */}
+        <div className="mb-space-md flex flex-col justify-between gap-space-md lg:flex-row lg:items-center">
+          <div className="min-w-0">
+            <p className="mb-1 flex flex-wrap items-center gap-space-sm font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+              <span>İdarəetmə mərkəzi</span>
+              <span aria-hidden="true">•</span>
+              <span className="font-medium text-secondary">Bakı Abadlıq Xidməti MMC</span>
+            </p>
+            <h1 className="font-headline-lg text-headline-lg font-bold tracking-tight text-on-surface">İdarəetmə paneli</h1>
+            <p className="mt-0.5 font-body-md text-body-md text-on-surface-variant">
+              {data
+                ? `${formatMonth(data.summary.selectedPeriod)} üzrə material sifarişlərinin analitikası və obyektlərin xərc dinamikası`
+                : 'Material sifarişlərinin analitikası və obyektlərin xərc dinamikası'}
+            </p>
+          </div>
 
-        <div className="flex shrink-0 items-center gap-space-sm self-start lg:self-center">
-          <div className="flex items-center rounded-xl bg-surface-container-high p-1 shadow-sm" role="group" aria-label="Baxış">
-            {dashboardViewOrder.map((option) => {
-              const active = option === view
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => update({ view: viewParam(option) })}
-                  className={`rounded-lg px-space-md py-1.5 font-label-md text-label-md transition-all ${
-                    active
-                      ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {dashboardViewLabels[option]}
-                </button>
-              )
-            })}
+          <div className="flex shrink-0 items-center gap-space-sm self-start lg:self-center">
+            <div className="flex items-center rounded-xl bg-surface-container-high p-1 shadow-sm" role="group" aria-label="Baxış">
+              {dashboardViewOrder.map((option) => {
+                const active = option === view
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => update({ view: viewParam(option) })}
+                    className={`rounded-lg px-space-md py-1.5 font-label-md text-label-md transition-all ${
+                      active
+                        ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    {dashboardViewLabels[option]}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="mb-space-lg">
-        <FilterRibbon
-          periods={available}
-          period={period}
-          onPeriod={(next) => update({ period: next })}
-          scope={scope}
-          onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
-          selection={selection}
-          onSelection={(next) => update(basisParams(next))}
-          priorMonths={priorMonths}
-          loadedAt={dashboard.loadedAt}
-        />
-      </div>
+        <div className="mb-space-lg">
+          <FilterRibbon
+            periods={available}
+            period={period}
+            onPeriod={(next) => update({ period: next })}
+            scope={scope}
+            onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
+            selection={selection}
+            onSelection={(next) => update(basisParams(next))}
+            priorMonths={priorMonths}
+            loadedAt={dashboard.loadedAt}
+          />
+        </div>
 
+        </>
+      )}
       {periods.status === 'error' && <ErrorState message={periods.message} />}
       {dashboard.error !== null && <ErrorState message={dashboard.error} />}
 
@@ -343,23 +344,27 @@ export function ManagementDashboardPage() {
           */}
           <div className="max-lg:flex max-lg:flex-col">
             {view === 'Simple' ? (
-              <>
-                <ExecutiveHeadline summary={data.summary} scope={scope} />
-                {/*
-                  Only here: the detailed headline carries the split in a line of text, and the simple view
-                  gets the same figures as a shape, which is what the eye reads without stopping. Side by side
-                  from a laptop, stacked on a phone — and the spacing lives on the two cards rather than on the
-                  grid, so a month with neither of them to show leaves no empty band behind.
-                */}
-                <div className="grid gap-x-3 lg:grid-cols-2">
-                  <SpendSplitBar summary={data.summary} onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)} />
-                  <SpendTrend
-                    trend={data.summary.trend}
-                    scope={scope}
-                    selectedPeriod={data.summary.selectedPeriod}
-                  />
-                </div>
-              </>
+              /*
+                «Sadə baxış» is the approved Figma Make composition, on this product's own data. It brings its
+                own title row and filter bar — the two views are two approved visual languages, and a page half
+                in each would be a third design nobody approved. The month, the scope and the comparison are
+                the page's own state, shared with «Ətraflı baxış».
+              */
+              <SimpleDashboard
+                data={data}
+                periods={available}
+                period={period}
+                onPeriod={(next) => update({ period: next })}
+                scope={scope}
+                onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
+                view={view}
+                onView={(next) => update({ view: viewParam(next) })}
+                selection={selection}
+                onSelection={(next) => update(basisParams(next))}
+                priorMonths={priorMonths}
+                loadedAt={dashboard.loadedAt}
+                onOpenAll={() => tableHeading.current?.scrollIntoView?.({ block: 'start' })}
+              />
             ) : (
               /*
                 «Ətraflı baxış» is the approved Stitch composition, on this product's own data: four figures,
@@ -405,24 +410,20 @@ export function ManagementDashboardPage() {
               />
             )}
 
-            {/* Which objects to read, and why — straight under the month, on the first screen. */}
-            <div className="max-lg:order-2">
-              {view === 'Simple' ? (
-                <WhatChangedList
-                  attention={data.attention}
-                  summary={data.summary}
-                  selection={shownSelection}
-                  onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
-                />
-              ) : (
+            {/*
+              Which objects to read, and why — straight under the month, on the first screen. «Sadə baxış»
+              carries its own cards inside its composition, so this is the detailed view's.
+            */}
+            {view === 'Detailed' && (
+              <div className="max-lg:order-2">
                 <AttentionCards
                   attention={data.attention}
                   summary={data.summary}
                   selection={shownSelection}
                   onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
                 />
-              )}
-            </div>
+              </div>
+            )}
 
             {/*
               Who is outside the comparison, object by object. In «Sadə baxış» that is a count on the list above

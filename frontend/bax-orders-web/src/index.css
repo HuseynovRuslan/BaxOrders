@@ -151,6 +151,42 @@
   --spacing-margin-mobile: 1rem;
 
   /*
+    --- «Sadə baxış»: the Figma Make handoff ---------------------------------------------------------
+    Source of truth: AI_WORKFLOW/design-reference/figma-simple-dashboard/src/index.css.
+
+    A second approved language, deliberately not merged with the Stitch one above: the owner chose one look
+    for the executive view and another for the analytical one. The names are prefixed so the two sets cannot
+    collide — both handoffs define `surface`, `background` and `border`, and one silently overwriting the
+    other is exactly the failure this prefix prevents.
+  */
+  --color-simple-canvas: #f5f6f8;
+  --color-simple-card: #ffffff;
+  --color-simple-line: #e4e7ec;
+  --color-simple-line-soft: #f3f4f6;
+  --color-simple-ink: #111827;
+  --color-simple-ink-soft: #6b7280;
+  --color-simple-ink-faint: #9ca3af;
+  --color-simple-accent: #1a56db;
+  --color-simple-accent-wash: #eff3ff;
+  --color-simple-neutral-bar: #e5e7eb;
+
+  /*
+    Named by what they mean, not by the handoff's «positive» and «negative».
+
+    The Figma mock paints a rising number green, because in most products a number going up is good news. In
+    this one it is money leaving: **a cost that rises is red and a cost that falls is green**, on every screen
+    the product has. Naming these `cost-up` and `cost-down` is what stops somebody re-inverting them later by
+    reading the mock instead of the rule.
+  */
+  --color-cost-up: #be2c2c;
+  --color-cost-up-wash: #fff1f1;
+  --color-cost-down: #0d7c4c;
+  --color-cost-down-wash: #ecfdf5;
+
+  /** Figures on the simple view are set in DM Mono, so a column of money lines up by construction. */
+  --font-figures: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /*
     --- elevation: a 1px outline and a whisper, never a drop shadow ----------------------------------
     DESIGN.md is explicit that depth comes from tone and outline rather than from shadow. These are its
     three levels; nothing in the product invents a fourth.

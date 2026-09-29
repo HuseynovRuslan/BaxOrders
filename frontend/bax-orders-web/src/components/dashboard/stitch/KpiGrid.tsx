@@ -159,21 +159,23 @@ function OutsideCard({ summary, onShow }: {
   const outside = summary.lineTypes.outsideMonthly
   const none = outside.itemCount === 0
 
+  // Red means "the cost went up". Off-plan spending existing is neither a rise nor a fault — it is a kind of
+  // spend, and the card already names it and gives the amount, so the pill stays neutral.
   const figure = (
     <KpiCard
       label={outsideMonthlyOrdersLabel}
       note="Qeyri-müntəzəm xərclər"
       icon={<CircleCheck className="size-5" />}
-      iconClass={none ? 'bg-tertiary-fixed text-on-tertiary-fixed' : 'bg-error-container text-on-error-container'}
+      iconClass={none ? 'bg-tertiary-fixed text-on-tertiary-fixed' : 'bg-surface-container-high text-on-surface-variant'}
       foot={(
-        <KpiPill className={none ? 'bg-tertiary-fixed/50 text-on-tertiary-fixed-variant' : 'bg-error-container/60 text-error'}>
+        <KpiPill className={none ? 'bg-tertiary-fixed/50 text-on-tertiary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'}>
           {none
             ? 'Planlaşdırılmış daxilində'
             : `${formatCount(outside.itemCount)} sətir — aylıq müqayisədən kənar`}
         </KpiPill>
       )}
     >
-      <KpiMoney value={formatMoney(outside.knownAmount)} tone={none ? 'text-on-surface' : 'text-on-surface'} />
+      <KpiMoney value={formatMoney(outside.knownAmount)} />
     </KpiCard>
   )
 

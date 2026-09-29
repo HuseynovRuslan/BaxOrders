@@ -175,7 +175,13 @@ function dashboard(baselinePeriods: string[] = ['2026-08-01']): ManagementDashbo
       amountOrientedServiceCount: 0,
       lineTypes: monthlyOnly(amount()),
       trend: trend(),
-      categories: [],
+      // The shape the backend really answers with: a few named roots, the tail folded, and what nobody filed.
+      categories: [
+        { categoryId: 4, name: 'Yaşıllıq', kind: 'Category', knownAmount: 36_886.56, itemCount: 75, categoryCount: 1 },
+        { categoryId: 9, name: 'Təmizlik', kind: 'Category', knownAmount: 18_442.70, itemCount: 181, categoryCount: 1 },
+        { categoryId: null, name: 'Digər kateqoriyalar', kind: 'Other', knownAmount: 13_550.03, itemCount: 215, categoryCount: 5 },
+        { categoryId: null, name: 'Kateqoriyasız', kind: 'Uncategorised', knownAmount: 2_331.00, itemCount: 9, categoryCount: 0 },
+      ],
     },
     filteredLocationCount: 1,
     attention: [{ reason: 'LargestIncrease', location: row(), rank: 1, alsoFirstIn: [] }],
@@ -1121,20 +1127,24 @@ describe('the order scope', () => {
  * detailed one keeps everything it has ever had.
  */
 describe('how deep the reader wants to go', () => {
-  it('opens simple, with the month in three numbers', async () => {
+  it('opens simple, on the Figma composition', async () => {
     await renderPage()
 
     expect(screen.getByRole('button', { name: 'Sadə baxış' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('group', { name: 'Ayın xülasəsi' })).toBeInTheDocument()
+    // Its own charts, which «Ətraflı baxış» does not have.
+    expect(screen.getByRole('region', { name: 'Sifarişlərin kateqoriya bölgüsü' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Müqayisəyə daxil edilən' })).toBeNull()
   })
 
-  it('keeps the old headline behind «Ətraflı baxış», and remembers the choice in the address', async () => {
+  it('switches to the Stitch composition on «Ətraflı baxış», and remembers the choice in the address', async () => {
     await renderPage()
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Ətraflı baxış' }))
 
-    expect(screen.queryByRole('group', { name: 'Ayın xülasəsi' })).not.toBeInTheDocument()
+    // The two views are two approved visual languages; the toggle really swaps the whole composition.
+    expect(screen.getByRole('region', { name: 'Aylıq xərc dinamikası və müqayisə' })).toBeInTheDocument()
+    expect(screen.getByText('Müqayisəyə daxil edilən')).toBeInTheDocument()
     expect(screen.getByTestId('search')).toHaveTextContent('view=etrafli')
   })
 
@@ -1142,7 +1152,7 @@ describe('how deep the reader wants to go', () => {
     await renderPage('/dashboard?period=2026-09&view=etrafli')
 
     expect(screen.getByRole('button', { name: 'Ətraflı baxış' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('group', { name: 'Ayın xülasəsi' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Dövr və müqayisə' })).toBeInTheDocument()
   })
 })
 
@@ -1151,8 +1161,8 @@ describe('how deep the reader wants to go', () => {
  * to know how a line was arrived at never loses the screen they were reading.
  */
 describe('the detail beside the page', () => {
-  it('opens the decomposition of the object from the line that raised the question', async () => {
-    await renderPage()
+  it('opens the decomposition of the object from the card that raised the question', async () => {
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — təfərrüat' }))
@@ -1163,19 +1173,19 @@ describe('the detail beside the page', () => {
   })
 
   it('leaves the screen it was opened from where it was', async () => {
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — təfərrüat' }))
     await screen.findByRole('dialog')
 
     // The list and the table are still there behind it: this is a detail, not a page.
-    expect(screen.getByRole('region', { name: 'Nə dəyişdi?' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Diqqət tələb edən obyektlər' })).toBeInTheDocument()
     expect(locationsTable()).toBeInTheDocument()
   })
 
   it('closes and gives the page back', async () => {
-    await renderPage()
+    await renderPage('/dashboard?period=2026-09&view=etrafli')
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — təfərrüat' }))
