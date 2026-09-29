@@ -210,9 +210,16 @@ describe('the guard in front of the operational screens', () => {
 })
 
 describe('who is signed in', () => {
+  // The approved design names the person in the sidebar's account card, with the role on the line under it.
   it('is named in the chrome, with the role in Azerbaijani', async () => {
     authApi.fetchCurrentUser.mockResolvedValue(person('Manager', { displayName: 'Test Rəhbər' }))
-    renderApp('/orders')
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <Sidebar open onClose={() => {}} />
+        </AuthProvider>
+      </MemoryRouter>,
+    )
 
     expect(await screen.findByText('Test Rəhbər')).toBeInTheDocument()
     expect(screen.getByText('Rəhbər')).toBeInTheDocument()

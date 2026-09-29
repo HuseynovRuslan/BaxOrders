@@ -1,9 +1,8 @@
-import { X } from 'lucide-react'
+import { User, X } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
+import { roleLabels } from '../auth/labels'
 import { navItems } from './navigation'
-import { usePendingApprovalCount } from './usePendingApprovalCount'
-import { appVersion } from './version'
 
 interface SidebarProps {
   open: boolean
@@ -11,49 +10,48 @@ interface SidebarProps {
 }
 
 /**
- * The product's structural anchor: a fixed navy column that never scrolls away and never changes colour.
+ * The product's structural anchor, as the approved BaxOrders-UI-v2 design draws it.
  *
- * Everything else on screen sits on a near-white ground, so the one dark shape is what the eye uses to know
- * where it is. That is the whole job — it is deliberately the least decorated surface in the product.
+ * A fixed 260-pixel slate column that never scrolls away and never changes colour: everything else sits on a
+ * near-white ground, so the one dark shape is what the eye uses to know where it is. The active item carries
+ * both a lighter fill and a blue bar on its trailing edge — colour is never the only thing saying where you are.
+ *
+ * The queue's count is not here any more; the design moved it to the header, where it now sits on a control
+ * that opens the queue.
  */
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { user } = useAuth()
   const visible = navItems.filter((item) => item.requires === undefined || user[item.requires])
-  const pending = usePendingApprovalCount(visible.some((item) => item.to === '/approvals'))
 
   return (
     <>
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-primary/50 lg:hidden"
+          className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden"
           aria-hidden="true"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col justify-between bg-primary text-on-primary transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col justify-between bg-slate-800 p-6 transition-transform lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex min-h-0 flex-col">
-          <div className="flex h-16 shrink-0 items-center justify-between px-space-lg">
-            <div className="flex items-center gap-space-md">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-secondary font-headline-sm text-headline-sm font-bold tracking-tight text-on-secondary">
-                BAX
+        <div className="flex min-h-0 flex-col gap-8">
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-lg font-extrabold text-white">
+              B
+            </span>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-lg font-bold leading-none text-white">BaxOrders</span>
+              <span className="truncate text-[10px] font-medium uppercase leading-none text-slate-500">
+                Material panel
               </span>
-              <div className="flex flex-col overflow-hidden">
-                <span className="truncate font-label-md text-label-md font-semibold leading-tight text-on-primary">
-                  Sifariş sistemi
-                </span>
-                <span className="truncate font-label-sm text-label-sm text-on-primary-container">
-                  Bakı Abadlıq Xidməti
-                </span>
-              </div>
             </div>
             <button
               type="button"
-              className="rounded-lg p-1 text-on-primary-container hover:bg-primary-container hover:text-on-primary lg:hidden"
+              className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-700 hover:text-white lg:hidden"
               onClick={onClose}
               aria-label="Menyunu bağla"
             >
@@ -61,7 +59,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             </button>
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-space-sm py-space-md">
+          <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
             {visible.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -69,39 +67,45 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 end={end}
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center justify-between gap-space-sm rounded-lg px-space-md py-space-sm transition-colors ${
-                    isActive
-                      ? 'bg-primary-container font-semibold text-on-primary'
-                      : 'text-primary-fixed-dim hover:bg-primary-container hover:text-on-primary'
+                  `flex items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+                    isActive ? 'bg-[#2a3649]' : 'hover:bg-slate-700/60'
                   }`
                 }
               >
-                <span className="flex min-w-0 items-center gap-space-sm">
-                  <Icon className="size-5 shrink-0" aria-hidden="true" />
-                  <span className="truncate font-body-md text-body-md">{label}</span>
-                </span>
-
-                {/*
-                  The one number in the navigation, and only when there is one: a badge that reads zero teaches
-                  the reader to stop looking at it. It is the real queue length, not a decoration.
-                */}
-                {to === '/approvals' && pending !== null && pending > 0 && (
-                  <span className="shrink-0 rounded-full bg-error px-1.5 py-0.5 font-label-sm text-label-sm font-semibold text-on-error">
-                    {pending}
-                  </span>
+                {({ isActive }) => (
+                  <>
+                    <Icon
+                      className={`size-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`}
+                      aria-hidden="true"
+                    />
+                    <span className={`min-w-0 flex-1 truncate text-sm ${
+                      isActive ? 'font-semibold text-white' : 'font-medium text-slate-400'
+                    }`}>
+                      {label}
+                    </span>
+                    {/* The second carrier of "you are here", so the fill is never doing it alone. */}
+                    {isActive && <span className="h-4 w-1 shrink-0 rounded-sm bg-blue-600" aria-hidden="true" />}
+                  </>
                 )}
               </NavLink>
             ))}
           </nav>
         </div>
 
-        <div className="shrink-0 p-space-md">
-          <div className="flex items-center justify-between rounded-lg bg-primary-container/60 p-space-sm">
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-primary-container">
-              Sistem
+        {/*
+          Who is signed in. The approved design puts a photograph here; this product has no portraits, so the
+          mark stands in its place — a stock face of somebody who does not work here would be the one piece of
+          invented content on the screen.
+        */}
+        <div className="flex shrink-0 items-center gap-3 rounded-lg bg-slate-900 p-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-700" aria-hidden="true">
+            <User className="size-4 text-slate-300" />
+          </span>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-[13px] font-semibold leading-none text-white">{user.displayName}</span>
+            <span className="truncate text-[11px] leading-none text-slate-500">
+              {user.role ? roleLabels[user.role] : ''}
             </span>
-            {/* The version this build really is. The handoff's «v2.0 Enterprise» was mock copy. */}
-            <span className="font-label-sm text-label-sm font-semibold text-secondary-fixed">{appVersion}</span>
           </div>
         </div>
       </aside>

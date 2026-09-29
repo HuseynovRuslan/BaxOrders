@@ -219,8 +219,9 @@ describe('the header for a Rəhbər', () => {
     await screen.findByRole('heading', { name: 'Təchizatçılar səhifəsi' })
     const header = within(screen.getByRole('banner'))
     expect(header.getByText('Test Rəhbər')).toBeInTheDocument()
-    // The role on a line of its own, exactly as the label says it.
-    expect(header.getByText('Rəhbər')).toBeInTheDocument()
+    // The role on a line of its own, exactly as the label says it — in the sidebar's account card, where the
+    // approved design puts it.
+    expect(within(screen.getByRole('complementary')).getByText('Rəhbər')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent('Administrator')
   })
 })

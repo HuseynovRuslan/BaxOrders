@@ -10,8 +10,10 @@ const healthApi = vi.hoisted(() => ({ fetchHealth: vi.fn() }))
 
 vi.mock('../api/health', () => healthApi)
 
-// Who is signed in is the menu's own concern; here it only has to take its place in the bar.
+// Who is signed in, and what is waiting, are those two components' own concern; here they only have to take
+// their place in the bar.
 vi.mock('./CurrentUserMenu', () => ({ CurrentUserMenu: () => <span>İstifadəçi</span> }))
+vi.mock('./ApprovalsBell', () => ({ ApprovalsBell: () => <span>Zəng</span> }))
 
 afterEach(() => vi.clearAllMocks())
 
@@ -19,20 +21,22 @@ afterEach(() => vi.clearAllMocks())
  * The title fits one line (brief: "Başlıq bir sətirə sığır"). At 390 px it broke into three: nothing stopped it
  * wrapping, and it was the one thing in the bar with no room to give. jsdom lays nothing out, so this checks the
  * classes that decide it.
+ *
+ * The approved BaxOrders-UI-v2 design writes it as two lines — the organisation above, the product below — and
+ * the rule is the same for both: each truncates, and everything else in the bar keeps its width.
  */
 describe('the title', () => {
-  it('keeps its words, on one line, and is the one thing in the bar that gives way', () => {
+  it('keeps its words, on one line each, and is the one thing in the bar that gives way', () => {
     healthApi.fetchHealth.mockReturnValue(new Promise(() => {}))
     render(<Header onMenuClick={() => {}} />)
 
-    const title = screen.getByText('Material sifarişlərinin idarə edilməsi')
-    // The design's own token names since the Stitch handoff; the rule they encode is unchanged — the title
-    // truncates on one line and every other thing in the bar keeps its width.
-    expect(title).toHaveClass('min-w-0', 'truncate', 'text-label-md', 'sm:text-headline-sm')
+    expect(screen.getByText('Bakı Abadlıq Xidməti')).toHaveClass('truncate')
+    const title = screen.getByText('Sifariş sistemi')
+    expect(title).toHaveClass('truncate')
+    expect(title.parentElement).toHaveClass('min-w-0')
 
-    expect(screen.getByRole('banner')).toHaveClass('gap-space-sm', 'sm:gap-space-md')
     expect(screen.getByRole('button', { name: 'Menyunu aç' })).toHaveClass('shrink-0', 'lg:hidden')
-    expect(screen.getByText('İstifadəçi').parentElement).toHaveClass('ml-auto', 'shrink-0', 'gap-space-md')
+    expect(screen.getByText('İstifadəçi').parentElement).toHaveClass('shrink-0')
   })
 })
 

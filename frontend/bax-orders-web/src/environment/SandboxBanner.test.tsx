@@ -93,7 +93,7 @@ describe('in the test environment', () => {
     const banner = await screen.findByText(sandboxBanner)
     expect(banner).toHaveAttribute('role', 'status')
     // Before the header, so it is the first thing the page says.
-    expect(banner.compareDocumentPosition(screen.getByText('Material sifarişlərinin idarə edilməsi')))
+    expect(banner.compareDocumentPosition(screen.getByText('Sifariş sistemi')))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 

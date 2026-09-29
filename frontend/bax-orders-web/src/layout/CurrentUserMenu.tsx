@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { authErrors, roleLabels } from '../auth/labels'
+import { authErrors } from '../auth/labels'
 import { Modal } from '../components/imports/review/Modal'
 
 /** Who is signed in, with the two things they can do about it themselves. */
@@ -17,26 +17,26 @@ export function CurrentUserMenu() {
   }
 
   return (
-    <div className="flex items-center gap-space-sm">
-      <div className="hidden text-right sm:block">
-        <p className="font-label-md text-label-md font-semibold leading-tight text-on-surface">{user.displayName}</p>
-        <p className="font-label-sm text-label-sm font-medium text-secondary">{user.role ? roleLabels[user.role] : ''}</p>
-      </div>
-
-      {/* The avatar of the approved design. A mark, not a photograph: this product has no portraits. */}
+    <div className="flex items-center gap-3">
+      {/*
+        The approved design shows an avatar and a name here. The avatar is a photograph of somebody who does
+        not work here, so the mark stands in its place; the name and the two things a person can do about
+        their own account are real.
+      */}
       <span
-        className="hidden size-8 shrink-0 items-center justify-center rounded-full bg-primary sm:flex"
+        className="hidden size-8 shrink-0 items-center justify-center rounded-full bg-slate-200 sm:flex"
         aria-hidden="true"
       >
-        <User className="size-4 text-on-primary" />
+        <User className="size-4 text-slate-500" />
       </span>
+      <p className="hidden truncate text-sm font-semibold text-slate-700 sm:block">{user.displayName}</p>
 
       <button
         type="button"
         onClick={() => setChanging(true)}
         aria-label="Şifrəni dəyiş"
         title="Şifrəni dəyiş"
-        className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
       >
         <KeyRound className="size-4" aria-hidden="true" />
       </button>
@@ -49,7 +49,7 @@ export function CurrentUserMenu() {
         }}
         aria-label="Çıxış"
         title="Çıxış"
-        className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
       >
         <LogOut className="size-4" aria-hidden="true" />
       </button>
