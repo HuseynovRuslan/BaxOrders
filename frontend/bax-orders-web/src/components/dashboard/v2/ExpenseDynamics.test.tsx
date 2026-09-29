@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { DashboardTrendPoint } from '../../../api/dashboard'
 import { ExpenseDynamics } from './ExpenseDynamics'
@@ -22,6 +23,11 @@ function show(trend: DashboardTrendPoint[], selectedPeriod = '2026-09-01') {
 
 function bars(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll('[data-height]'))
+}
+
+/** The whole column answers the pointer, not the bar inside it. */
+function columns(container: HTMLElement): HTMLElement[] {
+  return bars(container).map((bar) => bar.closest('.flex-1') as HTMLElement)
 }
 
 /**
@@ -59,6 +65,48 @@ describe('the run of months', () => {
     const heights = bars(container).map((bar) => Number(bar.dataset.height))
     expect(heights[1]).toBe(4)
     expect(heights[2]).toBe(0)
+  })
+})
+
+
+/**
+ * Any month answers, not just the selected one. Pinning the figure to the current month left the other five
+ * heights a picture nobody could put a number to.
+ */
+describe('pointing at a month', () => {
+  it('lights the month under the pointer and writes its amount', async () => {
+    const { container } = show(sixMonths, '2026-09-01')
+
+    await userEvent.hover(columns(container)[1])
+
+    expect(bars(container)[1]).toHaveAttribute('data-lit', 'true')
+    expect(screen.getByText(/58\.000,00/, { ignore: 'table, table *' })).toBeInTheDocument()
+  })
+
+  it('writes the exact amount, not a rounded one', async () => {
+    const { container } = show([point('2026-08-01', 63_340), point('2026-09-01', 71_210.29)], '2026-09-01')
+
+    await userEvent.hover(columns(container)[1])
+
+    expect(screen.getByText(/71\.210,29/, { ignore: 'table, table *' })).toBeInTheDocument()
+    expect(screen.queryByText(/71\.2K/)).toBeNull()
+  })
+
+  it('pins nothing: an unpointed chart carries no figure at all', () => {
+    show(sixMonths, '2026-09-01')
+
+    // The table beside the picture still has every figure; the picture itself has none until asked.
+    expect(within(screen.getByRole('table')).getByText(/71\.210,00/)).toBeInTheDocument()
+    expect(screen.queryByText(/71\.210,00/, { ignore: 'table, table *' })).toBeNull()
+  })
+
+  it('lets go when the pointer leaves the chart', async () => {
+    const { container } = show(sixMonths, '2026-09-01')
+
+    await userEvent.hover(columns(container)[1])
+    await userEvent.unhover(columns(container)[1])
+
+    expect(bars(container)[1]).toHaveAttribute('data-lit', 'false')
   })
 })
 

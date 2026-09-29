@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AnalyticsScope, DashboardTrendPoint } from '../../../api/dashboard'
 import { scopeAmountLabels } from '../../../analytics/scope'
 import { formatMonth, formatMoney, formatShortMonth, toMonthKey } from '../../analytics/format'
@@ -6,12 +7,16 @@ import { formatMonth, formatMoney, formatShortMonth, toMonthKey } from '../../an
 const trackHeight = 160
 
 /**
- * The last six months, as the approved design draws them: one bar a month, the selected one in colour with
- * its figure above it, the rest in quiet grey.
+ * The last six months, as the approved design draws them: one bar a month, the selected one in colour, the
+ * rest in quiet grey.
  *
  * It answers one question — is this month ordinary for us — and nothing else. There is no axis and no grid: a
- * manager who wants figures has the table below, and one who wants to know whether September is out of line
- * sees it in one height against five.
+ * manager who wants to know whether September is out of line sees it in one height against five, and one who
+ * wants a figure points at the month and reads it.
+ *
+ * Any month answers, not just the selected one. The design pins the figure to the current month, which makes
+ * the other five heights a picture nobody can put a number to; the label follows the pointer instead, and the
+ * month under it lights up the same blue while it does.
  *
  * It follows the scope, because a line of monthly demand and a line of total expenditure are two different
  * stories; the subtitle says which is drawn.
@@ -32,6 +37,8 @@ export function ExpenseDynamics({ trend, scope, selectedPeriod }: {
   }
 
   const selected = toMonthKey(selectedPeriod)
+  // Which month is being pointed at, if any. Nothing is pinned: an unpointed chart shows no figure at all.
+  const [pointed, setPointed] = useState<string | null>(null)
 
   return (
     <section
@@ -51,13 +58,20 @@ export function ExpenseDynamics({ trend, scope, selectedPeriod }: {
         </span>
       </div>
 
-      <div className="flex flex-1 items-end gap-4 pt-5" aria-hidden="true">
-        {trend.map((point) => (
+      <div
+        className="flex flex-1 items-end gap-4 pt-8"
+        aria-hidden="true"
+        onPointerLeave={() => setPointed(null)}
+      >
+        {trend.map((point, place) => (
           <Bar
             key={point.period}
             point={point}
             highest={highest}
             isSelected={toMonthKey(point.period) === selected}
+            isPointed={pointed === point.period}
+            edge={place === 0 ? 'start' : place === trend.length - 1 ? 'end' : null}
+            onPoint={() => setPointed(point.period)}
           />
         ))}
       </div>
@@ -81,10 +95,21 @@ export function ExpenseDynamics({ trend, scope, selectedPeriod }: {
   )
 }
 
-function Bar({ point, highest, isSelected }: {
+/**
+ * One month.
+ *
+ * The whole column answers the pointer, not the 32 pixels of bar in it: a chart that asks to be hit exactly is
+ * one nobody points at twice. The label is the exact amount rather than a rounded one — it is on screen
+ * because somebody asked for it, and the rounding only ever existed to keep a pinned label short.
+ */
+function Bar({ point, highest, isSelected, isPointed, edge, onPoint }: {
   point: DashboardTrendPoint
   highest: number
   isSelected: boolean
+  isPointed: boolean
+  /** The first and last labels hang off the card if they are centred, so they are anchored to their own side. */
+  edge: 'start' | 'end' | null
+  onPoint: () => void
 }) {
   const amount = point.knownAmount
   // A month with money in it keeps a visible bar however small the money was: a bar of no height reads as a
@@ -92,34 +117,32 @@ function Bar({ point, highest, isSelected }: {
   const height = amount === null || amount <= 0 ? 0 : Math.max(4, Math.round((amount / highest) * trackHeight))
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
+    <div
+      className="flex min-w-0 flex-1 cursor-default flex-col items-center gap-2"
+      onPointerEnter={onPoint}
+    >
       <div className="relative flex w-8 flex-col justify-end" style={{ height: trackHeight }}>
         <div
-          className={`w-8 rounded-t ${isSelected ? 'bg-blue-600' : 'bg-slate-400/40'}`}
+          className={`w-8 rounded-t transition-colors ${
+            isSelected || isPointed ? 'bg-blue-600' : 'bg-slate-400/40'
+          }`}
           style={{ height }}
           data-height={height}
+          data-lit={isSelected || isPointed ? 'true' : 'false'}
         />
-        {isSelected && amount !== null && (
-          <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-white">
-            {compact(amount)}
+        {isPointed && amount !== null && (
+          <span className={`absolute -top-7 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[11px] font-bold text-white ${
+            edge === 'start' ? 'left-0' : edge === 'end' ? 'right-0' : 'left-1/2 -translate-x-1/2'
+          }`}>
+            {formatMoney(amount)}
           </span>
         )}
       </div>
-      <span className={`truncate text-xs ${isSelected ? 'font-bold text-blue-600' : 'font-medium text-slate-500'}`}>
+      <span className={`truncate text-xs transition-colors ${
+        isSelected || isPointed ? 'font-bold text-blue-600' : 'font-medium text-slate-500'
+      }`}>
         {formatShortMonth(point.period)}
       </span>
     </div>
   )
-}
-
-/**
- * «71.2K ₼» — the label above the selected bar, as the design writes it.
- *
- * Deliberately the only rounded figure on the screen: it is a label on a picture, and the exact amount is in
- * the card above and in the table a screen reader walks.
- */
-function compact(amount: number): string {
-  return amount >= 1000
-    ? `${(amount / 1000).toLocaleString('az-Latn-AZ', { maximumFractionDigits: 1 })}K ₼`
-    : formatMoney(amount)
 }
