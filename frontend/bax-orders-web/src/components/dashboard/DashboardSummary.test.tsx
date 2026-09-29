@@ -86,6 +86,7 @@ function summary(overrides: Partial<ManagementDashboardSummary> = {}): Managemen
     amountOrientedServiceCount: 0,
     lineTypes: monthlyOnly(amount()),
     trend: [],
+    categories: [],
     ...overrides,
   }
 

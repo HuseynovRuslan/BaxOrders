@@ -409,8 +409,8 @@ export function DashboardExceptions({ summary, selection }: {
   }
 
   return (
-    <section className="mb-6 rounded-lg border border-slate-200 bg-white p-3">
-      <h2 className="text-xs font-medium text-slate-500">{exceptionsHeading}</h2>
+    <section className="mb-space-lg rounded-xl bg-surface-container-lowest p-space-md shadow-sm">
+      <h2 className="font-label-md text-label-md font-medium text-on-surface-variant">{exceptionsHeading}</h2>
 
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         {groups.map((group) => (

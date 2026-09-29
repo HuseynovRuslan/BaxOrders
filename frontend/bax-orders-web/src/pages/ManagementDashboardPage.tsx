@@ -10,12 +10,9 @@ import {
   type ManagementDashboard,
 } from '../api/dashboard'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
-import { PageHeader } from '../components/PageHeader'
-import { AttentionSection } from '../components/dashboard/AttentionSection'
 import {
   DashboardCoverageChips,
   DashboardExceptions,
-  DashboardHeadline,
   type CoverageChip,
 } from '../components/dashboard/DashboardSummary'
 import { LocationRows } from '../components/dashboard/LocationRows'
@@ -26,17 +23,19 @@ import {
   isPriceCoverage,
 } from '../components/dashboard/labels'
 import { formatCount, formatMonth, toMonthKey } from '../components/analytics/format'
-import { BasisPicker } from '../components/analytics/BasisPicker'
 import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
 import { isScope } from '../analytics/scope'
-import { readView, viewParam, type DashboardView } from '../analytics/dashboardView'
-import { ViewSelector } from '../components/analytics/ViewSelector'
+import { readView, viewParam, dashboardViewOrder, dashboardViewLabels, type DashboardView } from '../analytics/dashboardView'
 import { ExecutiveHeadline } from '../components/dashboard/ExecutiveHeadline'
 import { SpendSplitBar } from '../components/dashboard/SpendSplitBar'
 import { SpendTrend } from '../components/dashboard/SpendTrend'
 import { WhatChangedList } from '../components/dashboard/WhatChangedList'
 import { ChangeDetailDrawer } from '../components/dashboard/ChangeDetailDrawer'
-import { ScopeSelector } from '../components/analytics/ScopeSelector'
+import { FilterRibbon } from '../components/dashboard/stitch/FilterRibbon'
+import { KpiGrid } from '../components/dashboard/stitch/KpiGrid'
+import { ComparisonBars } from '../components/dashboard/stitch/ComparisonBars'
+import { CategoryBreakdown } from '../components/dashboard/stitch/CategoryBreakdown'
+import { AttentionCards } from '../components/dashboard/stitch/AttentionCards'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
 import { useScrollMemory } from '../navigation/useScrollMemory'
@@ -70,6 +69,8 @@ interface Dashboard {
   selection: BasisSelection | null
   loading: boolean
   error: string | null
+  /** When the answer on screen was read. The ribbon says it, because the alternative was a fictional sync time. */
+  loadedAt: Date | null
 }
 
 /**
@@ -83,7 +84,7 @@ interface Dashboard {
 export function ManagementDashboardPage() {
   const [params, setParams] = useSearchParams()
   const [periods, setPeriods] = useState<Periods>({ status: 'loading' })
-  const [dashboard, setDashboard] = useState<Dashboard>({ data: null, selection: null, loading: true, error: null })
+  const [dashboard, setDashboard] = useState<Dashboard>({ data: null, selection: null, loading: true, error: null, loadedAt: null })
   const tableHeading = useRef<HTMLHeadingElement>(null)
 
   // The whole reading lives in the query string, so Back, Forward, a reload and a pasted link all restore
@@ -196,13 +197,13 @@ export function ManagementDashboardPage() {
     fetchDashboard(period, query, controller.signal)
       .then((data) => {
         if (lastKey.current === key) {
-          setDashboard({ data, selection: asked, loading: false, error: null })
+          setDashboard({ data, selection: asked, loading: false, error: null, loadedAt: new Date() })
         }
       })
       .catch((problem: unknown) => {
         if (!controller.signal.aborted) {
           // Figures from another question must not stand under this one's error.
-          setDashboard({ data: null, selection: null, loading: false, error: message(problem, 'Panel yüklənmədi') })
+          setDashboard({ data: null, selection: null, loading: false, error: message(problem, 'Panel yüklənmədi'), loadedAt: null })
         }
       })
 
@@ -261,58 +262,68 @@ export function ManagementDashboardPage() {
     update(isActive ? noDataFilters : chipParams(chip))
   }
 
-  /** The headline's price line: the same objects as the price chip, and the table brought into view. */
-  function showMissingPrices() {
-    update(chipParams({ kind: 'missingPrice' }))
-    tableHeading.current?.scrollIntoView?.({ block: 'start' })
-  }
-
   const totalPages = data ? Math.max(1, Math.ceil(data.rows.totalCount / pageSize)) : 1
   const filtered = Boolean(
     search || historyCoverage || priceCoverage || hasCurrentRequest !== undefined || group || missingPrice)
 
   return (
     <div ref={root}>
-      <PageHeader
-        title="İdarəetmə paneli"
-        actions={(
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="text-xs text-slate-500">
-              Dövr
-              <select
-                value={period ?? ''}
-                onChange={(event) => update({ period: event.target.value })}
-                disabled={available.length === 0}
-                className="mt-1 block rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-900 disabled:opacity-50"
-              >
-                {periods.status === 'loading' && <option value="">Yüklənir…</option>}
-                {available.map((item) => (
-                  <option key={item.period} value={toMonthKey(item.period)}>
-                    {formatMonth(item.period)} ({formatCount(item.locationCount)} obyekt)
-                  </option>
-                ))}
-              </select>
-            </label>
+      {/*
+        The approved design's opening: who this is for, what it is, and the one control that decides how much
+        of it is shown. The eyebrow names the organisation because this screen is printed and forwarded.
+      */}
+      <div className="mb-space-md flex flex-col justify-between gap-space-md lg:flex-row lg:items-center">
+        <div className="min-w-0">
+          <p className="mb-1 flex flex-wrap items-center gap-space-sm font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+            <span>İdarəetmə mərkəzi</span>
+            <span aria-hidden="true">•</span>
+            <span className="font-medium text-secondary">Bakı Abadlıq Xidməti MMC</span>
+          </p>
+          <h1 className="font-headline-lg text-headline-lg font-bold tracking-tight text-on-surface">İdarəetmə paneli</h1>
+          <p className="mt-0.5 font-body-md text-body-md text-on-surface-variant">
+            {data
+              ? `${formatMonth(data.summary.selectedPeriod)} üzrə material sifarişlərinin analitikası və obyektlərin xərc dinamikası`
+              : 'Material sifarişlərinin analitikası və obyektlərin xərc dinamikası'}
+          </p>
+        </div>
 
-            {/* Which lines everything below is about. Beside the month, because together they are the whole
-                question: this month, these lines. */}
-            <div className="flex flex-wrap items-center gap-2 self-end">
-              <ScopeSelector value={scope} onChange={(next) => update({ scope: next === 'Monthly' ? undefined : next })} />
-              <ViewSelector value={view} onChange={(next) => update({ view: viewParam(next) })} />
-            </div>
-
-            {period !== null && (
-              <BasisPicker
-                selection={selection}
-                onSelect={(next: BasisSelection) => update(basisParams(next))}
-                months={priorMonths}
-                currentPeriod={period}
-                size="sm"
-              />
-            )}
+        <div className="flex shrink-0 items-center gap-space-sm self-start lg:self-center">
+          <div className="flex items-center rounded-xl bg-surface-container-high p-1 shadow-sm" role="group" aria-label="Baxış">
+            {dashboardViewOrder.map((option) => {
+              const active = option === view
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => update({ view: viewParam(option) })}
+                  className={`rounded-lg px-space-md py-1.5 font-label-md text-label-md transition-all ${
+                    active
+                      ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {dashboardViewLabels[option]}
+                </button>
+              )
+            })}
           </div>
-        )}
-      />
+        </div>
+      </div>
+
+      <div className="mb-space-lg">
+        <FilterRibbon
+          periods={available}
+          period={period}
+          onPeriod={(next) => update({ period: next })}
+          scope={scope}
+          onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
+          selection={selection}
+          onSelection={(next) => update(basisParams(next))}
+          priorMonths={priorMonths}
+          loadedAt={dashboard.loadedAt}
+        />
+      </div>
 
       {periods.status === 'error' && <ErrorState message={periods.message} />}
       {dashboard.error !== null && <ErrorState message={dashboard.error} />}
@@ -350,11 +361,27 @@ export function ManagementDashboardPage() {
                 </div>
               </>
             ) : (
-              <DashboardHeadline
-                summary={data.summary}
-                onShowMissingPrices={showMissingPrices}
-                onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
-              />
+              /*
+                «Ətraflı baxış» is the approved Stitch composition, on this product's own data: four figures,
+                the month against its basis object by object, what the money went on, and the outliers.
+              */
+              <>
+                <KpiGrid
+                  summary={data.summary}
+                  scope={scope}
+                  onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
+                />
+
+                <div className="mb-space-lg grid grid-cols-1 items-stretch gap-space-lg lg:grid-cols-12">
+                  <ComparisonBars
+                    summary={data.summary}
+                    rows={data.rows.items}
+                    selection={shownSelection}
+                    onOpenAll={() => tableHeading.current?.scrollIntoView?.({ block: 'start' })}
+                  />
+                  <CategoryBreakdown categories={data.summary.categories} scope={scope} />
+                </div>
+              </>
             )}
             {/*
               The object's own decomposition, beside the page rather than instead of it. Looked up in the answer
@@ -388,7 +415,12 @@ export function ManagementDashboardPage() {
                   onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
                 />
               ) : (
-                <AttentionSection attention={data.attention} summary={data.summary} selection={shownSelection} />
+                <AttentionCards
+                  attention={data.attention}
+                  summary={data.summary}
+                  selection={shownSelection}
+                  onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
+                />
               )}
             </div>
 
@@ -404,7 +436,7 @@ export function ManagementDashboardPage() {
             )}
           </div>
 
-          <h2 ref={tableHeading} className="mb-2 scroll-mt-20 text-sm font-semibold text-slate-900">Bütün obyektlər</h2>
+          <h2 ref={tableHeading} className="mb-space-sm scroll-mt-20 font-headline-md text-headline-md font-bold text-on-surface">Bütün obyektlər</h2>
 
           {/* The chips sit directly over the table they filter, and a chip opens exactly the objects it counts. */}
           <DashboardCoverageChips summary={data.summary} active={activeChip} onSelect={selectChip} />
@@ -418,7 +450,7 @@ export function ManagementDashboardPage() {
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Obyekt adı üzrə axtar"
-                className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm sm:w-72"
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-space-md py-1.5 font-body-md text-body-md sm:w-72"
               />
             </form>
 

@@ -25,6 +25,12 @@ interface BasisPickerProps {
   currentPeriod: string
   label?: string
   size?: 'sm' | 'md'
+  /**
+   * `'chips'` — the five choices side by side, which is what a screen with room for them should show.
+   * `'compact'` — one menu, for the dashboard's filter ribbon, where the comparison is the third control in a
+   * bar and five buttons would push the other two off it. The same five choices either way, in the same order.
+   */
+  variant?: 'chips' | 'compact'
 }
 
 /**
@@ -44,6 +50,7 @@ export function BasisPicker({
   currentPeriod,
   label = 'Müqayisə',
   size = 'md',
+  variant = 'chips',
 }: BasisPickerProps) {
   const current = toBasisParam(selection.basis)
   const fallback = previousMonth(currentPeriod)
@@ -59,6 +66,34 @@ export function BasisPicker({
     const from = isMonth(selection.from) ? selection.from : (months.at(-1) ?? fallback)
     const to = isMonth(selection.to) && selection.to >= from ? selection.to : from
     onSelect({ basis: 'CustomRange', from, to })
+  }
+
+  if (variant === 'compact') {
+    return (
+      <span className="flex flex-wrap items-center gap-space-xs">
+        <label className="flex items-center">
+          <span className="sr-only">{label}</span>
+          <select
+            value={current}
+            onChange={(event) => choose(event.target.value as BasisParam)}
+            className="cursor-pointer appearance-none bg-transparent py-1 pr-1 font-label-md text-label-md font-medium text-on-surface outline-none"
+          >
+            {basisParamOrder.map((option) => (
+              <option key={option} value={option}>{basisLabels[WIRE[option]]}</option>
+            ))}
+          </select>
+        </label>
+
+        {selection.basis === 'CustomRange' && (
+          <CustomRange
+            months={months}
+            from={selection.from}
+            to={selection.to}
+            onChange={(from, to) => onSelect({ basis: 'CustomRange', from, to })}
+          />
+        )}
+      </span>
+    )
   }
 
   return (

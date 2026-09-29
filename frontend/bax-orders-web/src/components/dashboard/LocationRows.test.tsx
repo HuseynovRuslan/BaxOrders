@@ -91,6 +91,7 @@ function row(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRo
     deepLinkCustomStart: null,
     deepLinkCustomEnd: null,
     supplyChangedVariantCount: 0,
+    responsibility: null,
     causes: [
       { category: 'NewOrders', amount: 150, variantCount: 3 },
       { category: 'PriceChange', amount: 50, variantCount: 2 },
@@ -144,6 +145,7 @@ function summary(basis: AnalyticsComparisonBasis = 'PreviousMonth'): ManagementD
     amountOrientedServiceCount: 0,
     lineTypes: monthlyOnly(amount()),
     trend: [],
+    categories: [],
   }
 
   return { ...base, lineTypes: monthlyOnly(base.current) }

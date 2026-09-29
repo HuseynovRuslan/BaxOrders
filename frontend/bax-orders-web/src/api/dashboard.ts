@@ -2,6 +2,7 @@ import type { CauseCategory } from './decisions'
 import type { AnalyticsComparisonBasis, PeriodRequest, PriceCoverageState } from './analytics'
 import { getJson } from './client'
 import type { OrderRequestStatus, PagedResult } from './orders'
+import type { OrderResponsibility } from '../orderLines/responsibility'
 
 /** Mirrors `BaxOrders.Application.Analytics.Dashboard`. Nothing here is recomputed in the browser. */
 export type HistoryCoverageState = 'Complete' | 'Partial' | 'Unavailable'
@@ -115,6 +116,12 @@ export interface LocationDashboardRow {
   unattributedAmount: number
   /** Products paid for in one of the two months and supplied internally in the other. */
   supplyChangedVariantCount: number
+  /**
+   * Who this month's order is answerable to, by the one rule the whole product uses: the explicit assignment,
+   * or the one person every line names, or «Bir neçə cavabdeh», or nobody. Never the person with the most
+   * lines. Null where the object did not order this month — there is then no order to be answerable for.
+   */
+  responsibility: OrderResponsibility | null
 }
 
 export interface DashboardCause {
@@ -253,6 +260,26 @@ export interface ManagementDashboardSummary {
    * month: a single point is not a trend.
    */
   trend: DashboardTrendPoint[]
+  /**
+   * What the month's money was spent on, by the catalogue's top-level categories, largest first. Follows the
+   * scope like everything else. Empty where the scope holds no lines at all.
+   */
+  categories: DashboardCategory[]
+}
+
+/** What a row of the breakdown stands for. The two that are not a category are named as what they are. */
+export type DashboardCategoryKind = 'Category' | 'Other' | 'Uncategorised'
+
+export interface DashboardCategory {
+  /** Null on the two rows that are not a category: the folded remainder, and what nobody has filed. */
+  categoryId: number | null
+  name: string
+  kind: DashboardCategoryKind
+  /** Null where nothing in the row is priced — never a zero standing in for unknown. */
+  knownAmount: number | null
+  itemCount: number
+  /** How many categories a folded remainder stands for; 1 for a real category, 0 for the unfiled row. */
+  categoryCount: number
 }
 
 /** One month of the company, for reading the selected one against the run of them. */

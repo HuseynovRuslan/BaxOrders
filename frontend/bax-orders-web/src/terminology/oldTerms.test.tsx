@@ -200,6 +200,7 @@ function dashboardRow(overrides: Partial<LocationDashboardRow> = {}): LocationDa
     explanationIsComplete: false,
     unattributedAmount: 50,
     supplyChangedVariantCount: 0,
+    responsibility: null,
     ...overrides,
   }
 }
@@ -260,6 +261,7 @@ function dashboard(): ManagementDashboard {
       amountOrientedServiceCount: 0,
       lineTypes: monthlyOnly(amount()),
       trend: [],
+      categories: [],
     },
     filteredLocationCount: 3,
     // A rank and a "Həm də" line (Task 09), so the card titles are swept in every form they take.
@@ -1027,25 +1029,32 @@ describe('no retired word on the manager’s screens', () => {
     // Said by the ⚠ mark now, as its name and hover text, rather than as a sentence on every card (Task 09).
     expect(screen.getAllByRole('img', { name: /Dəyişikliyin bir hissəsi izah edilə bilmir: bəzi sətirlərdə qiymət yoxdur\./ }).length)
       .toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'Bütün dövrün ortalaması' })).toBeInTheDocument()
-    // Task 09's own words: the card titles, the direction of the cost, the objects left out and the pressed chip.
-    expect(container).toHaveTextContent('İkinci ən böyük məbləğ artımı')
-    expect(container).toHaveTextContent('Həm də ən böyük faiz dəyişməsi')
-    expect(container).toHaveTextContent('Bütün dövrün ortalamasına görə xərc artıb')
-    expect(container).toHaveTextContent('Müqayisəyə daxil deyil: EXPO Center')
+    // The comparison is one menu since the Stitch ribbon; the five choices and their words are unchanged.
+    expect(screen.getByLabelText('Müqayisə')).toHaveValue('all')
+
+    // The outlier cards' own words: what place the card holds, and in which direction.
+    expect(container).toHaveTextContent('ƏN BÖYÜK MƏBLƏĞ ARTIMI')
+    // The basis, named once beside the cards that are measured against it.
+    expect(container).toHaveTextContent('Bütün dövrün ortalamasına görə')
+    // Who is outside the comparison is named object by object in the exceptions block, which is where the
+    // approved design leaves it — the old headline's one-line version went with the headline.
+    expect(container).toHaveTextContent('Müqayisə bazası yoxdur')
+    expect(container).toHaveTextContent('EXPO Center — bu ay 180,04 ₼')
     expect(screen.getByRole('button', { name: 'Qiymət yoxdur · 3 obyekt' })).toHaveAttribute('aria-pressed', 'true')
     expect(container).not.toHaveTextContent(/yaxşı|pis/i)
-    // Task 21's: the named cohort and its three words, the partial baseline's count (the partial row), and the
-    // missing-price line under the headline (the summary owes prices) — none of them "təxmini".
-    expect(screen.getByRole('group', { name: 'Müqayisə olunan 3 obyekt' })).toHaveTextContent(/Bu ay .* Baza .* Fərq /)
+
+    // Task 21's: how many objects the comparison is over, the partial baseline's own count, and what the
+    // headline figure leaves out — none of them "təxmini".
+    expect(container).toHaveTextContent('Müqayisəyə daxil edilən')
     expect(screen.getAllByText('Baza 2/3 ay').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Qiyməti olmayan sətirlər bu məbləğə daxil deyil.')
       .filter((element) => element.closest('[role="note"]') === null)).toHaveLength(1)
     expect(container).not.toHaveTextContent(/təxmini|təqribi/i)
-    // The product lines under "Əsas səbəb" (Task 07), swept with the rest of the page.
-    expect(container).toHaveTextContent('Rosmarinus — +300,00 ₼')
-    expect(container).toHaveTextContent('(artımların 86%-i)')
-    expect(container).toHaveTextContent('(azalmaların 100%-i)')
+    // The product under "Əsas səbəb" (Task 07), swept with the rest of the page. The Stitch card sets the
+    // name, the money and the share on their own lines rather than in one sentence.
+    expect(container).toHaveTextContent('Rosmarinus')
+    expect(container).toHaveTextContent('artımların 86%-i')
+    expect(container).toHaveTextContent('azalmaların 100%-i')
   })
 
   it('the order page, with its decision panel and its histories', async () => {
