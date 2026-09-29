@@ -1,5 +1,173 @@
 @import "tailwindcss";
 
+/*
+  The approved Stitch handoff, as tokens.
+
+  Source of truth: AI_WORKFLOW/design-reference/stitch-dashboard/ — DESIGN.md's YAML frontmatter and the
+  Tailwind config inside code.html, which agree with each other and with the approved screenshot.
+
+  DESIGN.md's *prose* section names a different palette (#0F172A, #2563EB, #059669, #D97706, #DC2626,
+  #F1F5F9 …). Not one of those values appears anywhere in code.html, and the screenshot is visibly the
+  scheme below — a deeper navy and a more saturated blue. The prose is kept as the reference's rationale;
+  these tokens are what was approved to look at, so these are what the product uses.
+
+  The names are the handoff's own, so a component here can be read against the handoff line by line.
+*/
+@theme {
+  /* --- surfaces: the quiet ground the whole product stands on --------------------------------------- */
+  --color-surface: #f6fafe;
+  --color-surface-dim: #d6dade;
+  --color-surface-bright: #f6fafe;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f0f4f8;
+  --color-surface-container: #eaeef2;
+  --color-surface-container-high: #e4e9ed;
+  --color-surface-container-highest: #dfe3e7;
+  --color-surface-variant: #dfe3e7;
+  --color-surface-tint: #515e7b;
+  --color-background: #f6fafe;
+  --color-on-background: #171c1f;
+  --color-on-surface: #171c1f;
+  --color-on-surface-variant: #45474d;
+  --color-inverse-surface: #2c3134;
+  --color-inverse-on-surface: #edf1f5;
+  --color-outline: #75777e;
+  --color-outline-variant: #c5c6ce;
+
+  /* --- primary: the structural navy. Sidebar, primary action, the darkest bar in a chart ------------- */
+  --color-primary: #08162f;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1e2b45;
+  --color-on-primary-container: #8592b2;
+  --color-inverse-primary: #b9c6e8;
+  --color-primary-fixed: #d8e2ff;
+  --color-primary-fixed-dim: #b9c6e8;
+  --color-on-primary-fixed: #0d1b34;
+  --color-on-primary-fixed-variant: #3a4762;
+
+  /* --- secondary: interactive intent. Only ever means "this does something" -------------------------- */
+  --color-secondary: #0051d5;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #316bf3;
+  --color-on-secondary-container: #fefcff;
+  --color-secondary-fixed: #dbe1ff;
+  --color-secondary-fixed-dim: #b4c5ff;
+  --color-on-secondary-fixed: #00174b;
+  --color-on-secondary-fixed-variant: #003ea8;
+
+  /* --- tertiary: the falling direction. A saving is not an error, so it is never red ----------------- */
+  --color-tertiary: #001b18;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #00322d;
+  --color-on-tertiary-container: #2ca397;
+  --color-tertiary-fixed: #89f5e7;
+  --color-tertiary-fixed-dim: #6bd8cb;
+  --color-on-tertiary-fixed: #00201d;
+  --color-on-tertiary-fixed-variant: #005049;
+
+  /* --- error: a rising cost, and a genuine fault. Both, deliberately: the product says which in words - */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /*
+    --- type: two families with roles that do not overlap ------------------------------------------------
+    Geist carries headings and figures; Inter carries everything a person reads as text. On a screen this
+    full of numbers that is what builds the hierarchy — not colour.
+  */
+  --font-display-lg: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-headline-lg: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-headline-md: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-headline-sm: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-metric-val: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-body-lg: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body-md: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body-sm: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-label-md: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-label-sm: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /*
+    Every line-height is at or above 1.4 of its size, which DESIGN.md asks for by name: below that, the
+    diacritics of İ, Ğ, Ş and ə clip. label-sm is 11/14 — the one place the ratio is 1.27 — so it is used
+    only for short upper-case labels, never for a sentence.
+  */
+  --text-display-lg: 32px;
+  --text-display-lg--line-height: 40px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 600;
+
+  --text-headline-lg: 24px;
+  --text-headline-lg--line-height: 32px;
+  --text-headline-lg--letter-spacing: -0.015em;
+  --text-headline-lg--font-weight: 600;
+
+  --text-headline-md: 20px;
+  --text-headline-md--line-height: 28px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 600;
+
+  --text-headline-sm: 16px;
+  --text-headline-sm--line-height: 24px;
+  --text-headline-sm--letter-spacing: -0.005em;
+  --text-headline-sm--font-weight: 600;
+
+  --text-metric-val: 28px;
+  --text-metric-val--line-height: 32px;
+  --text-metric-val--letter-spacing: -0.02em;
+  --text-metric-val--font-weight: 700;
+
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 16px;
+
+  --text-label-md: 13px;
+  --text-label-md--line-height: 18px;
+  --text-label-md--font-weight: 500;
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--letter-spacing: 0.04em;
+  --text-label-sm--font-weight: 600;
+
+  /* --- shape: soft, not childish. A card is 8px; a modal 12px; a chip 4px --------------------------- */
+  --radius-sm: 0.125rem;
+  --radius-DEFAULT: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* --- spacing: the 8-point rhythm, by the handoff's own names -------------------------------------- */
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-gutter-mobile: 0.75rem;
+  --spacing-margin: 2rem;
+  --spacing-margin-mobile: 1rem;
+
+  /*
+    --- elevation: a 1px outline and a whisper, never a drop shadow ----------------------------------
+    DESIGN.md is explicit that depth comes from tone and outline rather than from shadow. These are its
+    three levels; nothing in the product invents a fourth.
+  */
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.02);
+  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.07), 0 2px 4px -2px rgb(15 23 42 / 0.04);
+  --shadow-lg: 0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.06);
+}
+
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-background font-body-md text-body-md text-on-surface antialiased;
+}
+
+/*
+  Money and quantities are read down a column, so their digits have to line up. Applied where figures are
+  tabular rather than globally: proportional digits read better inside a sentence.
+*/
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

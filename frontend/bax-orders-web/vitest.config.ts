@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+import { version } from './package.json'
 
 /**
  * A deliberately small test setup: it covers the presentation rules that carry business meaning — a
@@ -8,6 +9,8 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   plugins: [react()],
+  // The same build-time constant the app is compiled with; this file does not inherit vite.config.ts.
+  define: { __APP_VERSION__: JSON.stringify(version) },
   test: {
     environment: 'jsdom',
     globals: true,

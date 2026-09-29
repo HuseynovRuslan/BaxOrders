@@ -26,11 +26,13 @@ describe('the title', () => {
     render(<Header onMenuClick={() => {}} />)
 
     const title = screen.getByText('Material sifarişlərinin idarə edilməsi')
-    expect(title).toHaveClass('min-w-0', 'truncate', 'text-xs', 'sm:text-sm')
+    // The design's own token names since the Stitch handoff; the rule they encode is unchanged — the title
+    // truncates on one line and every other thing in the bar keeps its width.
+    expect(title).toHaveClass('min-w-0', 'truncate', 'text-label-md', 'sm:text-headline-sm')
 
-    expect(screen.getByRole('banner')).toHaveClass('gap-2', 'sm:gap-4')
+    expect(screen.getByRole('banner')).toHaveClass('gap-space-sm', 'sm:gap-space-md')
     expect(screen.getByRole('button', { name: 'Menyunu aç' })).toHaveClass('shrink-0', 'lg:hidden')
-    expect(screen.getByText('İstifadəçi').parentElement).toHaveClass('ml-auto', 'shrink-0', 'gap-4')
+    expect(screen.getByText('İstifadəçi').parentElement).toHaveClass('ml-auto', 'shrink-0', 'gap-space-md')
   })
 })
 

@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+// The sidebar prints the build's own version, so it is read from the manifest rather than typed into a
+// component, where it would drift from the truth the moment the package is bumped.
+import { version } from './package.json'
 
 // The dev server proxies API calls to the ASP.NET Core backend, so the browser
 // talks to a single origin and the API needs no CORS configuration.
@@ -19,6 +22,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    define: { __APP_VERSION__: JSON.stringify(version) },
     server: {
       port,
       strictPort,

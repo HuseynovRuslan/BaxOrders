@@ -1,4 +1,4 @@
-import { KeyRound, LogOut } from 'lucide-react'
+import { KeyRound, LogOut, User } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../api/client'
@@ -17,18 +17,26 @@ export function CurrentUserMenu() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-space-sm">
       <div className="hidden text-right sm:block">
-        <p className="text-sm font-medium text-slate-900">{user.displayName}</p>
-        <p className="text-xs text-slate-500">{user.role ? roleLabels[user.role] : ''}</p>
+        <p className="font-label-md text-label-md font-semibold leading-tight text-on-surface">{user.displayName}</p>
+        <p className="font-label-sm text-label-sm font-medium text-secondary">{user.role ? roleLabels[user.role] : ''}</p>
       </div>
+
+      {/* The avatar of the approved design. A mark, not a photograph: this product has no portraits. */}
+      <span
+        className="hidden size-8 shrink-0 items-center justify-center rounded-full bg-primary sm:flex"
+        aria-hidden="true"
+      >
+        <User className="size-4 text-on-primary" />
+      </span>
 
       <button
         type="button"
         onClick={() => setChanging(true)}
         aria-label="Şifrəni dəyiş"
         title="Şifrəni dəyiş"
-        className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+        className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
       >
         <KeyRound className="size-4" aria-hidden="true" />
       </button>
@@ -41,7 +49,7 @@ export function CurrentUserMenu() {
         }}
         aria-label="Çıxış"
         title="Çıxış"
-        className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+        className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
       >
         <LogOut className="size-4" aria-hidden="true" />
       </button>
