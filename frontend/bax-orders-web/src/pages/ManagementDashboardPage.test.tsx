@@ -1127,12 +1127,14 @@ describe('the order scope', () => {
  * detailed one keeps everything it has ever had.
  */
 describe('how deep the reader wants to go', () => {
-  it('opens simple, on the Figma composition', async () => {
+  it('opens simple, on the approved BaxOrders composition', async () => {
     await renderPage()
 
     expect(screen.getByRole('button', { name: 'Sadə baxış' })).toHaveAttribute('aria-pressed', 'true')
-    // Its own charts, which «Ətraflı baxış» does not have.
-    expect(screen.getByRole('region', { name: 'Sifarişlərin kateqoriya bölgüsü' })).toBeInTheDocument()
+    // Its own sections, which «Ətraflı baxış» does not have.
+    expect(screen.getByRole('region', { name: 'Xərc dinamikası' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Kateqoriya üzrə bölgü' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Məbləğ dəyişiklikləri' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Müqayisəyə daxil edilən' })).toBeNull()
   })
 

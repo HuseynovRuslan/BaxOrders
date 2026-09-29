@@ -10,11 +10,7 @@ import {
   type ManagementDashboard,
 } from '../api/dashboard'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
-import {
-  DashboardCoverageChips,
-  DashboardExceptions,
-  type CoverageChip,
-} from '../components/dashboard/DashboardSummary'
+import { DashboardCoverageChips, type CoverageChip } from '../components/dashboard/DashboardSummary'
 import { LocationRows } from '../components/dashboard/LocationRows'
 import {
   dashboardSortOption,
@@ -22,17 +18,13 @@ import {
   isHistoryCoverage,
   isPriceCoverage,
 } from '../components/dashboard/labels'
-import { formatCount, formatMonth, toMonthKey } from '../components/analytics/format'
+import { formatCount, toMonthKey } from '../components/analytics/format'
 import { basisParams, basisRequest, type BasisSelection } from '../analytics/basisParams'
 import { isScope } from '../analytics/scope'
-import { readView, viewParam, dashboardViewOrder, dashboardViewLabels, type DashboardView } from '../analytics/dashboardView'
-import { SimpleDashboard } from '../components/dashboard/figma/SimpleDashboard'
+import { readView, viewParam, type DashboardView } from '../analytics/dashboardView'
+import { SimpleDashboardView } from '../components/dashboard/v2/SimpleDashboardView'
 import { ChangeDetailDrawer } from '../components/dashboard/ChangeDetailDrawer'
-import { FilterRibbon } from '../components/dashboard/stitch/FilterRibbon'
-import { KpiGrid } from '../components/dashboard/stitch/KpiGrid'
-import { ComparisonBars } from '../components/dashboard/stitch/ComparisonBars'
-import { CategoryBreakdown } from '../components/dashboard/stitch/CategoryBreakdown'
-import { AttentionCards } from '../components/dashboard/stitch/AttentionCards'
+import { DetailedDashboardHeader, DetailedDashboardView } from '../components/dashboard/DetailedDashboardView'
 import { useBasis } from '../analytics/useBasis'
 import { isPortfolioGroup } from '../coverage/labels'
 import { useScrollMemory } from '../navigation/useScrollMemory'
@@ -266,65 +258,20 @@ export function ManagementDashboardPage() {
   return (
     <div ref={root}>
       {view === 'Detailed' && (
-        <>
-        {/*
-          The approved design's opening: who this is for, what it is, and the one control that decides how much
-          of it is shown. The eyebrow names the organisation because this screen is printed and forwarded.
-        */}
-        <div className="mb-space-md flex flex-col justify-between gap-space-md lg:flex-row lg:items-center">
-          <div className="min-w-0">
-            <p className="mb-1 flex flex-wrap items-center gap-space-sm font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
-              <span>İdarəetmə mərkəzi</span>
-              <span aria-hidden="true">•</span>
-              <span className="font-medium text-secondary">Bakı Abadlıq Xidməti MMC</span>
-            </p>
-            <h1 className="font-headline-lg text-headline-lg font-bold tracking-tight text-on-surface">İdarəetmə paneli</h1>
-            <p className="mt-0.5 font-body-md text-body-md text-on-surface-variant">
-              {data
-                ? `${formatMonth(data.summary.selectedPeriod)} üzrə material sifarişlərinin analitikası və obyektlərin xərc dinamikası`
-                : 'Material sifarişlərinin analitikası və obyektlərin xərc dinamikası'}
-            </p>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-space-sm self-start lg:self-center">
-            <div className="flex items-center rounded-xl bg-surface-container-high p-1 shadow-sm" role="group" aria-label="Baxış">
-              {dashboardViewOrder.map((option) => {
-                const active = option === view
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => update({ view: viewParam(option) })}
-                    className={`rounded-lg px-space-md py-1.5 font-label-md text-label-md transition-all ${
-                      active
-                        ? 'bg-surface-container-lowest font-semibold text-primary shadow-sm'
-                        : 'text-on-surface-variant hover:text-on-surface'
-                    }`}
-                  >
-                    {dashboardViewLabels[option]}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-space-lg">
-          <FilterRibbon
-            periods={available}
-            period={period}
-            onPeriod={(next) => update({ period: next })}
-            scope={scope}
-            onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
-            selection={selection}
-            onSelection={(next) => update(basisParams(next))}
-            priorMonths={priorMonths}
-            loadedAt={dashboard.loadedAt}
-          />
-        </div>
-
-        </>
+        <DetailedDashboardHeader
+          selectedPeriod={data ? data.summary.selectedPeriod : null}
+          periods={available}
+          period={period}
+          onPeriod={(next) => update({ period: next })}
+          scope={scope}
+          onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
+          selection={selection}
+          onSelection={(next) => update(basisParams(next))}
+          priorMonths={priorMonths}
+          loadedAt={dashboard.loadedAt}
+          view={view}
+          onView={(next) => update({ view: viewParam(next) })}
+        />
       )}
       {periods.status === 'error' && <ErrorState message={periods.message} />}
       {dashboard.error !== null && <ErrorState message={dashboard.error} />}
@@ -345,12 +292,12 @@ export function ManagementDashboardPage() {
           <div className="max-lg:flex max-lg:flex-col">
             {view === 'Simple' ? (
               /*
-                «Sadə baxış» is the approved Figma Make composition, on this product's own data. It brings its
-                own title row and filter bar — the two views are two approved visual languages, and a page half
-                in each would be a third design nobody approved. The month, the scope and the comparison are
-                the page's own state, shared with «Ətraflı baxış».
+                «Sadə baxış» is the approved BaxOrders UI, on this product's own data. It brings its own title
+                row and controls — the two views are two approved visual languages, and a page half in each
+                would be a third design nobody approved. The month, the scope and the comparison are the
+                page's own state, shared with «Ətraflı baxış».
               */
-              <SimpleDashboard
+              <SimpleDashboardView
                 data={data}
                 periods={available}
                 period={period}
@@ -362,31 +309,24 @@ export function ManagementDashboardPage() {
                 selection={selection}
                 onSelection={(next) => update(basisParams(next))}
                 priorMonths={priorMonths}
-                loadedAt={dashboard.loadedAt}
+                onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
                 onOpenAll={() => tableHeading.current?.scrollIntoView?.({ block: 'start' })}
               />
             ) : (
               /*
-                «Ətraflı baxış» is the approved Stitch composition, on this product's own data: four figures,
-                the month against its basis object by object, what the money went on, and the outliers.
+                «Ətraflı baxış» keeps its own approved composition, unchanged: four figures, the month against
+                its basis object by object, what the money went on, the outliers, and who was left out.
               */
-              <>
-                <KpiGrid
-                  summary={data.summary}
-                  scope={scope}
-                  onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
-                />
-
-                <div className="mb-space-lg grid grid-cols-1 items-stretch gap-space-lg lg:grid-cols-12">
-                  <ComparisonBars
-                    summary={data.summary}
-                    rows={data.rows.items}
-                    selection={shownSelection}
-                    onOpenAll={() => tableHeading.current?.scrollIntoView?.({ block: 'start' })}
-                  />
-                  <CategoryBreakdown categories={data.summary.categories} scope={scope} />
-                </div>
-              </>
+              <DetailedDashboardView
+                summary={data.summary}
+                rows={data.rows.items}
+                attention={data.attention}
+                scope={scope}
+                selection={shownSelection}
+                onShowOutsideMonthly={() => setOutsideMonthlyOpen(true)}
+                onOpenAll={() => tableHeading.current?.scrollIntoView?.({ block: 'start' })}
+                onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
+              />
             )}
             {/*
               The object's own decomposition, beside the page rather than instead of it. Looked up in the answer
@@ -408,32 +348,6 @@ export function ManagementDashboardPage() {
                 period={data.summary.selectedPeriod.slice(0, 7)}
                 onClose={() => setOutsideMonthlyOpen(false)}
               />
-            )}
-
-            {/*
-              Which objects to read, and why — straight under the month, on the first screen. «Sadə baxış»
-              carries its own cards inside its composition, so this is the detailed view's.
-            */}
-            {view === 'Detailed' && (
-              <div className="max-lg:order-2">
-                <AttentionCards
-                  attention={data.attention}
-                  summary={data.summary}
-                  selection={shownSelection}
-                  onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
-                />
-              </div>
-            )}
-
-            {/*
-              Who is outside the comparison, object by object. In «Sadə baxış» that is a count on the list above
-              and the names are one click away, because naming three groups here is the density the redesign is
-              about; nothing is hidden, it is one level deeper.
-            */}
-            {view === 'Detailed' && (
-              <div className="max-lg:order-1">
-                <DashboardExceptions summary={data.summary} selection={shownSelection} />
-              </div>
             )}
           </div>
 

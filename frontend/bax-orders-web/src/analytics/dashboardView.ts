@@ -17,6 +17,15 @@ export const dashboardViewLabels: Record<DashboardView, string> = {
   Detailed: 'Ətraflı baxış',
 }
 
+/**
+ * The same two, for a toggle that has to sit beside three other controls on one row. The full label stays the
+ * control's accessible name, so what a screen reader announces does not change with the width it is drawn at.
+ */
+export const dashboardViewShortLabels: Record<DashboardView, string> = {
+  Simple: 'Sadə',
+  Detailed: 'Ətraflı',
+}
+
 /** What the address calls it, so a link reads as something a person wrote. */
 const params: Record<DashboardView, string> = { Simple: 'sade', Detailed: 'etrafli' }
 
