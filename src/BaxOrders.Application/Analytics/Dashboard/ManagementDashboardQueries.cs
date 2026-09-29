@@ -55,6 +55,13 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     /// ordinary, and few enough that the line stays a shape rather than a chart to be studied.
     /// </summary>
     private const int TrendPeriods = 6;
+
+    /// <summary>
+    /// How many categories the breakdown names before the rest is folded into one row. The catalogue has ten
+    /// roots and a month usually touches most of them; four named plus a remainder is a list a manager reads at
+    /// a glance, which is the whole point of showing roots rather than the 105 leaves.
+    /// </summary>
+    private const int NamedCategories = 4;
     public const int MaxPageSize = 100;
 
     /// <summary>The months the company has permanent orders for, newest first.</summary>
@@ -157,8 +164,9 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         // part of it that is comparable.
         var lineTypes = await LineTypeSplitAsync(currentPeriod, requestIds, cancellationToken);
         var trend = await TrendAsync(currentPeriod, query.Scope, cancellationToken);
+        var categories = await CategoriesAsync(currentPeriod, requestIds, query.Scope, cancellationToken);
         var summary = Summarize(
-            currentPeriod, selection, baselinePeriods, rows, groups, lastOrders, lineTypes, trend);
+            currentPeriod, selection, baselinePeriods, rows, groups, lastOrders, lineTypes, trend, categories);
 
         var filtered = Sort(Filter(rows, groups, query), query);
         var (page, pageSize) = PageOf(query.Page, query.PageSize);
@@ -493,6 +501,124 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
     }
 
     /// <summary>
+    /// What the month's money was spent on, by the catalogue's top-level categories.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two queries: the month's lines grouped by the category their product is filed under, and the category
+    /// tree itself — 148 rows, the whole table, which is cheaper than asking the database to walk three levels
+    /// of parents per group. Neither grows with the number of objects.
+    /// </para>
+    /// <para>
+    /// Products filed under no category are their own row and are never folded into the remainder: «Digər» says
+    /// "other kinds of thing", and nothing filed is a different statement from anything filed.
+    /// </para>
+    /// </remarks>
+    private async Task<List<DashboardCategoryDto>> CategoriesAsync(
+        DateOnly currentPeriod, long[] requestIds, AnalyticsScope scope, CancellationToken cancellationToken)
+    {
+        var rows = await db.OrderRequestItems.AsNoTracking()
+            .InScope(scope)
+            .Where(item => requestIds.Contains(item.OrderRequestId)
+                && item.OrderRequest.RequestPeriod == currentPeriod)
+            .GroupBy(item => item.ProductVariant.Product.CategoryId)
+            .Select(group => new
+            {
+                CategoryId = group.Key,
+                ItemCount = group.Count(),
+                KnownPriceItemCount = group.Count(item => item.UnitPrice != null),
+                KnownAmount = group.Sum(item => item.Quantity * (item.UnitPrice ?? 0m)),
+            })
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        var tree = await db.Categories.AsNoTracking()
+            .Select(category => new { category.Id, category.ParentId, category.Name })
+            .ToListAsync(cancellationToken);
+        var parents = tree.ToDictionary(node => node.Id, node => node.ParentId);
+        var names = tree.ToDictionary(node => node.Id, node => node.Name);
+
+        // Up to the root. The guard is not decoration: re-parenting is not supported today, but a cycle
+        // introduced later would otherwise hang the dashboard rather than draw a wrong bar.
+        int RootOf(int categoryId)
+        {
+            var current = categoryId;
+            for (var step = 0; step < tree.Count; step++)
+            {
+                if (parents.GetValueOrDefault(current) is not { } parent)
+                {
+                    return current;
+                }
+
+                current = parent;
+            }
+
+            return current;
+        }
+
+        var byRoot = new Dictionary<int, (decimal Amount, int Items, int Priced)>();
+        var unfiled = (Amount: 0m, Items: 0, Priced: 0);
+        foreach (var row in rows)
+        {
+            // Rounded once per group, as everywhere else on this page, so the rows add up to the headline.
+            var amount = PortfolioCohort.Money(row.KnownAmount);
+            if (row.CategoryId is not { } categoryId)
+            {
+                unfiled = (unfiled.Amount + amount, unfiled.Items + row.ItemCount, unfiled.Priced + row.KnownPriceItemCount);
+                continue;
+            }
+
+            var root = RootOf(categoryId);
+            var running = byRoot.GetValueOrDefault(root);
+            byRoot[root] = (running.Amount + amount, running.Items + row.ItemCount, running.Priced + row.KnownPriceItemCount);
+        }
+
+        var ordered = byRoot
+            .OrderByDescending(entry => entry.Value.Amount)
+            .ThenBy(entry => names.GetValueOrDefault(entry.Key), StringComparer.Ordinal)
+            .ToList();
+
+        var result = new List<DashboardCategoryDto>(NamedCategories + 2);
+        foreach (var (id, totals) in ordered.Take(NamedCategories))
+        {
+            result.Add(new DashboardCategoryDto(
+                id,
+                names.GetValueOrDefault(id) ?? string.Empty,
+                DashboardCategoryKind.Category,
+                totals.Priced == 0 ? null : totals.Amount,
+                totals.Items,
+                1));
+        }
+
+        var rest = ordered.Skip(NamedCategories).ToList();
+        if (rest.Count > 0)
+        {
+            var amount = rest.Sum(entry => entry.Value.Amount);
+            var priced = rest.Sum(entry => entry.Value.Priced);
+            result.Add(new DashboardCategoryDto(
+                null, OtherCategoriesName, DashboardCategoryKind.Other,
+                priced == 0 ? null : amount, rest.Sum(entry => entry.Value.Items), rest.Count));
+        }
+
+        if (unfiled.Items > 0)
+        {
+            result.Add(new DashboardCategoryDto(
+                null, UncategorisedName, DashboardCategoryKind.Uncategorised,
+                unfiled.Priced == 0 ? null : unfiled.Amount, unfiled.Items, 0));
+        }
+
+        return result;
+    }
+
+    /// <summary>The two rows that are not a category, named once so the screen and the tests agree.</summary>
+    public const string OtherCategoriesName = "Digər kateqoriyalar";
+    public const string UncategorisedName = "Kateqoriyasız";
+
+    /// <summary>
     /// The last few months of the company, so one month can be read against the run of them.
     /// </summary>
     /// <remarks>
@@ -794,7 +920,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
         IReadOnlyDictionary<int, PortfolioGroup> groups,
         IReadOnlyDictionary<int, LastOrderRef> lastOrders,
         DashboardLineTypeSplitDto lineTypes,
-        IReadOnlyList<DashboardTrendPointDto> trend)
+        IReadOnlyList<DashboardTrendPointDto> trend,
+        IReadOnlyList<DashboardCategoryDto> categories)
     {
         var rowMembers = rows.Select(row =>
         {
@@ -876,7 +1003,8 @@ public sealed class ManagementDashboardQueries(IBaxOrdersDbContext db)
             rows.Sum(row => row.InsufficientHistoryVariantCount),
             rows.Sum(row => row.AmountOrientedServiceCount),
             lineTypes,
-            trend);
+            trend,
+            categories);
     }
 
     private sealed record LocationRef(int Id, string Code, string Name);

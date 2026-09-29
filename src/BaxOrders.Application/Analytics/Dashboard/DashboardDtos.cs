@@ -65,6 +65,37 @@ public sealed record DashboardLineTypeSplitDto(
     int UnclassifiedItemCount);
 
 /// <summary>
+/// What the month's money was spent on, by the catalogue's own top-level categories.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Always the <b>root</b> of the category tree — Excel's «Ana kateqoriya». A product filed three levels deep
+/// is counted under the root it hangs from, because a manager asking "what did we spend it on" is asking about
+/// a handful of kinds of thing, and 105 leaf categories is not an answer.
+/// </para>
+/// <para>
+/// The rows follow the scope, like every other figure on the screen: asked about planned material, this is
+/// what the plan was spent on.
+/// </para>
+/// </remarks>
+/// <param name="CategoryId">
+/// The root category. Null on the two rows that are not a category: the folded remainder and the products
+/// nobody has filed.
+/// </param>
+/// <param name="Kind">What sort of row this is, so the screen can word the two non-categories honestly.</param>
+/// <param name="KnownAmount">
+/// Money over the priced lines, rounded once. Null where nothing in the row is priced — never a zero.
+/// </param>
+/// <param name="CategoryCount">How many categories a folded remainder stands for; 1 for a real category.</param>
+public sealed record DashboardCategoryDto(
+    int? CategoryId,
+    string Name,
+    DashboardCategoryKind Kind,
+    decimal? KnownAmount,
+    int ItemCount,
+    int CategoryCount);
+
+/// <summary>
 /// One month of the company, in the scope the screen is about.
 /// </summary>
 /// <remarks>
@@ -237,7 +268,8 @@ public sealed record ManagementDashboardSummaryDto(
     int InsufficientHistoryVariantCount,
     int AmountOrientedServiceCount,
     DashboardLineTypeSplitDto LineTypes,
-    IReadOnlyList<DashboardTrendPointDto> Trend);
+    IReadOnlyList<DashboardTrendPointDto> Trend,
+    IReadOnlyList<DashboardCategoryDto> Categories);
 
 /// <param name="FilteredLocationCount">
 /// How many locations the search and filters left. The summary above is unaffected by them.

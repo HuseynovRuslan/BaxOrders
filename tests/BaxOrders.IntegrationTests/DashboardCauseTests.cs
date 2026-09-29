@@ -262,11 +262,12 @@ public sealed class DashboardCauseTests(PostgresDatabaseFixture database)
 
         // The locations, their requests, each object's last month before this one, the approved spelling matches
         // (Task 13b), the lines of the requests in the window, the month's classification split (Task 22), the
-        // variant kinds and names, and the trend's two — which months the company ordered in and what each of
-        // them came to. Nine whatever the number of objects: the decomposition and the partition both run on
-        // figures already in memory, and the trend's second query is one row per object and month of six
-        // months, never one query per object.
-        Assert.Equal(9, counter.Count);
+        // variant kinds and names, the trend's two — which months the company ordered in and what each of them
+        // came to — and the breakdown's two: the month's lines grouped by the category their product is filed
+        // under, and the category tree itself. Eleven whatever the number of objects: the decomposition and the
+        // partition run on figures already in memory, the trend's second query is one row per object and month
+        // of six months, and the category tree is the whole table at 148 rows.
+        Assert.Equal(11, counter.Count);
     }
 
     [PostgresFact]

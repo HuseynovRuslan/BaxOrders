@@ -1,4 +1,4 @@
-using BaxOrders.Infrastructure.Persistence;
+﻿using BaxOrders.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -24,11 +24,22 @@ internal sealed class IsolatedDatabase : IAsyncDisposable
 
     public string ConnectionString { get; }
 
+    /// <summary>
+    /// The maintenance database, for the two statements that cannot run inside the database they are about.
+    /// </summary>
+    /// <remarks>
+    /// Never the shared run database: that one is created by <see cref="PostgresDatabaseFixture"/>, so a class
+    /// with a database of its own would depend on some unrelated class in the collection having run first — and
+    /// on its own it would fail with "database does not exist", which is what it used to do.
+    /// </remarks>
+    private static string ServerConnectionString =>
+        new NpgsqlConnectionStringBuilder(PostgresDatabaseFixture.ConnectionString) { Database = "postgres" }.ConnectionString;
+
     public static async Task<IsolatedDatabase> CreateAsync(string prefix)
     {
         var database = new IsolatedDatabase($"{prefix}_{Guid.NewGuid():N}"[..40]);
 
-        await using (var server = new NpgsqlConnection(PostgresDatabaseFixture.ConnectionString))
+        await using (var server = new NpgsqlConnection(ServerConnectionString))
         {
             await server.OpenAsync();
             await using var create = new NpgsqlCommand(
@@ -52,7 +63,7 @@ internal sealed class IsolatedDatabase : IAsyncDisposable
         // Pooled connections would keep the database busy and the drop would fail.
         NpgsqlConnection.ClearAllPools();
 
-        await using var server = new NpgsqlConnection(PostgresDatabaseFixture.ConnectionString);
+        await using var server = new NpgsqlConnection(ServerConnectionString);
         await server.OpenAsync();
         await using var drop = new NpgsqlCommand($"""DROP DATABASE IF EXISTS "{Name}" WITH (FORCE)""", server);
         await drop.ExecuteNonQueryAsync();

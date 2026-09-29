@@ -1,4 +1,4 @@
-namespace BaxOrders.Application.Analytics.Dashboard;
+﻿namespace BaxOrders.Application.Analytics.Dashboard;
 
 /// <summary>
 /// How much of a location's baseline window actually exists.
@@ -90,4 +90,20 @@ public enum DashboardSort
     /// 5.000 ₼. <see cref="KnownAmountDelta"/> keeps its signed meaning for the links that already use it.
     /// </summary>
     AbsoluteKnownAmountDelta = 11,
+}
+
+/// <summary>
+/// What a row of the category breakdown stands for. The two that are not a category are kept apart, because a
+/// screen that called either of them one would be naming something the catalogue does not contain.
+/// </summary>
+public enum DashboardCategoryKind
+{
+    /// <summary>A real root category of the catalogue.</summary>
+    Category = 1,
+
+    /// <summary>Every category past the few the screen names, added together so the total still reconciles.</summary>
+    Other = 2,
+
+    /// <summary>Products filed under no category at all. Not a category — the absence of one.</summary>
+    Uncategorised = 3,
 }

@@ -485,10 +485,11 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
         // Task 13b's read of the approved spelling matches is one of them, in both.
         // One more than before Task 22: the month's classification split is read on its own, because the
         // snapshots beside it see monthly lines only and the split has to see the whole month. Two more since
-        // the trend: which months the company ordered in, and what each of the last six came to. Both are
+        // the trend: which months the company ordered in, and what each of the last six came to. Two more
+        // since the category breakdown: the month's lines by category, and the category tree. All four are
         // constant — the point of this test is that none of them is per object.
-        Assert.Equal(9, fixedWindow);
-        Assert.Equal(10, everyMonth);
+        Assert.Equal(11, fixedWindow);
+        Assert.Equal(12, everyMonth);
     }
 
     [PostgresFact]
@@ -503,8 +504,8 @@ public sealed class LinePricingModeTests(PostgresDatabaseFixture database)
                 AnalyticsComparisonBasis.CustomRange, PageSize: 100, CustomStart: "2026-01", CustomEnd: "2026-03"),
             None));
 
-        // The months were named by the reader, so there is nothing to look up: the fixed window's nine.
-        Assert.Equal(9, count);
+        // The months were named by the reader, so there is nothing to look up: the fixed window's eleven.
+        Assert.Equal(11, count);
     }
 
     /// <summary>

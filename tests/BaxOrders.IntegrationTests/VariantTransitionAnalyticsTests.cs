@@ -395,9 +395,9 @@ public sealed class VariantTransitionAnalyticsTests : IAsyncLifetime
             var everyPriorMonth = await CountAsync(counted => new ManagementDashboardQueries(counted).GetAsync(
                 ProductMatchFixture.September, new DashboardQuery(AnalyticsComparisonBasis.AllPriorMonths), None));
 
-            // The dashboard's two extra are the trend's — which months the company ordered in and what each of
-            // the last six came to — and neither depends on a decision being live, which is what this pins.
-            Assert.Equal((6, 9, 10), (context, dashboard, everyPriorMonth));
+            // The dashboard's four extra are the trend's two and the category breakdown's two; none of them
+            // depends on a decision being live, which is what this pins.
+            Assert.Equal((6, 11, 12), (context, dashboard, everyPriorMonth));
         }
     }
 
