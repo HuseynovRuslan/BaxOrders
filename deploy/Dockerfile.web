@@ -1,0 +1,21 @@
+# The screens, and the one origin they and the API share.
+#
+# The SPA asks for `/api/...` and `/health` with no host of its own, so something has to put the two behind one
+# name. That is this container: it serves the built files and forwards those two prefixes to the API beside it.
+# The VPS's shared Caddy then has a single thing to point at, exactly as every other project on that host does.
+#
+# Built from source rather than from a `dist` somebody copied in, so an image can be rebuilt from a commit.
+FROM node:22-alpine AS build
+WORKDIR /src
+
+# npm ci on the manifests alone, so editing a component does not re-resolve the tree.
+COPY frontend/bax-orders-web/package.json frontend/bax-orders-web/package-lock.json ./
+RUN npm ci
+
+COPY frontend/bax-orders-web/ ./
+RUN npm run build
+
+FROM caddy:2-alpine AS runtime
+COPY deploy/web.Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /src/dist /srv
+EXPOSE 8080

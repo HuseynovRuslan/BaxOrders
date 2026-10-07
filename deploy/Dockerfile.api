@@ -1,0 +1,31 @@
+# The API, built from source so the image can be rebuilt from a commit rather than from whatever happened to
+# be on somebody's laptop. Two stages: the SDK compiles, the runtime image carries nothing that can compile.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Restore on the project files alone, so a change to a .cs file does not re-download every package.
+COPY Directory.Build.props BaxOrders.slnx ./
+COPY src/BaxOrders.Domain/BaxOrders.Domain.csproj src/BaxOrders.Domain/
+COPY src/BaxOrders.Application/BaxOrders.Application.csproj src/BaxOrders.Application/
+COPY src/BaxOrders.Infrastructure/BaxOrders.Infrastructure.csproj src/BaxOrders.Infrastructure/
+COPY src/BaxOrders.Api/BaxOrders.Api.csproj src/BaxOrders.Api/
+RUN dotnet restore src/BaxOrders.Api/BaxOrders.Api.csproj
+
+COPY src/ src/
+RUN dotnet publish src/BaxOrders.Api/BaxOrders.Api.csproj -c Release -o /app --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app ./
+
+# Kestrel listens inside the network only; nothing publishes this port to the host.
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+# The runtime image has neither curl nor wget, which is how the QrCatalog healthcheck first came up unhealthy.
+# Bash's own /dev/tcp redirection needs nothing installed.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && grep -q "200 OK" <&3'
+
+USER $APP_UID
+ENTRYPOINT ["dotnet", "BaxOrders.Api.dll"]

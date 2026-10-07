@@ -1,0 +1,26 @@
+# The block this project adds to the shared Caddyfile at /opt/attendanceqr/Caddyfile on 94.20.153.137.
+#
+# IT LIVES HERE, IN THE REPO, ON PURPOSE. The catalogue's block once existed only on the server, typed in by
+# hand — so when a cutover replaced that Caddyfile, the block vanished with it and the site went dark until
+# somebody noticed. That Caddyfile is edited by several projects; anything that is only on a server is one
+# deploy away from being lost.
+#
+# Changing it is a fixed sequence, and `restart` is never part of it: a bad config on restart takes every site
+# on the host down, while a failed `reload` leaves the running one in place.
+#
+#   sudo cp /opt/attendanceqr/Caddyfile /opt/attendanceqr/Caddyfile.bak.$(date +%Y%m%d-%H%M%S)
+#   # append the block below
+#   docker exec attendanceqr-caddy-1 caddy validate --config /etc/caddy/Caddyfile
+#   docker exec attendanceqr-caddy-1 caddy reload   --config /etc/caddy/Caddyfile
+#
+# The block is needed even though the file ends in a catch-all: without it, order.qrlog.az is swallowed by that
+# catch-all and serves the attendance bundle instead of this application. Caddy routes by specificity, so a
+# named block always wins over it.
+
+# BaxOrders (Bakı Abadlıq Xidməti material orders) — separate project, own stack in /opt/baxorders
+# (deploy/compose.yml in its repository). Only its web container joins attendanceqr_default, under the alias
+# below; its API and PostgreSQL are on the stack's private network and publish no port.
+order.qrlog.az {
+	encode zstd gzip
+	reverse_proxy baxorders-web:8080
+}

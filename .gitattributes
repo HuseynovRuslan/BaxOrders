@@ -1,0 +1,9 @@
+# Files that are run by Linux keep LF, whatever the checkout platform does with the rest. A shell script or a
+# Dockerfile checked out with CRLF fails on the server with an error that names the wrong thing entirely
+# ("/bin/bash^M: bad interpreter"), and the deployment is where that is most expensive to discover.
+*.sh text eol=lf
+Dockerfile* text eol=lf
+*.yml text eol=lf
+deploy/caddy-block text eol=lf
+deploy/web.Caddyfile text eol=lf
+deploy/.env.example text eol=lf

@@ -1,0 +1,115 @@
+# Production stack for order.qrlog.az on the shared QRLog VPS (94.20.153.137).
+#
+# Run from /opt/baxorders with:
+#   docker compose --env-file /opt/baxorders/.env -f /opt/baxorders/current/deploy/compose.yml <command>
+# `deploy/scripts/deploy.sh` does that in the right order. See deploy/README.md.
+#
+# Public traffic reaches this stack through the VPS's existing reverse proxy — the attendanceqr stack's Caddy
+# container, which terminates HTTPS and owns 80/443. Only "web" joins that shared network, under a
+# project-unique alias; the API and the database sit on this project's private network and publish nothing.
+#
+# Nothing here is shared with another project: own database container, own volume, own role, own names.
+name: baxorders
+
+networks:
+  internal:
+    driver: bridge
+  shared-proxy:
+    external: true
+    name: ${SHARED_PROXY_NETWORK:?SHARED_PROXY_NETWORK must be set in /opt/baxorders/.env}
+
+volumes:
+  pgdata:
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+# Everything the API reads. Compose passes only the variables named here — a value in .env alone reaches nothing.
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  # The request arrives at the API over plain HTTP inside the stack, so without this the application believes
+  # the scheme is http and marks its auth cookie accordingly. Built into ASP.NET Core; no code change.
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+  ConnectionStrings__BaxOrders: "Host=db;Port=5432;Database=${APP_DB_NAME:?};Username=${APP_DB_USER:?};Password=${APP_DB_PASSWORD:?}"
+  # Only used when the database has no accounts at all. The restored database has its own, so these stay empty
+  # in production — the first administrator came with the data, not from here.
+  Auth__BootstrapAdmin__UserName: ${Auth__BootstrapAdmin__UserName:-}
+  Auth__BootstrapAdmin__DisplayName: ${Auth__BootstrapAdmin__DisplayName:-}
+  Auth__BootstrapAdmin__Password: ${Auth__BootstrapAdmin__Password:-}
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      # Bootstrap superuser, used once by db/init to create the application role and database; the API never
+      # connects as it. Kept in .env for maintenance and for pg_restore.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /opt/baxorders/.env}
+      # ICU with an Azerbaijani collation, so names sort the way the screens present them. The C locale orders
+      # them by byte, which puts "Ə" after "Z" — the same choice the development cluster makes.
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale-provider=icu --icu-locale=az-AZ --locale=C
+      APP_DB_NAME: ${APP_DB_NAME:?}
+      APP_DB_USER: ${APP_DB_USER:?}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?}
+    volumes:
+      # postgres:18+ keeps the cluster in a version-named subdirectory and refuses a mount at the old
+      # /var/lib/postgresql/data path, so the volume is mounted one level up.
+      - pgdata:/var/lib/postgresql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    # No ports. PostgreSQL is reachable only from containers on the internal network — never from the host,
+    # and never from the internet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      labels:
+        org.opencontainers.image.title: baxorders-api
+        org.opencontainers.image.revision: ${BAXORDERS_COMMIT:-unknown}
+        org.opencontainers.image.version: ${IMAGE_TAG:-local}
+    image: baxorders-api:${IMAGE_TAG:-local}
+    environment: *api-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      internal:
+        aliases:
+          - baxorders-api
+    # No ports: reachable only through web.
+    restart: unless-stopped
+    logging: *default-logging
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      labels:
+        org.opencontainers.image.title: baxorders-web
+        org.opencontainers.image.revision: ${BAXORDERS_COMMIT:-unknown}
+        org.opencontainers.image.version: ${IMAGE_TAG:-local}
+    image: baxorders-web:${IMAGE_TAG:-local}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      internal: {}
+      shared-proxy:
+        aliases:
+          - baxorders-web
+    ports:
+      # Diagnostics from the VPS itself only (loopback). Public traffic arrives over shared-proxy, by name.
+      - "127.0.0.1:${APP_HTTP_PORT:-8050}:8080"
+    restart: unless-stopped
+    logging: *default-logging
