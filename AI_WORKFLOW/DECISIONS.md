@@ -663,3 +663,37 @@ Effektiv məbləğ **431 891,26404 → 431 486,93404 ₼**. Sətir sayı dəyiş
 Bütün effektiv tarixçədə «daxili təminat, amma qiymətli» ziddiyyəti artıq **0**-dır.
 
 Sahib, 2026-10-09.
+
+**D-47 · «Aylıq»-da olmayan sətir proqramdan da silindi — **D-16 və D-24 ləğv olunur**.** Sahib: «excel-də
+yoxdursa saytdan da sil». Söhbət bir sətirdən gedir: **item 2988, kitab № 3032** — `Yay ayaqqabısı`, Heydər
+Əliyev Mərkəzi, avqust 2026, 1 × 28 = **28,00 ₼**.
+
+Bu sətir kitabın **«Əsas»** vərəqinin 3035-ci sətrində durur, amma **«Aylıq»** vərəqində yoxdur. Məhz buna
+görə sahib onu 27 sentyabrda bərpa etmişdi (D-16) və 28 sentyabrda `Aylıqdan kənar` təyin etmişdi (D-24).
+Bu gün sahibə həmin tarixçə yenidən xatırladıldı və o əks qərar verdi: **«Aylıq» əsas vərəqdir** (D-25) və
+**kitab hər dəfə qalib gəlir** (D-39, D-40, D-41), deməli «Aylıq»-ın daşımadığı sətir sifariş deyil.
+
+**Bu, silməkdir və domen təsdiqlənmiş sifariş üçün silmə təklif etmir:** `OrderRequest.RemoveItem` yalnız
+qaralamada işləyir, çünki təsdiqlənmiş versiya audit edilən revizya ilə dəyişdirilməlidir. Yumşaq silmə
+mexanizmi yoxdur, ona görə sətir birbaşa silindi, amma **silinmə əvvəlcə tarixçəyə yazıldı**
+(`ItemRemovedAsAbsentFromWorkbook`, köhnə dəyəri ilə). Tarixçə ekranı hadisələri sifariş üzrə oxuyur və
+məhsulu **variant** vasitəsilə həll edir, sətir vasitəsilə yox — ona görə qeyd sətirdən sonra da qalır.
+İdxal sətri öz izini saxlayır; yalnız «bu sətri yaratdı» bağlantısı silindi. Skript `23-setir-3032-silindi.sql`,
+idempotentdir (ikinci işləmədə «already removed»).
+
+**Nəticə — proqram kitabın «Aylıq» vərəqinin özüdür:**
+
+| | kitab «Aylıq» | proqram |
+|---|---|---|
+| sətir | **3624** | **3624** |
+| «Cəmi» sütunu / məbləğ | **431 458,93404 ₼** | **431 458,93404 ₼** |
+| kitabda olub proqramda olmayan № | — | **0** |
+| proqramda olub kitabda olmayan № | — | **0** |
+
+**Doqquz ayın doqquzunda da sətir sayı və məbləğ qəpiyinə qədər eynidir.** Uzlaşdırma bitdi.
+
+Qalan yeganə fərq kitabın **öz içindədir**: `miqdar × qiymət` 431 943,26404, `Cəmi` sütunu isə
+431 458,93404 — aradakı 484,33 ₼ məhz «Cəmi» xanası boş qoyulmuş 22 Qala baza sətridir (D-45, D-46).
+Proqram «Cəmi» sütununu izləyir, çünki sahib həmin malların pulsuz verildiyini təsdiq etdi.
+
+Sahib, 2026-10-09.
