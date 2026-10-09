@@ -1,0 +1,10 @@
+# /etc/cron.d/baxorders — BaxOrders (order.qrlog.az) on the shared QRLog VPS.
+# Times are Asia/Baku, the host's own zone. Installed from this file; keep the two in step.
+#
+# Runs as root because the backup directory is written by nobody else and the drill creates and drops its own
+# database. Neither job touches another project on this host.
+#
+# nightly database dump + checksum → /opt/baxorders/backups (30-day retention over its own files only)
+20 3 * * * root /bin/bash /opt/baxorders/current/deploy/scripts/backup.sh >> /opt/baxorders/backups/backup.log 2>&1
+# weekly restore drill into a throwaway database — never touches production data
+40 4 * * 0 root /bin/bash /opt/baxorders/current/deploy/scripts/restore-test.sh >> /opt/baxorders/backups/restore-test.log 2>&1

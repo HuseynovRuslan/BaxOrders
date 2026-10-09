@@ -103,9 +103,21 @@ docker compose --env-file /opt/baxorders/.env -f /opt/baxorders/current/deploy/c
 And, because the host is shared, that the neighbours are still answering:
 `https://woodmark.qrlog.az`, `https://book.qrlog.az`, `https://prizma.qrlog.az`, `https://bax.qrlog.az`.
 
+## Backups
+
+`/etc/cron.d/baxorders`, installed from `deploy/cron.baxorders`:
+
+- **03:20 every night** — `deploy/scripts/backup.sh` dumps the database inside its container, checks the dump is
+  readable with `pg_restore --list`, writes a `.sha256` beside it, and ages out its own files after 30 days.
+  Dumps taken by hand before a correction are named differently and are never swept away by it.
+- **04:40 every Sunday** — `deploy/scripts/restore-test.sh` takes the newest dump, verifies its checksum,
+  restores it into a throwaway database, counts what came back and drops it again. Production is never touched.
+  A backup that has never been restored is a hope rather than a backup.
+
+Both write to `/opt/baxorders/backups` and log beside the dumps. Same disk as the database: copy that directory
+off the machine when there is somewhere to copy it to.
+
 ## What is not here yet
 
-- **No backups.** Every other project on this host has a nightly dump under its own `/opt/<name>/backups`;
-  this one does not yet. It holds a copy of the development data, so nothing is unique to it today — that stops
-  being true the moment anybody enters an order here.
+- **The backups are on the same disk as the database.** That survives a mistake, not a dead machine.
 - **No TLS of its own to worry about.** The shared Caddy obtains and renews the certificate on demand.
