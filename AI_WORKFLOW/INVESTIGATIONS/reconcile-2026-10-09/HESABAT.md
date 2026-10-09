@@ -437,3 +437,50 @@ həmin malların anbardan pulsuz verildiyini təsdiq etdi (D-45, D-46).
 
 Yəni kitabı yoxlayarkən: **«Cəmi» sütununu toplayın** — proqramla üst-üstə düşür. `Miqdarı × Qiyməti` ilə
 toplasanız 484,33 ₼ çox çıxacaq, çünki orada ödənilməyən qiymətlər də var.
+
+---
+
+## 14. Obyektlər üzrə yoxlama (2026-10-09, D-48)
+
+Sahib soruşdu: obyektlərin sifarişləri də eynidirmi? Müqayisə proqramın öz `LocationAliases` cədvəli ilə
+aparıldı, çünki kitab qısaltma yazır (`H.Ə.M`, `F.M`, `B.K.M`) — kitabda tanınmayan obyekt adı qalmadı.
+
+| obyekt | sətir (kitab / proqram) | kitab ₼ | proqram ₼ |
+|---|---|---|---|
+| Heydər Əliyev Mərkəzi | 674 / 674 | 148 107,14 | 148 107,14 |
+| Fəvvarələr meydanı | 629 / 629 | 107 878,61 | 107 878,61 |
+| Dədə Qorqud | 396 / 396 | 29 354,91 | 29 354,91 |
+| Bakı Konqres Mərkəzi | 224 / 224 | 18 443,88 | 18 443,88 |
+| Qafur Məmmədov | 205 / 205 | 39 871,12 | 39 871,12 |
+| Bayıl yolu | 181 / 181 | 9 783,79 | 9 783,79 |
+| Xətai parkı | 160 / 160 | 11 979,82 | 11 979,82 |
+| Zabitlər parkı | 158 / 158 | 19 037,41 | 19 037,41 |
+| Nərimanov heykəli | 133 / 133 | 4 779,38 | 4 779,38 |
+| Bibiheybət | 105 / 105 | 4 255,74 | 4 255,74 |
+| Novxanı | 99 / 99 | 7 221,78 | 7 221,78 |
+| Bülbül parkı | 94 / 94 | 3 066,23 | 3 066,23 |
+| Parlament parkı | 80 / 80 | 6 620,55 | 6 620,55 |
+| Qala baza | 58 / 58 | 1 874,26 | 1 874,26 |
+| Axundov parkı | 55 / 55 | 1 111,23 | 1 111,23 |
+| Hökumət evi və ətrafı parklar | 52 / 52 | 2 573,49 | 2 573,49 |
+| Milli Konservatoriya qarşısı | 52 / 52 | 5 078,88 | 5 078,88 |
+| Muzey Mərkəzi | 49 / 49 | 1 385,52 | 1 385,52 |
+| Qara Qarayev parkı | 42 / 42 | 624,19 | 624,19 |
+| Ağır Cinayətlərin qarşısı | 36 / 36 | 664,42 | 664,42 |
+| ADNSU | 34 / 34 | 518,93 | 518,93 |
+| EXPO Center | 34 / 34 | 625,82 | 625,82 |
+| İDEA | 29 / 29 | 635,59 | 635,59 |
+| Space TV qarşısı | 28 / 28 | 621,19 | 621,19 |
+| Təmir-tikinti (ərazidə olan digər obyektlər) | 16 / 16 | 4 645,05 | 4 645,05 |
+| Puşkin parkı | 1 / 1 | 700,00 | 700,00 |
+| **CƏMİ** | **3624 / 3624** | **431 458,93404** | **431 458,93404** |
+
+**Fərqli obyekt: 0 / 26. Fərqli sifariş (obyekt + ay): 0 / 166.**
+
+### Yolüstü tapılan və həll edilən
+
+Proqramda **167** effektiv sifariş çıxdı, kitabda isə 166 — fərq **sətri olmayan bir sifariş** idi:
+`Parlament parkı · yanvar 2026`. Bu, 22 sentyabrdakı idxalın səhv uyğunlaşdırmasının qalığı idi: kitabın
+1075-ci sətri (№ 1072 `Torf (perilitli)`) obyekt kimi `H.Ə.M` yazır, idxal isə onu Parlament parkına
+bağlamışdı. Sətir sonradan düzəldilib Heydər Əliyev Mərkəzinə keçmiş, boş qabıq qalmışdı. Silindi; idxalın
+qrup qeydi `Skipped` kimi, səbəbi ilə saxlanıldı. İndi **sətirsiz sifariş 0**-dır.
