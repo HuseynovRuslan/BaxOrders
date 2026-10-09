@@ -697,3 +697,36 @@ Qalan yeganə fərq kitabın **öz içindədir**: `miqdar × qiymət` 431 943,26
 Proqram «Cəmi» sütununu izləyir, çünki sahib həmin malların pulsuz verildiyini təsdiq etdi.
 
 Sahib, 2026-10-09.
+
+**D-48 · Boş «Parlament parkı · yanvar 2026» sifarişi silindi.** Obyektlər üzrə yoxlama göstərdi ki proqramda
+**166 yox, 167** effektiv sifariş var — fərq **sətri olmayan bir sifariş** idi (Id 7).
+
+Araşdırma: bu, 22 sentyabrdakı idxalın səhv uyğunlaşdırmasının qalığıdır. Kitabın 1075-ci sətri (№ 1072,
+`Torf (perilitli)`, 5 × 74) obyekt kimi **`H.Ə.M`** yazır, amma idxal onu **Parlament parkına** bağlayıb və
+orada yanvar sifarişi açıb. Sətir sonradan düzəldilib — indi sifariş 5-də, **Heydər Əliyev Mərkəzi, yanvar**,
+yəni kitabın yazdığı yerdə — boş qabıq isə qalıb. Kitabda Parlament parkının yanvar sətri **ümumiyyətlə
+yoxdur**: o obyekt orada yalnız apreldən sentyabra görünür (80 sətir).
+
+Sahibin qaydasına görə («Aylıq»-ın daşımadığı sifariş deyil) sifariş silindi. **İdxalın qeydi silinmədi:**
+qrup sətri sxemin öz mexanizmi ilə `Skipped` edildi — `OrderRequestId` NULL, `SkipReason` nə baş verdiyini
+yazır. `CK_ImportMaterializationGroups_SkipOrRequest` məhz bu formanı tələb edir və oktyabrda sahibin
+buraxdığı 164 qrup da belə saxlanılır, yəni idxal partiyası oxuduğu hər sətrin hesabatını verməyə davam edir.
+Sifarişin yeganə iş axını hadisəsi FK-nın öz kaskadı ilə getdi. Sətir, tarixçə, revizya — heç biri yox idi.
+Skript `24-bos-sifaris-7-silindi.sql`, idempotentdir.
+
+**Nəticə:** effektiv sifariş **167 → 166**, sətirsiz sifariş **0**. Sətir sayı (3624) və məbləğ
+(431 458,93404 ₼) dəyişməyib.
+
+**Obyektlər üzrə tam uyğunluq təsdiqləndi:**
+
+| | kitab | proqram |
+|---|---|---|
+| obyekt | 26 | 26 — **fərqli 0** |
+| sifariş (obyekt + ay) | **166** | **166** — yalnız bir tərəfdə olan **0** |
+| sətir | 3624 | 3624 |
+| məbləğ | 431 458,93404 ₼ | 431 458,93404 ₼ |
+
+Müqayisə proqramın öz `LocationAliases` cədvəli ilə aparıldı (`H.Ə.M` → `Heydər Əliyev Mərkəzi` və s.);
+kitabda alias cədvəlinin tanımadığı obyekt adı qalmadı.
+
+Sahib, 2026-10-09.
