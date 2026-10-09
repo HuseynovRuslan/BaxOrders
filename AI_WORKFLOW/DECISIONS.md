@@ -544,3 +544,41 @@ D-19 da Laqonda məhsulları üçün alias yazılmasını qadağan edir). Bu qə
 istədiyi yazılışlar üçün alias icazəsi verə bilər.
 
 Sahib, 2026-10-09.
+
+**D-43 · Adlar daha əldən yazılmır: şablon kataloqu özündə daşıyır + köhnə adlar üçün alias.** Sahibin
+təklifi: «mən deyirəm bazada olan məhsulları Excel-də data validation-da olan kimi məcbur yazsınlar».
+Qəbul edildi — bu, uzlaşdırmanın bütün səbəbini mənbədə kəsir.
+
+**1. Global aliaslar.** Yoxlama göstərdi ki 10 məhsulun azlıq yazılışları üçün **15 alias artıq var**
+(22 sentyabr, ilk idxal nəzərdən keçirilməsində yazılmışdı) — yəni gələn ay `Duş Gardena` ya da
+`Xlor toz qranul 90% Pooltech` yazılsa, idxal onları özü tanıyır. Yeni yazılmağa ehtiyac yox idi.
+
+Amma bu gün 23 məhsul deaktiv edildiyi üçün onların adları daha tanınmırdı: `ImportCatalogLoader` yalnız
+məhsulu aktiv olan aliası oxuyur, deməli idxal hər birini «naməlum məhsul» kimi qaldırıb sahibin artıq
+cavabladığı sualı yenidən verərdi. **23 alias yazıldı** (`Laqonda daşı almaz Staunch` → `Laqonda daşı almaz`,
+`Şkurka taxta üçün laqonda P80` → `Laqonda nasadkası üçün şkurka`, `Oleander` → `Nerium oleander` və s.) və
+`Şotka cod` aliası deaktiv `Cod şotka`-dan `Cod fırça`-ya yönləndirildi. Cəmi **38 alias**.
+
+Alias **yalnız deaktiv məhsul üçün** yazıldı. `Clean strong`-un öz 32 sətri var və yaşayır — bir sətri
+`Yersil (Plastik)`-ə keçsə də ona alias yazılmadı: gələcəkdə `Clean strong` yazılsa, o `Clean strong`
+deməkdir. Eyni şey hələ v1 sətirləri daşıyan `… P40 göy` və `… P60 göy` üçün də. Qoruyucular: hədəf aktiv
+olmalıdır, alias aktiv məhsulun adı ilə toqquşmamalıdır (yoxsa `NameIndex` ikimənalılıq qaytarır), və alias
+başqa məhsula işarə etməməlidir. Skript `20-aliaslar.sql`, idempotentdir.
+
+**2. Excel şablonu.** `tools/workbook-template/` — kataloqu bazadan ixrac edir və Excel faylını qurur.
+`Malın adı`, `Obyekt`, `Şirkət`, `Cavabdeh şəxs`, `Vahid`, `Ö/v`, `Növ` yalnız siyahıdan seçilir; hər
+yoxlama `errorStyle = stop`, yəni səhv dəyər **rədd edilir**, xəbərdarlıqla keçmir. `Miqdarı` sıfırdan böyük
+rəqəm, `Qiyməti` mənfi olmayan rəqəm ya boş, `Tarix` tarix olmalıdır. Kateqoriya sütunları və `Cəmi`
+düsturdur və vərəq qorunduğu üçün üzərinə yazıla bilmir — kateqoriya malın kataloqdaki xüsusiyyətidir, onu
+təkrar yazmaq lazım deyil.
+
+Başlıqlar `ImportHeaders.ExpectedHeaders` ilə hərfi hərfinə üst-üstə düşür və vərəqin adı `Aylıq`-dır;
+yaradılan fayl idxalın öz tanıma məntiqi ilə yoxlandı — 17/17 sütun tanınır, təkrar yoxdur, çatışmayan
+məcburi sütun yoxdur. Fayl: `AI_WORKFLOW/workbooks/template/BaxOrders-sifaris-sablonu.xlsx` (1090 məhsul,
+27 obyekt, 78 şirkət, 11 cavabdeh, 18 vahid). `.xlsx` git-ə düşmür — içində kataloq var və skriptdən
+yenidən yaradıla bilər.
+
+**Məhdudiyyət:** siyahılar faylın yaradıldığı günün kataloqudur. Kataloq dəyişəndə şablon yenidən qurulmalıdır.
+Siyahıda olmayan mal sifariş edilə bilmir — bu qəsdəndir: yeni mal kataloq qərarıdır.
+
+Sahib, 2026-10-09.
