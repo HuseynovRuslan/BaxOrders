@@ -608,3 +608,26 @@ sətirdə, 5 məcburi sütunun hamısı var, təkrar yoxdur.
 qərarıdır: kataloqa əlavə edilir, şablon yenidən qurulur (bir əmr).
 
 Sahib, 2026-10-09.
+
+**D-45 · İki «Qala baza» sətri də daxili tədarükdür — qiymətləri silindi.** Sahib sentyabrı yoxlayanda
+Excel-də 71 900,39, proqramda 71 980,39 gördü. Fərq **80,00 ₼** idi və səbəbi kitabın iki boş «Cəmi»
+xanası oldu: № 3146 `Süpürgə xəkandaz dəsti` (5 × 8) və № 3147 `Kürək sapı` (10 × 4), hər ikisi Heydər Əliyev
+Mərkəzi, hər ikisi **Qala baza**. Sahib təsdiq etdi: «daxili tədarükdü, pulsuz verilib».
+
+Baza bunu **artıq yarımçıq qeyd etmişdi**: hər iki sətir `InternalFreeSupply` kimi təsnif olunub, amma
+qiyməti saxlayırdı — yəni rejim «pul ödənilməyib», məbləğ isə «80 ₼ ödənilib» deyirdi. Bütün effektiv
+tarixçədə bu vəziyyətdə olan **yalnız bu iki sətir** var idi, və həmin 80 ₼ məhz sahibin tapdığı fərqdir.
+Bu işləmə təsnifatın başladığını tamamladı: rejim qaldı, qiymət getdi.
+
+Köhnə qiymətlər audit izində saxlanılır. Qiymət qərar jurnalına yeni sətir yazılmadı — rejim onsuz da düzgün
+idi; bu qəsdəndir. Skript `21-qala-baza-daxili-tedaruk-2.sql`, idempotentdir (ikinci işləmədə hamısı 0).
+
+**Nəticə:** effektiv məbləğ **431 971,26404 → 431 891,26404 ₼** (−80,00). Sətir sayı dəyişməyib (3625).
+Sentyabr artıq kitabın «Cəmi» sütunu ilə **tam eynidir** (71 900,39).
+
+**Diqqət:** kitabın `Qiyməti` sütununda həmin iki sətirdə hələ 8 və 4 yazılıdır. Yəni kitabı
+`Miqdarı × Qiyməti` ilə toplasanız, proqramdan 80 ₼ çox çıxacaq; `Cəmi` sütunu ilə toplasanız üst-üstə
+düşəcək. Kitab mənbə sənəd olduğu üçün ona toxunulmayıb — ödənilməyən qiymət orada yazılı qalır, proqram isə
+sahibin qərarını əks etdirir.
+
+Sahib, 2026-10-09.
