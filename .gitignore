@@ -484,3 +484,15 @@ $RECYCLE.BIN/
 # Real company sample workbooks: never commit
 samples/imports/raw/*
 samples/decisions/*.xlsx
+
+# Agent workflow: the documents are the project's memory and belong in git; the company's own data
+# and the agents' logs do not. Logs alone are 239 MB, and the workbooks are real order data.
+AI_WORKFLOW/LOGS/
+AI_WORKFLOW/STAGING/
+AI_WORKFLOW/workbooks/
+AI_WORKFLOW/design-reference/
+AI_WORKFLOW/**/*.xlsx
+AI_WORKFLOW/**/*.xls
+AI_WORKFLOW/**/*.csv
+AI_WORKFLOW/**/*.dump
+AI_WORKFLOW/**/*.png
