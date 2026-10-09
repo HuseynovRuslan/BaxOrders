@@ -328,3 +328,24 @@ təchizatçı, cavabdeh və **ölçü** üzrə fərq yoxdur.
 
 Qalan 56 ad/model fərqinin hamısı izahlıdır və qəbul edilib: 48 yazılış fərqi (D-42), 6 azlıq yazılışı
 (D-41), 2 kitabın xana xətası (D-41). **Proqramın səhvi olan heç bir fərq qalmadı.**
+
+---
+
+## 11. Qeyd — kitabın «Cəmi» sütunu ilə proqramın məbləği niyə fərqlənə bilər
+
+Sahib sentyabrı yoxlayanda Excel-də seçimin cəmi **71 900,39**, proqramda isə **71 980,39** çıxdı.
+Araşdırma: fərq **80,00 ₼**-dir və səbəbi kitabın iki boş xanasıdır.
+
+| Excel sətri | № | obyekt | mal | miqdar × qiymət | «Cəmi» xanası |
+|---|---|---|---|---|---|
+| 3148 | 3146 | H.Ə.M | Süpürgə xəkandaz dəsti | 5 × 8 = 40 | **boş** |
+| 3149 | 3147 | H.Ə.M | Kürək sapı | 10 × 4 = 40 | **boş** |
+
+Excel boş xananı toplamır, ona görə «Cəmi» sütununun cəmi 80 ₼ az çıxır. Proqram məbləği **miqdar × qiymət**
+kimi hesablayır, ona görə düzgün göstərir.
+
+Sentyabr sətir-sətir tutuşduruldu: Excel **487 sətir / 71 980,39 ₼**, proqram **487 sətir / 71 980,39 ₼** —
+**fərq sıfır**. Bazada düzəliş tələb olunmur; kitab mənbə sənəd olduğu üçün ona da toxunulmayıb.
+
+Bu səhv növü yeni şablonda mümkün deyil: orada «Cəmi» düsturdur və vərəq qorunduğu üçün üzərinə nə yazmaq,
+nə də onu boş qoymaq olur (D-44).
