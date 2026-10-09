@@ -539,7 +539,8 @@ Yekun vəziyyət: **167 sifariş · 3625 effektiv sətir · 431 971,26404 ₼.**
 obyekt, təchizatçı, cavabdeh və ölçü üzrə **fərq yoxdur**.
 
 **Növbəti idxal üçün qeyd:** kitab gələn ay yenə `Duş Gardena` yazsa, idxal onu yeni məhsul kimi görəcək,
-çünki sahib D-30-da global alias yaradılmasını qadağan etmişdi. Bu qərar dəyişməyib; lazım olanda sahib
+çünki sahib global alias yaradılmasını qadağan etmişdi (7 çatışmayan sətir brifinqi, «Global alias yaratma»;
+D-19 da Laqonda məhsulları üçün alias yazılmasını qadağan edir). Bu qərar dəyişməyib; lazım olanda sahib
 istədiyi yazılışlar üçün alias icazəsi verə bilər.
 
 Sahib, 2026-10-09.
