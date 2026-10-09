@@ -495,3 +495,27 @@ deaktiv edildi. Yeni məhsul yaradılmadı, mövcud məhsulun adı dəyişdirilm
   artıq proqramdadır. Tarixi yazmaq model kodu yerinə tarix yazmaq olardı.
 
 Sahib, 2026-10-09.
+
+**D-41 · Yazılış fərqlərində ÇOXLUQ qalib gəlir; `Yaramilla`-da proqram düzdür.** Sahib D-40-ın qoruyucusunu
+qayda kimi təsdiq etdi: kitab aynı model kodunu iki cür yazanda **hansı yazılış daha çox sətirdədirsə o
+qalır**, azlıq yazılışı tətbiq edilmir.
+
+Yoxlama göstərdi ki **heç bir dəyişiklik lazım deyil** — kataloq artıq hər yerdə çoxluğu saxlayır:
+
+| variant | kitabda çoxluq | bazada |
+|---|---|---|
+| `Fəhlə əlcəyi` | `Emaf A300` — 41 sətir (1-i `EMAF A 300`) | `Emaf A300` ✓ |
+| `Rain bird sprinkler başlığı` | `US-418` — 6 sətir (3-ü `us-418`) | `US-418` ✓ |
+| `Rain bird sprinkler başlığı (sarı)` | `US-418` — 3 sətir (1-i `us-418`) | `US-418` ✓ |
+| `Divar tip el qurutma feni` | **bərabərlik** — 1 `MV-611`, 1 `Mv-611` | `MV-611` |
+
+Son halda kitabın həmin variant üzrə yalnız iki sətri var və hər biri ayrı cür yazır, yəni çoxluq mövcud
+deyil; tərəf tutmaq təsadüfi olardı, ona görə bazadakı yazılış qalır.
+
+**`Yaramilla` (2 sətir) bağlandı:** sahib təsdiq etdi — kitabın `Model/Kod` xanasındaki
+`2021-11-11 00:00:00` **kitabın özünün problemidir**, proqramdaki `11 11 21` düzgündür. Dəyişiklik yoxdur.
+
+Beləliklə qalan 56 fərqdən **8-i bağlandı** (dəyişiklik tələb etmədən) və **48-i sahibin sonraki baxışını
+gözləyir** — bunlar kitabın bir malı iki-üç cür adlandırdığı sətirlərdir. Sahib: «qalanlarına sonra baxarıq».
+
+Sahib, 2026-10-09.
