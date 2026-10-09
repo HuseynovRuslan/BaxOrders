@@ -361,3 +361,40 @@ saxlayırdı — bütün effektiv tarixçədə belə ziddiyyətdə olan yalnız 
 İndi sentyabr kitabın «Cəmi» sütunu ilə **tam eynidir** (71 900,39). Kitabın `Qiyməti` sütununda isə həmin
 sətirlərdə hələ 8 və 4 yazılıdır — kitab mənbə sənəddir, ona toxunulmayıb. Yəni kitabı `Miqdarı × Qiyməti`
 ilə toplasanız proqramdan 80 ₼ çox çıxacaq, `Cəmi` sütunu ilə toplasanız üst-üstə düşəcək.
+
+---
+
+## 12. Bütün ayların yoxlanışı (2026-10-09, D-46)
+
+Sentyabrdakı üsul bütün aylara tətbiq edildi: hər ay üçün **üç** məbləğ yan-yana qoyuldu — kitabın «Cəmi»
+sütunu (insanın vərəqdə seçib gördüyü), kitabın öz `miqdar × qiymət`-i, və proqram. Birinci ilə ikincinin
+fərqi kitabın öz qüsurudur; ikinci ilə üçüncünün fərqi kitabla proqram arasındakı fərqdir.
+
+**Tapılan nümunə:** bütün kitabda «Cəmi» xanası boş olan **22 sətir** var və **22-sinin də** «Şirkət»
+sütununda `Qala Baza` yazılıb — bir istisna yoxdur. Yəni kitabı dolduran adam məbləği məhz pul getmədiyi
+yerdə yazmayıb. 2-si sentyabr (D-45), 20-si may (D-46, 404,33 ₼). Sahib hər ikisini təsdiq etdi.
+
+«Cəmi» xanası **səhv hesablanan sətir yoxdur** — 0. Yalnız boş qalanlar var.
+
+### Yekun — aylar üzrə
+
+| ay | sətir (kitab / proqram) | kitabın «Cəmi» sütunu | proqram | fərq |
+|---|---|---|---|---|
+| 2026-01 | 92 / 92 | 11 072,85 | 11 072,85 | — |
+| 2026-02 | 165 / 165 | 25 613,82 | 25 613,82 | — |
+| 2026-03 | 377 / 377 | 48 308,72 | 48 308,72 | — |
+| 2026-04 | 470 / 470 | 49 106,54 | 49 106,54 | — |
+| 2026-05 | 490 / 490 | 62 139,28 | 62 139,28 | — |
+| 2026-06 | 522 / 522 | 70 573,77 | 70 573,77 | — |
+| 2026-07 | 682 / 682 | 48 430,78 | 48 430,78 | — |
+| 2026-08 | 339 / **340** | 44 312,78 | 44 340,78 | **+28,00** |
+| 2026-09 | 487 / 487 | 71 900,39 | 71 900,39 | — |
+| **CƏMİ** | **3624 / 3625** | **431 458,93404** | **431 486,93404** | **+28,00** |
+
+**Proqram artıq kitabın «Cəmi» sütununun özüdür.** Yeganə fərq avqustdakı bir sətir və 28,00 ₼-dir — № 3032,
+sahibin D-16/D-24 qərarı.
+
+Qeyd: `.93404` quyruğu iki həqiqi sətirdən gəlir — № 390 `Stop lenti` (25 × 3,0250) və № 393 `Qranit qırmızı
+çilli yanmış` (6,12 × 180,3920) — və hər iki tərəfdə eynidir.
+
+Bütün effektiv tarixçədə «daxili təminat, amma qiymətli» ziddiyyəti **0**-dır.
