@@ -631,3 +631,35 @@ düşəcək. Kitab mənbə sənəd olduğu üçün ona toxunulmayıb — ödəni
 sahibin qərarını əks etdirir.
 
 Sahib, 2026-10-09.
+
+**D-46 · Mayın 20 «Qala baza» sətri də daxili tədarükdür — qiymətləri silindi.** D-45-dən sonra bütün aylar
+eyni üsulla yoxlandı: hər ay üçün kitabın «Cəmi» sütunu, kitabın `miqdar × qiymət`-i və proqramın məbləği
+yan-yana qoyuldu.
+
+Nəticə bir nümunə göstərdi. **Bütün kitabda «Cəmi» xanası boş olan 22 sətir var və 22-sinin də «Şirkət»
+sütununda «Qala Baza» yazılıb** — istisna yoxdur. İkisi sentyabrındır (D-45), qalan **20-si maydır**, cəmi
+**404,33 ₼**. Yəni kitabı dolduran adam məbləği məhz pul getmədiyi yerdə yazmayıb. Sahib təsdiq etdi.
+
+Sətirlər `InternalFreeSupply` rejiminə keçirildi və qiymətləri təmizləndi. Sentyabrın ikisindən fərqli olaraq
+bunlar `PriceRequired` idi, ona görə qiymət qərar jurnalına hər biri üçün sətir yazıldı. Köhnə qiymətlər
+audit izində saxlanılır. Skript `22-qala-baza-daxili-tedaruk-3.sql`, idempotentdir.
+
+**Bütün «Qala baza» sətirləri toxunulmadı və qayda məhz budur:** 57 sətir həm qiymət, həm də kitabın
+doldurduğu «Cəmi» daşıyır — kitab onları həqiqi alış sayır və olduğu kimi qaldı. Sahib əvvəl «Kürək düz»
+sətrini əks istiqamətdə — pulsuz təminatdan 12 ₼-lik alışa — keçirmişdi, yəni «Qala baza» tək başına qərar
+vermir. Qərar verən **boş «Cəmi» xanasıdır**.
+
+**Yekun vəziyyət — proqram artıq kitabın «Cəmi» sütununun özüdür:**
+
+| ay | kitabın «Cəmi» sütunu | proqram | fərq |
+|---|---|---|---|
+| 2026-01 … 04, 06, 07 | = | = | **0** |
+| 2026-05 | 62 139,28 | 62 139,28 | **0** |
+| 2026-08 | 44 312,78 | 44 340,78 | +28,00 (№3032, D-16/D-24) |
+| 2026-09 | 71 900,39 | 71 900,39 | **0** |
+| **CƏMİ** | **431 458,93404** | **431 486,93404** | **+28,00** |
+
+Effektiv məbləğ **431 891,26404 → 431 486,93404 ₼**. Sətir sayı dəyişməyib (3625), qiymətsiz sətir 121 → 141.
+Bütün effektiv tarixçədə «daxili təminat, amma qiymətli» ziddiyyəti artıq **0**-dır.
+
+Sahib, 2026-10-09.
