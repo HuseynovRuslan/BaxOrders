@@ -582,3 +582,29 @@ yenidən yaradıla bilər.
 Siyahıda olmayan mal sifariş edilə bilmir — bu qəsdəndir: yeni mal kataloq qərarıdır.
 
 Sahib, 2026-10-09.
+
+**D-44 · Şablonda malın heç bir xüsusiyyəti yazılmır: bir seçim hamısını təyin edir.** Sahib D-43-dəki
+şablona baxıb iki şey dedi: kateqoriya sütunları **lazım deyil** («hər dəfə ərazidəki anbardarlar
+yazacaqlar?»), və `Ölçü` ilə `Model/Kod` da siyahıdan seçilsin.
+
+İkisi də doğru idi. Kateqoriya sütunları `ImportHeaders.RequiredFields`-də deyil və kateqoriya malın
+kataloqdakı xüsusiyyətidir — sistem onu məhsuldan özü bilir; sütunlar yalnız cədvəli genişləndirirdi.
+`Ölçü` və `Model/Kod` isə sərbəst qaldıqca problem bağlanmırdı: `115` ↔ `115x10x22,23` və
+`Emaf A300` ↔ `EMAF A 300` məhz oradan gəlmişdi.
+
+İndi `Mal seçimi` sütununda **1368 aktiv variant** siyahısı var — `Laqonda daşı almaz · 115 MM · Staunch ·
+Ədəd`. Seçim `Malın adı`, `Ölçü`, `Vahid`, `Model/Kod` və `Ö/v` sütunlarını `VLOOKUP` ilə doldurur; həmin beş
+sütun **gizlədilib və kilidlidir** — idxalın oxuduğu sütunlar məhz onlardır, və heç kim yazmadığı üçün nə
+bir-biri ilə, nə kataloqla ziddiyyətə düşə bilmir. `Mal seçimi` adı `ExpectedHeaders`-də olmadığı üçün idxal
+onu görməzdən gəlir (tanınmayan başlıq heç vaxt təxmin edilmir). `№` də artıq avtomatikdir.
+
+Anbardar yalnız bunu doldurur: **mal seçimi · miqdar · qiymət · şirkət · obyekt · tarix · cavabdeh · növ.**
+Görünən sütun 17-dən **10-a** düşdü. Yoxlama: aktiv məhsulların **hamısının** ən azı bir aktiv variantı var
+(variantsız aktiv məhsul 0), ona görə siyahıdan heç nə düşmür; 1368 seçim adının hamısı birmənalıdır
+(generator təkrar görsə dayanır). Fayl idxalın öz tanıma məntiqi ilə yoxlandı: vərəq `Aylıq`, başlıq 3-cü
+sətirdə, 5 məcburi sütunun hamısı var, təkrar yoxdur.
+
+**Ödənilən qiymət:** kataloqda olmayan ölçü sifariş edilə bilmir. Bu qəsdəndir — yeni variant kataloq
+qərarıdır: kataloqa əlavə edilir, şablon yenidən qurulur (bir əmr).
+
+Sahib, 2026-10-09.
