@@ -398,3 +398,42 @@ Qeyd: `.93404` quyruğu iki həqiqi sətirdən gəlir — № 390 `Stop lenti` (
 çilli yanmış` (6,12 × 180,3920) — və hər iki tərəfdə eynidir.
 
 Bütün effektiv tarixçədə «daxili təminat, amma qiymətli» ziddiyyəti **0**-dır.
+
+---
+
+## 13. Uzlaşdırma tam bitdi (2026-10-09, D-47)
+
+Avqustdakı son 28 ₼ fərqi də bağlandı. Söhbət bir sətirdən gedirdi — **№ 3032** `Yay ayaqqabısı`, Heydər
+Əliyev Mərkəzi, 1 × 28 — kitabın **«Əsas»** vərəqində var, **«Aylıq»** vərəqində yoxdur. Sahib: «excel-də
+yoxdursa saytdan da sil». Sətir silindi, silinmə tarixçəyə yazıldı.
+
+### Yekun vəziyyət
+
+| | kitabın «Aylıq» vərəqi | proqram |
+|---|---|---|
+| sətir | **3624** | **3624** |
+| məbləğ | **431 458,93404 ₼** | **431 458,93404 ₼** |
+
+| ay | kitab | proqram | fərq |
+|---|---|---|---|
+| 2026-01 | 11 072,85 | 11 072,85 | — |
+| 2026-02 | 25 613,82 | 25 613,82 | — |
+| 2026-03 | 48 308,72 | 48 308,72 | — |
+| 2026-04 | 49 106,54 | 49 106,54 | — |
+| 2026-05 | 62 139,28 | 62 139,28 | — |
+| 2026-06 | 70 573,77 | 70 573,77 | — |
+| 2026-07 | 48 430,78 | 48 430,78 | — |
+| 2026-08 | 44 312,78 | 44 312,78 | — |
+| 2026-09 | 71 900,39 | 71 900,39 | — |
+
+**Doqquz ayın doqquzunda sətir sayı və məbləğ qəpiyinə qədər eynidir.** Kitabda olub proqramda olmayan nömrə
+**0**, proqramda olub kitabda olmayan nömrə **0**.
+
+### Qalan yeganə fərq kitabın öz içindədir
+
+Kitabın `miqdar × qiymət`-i **431 943,26404**, «Cəmi» sütunu isə **431 458,93404** — aradakı **484,33 ₼**
+məhz «Cəmi» xanası boş qoyulmuş **22 Qala baza sətridir**. Proqram «Cəmi» sütununu izləyir, çünki sahib
+həmin malların anbardan pulsuz verildiyini təsdiq etdi (D-45, D-46).
+
+Yəni kitabı yoxlayarkən: **«Cəmi» sütununu toplayın** — proqramla üst-üstə düşür. `Miqdarı × Qiyməti` ilə
+toplasanız 484,33 ₼ çox çıxacaq, çünki orada ödənilməyən qiymətlər də var.
