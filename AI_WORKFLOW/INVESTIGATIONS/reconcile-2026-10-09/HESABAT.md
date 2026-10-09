@@ -349,3 +349,15 @@ Sentyabr sətir-sətir tutuşduruldu: Excel **487 sətir / 71 980,39 ₼**, proq
 
 Bu səhv növü yeni şablonda mümkün deyil: orada «Cəmi» düsturdur və vərəq qorunduğu üçün üzərinə nə yazmaq,
 nə də onu boş qoymaq olur (D-44).
+
+**Davamı (D-45).** Yuxarıdakı nəticə — «bazada düzəliş tələb olunmur» — ilkin araşdırmanın nəticəsi idi:
+hesablama baxımından proqram düzgün idi. Amma sahibə bildiriləndə məlum oldu ki məsələ hesablamada deyil:
+hər iki sətrin təchizatçısı **Qala baza**-dır və sahib təsdiq etdi ki mal anbardan **pulsuz** verilib.
+
+Baza bunu artıq yarımçıq qeyd etmişdi: hər iki sətir `InternalFreeSupply` kimi təsnif olunub, amma qiyməti
+saxlayırdı — bütün effektiv tarixçədə belə ziddiyyətdə olan yalnız bu iki sətir var idi. Qiymətlər silindi
+(skript `21-qala-baza-daxili-tedaruk-2.sql`), effektiv məbləğ **431 971,26404 → 431 891,26404 ₼**.
+
+İndi sentyabr kitabın «Cəmi» sütunu ilə **tam eynidir** (71 900,39). Kitabın `Qiyməti` sütununda isə həmin
+sətirlərdə hələ 8 və 4 yazılıdır — kitab mənbə sənəddir, ona toxunulmayıb. Yəni kitabı `Miqdarı × Qiyməti`
+ilə toplasanız proqramdan 80 ₼ çox çıxacaq, `Cəmi` sütunu ilə toplasanız üst-üstə düşəcək.
