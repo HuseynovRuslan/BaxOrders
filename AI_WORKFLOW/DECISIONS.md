@@ -519,3 +519,27 @@ Beləliklə qalan 56 fərqdən **8-i bağlandı** (dəyişiklik tələb etmədə
 gözləyir** — bunlar kitabın bir malı iki-üç cür adlandırdığı sətirlərdir. Sahib: «qalanlarına sonra baxarıq».
 
 Sahib, 2026-10-09.
+
+**D-42 · Qalan 48 fərq bağlandı: fərqli yazılışlardır, məntiqcə eyni maldır.** Sahib: «olduğu kimi burax,
+əslində fərqli yazılışlar amma eynidi məntiq». On məhsulda kitab aynı malı bir vərəqdə iki-üç cür adlandırır
+(`Xlor Toz 90% qranul` 41 sətrin 25-ində bir cür, 9-unda `Pooltech` ilə, 7-sində üçüncü cür; `Suvarma sistemi
+yumru duş Gardena` 12 sətrin 5-ində belə, 4-ündə `Suvarma üçün duş Gardena`, 3-ündə `Duş Gardena`). Kataloq
+hər halda **çoxluq yazılışını** saxlayır və bu qalır.
+
+`Pooltech`, `264 metr`, `Glade`, `3/4`, `Ardıc` kimi azlıq yazılışlarının ayrı mal olub-olmadığı soruşuldu;
+sahib təsdiq etdi ki **ayrı mal deyil**, yalnız yazılış fərqidir. Ona görə ayrı məhsul yaradılmır — yaradılsa
+bir mal kataloqda iki-üç dəfə görünər və heç bir hesabat onu toplaya bilməz.
+
+**Beləliklə Excel–proqram uzlaşdırması TAM BAĞLANDI.** Qalan 56 sahə fərqinin hamısı izah olunub və sahib
+tərəfindən qəbul edilib: 48-i yazılış fərqi (D-42), 6-sı kitabın azlıq yazılışı (D-41), 2-si kitabın xana
+xətası (D-41). Heç biri proqramın səhvi deyil və heç biri dəyişiklik tələb etmir.
+
+Yekun vəziyyət: **167 sifariş · 3625 effektiv sətir · 431 971,26404 ₼.** Kitabın «Aylıq» vərəqi 3624 sətir ·
+431 943,26404 ₼ — fərq **1 sətir, 28,00 ₼**, yəni № 3032 (sahibin D-16/D-24 qərarı). Miqdar, qiymət, dövr,
+obyekt, təchizatçı, cavabdeh və ölçü üzrə **fərq yoxdur**.
+
+**Növbəti idxal üçün qeyd:** kitab gələn ay yenə `Duş Gardena` yazsa, idxal onu yeni məhsul kimi görəcək,
+çünki sahib D-30-da global alias yaradılmasını qadağan etmişdi. Bu qərar dəyişməyib; lazım olanda sahib
+istədiyi yazılışlar üçün alias icazəsi verə bilər.
+
+Sahib, 2026-10-09.

@@ -305,3 +305,26 @@ hallarının da kitabın azlıq yazılışı olduğunu göstərdi.
 |---|---|
 | `18-excel-uygunlasdirma-2.sql` | tətbiq edilən idempotent skript |
 | `19-qalan-56-ferq.csv` | qalan hər fərq, obyekti və səbəbi ilə |
+
+---
+
+## 10. Uzlaşdırma bağlandı (2026-10-09, D-42)
+
+Sahib qalan 48 fərqi də qəbul etdi: «olduğu kimi burax, əslində fərqli yazılışlar amma eynidi məntiq».
+`Pooltech`, `264 metr`, `Glade`, `3/4`, `Ardıc` ayrı mal deyil — yalnız kitabın yazılış fərqidir. Ayrı məhsul
+yaradılmır.
+
+**Yekun vəziyyət**
+
+| | proqram | Excel «Aylıq» |
+|---|---|---|
+| sifariş | 167 | — |
+| effektiv sətir | **3625** | 3624 |
+| məbləğ | **431 971,26404 ₼** | 431 943,26404 ₼ |
+| qiymətsiz sətir | 164 | 164 |
+
+Yeganə məbləğ fərqi **1 sətir / 28,00 ₼** — № 3032, sahibin D-16/D-24 qərarı. Miqdar, qiymət, dövr, obyekt,
+təchizatçı, cavabdeh və **ölçü** üzrə fərq yoxdur.
+
+Qalan 56 ad/model fərqinin hamısı izahlıdır və qəbul edilib: 48 yazılış fərqi (D-42), 6 azlıq yazılışı
+(D-41), 2 kitabın xana xətası (D-41). **Proqramın səhvi olan heç bir fərq qalmadı.**
