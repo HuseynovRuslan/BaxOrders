@@ -261,3 +261,47 @@ Qalan 1112 məhsulun hamısı düzgündür.
 |---|---|
 | `16-excel-uygunlasdirma.sql` | tətbiq edilən idempotent skript |
 | `17-qalan-77-ferq.csv` | qalan hər fərq, obyekti və **səbəbi** ilə |
+
+---
+
+## 9. İkinci keçid — «Sən həmişə Excel-i əsas al» (2026-10-09, D-40)
+
+Sahib ümumi qayda verdi: proqram ilə kitab fərqlənəndə kitab qalib gəlir, hər dəfə. 8-ci bölmədə mülahizə
+tələb etdiyi üçün saxlanan 15 sətrin **13-ü** açıldı və tətbiq edildi.
+
+| nə | say |
+|---|---|
+| **№ 1228** `Clean strong` → **`Yersil (Plastik)`**, ölçü 55 sm | 1 sətir |
+| kitabın `Laqonda nasadkası üçün şkurka` yazdığı sətirlər — **D-37-ni ləğv edir** | 5 sətir |
+| kitabın `Laqonda nasadkası` yazdığı sətirlər | 2 sətir |
+| modeldə/ölçüdə kataloqa zidd sətirlər (`AO 46SBF-42` → `AO 60TBF-41`, 115 → 230 + `Skom`) | 2 sətir |
+| kitabda ölçü xanası boş — `18 CM`, `125 MM`, `2.2` təmizləndi | 3 sətir |
+| model kodundan ikiqat boşluq silindi | 7 sətir |
+
+13 sətir yeni varianta keçdi (10-u başqa məhsula), 1 yeni variant yaradıldı, 10 variant və 6 məhsul deaktiv
+edildi. **Yeni məhsul yaradılmadı, mövcud ad dəyişdirilmədi.** Sətir sayı (3625) və məbləğ (431 971,26404 ₼)
+dəyişməyib. Eyni qayda ilə: nüsxə → klon sınağı → prod; ikinci işləmədə bütün dəyişikliklər 0.
+
+**Fərq 77 → 56. Ölçü fərqi tamamilə bitdi.**
+
+### Ortaya çıxan qoruyucu
+
+İlk cəhd `Fəhlə əlcəyi` variantının model kodunu `Emaf A300` → `EMAF A 300` dəyişəcəkdi, çünki bir Excel
+sətri belə yazır. Amma həmin variant **42 sətir tərəfindən paylaşılır** və 41-i `Emaf A300` istəyir — yəni
+1 sətri düzəltmək üçün 41-i pozardı. Generatora qayda əlavə edildi: **paylaşılan variantın mətni yalnız heç
+bir sətir köhnə yazılışı istəmədikdə dəyişir.** Qayda `US-418` ↔ `us-418` və `MV-611` ↔ `Mv-611`
+hallarının da kitabın azlıq yazılışı olduğunu göstərdi.
+
+### Qalan 56 fərq
+
+- **48 — kitab bir malı iki-üç cür adlandırır**, və o adların heç biri kataloqda ayrı məhsul deyil. Hərfi
+  tətbiq bir mal üçün ikinci məhsul yaratmaq olardı (bir Gardena duşu üçün üç məhsul), onda heç bir hesabat
+  o malı toplaya bilməzdi.
+- **6 — hərf fərqi, kitabın azlıq yazılışı** (yuxarıdaki qoruyucu).
+- **2 — `Yaramilla`:** kitabın `Model/Kod` xanasında `2021-11-11 00:00:00` var. Kataloqdaki `11 11 21` həmin
+  xananın kod kimi oxunuşudur, yəni kitabın dəyəri artıq proqramdadır.
+
+| fayl | nədir |
+|---|---|
+| `18-excel-uygunlasdirma-2.sql` | tətbiq edilən idempotent skript |
+| `19-qalan-56-ferq.csv` | qalan hər fərq, obyekti və səbəbi ilə |

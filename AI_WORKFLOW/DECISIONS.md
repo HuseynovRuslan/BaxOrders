@@ -464,3 +464,34 @@ toxunulmayıb. Fərq **176 → 77** sahəyə (143 → 70 sətir) düşdü. Skrip
   kataloqun yazılışı düzgündür.
 
 Sahib, 2026-10-09.
+
+**D-40 · «Sən həmişə Excel-i əsas al» — saxlanılan 15 sətrin 13-ü tətbiq edildi.** Sahib ümumi qayda verdi:
+proqram ilə kitab fərqlənəndə kitab qalib gəlir, hər dəfə. D-39-da mülahizə tələb etdiyi üçün saxladığım
+sətirlər açıldı.
+
+Tətbiq olunan 20 sətir: sahibin adını çəkdiyi **№ 1228** (`Clean strong` → **`Yersil (Plastik)`**, ölçü 55 sm
+— kataloqda bu məhsul artıq var idi, ona görə sətir sadəcə ona keçdi, dublikat yaranmadı); kitabın
+`Laqonda nasadkası üçün şkurka` yazdığı **5 sətir** — bu **D-37-ni ləğv edir**; `Laqonda nasadkası` yazdığı
+**2 sətir**; modeldə və ölçüdə kataloqa zidd olan **2 sətir** (`AO 46SBF-42` → `AO 60TBF-41 Alevs`, və
+115 → 230 + `Skom`); kitabda ölçü xanası boş olan **3 sətir** (`18 CM`, `125 MM`, `2.2` təmizləndi); bir
+variantın model kodundan ikiqat boşluq silindi (7 sətir).
+
+Nəticə: 13 sətir yeni varianta keçdi (10-u başqa məhsula), 1 yeni variant yaradıldı, 10 variant və 6 məhsul
+deaktiv edildi. Yeni məhsul yaradılmadı, mövcud məhsulun adı dəyişdirilmədi. Sətir sayı (3625) və məbləğ
+(431 971,26404 ₼) dəyişməyib. Fərq **77 → 56** sahəyə düşdü; **ölçü fərqi tamamilə bitdi**. Skript:
+`INVESTIGATIONS/reconcile-2026-10-09/18-excel-uygunlasdirma-2.sql`, idempotentdir (ikinci işləmədə hamısı 0).
+
+**Niyə 56 fərq hələ də qalır — kitab bu sətirlərdə bir şey demir, bir neçə şey deyir.**
+- **48 sətir — kitab bir malı iki-üç cür adlandırır və o adların heç biri kataloqda ayrı məhsul deyil.**
+  Hərfi tətbiq etmək eyni mal üçün **ikinci kataloq məhsulu** yaratmaq olardı — bir Gardena duşu üçün üç
+  məhsul — və onda heç bir hesabat o malı toplaya bilməzdi. Doqquz haldan doqquzunda proqram kitabın çoxluq
+  yazılışına uyğundur.
+- **6 sətir — hərf fərqi, amma azlıqdadır.** Kitab `US-418`-i altı sətirdə belə, üç sətirdə `us-418` yazır;
+  `Emaf A300`-u qırx bir sətirdə belə, bir sətirdə `EMAF A 300`. Variant paylaşıldığı üçün azlığa getmək
+  çoxluğu pozardı. Generatora bu qoruyucu əlavə edildi: paylaşılan variantın mətni yalnız **heç bir sətir
+  köhnə yazılışı istəmədikdə** dəyişir.
+- **2 sətir — `Yaramilla`.** Kitabın `Model/Kod` xanasında `2021-11-11 00:00:00` var: cədvəl model kodunu
+  tarix kimi formatlayıb. Kataloqdaki `11 11 21` **həmin xananın kod kimi oxunuşudur** — yəni kitabın dəyəri
+  artıq proqramdadır. Tarixi yazmaq model kodu yerinə tarix yazmaq olardı.
+
+Sahib, 2026-10-09.
