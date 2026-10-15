@@ -730,3 +730,31 @@ Müqayisə proqramın öz `LocationAliases` cədvəli ilə aparıldı (`H.Ə.M` 
 kitabda alias cədvəlinin tanımadığı obyekt adı qalmadı.
 
 Sahib, 2026-10-09.
+
+**D-49 · Oktyabr 2026 sifarişləri sistemə əlavə edildi — təsdiqlənməyib, rəhbərin qərarını gözləyir.**
+Sahib: «oktyabr ayı sifarişləri gəldi, bu təsdiqlənməyib, rəhbər baxıb qərar verməlidir, bunu sistemə əlavə
+et, ancaq oktyabr ayı». Fayl: `INVESTIGATIONS/Oktyabr_sifarisi_bolgu_2026.xlsx`, idxal #50012.
+
+**Nəticə:** 24 sifariş (hər obyekt üçün bir, v1), 382 sətir, **42 586,30 ₼**, hamısı **PendingApproval** —
+rəhbərin təsdiq növbəsində. Orijinal Excel ilə müstəqil tutuşdurma: 24 obyekt, 382 sətir, məbləğ — fərq
+sıfır. Yanvar–sentyabr (166 sifariş, 431 458,93404 ₼) toxunulmayıb.
+
+**Təsdiqlənməmiş qaldığı necə təmin edildi:** idxal sifarişi qaralama kimi yaradır; `ImportedAsApproved`
+hadisəsini kod heç vaxt yazmır (o, yalnız tarixi sifarişlərə miqrasiya ilə yazılıb). Sonra 24-ü
+`submit-many` ilə göndərildi. Administrator göndərə bilir, təsdiq edə bilmir (`canDecideOrders: false`).
+
+**Fayl idxalın formasında deyildi** — vərəq «Oktyabr 2026» (idxal yalnız «Aylıq» oxuyur), sütun «Sifariş
+növü» («Növ» olmalıdır), sonda «Cəmi:» sətri. Orijinala toxunulmadı; idxal üçün surət hazırlandı və
+hüceyrə-hüceyrə yoxlandı (0 fərq). Gələn ay bu lazım olmasın deyə göndərənə D-44 şablonu verilməlidir.
+
+**Kataloq qərarları — hamısı BatchOnly, alias yazılmayıb:** 6 yeni təchizatçı (Excel-dəki adla; oxşarı
+yox idi), 4 yeni vahid (`M3` Kub metr, `REYS`, `INCH` Düym, `V` Volt — `M2`/`KAMAZ`/`KW` nümunəsi ilə),
+`komplekt` → «Dəst», 6 təsvir (D-20/D-21), 4 kateqoriya yolu və 51 yeni məhsul (göndərənin «Yeni mallar»
+vərəqindən, kateqoriyası ilə), 3 ad mövcud məhsula bağlandı (`Columbus 80 BM 100 Şotka`, `Serçevina`,
+`Şurup samarez` — kataloqda eyni mal var, yalnız ölçü/model yenidir), 85 yeni variant, qiymətsiz 4 Qala
+Baza sətri daxili təminat (D-35). Ətraflı: `INVESTIGATIONS/oktyabr-2026/HESABAT.md`.
+
+**Açıq qalan:** təsdiq səlahiyyəti olan yeganə aktiv hesab `audit.rehber`-dir. Rəhbərin öz hesabı başqadırsa,
+ona Manager rolu verilməlidir.
+
+Sahib, 2026-10-15.
