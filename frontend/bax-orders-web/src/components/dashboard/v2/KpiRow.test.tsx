@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { ManagementDashboardSummary } from '../../../api/dashboard'
 import { KpiRow } from './KpiRow'
@@ -107,5 +107,50 @@ describe('what the difference is over', () => {
     render(<KpiRow summary={summary()} scope="Monthly" />)
 
     expect(card('Fərq')).not.toHaveTextContent('müqayisəyə daxil deyil')
+  })
+})
+
+
+describe('inline KPI details', () => {
+  const member = (locationId: number, locationName: string, currentKnownAmount: number | null, baselineKnownAmount: number | null, knownAmountDelta: number | null) => ({
+    locationId, locationName, locationCode: String(locationId), currentKnownAmount,
+    baselineKnownAmount, knownAmountDelta, lastOrderPeriod: null, lastOrderKnownAmount: null,
+  })
+
+  const withPortfolio = summary({
+    partition: {
+      locationCount: 3,
+      comparableLocationCount: 2,
+      compared: [member(1, 'Birinci obyekt', 200, 300, -100)],
+      noBaseline: [member(2, 'Yeni obyekt', 50, null, null)],
+      noOrderThisMonth: [member(3, 'Sifarişsiz obyekt', null, 80, null)],
+      noHistory: [],
+    },
+  })
+
+  it('opens a breakdown under the cards, switches metrics and closes on second click', () => {
+    render(<KpiRow summary={withPortfolio} scope="All" />)
+    expect(screen.queryByRole('region', { name: 'Xərclər obyektlər üzrə' })).toBeNull()
+
+    fireEvent.click(within(card('Ümumi faktiki xərc')).getByRole('button'))
+    expect(screen.getByRole('region', { name: 'Xərclər obyektlər üzrə' })).toHaveTextContent('Yeni obyekt')
+
+    fireEvent.click(within(card('Fərq')).getByRole('button'))
+    const difference = screen.getByRole('region', { name: 'Fərqi yaradan obyektlər' })
+    expect(difference).toHaveTextContent('Birinci obyekt')
+    expect(difference).not.toHaveTextContent('Yeni obyekt')
+
+    fireEvent.click(within(card('Fərq')).getByRole('button'))
+    expect(screen.queryByRole('region', { name: 'Fərqi yaradan obyektlər' })).toBeNull()
+  })
+
+  it('includes objects with no order in activity details', () => {
+    render(<KpiRow summary={withPortfolio} scope="All" />)
+    fireEvent.click(within(card('Aktiv obyektlər')).getByRole('button'))
+    const detail = screen.getByRole('region', { name: 'Obyektlərin sifariş vəziyyəti' })
+    expect(detail).toHaveTextContent('Sifarişsiz obyekt')
+    expect(detail).toHaveTextContent('Sifariş yoxdur')
+    fireEvent.click(within(detail).getByRole('button', { name: 'Kart detallarını bağla' }))
+    expect(screen.queryByRole('region', { name: 'Obyektlərin sifariş vəziyyəti' })).toBeNull()
   })
 })
