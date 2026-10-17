@@ -53,6 +53,7 @@ function trend(): DashboardTrendPoint[] {
  */
 const dashboardApi = vi.hoisted(() => ({
   fetchDashboard: vi.fn(),
+  fetchDashboardChanges: vi.fn(),
   fetchDashboardPeriods: vi.fn(),
 }))
 
@@ -223,6 +224,9 @@ beforeEach(() => {
     // The API answers about the basis it was asked for; the captions on screen are read from that answer.
     return Promise.resolve({ ...data, summary: { ...data.summary, basis: query.basis } })
   })
+  // Every compared object, largest change first: the list «Fərq» and «Məbləğ dəyişiklikləri» read (S-6). A request of
+  // its own, so the assertions in this file about the table's request stay about the table's request alone.
+  dashboardApi.fetchDashboardChanges.mockReset().mockImplementation(() => Promise.resolve(dashboard().rows.items))
 })
 
 afterEach(() => vi.clearAllMocks())
@@ -1195,5 +1199,219 @@ describe('the detail beside the page', () => {
     await user.click(screen.getByRole('button', { name: 'Bağla' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * «Sadə baxış»: each card opens its detail in place, under the cards — one at a time, no drawer (owner, 2026-10-17;
+ * `AI_WORKFLOW/DESIGN/2026-10-17-dashboard-kart-detallari/05-approval.md`, AC-01, AC-04, AC-05, AC-07, AC-08, AC-09).
+ */
+describe('the details under the cards', () => {
+  let scrollIntoView: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as typeof Element.prototype.scrollIntoView
+  })
+
+  afterEach(() => {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  function Back() {
+    const navigate = useNavigate()
+    return <button type="button" onClick={() => navigate(-1)}>Brauzerin geri düyməsi</button>
+  }
+
+  async function renderAt(url = '/dashboard?period=2026-09') {
+    render(
+      <MemoryRouter initialEntries={['/elsewhere', url]} initialIndex={1}>
+        <Search />
+        <Back />
+        <Routes>
+          <Route path="/dashboard" element={<ManagementDashboardPage />} />
+          <Route path="/elsewhere" element={<p>Başqa səhifə</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findAllByText('Fəvvarələr meydanı')
+  }
+
+  const card = (name: string) => screen.getByRole('button', { name })
+  const region = () => document.getElementById('kpi-detail')!
+
+  it('opens a card’s detail under the cards, one at a time, and closes it with a second click', async () => {
+    await renderAt()
+    const user = userEvent.setup()
+
+    expect(region()).toHaveAttribute('hidden')
+
+    await user.click(card('Fərq'))
+    expect(card('Fərq')).toHaveAttribute('aria-expanded', 'true')
+    expect(region()).not.toHaveAttribute('hidden')
+    expect(within(region()).getByRole('heading', { name: 'Fərq' })).toBeInTheDocument()
+    expect(urlParams().get('detal')).toBe('ferq')
+
+    await user.click(card('Aktiv obyektlər'))
+    expect(card('Fərq')).toHaveAttribute('aria-expanded', 'false')
+    expect(card('Aktiv obyektlər')).toHaveAttribute('aria-expanded', 'true')
+    expect(within(region()).getByRole('heading', { name: 'Aktiv obyektlər' })).toBeInTheDocument()
+    expect(urlParams().get('detal')).toBe('obyektler')
+
+    await user.click(card('Aktiv obyektlər'))
+    expect(region()).toHaveAttribute('hidden')
+    expect(urlParams().get('detal')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('lets Back close the detail — switching cards did not add steps to walk back through', async () => {
+    await renderAt()
+    const user = userEvent.setup()
+
+    await user.click(card('Fərq'))
+    await user.click(card('Aylıq sifarişlərin məbləği'))
+    await user.click(card('Müqayisə dövrü · Keçən ay'))
+    await user.click(screen.getByRole('button', { name: 'Brauzerin geri düyməsi' }))
+
+    expect(urlParams().get('detal')).toBeNull()
+    expect(urlParams().get('period')).toBe('2026-09')
+    expect(region()).toHaveAttribute('hidden')
+    expect(screen.queryByText('Başqa səhifə')).toBeNull()
+  })
+
+  it('closes on Esc and gives the focus back to the card', async () => {
+    await renderAt()
+    const user = userEvent.setup()
+
+    await user.click(card('Fərq'))
+    expect(document.activeElement).toBe(within(region()).getByRole('heading', { name: 'Fərq' }))
+
+    await user.keyboard('{Escape}')
+
+    expect(region()).toHaveAttribute('hidden')
+    expect(document.activeElement).toBe(card('Fərq'))
+    expect(screen.queryByText('Başqa səhifə')).toBeNull()
+  })
+
+  it('opens «Fərq» on the object from «Ətraflı», in place, without a drawer', async () => {
+    await renderAt()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — ətraflı' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(card('Fərq')).toHaveAttribute('aria-expanded', 'true')
+    expect(urlParams().get('detal')).toBe('ferq')
+    expect(urlParams().get('obyekt')).toBe('21')
+    const objectRow = within(region()).getByRole('button', { name: /^Fəvvarələr meydanı/ })
+    expect(objectRow).toHaveAttribute('aria-expanded', 'true')
+    expect(within(region()).getByRole('region', { name: 'Niyə dəyişib?' })).toHaveTextContent('Miqdar artımı')
+    // D-2: the reader lands on the row they asked for.
+    await waitFor(() => expect(document.activeElement).toBe(objectRow))
+  })
+
+  it('opens the same card and object from a pasted link', async () => {
+    await renderAt('/dashboard?period=2026-09&detal=ferq&obyekt=21')
+
+    expect(card('Fərq')).toHaveAttribute('aria-expanded', 'true')
+    expect(await within(region()).findByRole('button', { name: /^Fəvvarələr meydanı/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('drops a card name nobody wrote, and the object with it', async () => {
+    await renderAt('/dashboard?period=2026-09&detal=xyz&obyekt=21')
+    await waitFor(() => expect(urlParams().get('detal')).toBeNull())
+    expect(urlParams().get('obyekt')).toBeNull()
+  })
+
+  it('closes an object the new answer does not have, and keeps the card open', async () => {
+    await renderAt('/dashboard?period=2026-09&detal=ferq&obyekt=4242')
+
+    await waitFor(() => expect(urlParams().get('obyekt')).toBeNull())
+    expect(urlParams().get('detal')).toBe('ferq')
+  })
+
+  it('opens nothing on «Ətraflı baxış», which keeps its own composition', async () => {
+    await renderAt('/dashboard?period=2026-09&view=etrafli&detal=ferq')
+
+    await waitFor(() => expect(urlParams().get('detal')).toBeNull())
+    expect(document.getElementById('kpi-detail')).toBeNull()
+  })
+
+  /** S-6, AC-07: the five, and «Fərq», come from every compared object — not from what the table is filtered to. */
+  it('reads the compared list on the month’s own comparison, without the table’s search or filters', async () => {
+    await renderAt('/dashboard?period=2026-09&search=F%C9%99v&group=Compared&missingPrice=true&sort=LocationName')
+
+    await waitFor(() => expect(dashboardApi.fetchDashboardChanges).toHaveBeenCalled())
+    const [period, request] = dashboardApi.fetchDashboardChanges.mock.lastCall!
+    expect(period).toBe('2026-09')
+    expect(request).toEqual({ basis: 'PreviousMonth', scope: undefined })
+  })
+
+  it('asks again for the list only when the month, the comparison or the scope changes', async () => {
+    await renderAt()
+    const user = userEvent.setup()
+    await waitFor(() => expect(dashboardApi.fetchDashboardChanges).toHaveBeenCalledTimes(1))
+
+    await user.type(screen.getByLabelText('Obyekt adı üzrə axtar'), 'Fəv{Enter}')
+    await waitFor(() => expect(urlParams().get('search')).toBe('Fəv'))
+    expect(dashboardApi.fetchDashboardChanges).toHaveBeenCalledTimes(1)
+
+    await chooseBasis('avg3')
+    await waitFor(() => expect(dashboardApi.fetchDashboardChanges).toHaveBeenCalledTimes(2))
+    expect(dashboardApi.fetchDashboardChanges.mock.lastCall![1]).toEqual({ basis: 'Previous3MonthAverage', scope: undefined })
+  })
+
+  /** O-3, AC-09: only a scroll — the address and the table's filters stay as they were. */
+  it('takes «Bütün obyektlər cədvəli» to the table without touching the address', async () => {
+    await renderAt('/dashboard?period=2026-09&search=F%C9%99v')
+    const user = userEvent.setup()
+
+    await user.click(card('Fərq'))
+    const before = screen.getByTestId('search').textContent
+    await user.click(within(region()).getByRole('button', { name: 'Bütün obyektlər cədvəli' }))
+
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'start' })
+    expect(scrollIntoView.mock.contexts.at(-1)).toHaveTextContent('Bütün obyektlər')
+    expect(screen.getByTestId('search').textContent).toBe(before)
+    // D-2: the focus goes with the eye.
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Bütün obyektlər' }))
+  })
+
+  /** Q-1 regression: the five do not vanish without a word when their list fails, and a retry brings them back. */
+  it('says «Məbləğ dəyişiklikləri» could not be read, instead of dropping it, and reads it again on request', async () => {
+    dashboardApi.fetchDashboardChanges.mockReset()
+      .mockRejectedValueOnce(new Error('Şəbəkə xətası'))
+      .mockResolvedValue(dashboard().rows.items)
+    render(
+      <MemoryRouter initialEntries={['/dashboard?period=2026-09']}>
+        <Routes>
+          <Route path="/dashboard" element={<ManagementDashboardPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    const user = userEvent.setup()
+
+    const section = await screen.findByRole('region', { name: 'Məbləğ dəyişiklikləri' })
+    expect(await within(section).findByRole('alert')).toHaveTextContent('Şəbəkə xətası')
+    expect(within(section).queryByRole('table')).toBeNull()
+
+    await user.click(within(section).getByRole('button', { name: 'Yenidən cəhd et' }))
+
+    expect(await within(screen.getByRole('region', { name: 'Məbləğ dəyişiklikləri' })).findByRole('button', { name: 'Fəvvarələr meydanı — ətraflı' })).toBeInTheDocument()
+    expect(dashboardApi.fetchDashboardChanges).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the rest of «Fərq» when its list cannot be read, and reads it again on request', async () => {
+    dashboardApi.fetchDashboardChanges.mockReset()
+      .mockRejectedValueOnce(new Error('Şəbəkə xətası'))
+      .mockResolvedValue(dashboard().rows.items)
+    await renderAt('/dashboard?period=2026-09&detal=ferq')
+    const user = userEvent.setup()
+
+    expect(await within(region()).findByRole('alert')).toHaveTextContent('Şəbəkə xətası')
+    expect(within(region()).getByText('Fərq aşağıdakı 23 obyektin fərqlərindən ibarətdir.')).toBeInTheDocument()
+
+    await user.click(within(region()).getByRole('button', { name: 'Yenidən cəhd et' }))
+    expect(await within(region()).findByRole('button', { name: /^Fəvvarələr meydanı/ })).toBeInTheDocument()
   })
 })

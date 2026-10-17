@@ -15,6 +15,22 @@ import { missingPriceCount } from '../../pricing/labels'
  * avoids by leaving these lines out.
  */
 export function OutsideMonthlyPanel({ period, onClose }: { period: string; onClose: () => void }) {
+  const answer = useOutsideMonthly(period)
+
+  return (
+    <Modal title={outsideMonthlyOrdersLabel} subtitle={subtitle(answer.data)} onClose={onClose} width="wide" dismissOnBackdrop>
+      <OutsideMonthlyLines answer={answer} />
+    </Modal>
+  )
+}
+
+/** The month's ad-hoc lines as the API returns them, read again whenever the month changes. */
+export interface OutsideMonthlyAnswer {
+  data: OutsideMonthly | null
+  error: boolean
+}
+
+export function useOutsideMonthly(period: string): OutsideMonthlyAnswer {
   const [data, setData] = useState<OutsideMonthly | null>(null)
   const [error, setError] = useState(false)
 
@@ -31,8 +47,18 @@ export function OutsideMonthlyPanel({ period, onClose }: { period: string; onClo
     return () => controller.abort()
   }, [period])
 
+  return { data, error }
+}
+
+/**
+ * The lines themselves, object by object. Shared by the panel «Ətraflı baxış» opens and the «Məbləğ» detail of
+ * «Sadə baxış» (01-audit §7.5), so the two show the same lines in the same words.
+ */
+export function OutsideMonthlyLines({ answer }: { answer: OutsideMonthlyAnswer }) {
+  const { data, error } = answer
+
   return (
-    <Modal title={outsideMonthlyOrdersLabel} subtitle={subtitle(data)} onClose={onClose} width="wide" dismissOnBackdrop>
+    <>
       {error && <p role="alert" className="text-sm text-red-700">Siyahını oxumaq alınmadı.</p>}
       {!error && data === null && <p className="text-sm text-slate-500">Yüklənir…</p>}
 
@@ -73,7 +99,7 @@ export function OutsideMonthlyPanel({ period, onClose }: { period: string; onClo
           </ul>
         </section>
       ))}
-    </Modal>
+    </>
   )
 }
 

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router'
 import type { PriceCoverageState } from '../api/analytics'
 import {
   fetchDashboard,
+  fetchDashboardChanges,
   fetchDashboardPeriods,
   type DashboardPeriods,
   type HistoryCoverageState,
@@ -26,6 +27,9 @@ import { SimpleDashboardView } from '../components/dashboard/v2/SimpleDashboardV
 import { ChangeDetailDrawer } from '../components/dashboard/ChangeDetailDrawer'
 import { DetailedDashboardHeader, DetailedDashboardView } from '../components/dashboard/DetailedDashboardView'
 import { useBasis } from '../analytics/useBasis'
+import { useDashboardDetail } from '../analytics/useDashboardDetail'
+import { detailObjectParamName, detailParamName } from '../analytics/dashboardDetail'
+import type { ChangesState } from '../components/dashboard/v2/DifferenceDetail'
 import { isPortfolioGroup } from '../coverage/labels'
 import { useScrollMemory } from '../navigation/useScrollMemory'
 import { OutsideMonthlyPanel } from '../components/dashboard/OutsideMonthlyPanel'
@@ -115,6 +119,9 @@ export function ManagementDashboardPage() {
   const [detailLocationId, setDetailLocationId] = useState<number | null>(null)
   useEffect(() => setSearchInput(search), [search])
 
+  // «Sadə baxış»: which card's detail is open under the cards, and which object in «Fərq» — in the address (AC-04).
+  const detail = useDashboardDetail(params, setParams, view)
+
   useEffect(() => {
     const controller = new AbortController()
     setPeriods({ status: 'loading' })
@@ -199,6 +206,48 @@ export function ManagementDashboardPage() {
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, query])
+
+  // Every compared object, largest change first: what «Fərq» lists and «Məbləğ dəyişiklikləri» takes its five from
+  // (S-6; AC-06, AC-07). Asked on the month's own comparison and nothing else — the table's search, filters, order
+  // and page do not reach it — and only on «Sadə baxış», the one view that shows it (S-4).
+  const [changes, setChanges] = useState<ChangesState>({ status: 'loading', rows: null })
+  const [changesAttempt, setChangesAttempt] = useState(0)
+  const changesKey = `${period}|${basisKey}|${scope}`
+  const lastChangesKey = useRef('')
+  useEffect(() => {
+    if (period === null || view !== 'Simple') {
+      return
+    }
+
+    lastChangesKey.current = changesKey
+    const controller = new AbortController()
+    // The rows on screen stay while the new ones are read, as the page's own figures do.
+    setChanges((current) => ({ status: 'loading', rows: current.rows }))
+    fetchDashboardChanges(period, { ...request, scope: scope === 'Monthly' ? undefined : scope }, controller.signal)
+      .then((rows) => {
+        if (lastChangesKey.current === changesKey) {
+          setChanges({ status: 'success', rows })
+        }
+      })
+      .catch((problem: unknown) => {
+        if (!controller.signal.aborted) {
+          setChanges({ status: 'error', message: message(problem, 'Obyektlərin siyahısı yüklənmədi'), rows: null })
+        }
+      })
+
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changesKey, view, changesAttempt])
+
+  // An object asked for that the new answer does not have (another month, another basis) closes its row; the card
+  // stays open (01-audit §7.7).
+  useEffect(() => {
+    if (changes.status === 'success' && detail.objectId !== null
+      && !changes.rows.some((row) => row.locationId === detail.objectId)) {
+      detail.selectObject(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changes, detail.objectId])
 
   const data = dashboard.data
   const shownSelection = dashboard.selection ?? selection
@@ -305,12 +354,20 @@ export function ManagementDashboardPage() {
                 scope={scope}
                 onScope={(next) => update({ scope: next === 'Monthly' ? undefined : next })}
                 view={view}
-                onView={(next) => update({ view: viewParam(next) })}
+                onView={(next) => update({ view: viewParam(next), [detailParamName]: undefined, [detailObjectParamName]: undefined })}
                 selection={selection}
                 onSelection={(next) => update(basisParams(next))}
                 priorMonths={priorMonths}
-                onOpenDetail={(item) => setDetailLocationId(item.location.locationId)}
-                onOpenAll={() => tableHeading.current?.scrollIntoView?.({ block: 'start' })}
+                busy={dashboard.loading}
+                detail={detail}
+                changes={changes}
+                onRetryChanges={() => setChangesAttempt((attempt) => attempt + 1)}
+                // Only a scroll: the table's filters, order and the address stay as they are (O-3). The focus goes
+                // with it, so a keyboard reader is where the eye is (D-2).
+                onOpenAll={() => {
+                  tableHeading.current?.scrollIntoView?.({ block: 'start' })
+                  tableHeading.current?.focus({ preventScroll: true })
+                }}
               />
             ) : (
               /*
@@ -351,7 +408,7 @@ export function ManagementDashboardPage() {
             )}
           </div>
 
-          <h2 ref={tableHeading} className="mb-space-sm scroll-mt-20 font-headline-md text-headline-md font-bold text-on-surface">Bütün obyektlər</h2>
+          <h2 ref={tableHeading} tabIndex={-1} className="mb-space-sm scroll-mt-20 font-headline-md text-headline-md font-bold text-on-surface focus-visible:outline-none">Bütün obyektlər</h2>
 
           {/* The chips sit directly over the table they filter, and a chip opens exactly the objects it counts. */}
           <DashboardCoverageChips summary={data.summary} active={activeChip} onSelect={selectChip} />

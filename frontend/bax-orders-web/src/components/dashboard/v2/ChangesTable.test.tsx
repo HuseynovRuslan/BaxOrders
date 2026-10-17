@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { DashboardAttention, LocationDashboardRow, ManagementDashboardSummary } from '../../../api/dashboard'
+import type { LocationDashboardRow, ManagementDashboardSummary } from '../../../api/dashboard'
+import { costDirectionTintClass, costDirectionToneClass } from '../../analytics/format'
 import { ChangesTable } from './ChangesTable'
+import type { ChangesState } from './DifferenceDetail'
 
 const none = { knownAmount: null, itemCount: 0, knownPriceItemCount: 0, missingPriceItemCount: 0, priceNotRequiredItemCount: 0, isComplete: true }
 
@@ -29,19 +31,26 @@ function row(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRo
   } as LocationDashboardRow
 }
 
-function item(overrides: Partial<LocationDashboardRow> = {}): DashboardAttention {
-  return { reason: 'LargestIncrease', location: row(overrides), rank: 1, alsoFirstIn: [] }
+/** The compared list as the server orders it: by the size of the change, either way, largest first. */
+function item(overrides: Partial<LocationDashboardRow> = {}): LocationDashboardRow {
+  return row(overrides)
 }
 
 const summary = { basis: 'PreviousMonth', baselinePeriods: ['2026-08-01'] } as ManagementDashboardSummary
 
-function show(attention: DashboardAttention[], handlers: {
-  onOpenDetail?: (item: DashboardAttention) => void
+/** An array is the list as read; null is the list still being read; a ChangesState is passed as it is. */
+function show(changes: LocationDashboardRow[] | null | ChangesState, handlers: {
+  onOpenDetail?: (row: LocationDashboardRow) => void
   onOpenAll?: () => void
+  onRetry?: () => void
 } = {}) {
+  const state: ChangesState = changes === null
+    ? { status: 'loading', rows: null }
+    : Array.isArray(changes) ? { status: 'success', rows: changes } : changes
   return render(
     <ChangesTable
-      attention={attention}
+      changes={state}
+      onRetry={handlers.onRetry}
       summary={summary}
       onOpenDetail={handlers.onOpenDetail ?? (() => {})}
       onOpenAll={handlers.onOpenAll}
@@ -97,6 +106,83 @@ describe('the objects whose money moved most', () => {
 
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('keeps its place with placeholder rows while the list is being read', () => {
+    show(null)
+
+    const section = screen.getByRole('region', { name: 'Məbləğ dəyişiklikləri' })
+    expect(within(section).getByText('Məbləğ dəyişiklikləri yüklənir')).toBeInTheDocument()
+    expect(within(section).queryByRole('table')).toBeNull()
+  })
+})
+
+/**
+ * Q-1: the list is a request of its own, and it can fail while the rest of the page has its figures. The section
+ * stays and says so, with a way to ask again — never an empty list, never a zero.
+ */
+describe('when the list cannot be read', () => {
+  const failed: ChangesState = { status: 'error', message: 'Şəbəkə xətası', rows: null }
+
+  it('stays, with the server’s words, instead of disappearing', () => {
+    show(failed)
+
+    const section = screen.getByRole('region', { name: 'Məbləğ dəyişiklikləri' })
+    expect(within(section).getByRole('heading', { name: 'Məbləğ dəyişiklikləri' })).toBeInTheDocument()
+    expect(within(section).getByRole('alert')).toHaveTextContent('Şəbəkə xətası')
+  })
+
+  it('does not pass a failure off as an empty list or a zero', () => {
+    show(failed)
+
+    const section = screen.getByRole('region', { name: 'Məbləğ dəyişiklikləri' })
+    expect(within(section).queryByRole('table')).toBeNull()
+    expect(section).not.toHaveTextContent('0,00')
+    expect(section).not.toHaveTextContent('yoxdur')
+  })
+
+  it('asks for the list again on request', async () => {
+    const onRetry = vi.fn()
+    show(failed, { onRetry })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Yenidən cəhd et' }))
+
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * S-6 (AC-07): the five are the largest of every compared object, not of a shortlist. The old source was the
+ * attention list, which holds at most two objects of each direction — so three large rises lost their third.
+ */
+describe('the true largest five', () => {
+  it('keeps three large changes of one direction, all of them', () => {
+    show([
+      item({ locationId: 1, locationName: 'Artım A', knownAmountDelta: 9_000 }),
+      item({ locationId: 2, locationName: 'Artım B', knownAmountDelta: 8_000 }),
+      item({ locationId: 3, locationName: 'Artım C', knownAmountDelta: 7_000 }),
+      item({ locationId: 4, locationName: 'Azalma', knownAmountDelta: -500 }),
+      item({ locationId: 5, locationName: 'Kiçik faiz', knownAmountDelta: 40 }),
+      item({ locationId: 6, locationName: 'Ən kiçik', knownAmountDelta: 10 }),
+    ])
+
+    expect(bodyRows().map((line) => within(line).getByRole('rowheader').textContent))
+      .toEqual(['Artım A', 'Artım B', 'Artım C', 'Azalma', 'Kiçik faiz'])
+  })
+
+  it('keeps the server’s order where two changes are the same size', () => {
+    show([
+      item({ locationId: 1, locationName: 'Ağdam', knownAmountDelta: 500 }),
+      item({ locationId: 2, locationName: 'Bakı', knownAmountDelta: -500 }),
+    ])
+
+    expect(bodyRows().map((line) => within(line).getByRole('rowheader').textContent)).toEqual(['Ağdam', 'Bakı'])
+  })
+
+  it('shows only as many as there are where fewer than five were compared', () => {
+    show([item({ locationId: 1, knownAmountDelta: 300 }), item({ locationId: 2, knownAmountDelta: -100 })])
+
+    expect(bodyRows()).toHaveLength(2)
+  })
 })
 
 /** This product's rule: money going up is the bad direction, and the words say it beside the colour. */
@@ -108,9 +194,9 @@ describe('the direction of each change', () => {
     ])
 
     const [rising, falling] = bodyRows()
-    expect(within(rising).getByText(/\+8\.340,00/)).toHaveClass('bg-red-50', 'text-red-500')
+    expect(within(rising).getByText(/\+8\.340,00/)).toHaveClass(...costDirectionTintClass(8_340).split(' '), costDirectionToneClass(8_340))
     expect(within(rising).getByText(', xərc artıb')).toBeInTheDocument()
-    expect(within(falling).getByText(/−4\.200,00/)).toHaveClass('bg-green-50', 'text-green-500')
+    expect(within(falling).getByText(/−4\.200,00/)).toHaveClass(...costDirectionTintClass(-4_200).split(' '), costDirectionToneClass(-4_200))
     expect(within(falling).getByText(', xərc azalıb')).toBeInTheDocument()
   })
 })
@@ -138,7 +224,7 @@ describe('the way in', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Fəvvarələr meydanı — ətraflı' }))
 
     expect(onOpenDetail).toHaveBeenCalledTimes(1)
-    expect(onOpenDetail.mock.calls[0][0].location.locationId).toBe(42)
+    expect(onOpenDetail.mock.calls[0][0].locationId).toBe(42)
   })
 
   it('offers the full table to a reader who wants every object', async () => {
