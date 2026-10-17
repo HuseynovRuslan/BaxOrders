@@ -403,3 +403,52 @@ export function fetchDashboard(
   if (query.descending) params.set('descending', 'true')
   return getJson<ManagementDashboard>(`/api/v1/dashboard?${params.toString()}`, signal)
 }
+
+/** The comparison a list of every compared object is asked for: the month's own, without the table's filters. */
+export interface DashboardChangesRequest {
+  basis: AnalyticsComparisonBasis
+  scope?: AnalyticsScope
+  customStart?: string
+  customEnd?: string
+}
+
+/** The API's largest page (`ManagementDashboardQueries.MaxPageSize`). */
+const changesPageSize = 100
+
+/**
+ * Every object the month's difference is made of, largest change first — what «Fərq» lists under the cards, and the
+ * list «Məbləğ dəyişiklikləri» takes its five from, so the two can never disagree (01-audit §7.9; AC-06, AC-07).
+ *
+ * The same endpoint and parameters the table already uses, asked differently: the compared group, ordered by the
+ * size of the change whichever way it went, and none of the table's search or filters — the server filters, then
+ * orders every object, then pages, so the first five here are the five largest of the whole company. A company with
+ * more compared objects than one page holds is read page by page until every one of them is in.
+ */
+export async function fetchDashboardChanges(
+  period: string,
+  request: DashboardChangesRequest,
+  signal?: AbortSignal,
+): Promise<LocationDashboardRow[]> {
+  const rows: LocationDashboardRow[] = []
+
+  for (let page = 1; ; page += 1) {
+    const params = new URLSearchParams({
+      period,
+      basis: request.basis,
+      group: 'Compared',
+      sort: 'AbsoluteKnownAmountDelta',
+      descending: 'true',
+      page: String(page),
+      pageSize: String(changesPageSize),
+    })
+    if (request.customStart) params.set('customStart', request.customStart)
+    if (request.customEnd) params.set('customEnd', request.customEnd)
+    if (request.scope) params.set('scope', request.scope)
+
+    const answer = await getJson<ManagementDashboard>(`/api/v1/dashboard?${params.toString()}`, signal)
+    rows.push(...answer.rows.items)
+    if (answer.rows.items.length === 0 || rows.length >= answer.rows.totalCount) {
+      return rows
+    }
+  }
+}

@@ -1,6 +1,8 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import type { ManagementDashboardSummary } from '../../../api/dashboard'
+import { costDirectionToneClass } from '../../analytics/format'
 import { KpiRow } from './KpiRow'
 
 const none = { knownAmount: null, itemCount: 0, knownPriceItemCount: 0, missingPriceItemCount: 0, priceNotRequiredItemCount: 0, isComplete: true }
@@ -70,8 +72,8 @@ describe('the direction of the difference', () => {
     render(<KpiRow summary={summary({ knownAmountDelta: 7_870, knownAmountPercentChange: 12.4 })} scope="Monthly" />)
 
     const difference = within(card('Fərq'))
-    expect(difference.getByText(/\+7\.870,00/)).toHaveClass('text-red-500')
-    expect(difference.getByText('+12,4%')).toHaveClass('text-red-500')
+    expect(difference.getByText(/\+7\.870,00/)).toHaveClass(costDirectionToneClass(7_870))
+    expect(difference.getByText('+12,4%')).toHaveClass(costDirectionToneClass(7_870))
     expect(difference.getByText('xərc artıb')).toBeInTheDocument()
   })
 
@@ -79,7 +81,7 @@ describe('the direction of the difference', () => {
     render(<KpiRow summary={summary({ knownAmountDelta: -4_200, knownAmountPercentChange: -6.2 })} scope="Monthly" />)
 
     const difference = within(card('Fərq'))
-    expect(difference.getByText(/−4\.200,00/)).toHaveClass('text-green-500')
+    expect(difference.getByText(/−4\.200,00/)).toHaveClass(costDirectionToneClass(-4_200))
     expect(difference.getByText('xərc azalıb')).toBeInTheDocument()
   })
 
@@ -107,5 +109,58 @@ describe('what the difference is over', () => {
     render(<KpiRow summary={summary()} scope="Monthly" />)
 
     expect(card('Fərq')).not.toHaveTextContent('müqayisəyə daxil deyil')
+  })
+})
+
+/**
+ * Each card opens its own detail under the row (AC-01): a disclosure button, so «all closed» is ordinary and a second
+ * click closes. The button is named by the card's label and points at the one region the cards open.
+ */
+describe('opening a card', () => {
+  it('makes every card a button that says whether its detail is open', () => {
+    render(<KpiRow summary={summary()} scope="Monthly" open="Difference" onToggle={() => {}} />)
+
+    const difference = within(card('Fərq')).getByRole('button', { name: 'Fərq' })
+    expect(difference).toHaveAttribute('aria-expanded', 'true')
+    expect(difference).toHaveAttribute('aria-controls', 'kpi-detail')
+    for (const name of ['Aylıq sifarişlərin məbləği', 'Müqayisə dövrü · Keçən ay', 'Aktiv obyektlər']) {
+      expect(within(card(name)).getByRole('button', { name })).toHaveAttribute('aria-expanded', 'false')
+    }
+  })
+
+  it('hands the card it was clicked on to the page', async () => {
+    const onToggle = vi.fn()
+    render(<KpiRow summary={summary()} scope="Monthly" onToggle={onToggle} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Aktiv obyektlər' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Fərq' }))
+
+    expect(onToggle.mock.calls).toEqual([['Locations'], ['Difference']])
+  })
+
+  it('reads the figure and what qualifies it to a screen reader as the button’s description', () => {
+    render(<KpiRow summary={summary()} scope="Monthly" onToggle={() => {}} />)
+
+    expect(screen.getByRole('button', { name: 'Fərq' })).toHaveAccessibleDescription(/\+7\.870,00.*xərc artıb/)
+  })
+
+  /** AC-02: the open card is marked by a ring, which takes no room, and the open/closed line is always there. */
+  it('marks the open card without changing what is in any card', () => {
+    const { rerender } = render(<KpiRow summary={summary()} scope="Monthly" open={null} onToggle={() => {}} />)
+    const closedText = card('Fərq').textContent
+
+    rerender(<KpiRow summary={summary()} scope="Monthly" open="Difference" onToggle={() => {}} />)
+
+    expect(card('Fərq')).toHaveClass('ring-2', 'ring-primary')
+    expect(card('Fərq')).not.toHaveClass('border-2')
+    expect(card('Fərq').textContent).toBe(closedText!.replace('Detallara bax', 'Bağla'))
+    expect(card('Aktiv obyektlər')).not.toHaveClass('ring-2')
+  })
+
+  it('stays four figures, with nothing to press, where nothing is offered to open', () => {
+    render(<KpiRow summary={summary()} scope="Monthly" />)
+
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(screen.getAllByRole('heading')).toHaveLength(4)
   })
 })
