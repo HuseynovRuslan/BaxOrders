@@ -1,5 +1,6 @@
 import type { AnalyticsComparisonBasis } from '../../api/analytics'
 import { allPriorMonthsLabel, averagePriceLabel, pricedLinesTotalLabel } from '../../terminology/terms'
+import { azNumberFormat } from './azNumber'
 
 /**
  * The formatting rules the analytics screens share. They are business rules as much as presentation ones —
@@ -245,9 +246,10 @@ export function isFutureMonth(period: string, today: Date = new Date()): boolean
   return toMonthKey(period) > current
 }
 
-const numberFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 4 })
-const moneyFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const percentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 2 })
+// «317.128,16» in every browser (D-52) — see azNumber.ts for why the runtime's own Azerbaijani data is not used.
+const numberFormat = azNumberFormat({ maximumFractionDigits: 4 })
+const moneyFormat = azNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const percentFormat = azNumberFormat({ maximumFractionDigits: 2 })
 
 export function formatCount(value: number | null | undefined): string {
   return value === null || value === undefined ? unknownValue : numberFormat.format(value)

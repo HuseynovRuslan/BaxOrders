@@ -758,3 +758,110 @@ Baza sətri daxili təminat (D-35). Ətraflı: `INVESTIGATIONS/oktyabr-2026/HESA
 ona Manager rolu verilməlidir.
 
 Sahib, 2026-10-15.
+
+---
+
+## UI V2 — Aylıq hesabat, 2026-10-15
+
+**D-50 · UI V2-nin «Aylıq hesabat» ekranı üçün sahibin qərarları.** Sahib auditi
+(`DESIGN/2026-10-15-ui-v2-ayliq-hesabat/01-audit.md`) və mərhələli planı qəbul etdi. Sözbəsöz:
+
+> 1. Artım qırmızı, azalma yaşıl göstərilsin.
+> 2. Qeyri-adi aylar həm artım, həm azalma üzrə, mövcud təsdiqlənmiş biznes qaydasına əsasən göstərilsin.
+> 3. Yuxarı hissədə 1 əsas, 2 ikinci dərəcəli maliyyə göstəricisi olsun. Əsas göstərici aktiv sifariş növünə və
+>    filtrlərə uyğun hesablanmalıdır.
+> 4. Sidebar 260 px, başlıq 72 px saxlanılsın. Bunlar təsdiqlənmiş ölçülərdir.
+> 5. Xanaya klik etdikdə real sifariş sətirləri göstərilsin. Sifarişin öz səhifəsinə keçid olsun.
+> 6. İlkin görünüş yığcam olsun.
+> 7. Analitika sonrakı mərhələyə saxlanılsın.
+>
+> Əlavə tələblər: Mövcud funksiyaları silmə. Status nöqtələri, təsdiq zəngi, aylıq cəm sətri və sifarişdən
+> hesabata geri qayıdış qorunsun. Aylıq faizlə anomaliya faizini fərqləndir. Pul formatı Azərbaycan standartında
+> olsun: 326.951,62 ₼. 1280 px, planşet və telefon görünüşlərini nəzərə al. Figma biznes məntiqi üçün yox,
+> vizual istiqamət üçün əsasdır. Mövcud API və backend əsas həqiqət mənbəyidir. 29 CSS-ə bağlı testi yeni
+> dizayna uyğunlaşdırarkən funksional yoxlamaları zəiflətmə. Tam testdəki timeout problemini ayrıca qeyd et;
+> təkbaşına keçməsi problemin qəti olaraq maşın yükündən olduğunu sübut etmir.
+
+**Nə deməkdir.** 9.1 və 8.2 olduğu kimi qalır — Figma-nın boz faizi, narıncı anomaliyası və «yalnız artım»
+qaydası götürülmür. Karkas (D-V1, D-V2) dəyişmir. Rəqəmlərin, rənglərin, statusların və anomaliyanın mənbəyi API-dir;
+Figma yalnız görünüşün istiqamətidir. «Ümumi faktiki xərc» brauzerdə toplanmır, API-nin «Hamısı» növü üzrə
+rəqəmindən oxunur. Auditdəki «29 CSS testi» səhv sayılmışdı; düzgün say 30 test / 69 yoxlama sətridir.
+Timeout ayrıca açıq məsələ kimi `BLOCKERS.md`-də qeyd olunur.
+
+**Açıq (sahibin cavabı gözlənilir):** əsas göstərici il və sifariş növünə görə API-də hesablanır, obyekt
+axtarışına görə isə hesablanmır — API yuxarı rəqəmləri həmişə bütün obyektlər üzrə verir. Axtarışa görə rəqəm
+backend dəyişikliyi tələb edir. `DESIGN/2026-10-15-ui-v2-ayliq-hesabat/02-requirements.md`, sual S-1.
+(Cavab: D-51, S-1 — A.)
+
+Sahib, 2026-10-15.
+
+**D-51 · UI V2 «Aylıq hesabat»: Mərhələ 1 (UX və tətbiq planı) qəbul edildi.** Sahib təsdiq paketinə
+(`DESIGN/2026-10-15-ui-v2-ayliq-hesabat/05-approval.md`) cavab verdi. Sözbəsöz:
+
+> Mərhələ 1-i qəbul edirəm.
+>
+> S-1, S-2a, S-3, S-4 və üç ortaq komponent üzrə tövsiyələrinlə razıyam.
+>
+> Yalnız S-2b fərqlidir: 11 px əvəzinə 12 px seçirəm. Rəqəmlərin oxunaqlılığı daha vacibdir. Lazım olduqda cədvəl öz
+> daxilində üfüqi sürüşsün, amma səhifənin özü yana sürüşməsin.
+>
+> Əlavə şərtlər:
+> - Obyekt axtarışının yuxarıdakı ümumi göstəricilərə təsir etmədiyi aydın yazılsın.
+> - Status işarələrinin mənası qorunsun.
+> - Sifariş detalları real API məlumatlarına əsaslansın.
+> - Mövcud işləyən funksiyalar və biznes qaydaları dəyişməsin.
+> - Testlərin funksional yoxlamaları zəiflədilməsin.
+>
+> Bu qərarları D-51 kimi qeyd et və A hazırlıq mərhələsinə keç.
+>
+> Kod dəyişikliklərinə başlamazdan əvvəl mövcud vəziyyəti yoxla. Daha sonra təsdiqlənmiş plana uyğun mərhələli icraya
+> başla. Hər mərhələdən sonra build və test nəticələrini təqdim et. Commit və push üçün ayrıca təsdiqimi gözlə.
+
+**Qərarlar:**
+
+| Sual | Qərar |
+|---|---|
+| S-1 | **A** — yuxarı rəqəmlər bütün obyektlər üzrə qalır; axtarış aktiv olanda bunun belə olduğu ekranda aydın yazılır. |
+| S-2a | **A** — cədvəl yalnız öz qutusunda yana sürüşür; aşağı sürüşəndə ay başlıqları 72 px başlığın altında görünən qalır və qutu ilə sinxron hərəkət edir, altında nazik sinxron sürüşmə zolağı. |
+| S-2b | **12 px** — rəqəmlər bütün masaüstü enlərində 12 px. E variantı (1440-dan aşağı 11 px) **rədd edildi**. 1280-də ~10 ay görünür, qalanı qutunun içində yana sürüşür; səhifə heç vaxt yana sürüşmür. |
+| S-3 | Cədvəldə ✓ (Təsdiqlənib) **boz**; paneldəki status nişanı məhsulun hər yerindəki kimi qalır. |
+| S-4 | Zolaqda daimi statik cümlə (rəqəmsiz): «Təsdiqlənməmiş sifarişlər də daxildir; təsdiq gözləyənlər cədvəldə ⏳ ilə işarələnib.» |
+| Ortaq komponentlər | `ScopeSelector`-un görünüşünün yerində dəyişməsi, yeni `SegmentedControl`, yeni `buttonClass` — təsdiqləndi. |
+
+**Şərtlər (icra boyu):** status işarələrinin mənası dəyişmir (məhsulun öz `workflowStatusLabels` / `workflowStatusSign`
+lüğəti); panel yalnız real API məlumatı göstərir; işləyən funksiya və biznes qaydası dəyişmir; testlərin funksional
+yoxlamaları zəiflədilmir; commit və push — ayrıca təsdiqlə.
+
+Sahib, 2026-10-16.
+
+**D-52 · Pul formatı bütün proqramda Azərbaycan standartında; B-09 ayrıca tapşırıqdır.** UI V2-nin A mərhələsində
+məlum oldu ki, Chrome 155 `az-Latn-AZ` dilində «317,128.16» yazır; testlər Node-da «317.128,16» gördüyü üçün bunu
+tutmurdu (`06-implementation.md`, A jurnalı). Sahib, sözbəsöz:
+
+> Hər iki suala cavabım **BƏLİ**.
+>
+> **1. Pul formatı:** Bütün proqramda Azərbaycan formatı tətbiq edilsin: `317.128,16 ₼`.
+>
+> Yalnız ekranda göstərilmə formatı dəyişsin. API, verilənlər bazası, hesablamalar və Excel import məntiqi dəyişməsin.
+> `format.ts` istifadə olunan bütün yerlər yoxlanılsın.
+>
+> **2. B-09 timeout:** Ayrı texniki tapşırıq kimi araşdırılsın. C və D mərhələlərini gecikdirməsin.
+>
+> Hazırda işləyən icraçı agentin işini bölməyin və eyni fayllarda paralel dəyişiklik aparmayın.
+>
+> Agent C mərhələsini bitirdikdən sonra:
+> - Build və bütün testləri işlədin.
+> - 1920, 1440, 1280 və 390 px ölçülərdə yoxlayın.
+> - Statusları, anomaliyaları, sıralamanı və sürüşməni yoxlayın.
+> - Brauzer şəkillərini və aşkar edilən problemləri göstərin.
+> - Heç nə commit və push etməyin.
+>
+> C mərhələsi yoxlanmadan D mərhələsinə keçməyin.
+
+**Nə deməkdir.** Ekranda rəqəm göstərən dörd yer — `components/analytics/format.ts`, `components/analytics/trend.ts`,
+`components/imports/labels.ts`, `terminology/terms.ts` — brauzerin yerli dil məlumatından asılı olmadan qrup ayırıcısı
+«.» və onluq ayırıcı «,» yazacaq; onları işlədən bütün komponentlər (58 fayl) yoxlanır. Rəqəmin özü, API, baza,
+hesablamalar və Excel idxalı dəyişmir. Format düzəlişi C mərhələsi bitəndən sonra, icraçının fayllarına toxunmadan,
+ayrıca addım kimi edilir. B-09 — C/D-ni saxlamayan ayrıca texniki tapşırıq.
+
+Sahib, 2026-10-16.

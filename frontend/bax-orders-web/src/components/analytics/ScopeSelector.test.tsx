@@ -35,4 +35,20 @@ describe('the order scope', () => {
     expect(screen.getByRole('button', { name: 'Hamısı' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Aylıq sifarişlər' })).toHaveAttribute('aria-pressed', 'false')
   })
+
+  /** UI V2 (03 §5.2 №1, D-51): drawn as the product's segmented control, named by the label above it on a page. */
+  it('takes its name from the visible label above it, and marks the chosen scope by more than colour', () => {
+    render(
+      <>
+        <span id="scope-label">Sifariş növü</span>
+        <ScopeSelector value="OutsideMonthly" onChange={vi.fn()} labelledBy="scope-label" />
+      </>,
+    )
+
+    const group = screen.getByRole('group', { name: 'Sifariş növü' })
+    expect(group).toHaveAttribute('aria-labelledby', 'scope-label')
+    const chosen = within(group).getByRole('button', { name: 'Aylıqdan kənar' })
+    expect(chosen).toHaveClass('font-semibold', 'ring-1', 'ring-outline', 'bg-surface-container-lowest')
+    expect(chosen.className).not.toMatch(/slate-/)
+  })
 })

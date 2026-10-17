@@ -2,6 +2,7 @@ import type { ImportStatus, IssueSeverity, IssueType, RowStatus } from '../../ap
 import type { BulkItemStatus, ResolutionKind, UnitType, UnresolvedStatus } from '../../api/review'
 import { pricedLinesTotalLabel } from '../../terminology/terms'
 import { unitWord } from '../../terminology/units'
+import { azNumberFormat } from '../analytics/azNumber'
 import { manatSuffix } from '../analytics/format'
 
 export const importStatusLabels: Record<ImportStatus, string> = {
@@ -133,7 +134,7 @@ export function formatDate(isoDate: string): string {
   return `${day}.${month}.${year}`
 }
 
-const numberFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 4 })
+const numberFormat = azNumberFormat({ maximumFractionDigits: 4 })
 
 export function formatNumber(value: number): string {
   return numberFormat.format(value)
@@ -192,7 +193,7 @@ export const unknownSupplierLabel = 'Məlum deyil'
 /** Money the system can actually account for, as opposed to a complete total. */
 export const knownAmountLabel = pricedLinesTotalLabel
 
-const currencyFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const currencyFormat = azNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** Formats a decimal the backend already calculated. Nothing is added up in the browser. */
 export function formatAmount(value: number | null | undefined): string {

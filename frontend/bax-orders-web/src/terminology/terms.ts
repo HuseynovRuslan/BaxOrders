@@ -9,6 +9,7 @@
  * The price words — "Qiymət yoxdur", "Daxili təminat" and their counts — are Task 2's and stay in
  * `src/pricing/labels`. The words for the four object groups are Task 1b's and stay in `src/coverage/labels`.
  */
+import { azNumberFormat } from '../components/analytics/azNumber'
 
 /** Products ordered this month and not in the window it is compared against. Never "Yeni sifarişlər". */
 export const newProductsLabel = 'Yeni məhsullar'
@@ -137,7 +138,7 @@ export const reportLegendLabel = 'Cədvəldəki işarələr'
 /** The same legend above the report's cards on a phone, where there is no table for it to be the legend of. */
 export const reportCardsLegendLabel = 'Kartlardakı işarələr'
 
-const sharePercentFormat = new Intl.NumberFormat('az-Latn-AZ', { maximumFractionDigits: 0 })
+const sharePercentFormat = azNumberFormat({ maximumFractionDigits: 0 })
 
 /**
  * A product's share of every movement in its direction (owner decisions 7.1, 7.1a): "artımların 74%-i",

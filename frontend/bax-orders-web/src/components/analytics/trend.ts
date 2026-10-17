@@ -3,6 +3,7 @@ import { locativeSuffix } from '../../terminology/terms'
 import { formatNumber } from '../imports/labels'
 import { describeBasis, formatQuantity } from './format'
 import { formatAnalyticsAmount, formatAnalyticsPeriod, formatPrice, unknownValue } from './labels'
+import { azNumberFormat } from './azNumber'
 
 export type TrendMetric = 'quantity' | 'amount' | 'price'
 
@@ -127,7 +128,7 @@ function tidy(value: number): number {
   return Number(value.toPrecision(12))
 }
 
-const ratioFormat = new Intl.NumberFormat('az-Latn-AZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const ratioFormat = azNumberFormat({ minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
 /**
  * "1,3×": this month's quantity as a multiple of the basis quantity, to one decimal. Null where it would divide by

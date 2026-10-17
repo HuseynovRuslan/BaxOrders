@@ -150,6 +150,95 @@ scopes and at all four widths, has no page-level horizontal scroll at all. This 
 
 ---
 
+## B-09 · Tam frontend test qaçışında bir test vaxt həddini aşdı — AÇIQ (2026-10-15)
+
+**Fakt.** 2026-10-15, UI V2 auditindən əvvəl tam qaçış (`npx vitest run`): 1472 testdən 1471-i keçdi.
+`src/pages/OrderDecisionPage.test.tsx` › «the way back to the monthly report › opens the report for the order’s
+year once the reader has pushed an entry of this page’s own» 20 000 ms limitini (`vitest.config.ts`,
+`testTimeout`) aşdı. Qaçış 145 s çəkdi, jsdom mühitlərinin yaradılması 808 s.
+
+**Sonrakı ölçmələr — heç bir kod dəyişmədən:**
+
+| Qaçış | İşçi sayı | Nəticə | Müddət | Bu test | Fayldakı testlərin medianı | Boş RAM (ən az) | CPU (orta) |
+|---|---|---|---|---|---|---|---|
+| 1 (ilkin) | default | 1471/1472 — **bu test timeout** | 145 s | > 20 000 ms | — | ölçülməyib | ölçülməyib |
+| yalnız bu fayl | default | 135/135 | 33 s | — | — | — | — |
+| 2 | default | 1472/1472 | 93 s | 3 965 ms | 373 ms | ölçülməyib | ölçülməyib |
+| 3 | default | 1472/1472 | 93 s | 3 218 ms | 387 ms | 287 MB | 99 % |
+| 4 | default | 1472/1472 | 98 s | 3 125 ms | 396 ms | 549 MB | 95 % |
+| 5 | `--maxWorkers=4` | 1472/1472 | 119 s | 1 578 ms | 183 ms | 897 MB | 57 % |
+
+**Deyə bildiklərimiz.** Bu test faylın ən ağır testlərindəndir: fayldakı testlərin median müddətindən 8–10 dəfə
+uzun çəkir. Müddəti yükdən asılıdır: 4 işçi ilə yarıya düşür. Tam qaçış zamanı maşın tam yüklənir: CPU 95–99 %,
+8 GB-dan boş qalan yaddaş 0,3–0,5 GB.
+
+**Deyə bilmədiklərimiz.** Səbəbin yük olduğunu deyə bilmirik. Testin tək işlədiləndə keçməsi bunu sübut etmir (sahib,
+D-50). 20 s-ə çatmaq üçün test adi 3–4 s-dən 5–6 dəfə yavaşlamalı idi, ilkin qaçış isə bütövlükdə cəmi ~1,5 dəfə
+yavaş idi. Səbəb keçici dayanma (swap, GC) da ola bilər, testdə və ya səhifədə nadir hallarda yaranan gözləmə də. İlkin
+qaçışda testlərin ayrı-ayrı müddətləri yazılmayıb, ona görə həmin anda qonşu testlərin nə qədər çəkdiyini bilmirik.
+
+**Növbəti addımlar.**
+1. UI V2 işi zamanı hər tam qaçış JSON hesabatı ilə (`--reporter=json`) saxlanır. Test yenə düşərsə, həmin anın
+   bütün müddətləri əlimizdə olacaq.
+2. Yenə düşərsə, eyni qaçışda qonşu testlərin müddətinə baxılır. Hamısı yavaşdırsa, səbəb yükdür. Yalnız bu test
+   yavaşdırsa, səbəb gözləmədir və testin addımları izlənir.
+3. Limit qaldırılmır, test zəiflədilmir.
+4. Sahib ayrıca qərar verərsə (test konfiqurasiyasının dəyişməsi): bu maşında işçi sayı 4-ə endirilir. Qaçış 93 s-dən
+   119 s-ə uzanır, yük isə xeyli azalır.
+
+**Heç nəyi bloklamır.** Amma test UI V2-nin toxunduğu yolu yoxlayır — sifarişdən hesabata qayıdış (24.3). Ona görə
+V2-nin hər mərhələsinin qəbulunda tam qaçış təkrarlanır.
+
+**Yeniləmə 2026-10-16 — təkrarlandı və yük fərziyyəsi təkzib olundu.** UI V2-nin A mərhələsinin ilkin qaçışı (`main`
+budağı, kod dəyişməmiş): 1472 testdən 1471-i keçdi, **eyni test yenə düşdü** (35 458 ms, limit 20 000 ms). Bu dəfə
+test-test müddətlər JSON hesabatında var:
+
+| | Müddət |
+|---|---|
+| Düşən test | **35 458 ms** |
+| Ondan əvvəlki 6 və sonrakı 6 test (fayl sırası ilə) | 107–1 029 ms |
+| Fayldakı testlərin medianı | **228 ms** (əvvəlki yaşıl qaçışlarda 373–396 ms — yəni bu dəfə fayl hətta daha sürətli idi) |
+| Fayldakı ikinci ən yavaş test | 4 516 ms |
+
+**Nəticə:** eyni işçidə, eyni anda qonşu testlər sürətli işləyib — maşın yükü bunu izah etmir. Test **özünə xas
+ilişib qalır** (nadir hallarda yaranan gözləmə və ya «race»). 35 s > 20 s olması onu da göstərir ki, ilişmə zamanı
+hadisə dövrü (event loop) məşğul idi və limitin taymeri gec işlədi — sonsuz asinxron təkrarlanma (render → effekt →
+sorğu → render) ehtimalı var. Bu, **[Fərziyyə]**-dir, sübut deyil.
+
+**Tək başına 15 qaçış (2026-10-16, `-t "once the reader has pushed an entry"`):** 15/15 keçdi, test 412–669 ms.
+Tam faylın içində isə eyni test adətən 3–4 s çəkir (faylın medianından 8–17 dəfə uzun) və 6 tam qaçışın 2-də
+ilişib. Deməli, fayldakı **əvvəlki testlərin geridə qoyduğu vəziyyət** (yarımçıq sorğu, taymer, tarixçə və ya mock)
+bu testə təsir edir — **[Fərziyyə]**, növbəti addımla yoxlanacaq.
+
+**Növbəti addım (ayrıca tapşırıq, sahibin icazəsi ilə):** testi qonşuları ilə birlikdə, addım-addım zaman ölçüləri ilə
+(müvəqqəti, commit edilməyən nüsxədə) təkrar-təkrar işlətmək, ilişən addımı və onu yaradan əvvəlki testi tapmaq; səbəb testdədirsə — testi düzəltmək (zəiflətmədən),
+səhifədədirsə — `OrderDetailPage`-in qayıdış məntiqini düzəltmək. UI V2 `OrderDetailPage.tsx`-ə toxunmur.
+
+**UI V2 B mərhələsindən sonra (2026-10-16):** icraçının 3 tam qaçışında bu test keçdi (18 494, 3 189, 2 906 ms — birincisi
+limitə 1,5 s qalmış); yoxlayıcının qaçışında 4 733 ms, keçdi. Açıq qalır.
+
+---
+
+## B-10 · `App.test.tsx`-də bir test bir dəfə gözləmə müddətini aşdı — AÇIQ (2026-10-16)
+
+**Fakt.** UI V2 B mərhələsinin icraçısının 3 tam qaçışından birində `src/App.test.tsx` › «sends /orders straight to the
+objects…» düşdü: `findBy…` standart 1 000 ms gözləyir, element 1 312 ms-də gəldi. Tək başına 5/5 keçdi (307–394 ms).
+Test aylıq hesabat səhifəsini açmır; V2-nin dəyişikliyi ona toxunmur. JSON: scratchpad `phaseB-run-2-app-flake.json`.
+
+**B-09-dan fərqi.** B-09-da test 20 s ilişib qalır, qonşuları isə sürətlidir. Burada isə 1 s-lik dar gözləmə 0,3 s
+aşılıb. Bu, yükə həssaslığa daha çox oxşayır — **[Fərziyyə]**, sübut deyil.
+
+**Növbəti addım.** B-09 kimi: hər tam qaçışın JSON hesabatı saxlanır. Təkrarlanarsa, həmin qaçışda qonşu testlərin
+müddətinə baxılır. Gözləmə müddəti qaldırılmır, sahibin qərarı olmadan test dəyişdirilmir.
+
+**İkinci hal (2026-10-16, UI V2 C mərhələsinin yoxlayıcı qaçışı).** `src/components/imports/review/productAliasAuthority.test.tsx`
+› «mapping a product to an existing one › offers no alternative name without the authority, and maps for this import
+only» düşdü: «Unable to find role="button" and name "Lampa 15W"» — `findBy…`-ın 1 000 ms-i bitdi (test 1 418 ms). Faylın
+testlərinin medianı 342 ms. Fayl tək başına 5 dəfə: 45/45 keçdi. İdxal kodu V2-də dəyişməyib (`git diff` boş). Eyni
+sinifdəndir: dar 1 s gözləmə tam qaçışın yükü altında aşılır — **[Fərziyyə]**. JSON: scratchpad `phaseC-review.json`.
+
+---
+
 *B-01 was answered by the owner on 2026-09-27 and applied the same day; it is kept above as the record of what
 was written and verified.*
 
