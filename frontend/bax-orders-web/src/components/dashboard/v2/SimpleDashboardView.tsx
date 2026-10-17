@@ -74,7 +74,7 @@ export function SimpleDashboardView({
         />
       </div>
 
-      <KpiRow summary={summary} scope={scope} />
+      <KpiRow summary={summary} scope={scope} selection={selection} />
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
         <ExpenseDynamics trend={summary.trend} scope={scope} selectedPeriod={summary.selectedPeriod} />
