@@ -158,3 +158,14 @@ separately and was explicitly out of scope: its implementation is preserved.
 |---|---|---|---|---|---|---|---|
 | R-11 | P4 | The readiness panel's numeric row-error section counts the missing-column errors | **DONE** `cdd00a1` | A batch blocked only by a missing «Növ» or «Cavabdeh şəxs» column shows zeros in «Sətir xətaları» while the blocker chip beside it says thousands. The chip now names it, so this is tidiness, not information | R-04 | low | `RowBlockers` carries the count and the panel shows it; a test pins the sum |
 | R-12 | P6 | Give the application an icon | **DIAGNOSED, left to the owner** | `index.html` declares no icon and there is no `public/` folder, so every page asks for `/favicon.ico` and is answered 404. Harmless. An icon is a visual choice, not a defect to be guessed at | — | none | the owner supplies an icon and it is linked from `index.html` |
+
+## Dizayn backlog-u — UI V2 «Aylıq hesabat»ın E qəbulundan (2026-10-17)
+
+Mənbə: `DESIGN/2026-10-15-ui-v2-ayliq-hesabat/07-qa.md`. Hər ikisi S3-dür, D-dən əvvəl də var idi və V2-ni bloklamır.
+Sahibin qərarı (2026-10-18): «bloklayıcı problem deyilsə, ROADMAP.md backlog-una əlavə et». İstifadəçinin gördüyünü
+dəyişdikləri üçün `DESIGN_WORKFLOW.md` ilə görülür.
+
+| # | P | Task | Status | Why | Depends on | Risk | Done when |
+|---|---|---|---|---|---|---|---|
+| R-29 | P6 | **E-2 (S3)** — şrift tokenləri rem-də olsun | TODO — dizayn sistemi qərarı | **Təsir:** brauzerin «şrift ölçüsü» 200% olanda `index.css`-in px tokenləri (`--text-body-md: 14px`, `--text-headline-sm: 16px` və s.) böyümür. Yalnız rem-li hissələr böyüyür, miqyas qarışır: aylıq hesabatın detalında 276 ölçülmüş elementdən 272-si 12–16 px qalır. Brauzerin yaxınlaşdırması (Ctrl +) düzgün işləyir. Dashboard-un D-3 tapıntısı ilə eyni kök səbəbdir (əsas qovluqdakı backlog qaralamasında R-24) — birləşdiriləndə bir bənd olur | — | orta: bütün ekranlar | tokenlər rem-dədir; 200% şrift ayarında (root 32 px) aylıq hesabat, onun detalı və dashboard mütənasib böyüyür; 1440 və 390-da brauzerdə yoxlanılıb |
+| R-30 | P6 | **E-3 (S3)** — telefonda «Sıralama» seçimi 200% mətndə səhifəni yana sürüşdürür | TODO | **Təsir:** 390 px-də root 32 px olanda səhifə 480 / 375 enində olur. Səbəb `ReportFilters`-in telefon «Sıralama» `select`-i (`w-56`, sağ kənarı 480) və «Hamısı» düyməsidir. Detal açıq və ya bağlı olmasından asılı deyil; C mərhələsindən qalıb. Dashboard-dakı oxşar hal R-28-dir | — | aşağı | 390 və 768-də, 200% mətndə səhifə yana sürüşmür (`scrollWidth` = `clientWidth`); seçim tam enə bükülür; normal mətndə görünüş dəyişmir |

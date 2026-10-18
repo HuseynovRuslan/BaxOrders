@@ -70,3 +70,45 @@ export const nextMonthsLabel = 'Sonrakı aylar'
 
 /** A year the system has no order for at all (03 §7) — not a search that found nothing. */
 export const noOrdersThisYearLabel = 'Bu il üçün sistemdə sifariş yoxdur.'
+
+// ---- a month's details, under its row (UI V2, phase D — 03 §6.9, 03a) -------------------------------------------
+
+/** The details' close control, in the dashboard's words for its own in-place details. */
+export const closeDetailsLabel = 'Detalları bağla'
+export const closeLabel = 'Bağla'
+
+/** The second comparison, by its full name (03 §6.9.4, M-04) — never side by side with the first without it. */
+export const recentAverageComparisonLabel = 'Əvvəlki 3 mövcud ayın ortalamasına görə'
+
+export function previousMonthAmountLabel(amount: string): string {
+  return `Keçən ay: ${amount}`
+}
+
+export function recentAverageAmountLabel(amount: string): string {
+  return `Əvvəlki 3 mövcud ayın ortalaması: ${amount}`
+}
+
+/** The unusual month's box: its name, then why (`unusualMonthHint`, said as a sentence). */
+export const unusualMonthLabel = 'Qeyri-adi ay'
+
+/** The month has no line of the scope being read (03 §6.9.3). */
+export const noLinesOfScopeLabel = 'Bu növdə sətir yoxdur.'
+
+/** The order the month is, and its lines (03 §6.9.6). */
+export const orderSectionLabel = 'Sifariş'
+export const wholeOrderAmountLabel = 'Bütün sifarişin məbləği'
+export const linesSectionLabel = 'Sətirlər'
+export const allLinesLabel = 'Bütün sətirlər'
+export const pricedLinesLabel = 'Qiyməti olan sətirlər'
+export const noLinesInOrderLabel = 'Bu sifarişdə sətir yoxdur.'
+export const noMatchingLinesLabel = 'Axtarışa uyğun sətir tapılmadı.'
+export const loadingLinesLabel = 'Sətirlər yüklənir'
+export const previousPageLabel = 'Əvvəlki'
+export const nextPageLabel = 'Növbəti'
+
+export function linesPageLabel(page: number, pages: number, total: number): string {
+  return `Səhifə ${page} / ${pages} · ${formatCount(total)} sətir`
+}
+
+/** The object's whole history of orders (03 §6.9.7). */
+export const locationOrdersLabel = 'Obyektin sifarişləri'

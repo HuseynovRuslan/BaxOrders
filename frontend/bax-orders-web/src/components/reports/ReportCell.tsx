@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import { Link } from 'react-router'
 import type { MonthlyReportCell } from '../../api/reports'
 import type { ReportView } from '../../analytics/reportView'
@@ -30,6 +31,10 @@ import { UnusualMark } from './UnusualMark'
  * without their names (M-04): the second one is never written in a cell at all.
  *
  * Everything else the cell knows is said in its name and tooltip (`describeCell`), word for word as before V2.
+ *
+ * A month with an order stays a link to it (03 §9.8): a plain click — or Enter — opens the month's details under its
+ * row instead (phase D, 03a), and Ctrl, ⌘, Shift, Alt, the middle button and the context menu are the link's own, so
+ * the order still opens in a new tab the way any link does (AC-11).
  */
 export function ReportCell({
   cell,
@@ -37,14 +42,23 @@ export function ReportCell({
   future,
   view,
   selected = false,
+  cellKey,
+  controls,
+  onOpen,
 }: {
   cell: MonthlyReportCell
   locationName: string
   /** Whether the month has not begun on the reader's calendar. */
   future: boolean
   view: ReportView
-  /** Whether the cell is the one the side panel describes (phase D). */
+  /** Whether the cell is the one whose details are open (phase D). */
   selected?: boolean
+  /** `21-06`: names the cell, so the focus can come back to it when its details close. */
+  cellKey?: string
+  /** The id of the open details, given only to the open cell (`aria-controls`). */
+  controls?: string
+  /** Opens — or, on the open cell, closes — the month's details. Without it the cell only opens the order. */
+  onOpen?: () => void
 }) {
   const month = formatMonth(cell.period)
 
@@ -81,6 +95,15 @@ export function ReportCell({
       state={monthlyReportOrderState}
       title={description}
       aria-label={`${locationName} · ${description}`}
+      aria-expanded={onOpen === undefined ? undefined : selected}
+      aria-controls={selected ? controls : undefined}
+      data-report-cell={cellKey}
+      onClick={onOpen === undefined ? undefined : (event) => {
+        if (isPlainClick(event)) {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
       className={cellLinkClass(cell, selected)}
     >
       <span className="flex items-baseline justify-end gap-1">
@@ -92,6 +115,11 @@ export function ReportCell({
       <Marks cell={cell} standard={standard} />
     </Link>
   )
+}
+
+/** The main button with no modifier, not already handled (the rule of `openSurfaceLink`, `interaction.ts`). */
+function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return !event.defaultPrevented && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
 }
 
 /**

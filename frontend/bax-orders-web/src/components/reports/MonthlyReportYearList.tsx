@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MonthlyReport, MonthlyReportRow } from '../../api/reports'
+import { reportCellParam } from '../../analytics/reportCell'
 import type { ReportView } from '../../analytics/reportView'
 import { portfolioGroupLabels } from '../../coverage/labels'
 import {
@@ -13,6 +15,8 @@ import { Legend } from './Legend'
 import { yearTotalLabel } from './labels'
 import { MonthTotal } from './MonthTotal'
 import { ReportCell } from './ReportCell'
+import { reportCellDetailId } from './ReportCellDetail'
+import type { SelectedCell } from './ReportTable'
 import { futureMonthClass, futureMonthMarkerClass, futureMonths, reportPeriods, shortMonths } from './reportGrid'
 
 /**
@@ -24,12 +28,16 @@ import { futureMonthClass, futureMonthMarkerClass, futureMonths, reportPeriods, 
  * A month in the grid is the table's own cell (`ReportCell`), in the same view, so it says exactly what the table says
  * and opens the same order; every month and name is a finger's height (44 px). The cards follow the table's order. The
  * company's months close the list, as the totals row closes the table, and the legend opens it, as it opens the table.
+ * A month's details open inside its object's card, under the months, the card's own width (phase D, 03a §3).
  */
 export function MonthlyReportYearList({
   report,
   rows,
   view,
   searchActive,
+  selected = null,
+  detail = null,
+  onOpenCell,
   today = new Date(),
 }: {
   report: MonthlyReport
@@ -38,6 +46,11 @@ export function MonthlyReportYearList({
   view: ReportView
   /** Whether this answer was asked with a search: then the totals say they are every object's. */
   searchActive: boolean
+  selected?: SelectedCell | null
+  /** The open month's details, drawn inside its object's card. */
+  detail?: ReactNode
+  /** A tap on a month with an order: its details open, or close when they are the ones open. */
+  onOpenCell?: (cell: SelectedCell) => void
   /** The reader's today, which decides which months have not begun yet. */
   today?: Date
 }) {
@@ -51,7 +64,16 @@ export function MonthlyReportYearList({
 
       <ul className="mt-3 space-y-2">
         {rows.map((row) => (
-          <LocationCard key={row.locationId} row={row} periods={periods} future={future} view={view} />
+          <LocationCard
+            key={row.locationId}
+            row={row}
+            periods={periods}
+            future={future}
+            view={view}
+            selectedMonth={selected !== null && selected.locationId === row.locationId ? selected.month : null}
+            detail={selected !== null && selected.locationId === row.locationId ? detail : null}
+            onOpenCell={onOpenCell}
+          />
         ))}
       </ul>
 
@@ -82,11 +104,17 @@ function LocationCard({
   periods,
   future,
   view,
+  selectedMonth,
+  detail,
+  onOpenCell,
 }: {
   row: MonthlyReportRow
   periods: readonly string[]
   future: readonly boolean[]
   view: ReportView
+  selectedMonth: number | null
+  detail: ReactNode
+  onOpenCell?: (cell: SelectedCell) => void
 }) {
   // Its own id, for Back on a phone, where the table and its row ids are in the page but hidden.
   return (
@@ -110,11 +138,21 @@ function LocationCard({
               <li key={cell.month} className="min-w-0">
                 <MonthName index={index} period={periods[index]} future={future[index]} />
                 <div className="text-right">
-                  <ReportCell cell={cell} locationName={row.locationName} future={future[index]} view={view} />
+                  <ReportCell
+                    cell={cell}
+                    locationName={row.locationName}
+                    future={future[index]}
+                    view={view}
+                    selected={selectedMonth === cell.month}
+                    cellKey={reportCellParam({ locationId: row.locationId, month: cell.month })}
+                    controls={reportCellDetailId('cards')}
+                    onOpen={onOpenCell === undefined ? undefined : () => onOpenCell({ locationId: row.locationId, month: cell.month })}
+                  />
                 </div>
               </li>
             ))}
           </ul>
+          {detail !== null && <div className="mt-3">{detail}</div>}
         </>
       ) : (
         // As in the table: one fact about the object, in the dashboard's words, rather than twelve empty months.

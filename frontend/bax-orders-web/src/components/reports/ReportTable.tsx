@@ -1,7 +1,8 @@
-import { useId, useRef } from 'react'
+import { Fragment, useId, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import type { MonthlyReport, MonthlyReportRow } from '../../api/reports'
+import { reportCellParam } from '../../analytics/reportCell'
 import { nextNameSort, nextTotalSort, type ReportSort } from '../../analytics/reportSort'
 import type { ReportView } from '../../analytics/reportView'
 import { portfolioGroupLabels } from '../../coverage/labels'
@@ -26,9 +27,10 @@ import {
   shortMonths,
   tableMinWidthClass,
 } from './reportGrid'
-import { useBoxScroll } from './reportScroll'
+import { reportCellDetailId } from './ReportCellDetail'
+import { useBoxScroll, useBoxWidth } from './reportScroll'
 
-/** The cell the side panel describes (phase D): which object, which month (1–12). */
+/** The cell whose details are open (phase D): which object, which month (1–12). */
 export interface SelectedCell {
   locationId: number
   month: number
@@ -60,6 +62,8 @@ export function ReportTable({
   onSort,
   searchActive,
   selected = null,
+  detail = null,
+  onOpenCell,
   today = new Date(),
 }: {
   report: MonthlyReport
@@ -71,6 +75,10 @@ export function ReportTable({
   /** Whether this answer was asked with a search: then the totals say they are every object's. */
   searchActive: boolean
   selected?: SelectedCell | null
+  /** The open month's details, drawn as a row of their own under its object's row (03a §2). */
+  detail?: ReactNode
+  /** A plain click on a month with an order: its details open, or close when they are the ones open. */
+  onOpenCell?: (cell: SelectedCell) => void
   /** The reader's today, which decides which months have not begun yet. */
   today?: Date
 }) {
@@ -89,6 +97,7 @@ export function ReportTable({
     latest: latestOrderedMonth(report),
   })
   const floatingHeader = useFloatingHeader({ box, head, table, scrolls: scroll.scrolls })
+  const boxWidth = useBoxWidth(box, selected !== null && detail !== null)
 
   // A click on the copy's button sorts, and puts the keyboard's focus on the real button, never in the copy.
   function sortFromCopy(next: ReportSort, column: SortColumn) {
@@ -140,15 +149,35 @@ export function ReportTable({
             </thead>
 
             <tbody>
+              {/* The stripes count the objects' rows only: the open details are not a row of the year (03a §10, Q-7). */}
               {rows.map((row, index) => (
-                <LocationRow
-                  key={row.locationId}
-                  row={row}
-                  striped={index % 2 === 1}
-                  future={future}
-                  view={view}
-                  selectedMonth={selected !== null && selected.locationId === row.locationId ? selected.month : null}
-                />
+                <Fragment key={row.locationId}>
+                  <LocationRow
+                    row={row}
+                    striped={index % 2 === 1}
+                    future={future}
+                    view={view}
+                    selectedMonth={selected !== null && selected.locationId === row.locationId ? selected.month : null}
+                    onOpenCell={onOpenCell}
+                  />
+                  {selected !== null && detail !== null && selected.locationId === row.locationId && (
+                    <tr data-report-detail="">
+                      <td colSpan={14} className="border-b border-outline-variant bg-surface-container-low p-0">
+                        {/*
+                          As wide as the box in sight and pinned to its left edge: whole wherever the months are scrolled
+                          to, and never wider than the table (Q-1). Above the floating header (z-10) and below the
+                          application's (z-20), so the months' names never sit over the details (Q-2).
+                        */}
+                        <div
+                          className="sticky left-0 z-11 bg-surface-container-low p-3"
+                          style={boxWidth > 0 ? { width: boxWidth } : undefined}
+                        >
+                          {detail}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
 
@@ -306,13 +335,15 @@ function LocationRow({
   future,
   view,
   selectedMonth,
+  onOpenCell,
 }: {
   row: MonthlyReportRow
   striped: boolean
   future: readonly boolean[]
   view: ReportView
-  /** The month (1–12) the side panel describes, when it is one of this row's. */
+  /** The month (1–12) whose details are open, when it is one of this row's. */
   selectedMonth: number | null
+  onOpenCell?: (cell: SelectedCell) => void
 }) {
   const selected = selectedMonth !== null
   // Set per cell rather than per row: the pinned columns carry their own background so they can sit above the others
@@ -349,6 +380,9 @@ function LocationRow({
               future={future[index]}
               view={view}
               selected={selectedMonth === cell.month}
+              cellKey={reportCellParam({ locationId: row.locationId, month: cell.month })}
+              controls={reportCellDetailId('table')}
+              onOpen={onOpenCell === undefined ? undefined : () => onOpenCell({ locationId: row.locationId, month: cell.month })}
             />
           </td>
         ))
@@ -357,9 +391,11 @@ function LocationRow({
         // said in the dashboard's own words.
         <td
           colSpan={12}
-          className={`border-b border-surface-container-high px-2 py-1 text-left align-top text-body-sm leading-[18px] text-on-surface-variant ${band}`}
+          className={`border-b border-surface-container-high py-1 pr-2 text-left align-top text-body-sm leading-[18px] text-on-surface-variant ${band}`}
         >
-          {portfolioGroupLabels.NoHistory}
+          {/* The months scroll under the pinned 120 px object column; the sentence sticks right beside it instead of
+              sliding under it, so it stays whole at any scroll position. */}
+          <span className="sticky left-30 inline-block px-2">{portfolioGroupLabels.NoHistory}</span>
         </td>
       )}
 

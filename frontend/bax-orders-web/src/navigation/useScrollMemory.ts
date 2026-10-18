@@ -13,6 +13,12 @@ const storagePrefix = 'bax.scroll.'
 const anchorSelector = '[id^="attention-"], [id^="row-"]'
 
 /**
+ * Something opened from a row but drawn outside it — the monthly report's open month, a table row of its own under its
+ * object's — names the row it belongs to, so Back brings that row into view (24.3).
+ */
+const namedAnchorAttribute = 'data-scroll-anchor'
+
+/**
  * Brings a reader back to where they were when they return with the browser's Back button.
  *
  * The dashboard loads its figures after it mounts, so the browser's own restoration ran against a page with
@@ -83,7 +89,8 @@ export function useScrollMemory<T extends HTMLElement>(ready: boolean): RefObjec
         return
       }
 
-      write(key, { y: window.scrollY, anchor: link.closest(anchorSelector)?.id ?? null })
+      const named = link.closest(`[${namedAnchorAttribute}]`)?.getAttribute(namedAnchorAttribute)
+      write(key, { y: window.scrollY, anchor: named ?? link.closest(anchorSelector)?.id ?? null })
     }
 
     element.addEventListener('click', onClick)

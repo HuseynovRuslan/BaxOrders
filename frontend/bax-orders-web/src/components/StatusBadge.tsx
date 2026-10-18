@@ -19,7 +19,9 @@ interface StatusBadgeProps {
 export function StatusBadge({ label, sign, toneClass, size = 'md' }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-medium ring-1 ring-inset ${toneClass} ${
+      // `rounded-2xl`, not `rounded-full`: a pill on one line all the same (its radius is more than half its height),
+      // and a rounded box rather than a blob when a long label wraps — at 200% text, on a phone (UI V2 E-1).
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-2xl font-medium ring-1 ring-inset ${toneClass} ${
         size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-sm'
       }`}
     >

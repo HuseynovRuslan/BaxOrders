@@ -48,6 +48,20 @@ describe('an order carried in from Excel as already approved', () => {
     expect(badge.parentElement).toHaveClass('inline-flex', 'flex-wrap')
   })
 
+  /**
+   * UI V2 E-1: at 200% text on a phone the phrase runs to four lines, and a `rounded-full` box of four lines is a blob.
+   * A 1rem radius is still a pill on one line — more than half of either badge's height — and a rounded box when it
+   * wraps; neither may be wider than its place.
+   */
+  it('stays a pill on one line and becomes a rounded box, never a blob, when it wraps', () => {
+    render(<OrderStatusBadge status="Approved" isHistoricalImport />)
+
+    for (const element of [screen.getByText('Təsdiqlənib'), screen.getByText(historicalImportLabel)]) {
+      expect(element).toHaveClass('rounded-2xl', 'max-w-full')
+      expect(element).not.toHaveClass('rounded-full')
+    }
+  })
+
   /** Grey, like the carried-over event in the history. Amber is Task 2's colour for a price still owed. */
   it('says it in neutral grey — never as a warning, a status or a decision', () => {
     render(<OrderStatusBadge status="Approved" isHistoricalImport />)

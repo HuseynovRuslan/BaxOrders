@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router'
+import { useLocation, useSearchParams } from 'react-router'
 import { ApiError } from '../api/client'
 import type { AnalyticsScope } from '../api/dashboard'
 import { fetchMonthlyReport, type MonthlyReport } from '../api/reports'
+import { findReportCell, reportCellParam, reportCellParamName, sameReportCell } from '../analytics/reportCell'
 import { defaultReportSort, readReportSort, reportSortParam, sortReportRows } from '../analytics/reportSort'
 import { readReportView, reportViewParam } from '../analytics/reportView'
 import { isScope } from '../analytics/scope'
+import { useReportCell } from '../analytics/useReportCell'
 import { EmptyState, ErrorState, LoadingRows } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
+import { useCellOrder } from '../components/reports/cellOrder'
 import { MonthlyReportYearList } from '../components/reports/MonthlyReportYearList'
+import { ReportCellDetail, scrollPage, type ReportDetailSurface } from '../components/reports/ReportCellDetail'
 import { ReportFilters } from '../components/reports/ReportFilters'
 import { ReportResultCount } from '../components/reports/ReportResultCount'
 import { ReportSummaryBand, type CombinedSpend } from '../components/reports/ReportSummaryBand'
-import { ReportTable } from '../components/reports/ReportTable'
+import { ReportTable, type SelectedCell } from '../components/reports/ReportTable'
 import { loadingLabel, noMatchingLocationsLabel, noOrdersThisYearLabel } from '../components/reports/labels'
 import { useScrollMemory } from '../navigation/useScrollMemory'
 
@@ -52,6 +56,9 @@ function combinedFrom(all: MonthlyReport): CombinedSpend {
  *
  * While the next answer is on its way the last one stays, dimmed and out of reach, in the words of the question it
  * answered; the controls already say the new question (DK-04). A failed main question takes the old answer away.
+ *
+ * A month with an order opens its details in place — under its object's row, or inside its card below the table's width
+ * (phase D, 03a; the owner's «Yerində, sətrin altında») — one month at a time, named in the address as `cell`.
  */
 export function MonthlyReportPage() {
   const [params, setParams] = useSearchParams()
@@ -62,7 +69,12 @@ export function MonthlyReportPage() {
   const [years, setYears] = useState<number[]>([])
   const retry = useRef<AbortController | null>(null)
 
-  const year = Number(params.get('year')) || undefined
+  const urlYear = Number(params.get('year')) || undefined
+  // Opening a month writes the year it is in when the address named none (03 §3.2). That is the year of the answer
+  // already on the screen, so the screen does not ask the server for it again.
+  const year = urlYear !== undefined && shown !== null && shown.key.year === undefined && shown.report.year === urlYear
+    ? undefined
+    : urlYear
   const search = params.get('search') ?? ''
   // The same three questions the dashboard asks, in the same words, so a reader moving between the two screens
   // does not have to work out whether they mean the same thing.
@@ -211,6 +223,7 @@ export function MonthlyReportPage() {
     )
   }
 
+  const location = useLocation()
   function update(changes: Record<string, string | undefined>) {
     const next = new URLSearchParams(params)
     for (const [name, value] of Object.entries(changes)) {
@@ -221,13 +234,131 @@ export function MonthlyReportPage() {
       }
     }
 
-    setParams(next, { replace: true })
+    // The entry's own marks stay with it: an open month's entry is still the one closing steps back over.
+    setParams(next, { replace: true, state: location.state })
   }
 
   const refreshing = phase === 'loading' && shown !== null
 
   // The order the reader asked for, from the server's own figures; asks nothing. The company's totals stay last.
   const rows = useMemo(() => (shown === null ? [] : sortReportRows(shown.report.rows, sort)), [shown, sort])
+
+  // ---- the open month (phase D) ----
+  const cells = useReportCell(params, setParams)
+  const open = findReportCell(rows, cells.cell)
+  const openKey = open === null ? null : reportCellParam({ locationId: open.row.locationId, month: open.cell.month })
+  const selected: SelectedCell | null = open === null ? null : { locationId: open.row.locationId, month: open.cell.month }
+  const order = useCellOrder(open?.cell.orderRequestId ?? null)
+  // Bumped by the reader's own opening, which is what moves the focus; an address that names the month moves nothing.
+  const [focusKey, setFocusKey] = useState(0)
+  const slideOpen = useRef(false)
+
+  function openCell(cell: SelectedCell) {
+    if (sameReportCell(cell, cells.cell)) {
+      cells.close()
+      return
+    }
+
+    slideOpen.current = cells.cell === null
+    setFocusKey((key) => key + 1)
+    cells.open(cell, urlYear === undefined ? shown?.report.year : undefined)
+  }
+
+  // A month the answer on the screen does not have — the search left its object out, or nobody ordered in it — is
+  // dropped from the address where it is, without an entry of its own (03 §3.2).
+  useEffect(() => {
+    if (phase === 'ready' && cells.cell !== null && open === null) {
+      const next = new URLSearchParams(params)
+      next.delete(reportCellParamName)
+      setParams(next, { replace: true, state: location.state })
+    }
+  }, [phase, cells.cell, open, params, setParams, location.state])
+
+  // Esc closes the details from inside them or from their month — and from nowhere in particular, as a dialog would.
+  useEffect(() => {
+    if (openKey === null) {
+      return
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) {
+        return
+      }
+
+      const target = event.target instanceof Element ? event.target : null
+      const fromDetails = target?.closest('[id^="report-cell-detail-"]') != null
+      const fromMonth = target?.closest(`[data-report-cell="${openKey}"]`) != null
+      if (fromDetails || fromMonth || target === document.body) {
+        event.preventDefault()
+        cells.close()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [openKey, cells])
+
+  // Closed with the focus inside the details: it goes back to the month they described, the one in sight (03 §3.4 №3).
+  // Not when the reader has put it somewhere else — «Sıfırla» puts it in the search box (DK-16).
+  const lastOpen = useRef<string | null>(null)
+  useEffect(() => {
+    const closed = lastOpen.current
+    lastOpen.current = openKey
+    if (openKey !== null || closed === null) {
+      return
+    }
+
+    const active = document.activeElement
+    if (active !== null && active !== document.body) {
+      return
+    }
+
+    // Both layouts are in the page; the hidden one takes no focus, so the one in sight keeps it.
+    for (const link of document.querySelectorAll<HTMLElement>(`[data-report-cell="${closed}"]`)) {
+      link.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+      link.focus({ preventScroll: true })
+    }
+  }, [openKey])
+
+  // Arrived with a month already open — a link passed on, a reload: its object's row (or card) is brought into sight
+  // once, if it is not. Back from the order is the scroll memory's to restore, and leaves it in sight already.
+  const arrived = useRef(false)
+  useEffect(() => {
+    if (arrived.current || phase !== 'ready' || open === null) {
+      return
+    }
+
+    const id = open.row.locationId
+    const frame = requestAnimationFrame(() => {
+      arrived.current = true
+      const row = [document.getElementById(`row-${id}`), document.getElementById(`row-${id}-phone`)]
+        .find((element) => element !== null && element.getClientRects().length > 0)
+      if (row === undefined || row === null) {
+        return
+      }
+
+      const { top, bottom } = row.getBoundingClientRect()
+      if (bottom < 0 || top > window.innerHeight) {
+        scrollPage(row, 'center')
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [phase, open])
+
+  function detail(surface: ReportDetailSurface) {
+    return open === null || shown === null ? null : (
+      <ReportCellDetail
+        surface={surface}
+        row={open.row}
+        cell={open.cell}
+        scope={shown.key.scope}
+        order={order}
+        focusKey={focusKey}
+        animate={slideOpen.current}
+        onClose={cells.close}
+      />
+    )
+  }
 
   // The year in the address, or — when it names none — the year the answer on the screen is about. A year the server
   // does not list is still offered, so the select never claims another year than the one asked about.
@@ -268,7 +399,8 @@ export function MonthlyReportPage() {
         year={yearValue}
         years={yearOptions}
         yearsLoading={phase === 'loading'}
-        onYear={(value) => update({ year: value })}
+        // Another year's month is another month: its details do not follow the year.
+        onYear={(value) => update({ year: value, cell: undefined })}
         search={search}
         onSearch={(text) => update({ search: text })}
         scope={scope}
@@ -309,12 +441,18 @@ export function MonthlyReportPage() {
                   sort={sort}
                   onSort={(next) => update({ sort: reportSortParam(next) })}
                   searchActive={shown.key.search !== ''}
+                  selected={selected}
+                  detail={detail('table')}
+                  onOpenCell={openCell}
                 />
                 <MonthlyReportYearList
                   report={shown.report}
                   rows={rows}
                   view={view}
                   searchActive={shown.key.search !== ''}
+                  selected={selected}
+                  detail={detail('cards')}
+                  onOpenCell={openCell}
                 />
               </>
             )}

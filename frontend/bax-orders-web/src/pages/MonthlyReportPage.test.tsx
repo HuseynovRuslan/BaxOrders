@@ -5,8 +5,9 @@ import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { AnalyticsScope } from '../api/dashboard'
+import type { OrderRequestDetail, OrderRequestItem } from '../api/orders'
 import type { MonthlyReport, MonthlyReportCell, MonthlyReportMonth, MonthlyReportRow } from '../api/reports'
-import { costDirectionBarClass } from '../components/analytics/format'
+import { costDirectionBarClass, costDirectionToneClass } from '../components/analytics/format'
 import { historicalImportLabel } from '../components/workflow/labels'
 import { findOldTerms } from '../test/oldTerms'
 import { MonthlyReportPage } from './MonthlyReportPage'
@@ -21,6 +22,14 @@ const reportsApi = vi.hoisted(() => ({ fetchMonthlyReport: vi.fn() }))
 vi.mock('../api/reports', async () => {
   const actual = await vi.importActual<typeof import('../api/reports')>('../api/reports')
   return { ...actual, ...reportsApi }
+})
+
+/** UI V2 phase D: an open month's lines are its order's, from the order's own endpoint. */
+const ordersApi = vi.hoisted(() => ({ fetchOrder: vi.fn() }))
+
+vi.mock('../api/orders', async () => {
+  const actual = await vi.importActual<typeof import('../api/orders')>('../api/orders')
+  return { ...actual, ...ordersApi }
 })
 
 function cell(month: number, overrides: Partial<MonthlyReportCell> = {}): MonthlyReportCell {
@@ -125,6 +134,69 @@ function report(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
     outsideMonthlyItemCount: 0,
     unclassifiedKnownAmount: null,
     unclassifiedItemCount: 0,
+    ...overrides,
+  }
+}
+
+/** One line of an order, as `GET /api/v1/orders/{id}` sends it. */
+function orderLine(overrides: Partial<OrderRequestItem> = {}): OrderRequestItem {
+  return {
+    orderRequestItemId: 1,
+    productId: 11,
+    productCode: 'P-11',
+    productName: 'Əlcək',
+    productVariantId: 111,
+    specificationValue: null,
+    specificationUnitCode: null,
+    specificationUnitName: null,
+    specificationDescriptor: null,
+    modelCode: null,
+    orderUnitCode: null,
+    orderUnitName: null,
+    quantity: 12,
+    unitPrice: 4.5,
+    lineTotal: 54,
+    supplierId: 5,
+    supplierName: 'Təchizatçı X',
+    pricingMode: 'PriceRequired',
+    sourceSupplierName: null,
+    categoryPath: [],
+    source: null,
+    sourceOrderRequestItemId: null,
+    orderLineType: 'Monthly',
+    responsiblePersonId: 7,
+    responsiblePersonName: 'Çingiz Məmmədov',
+    ...overrides,
+  }
+}
+
+/** The order a month is, with one page of its lines. */
+function orderDetail(items: OrderRequestItem[] = [orderLine()], overrides: Partial<OrderRequestDetail> = {}): OrderRequestDetail {
+  return {
+    orderRequestId: 2107,
+    locationId: 21,
+    locationCode: 'LOC-21',
+    locationName: 'Fəvvarələr meydanı',
+    requestPeriod: '2026-08-01',
+    requestDate: null,
+    version: 1,
+    status: 'Approved',
+    createdAtUtc: '2026-08-02T00:00:00Z',
+    sourceImportBatchId: null,
+    itemCount: items.length,
+    knownPriceItemCount: items.length,
+    missingPriceItemCount: 0,
+    knownAmountTotal: 2588,
+    isRevision: false,
+    sourceOrderRequestId: null,
+    sourceVersion: null,
+    hasRevision: false,
+    revisionOrderRequestId: null,
+    revisionVersion: null,
+    canCreateRevision: false,
+    canEditRevision: false,
+    responsibility: { kind: 'Assigned', personId: 7, personName: 'Çingiz Məmmədov', distinctPersonCount: 1, namedLineCount: 1 },
+    items: { items, page: 1, pageSize: 50, totalCount: items.length },
     ...overrides,
   }
 }
@@ -239,6 +311,8 @@ const isMain = (scope: AnalyticsScope) => (query: Query) => query.scope === scop
 beforeEach(() => {
   reportsApi.fetchMonthlyReport.mockReset()
   serving(report())
+  ordersApi.fetchOrder.mockReset()
+  ordersApi.fetchOrder.mockResolvedValue(orderDetail())
 })
 
 afterEach(() => vi.clearAllMocks())
@@ -1453,6 +1527,29 @@ describe('a location that has never ordered', () => {
     expect(within(chadir).queryByTitle(/sifariş yoxdur/)).toBeNull()
   })
 
+  it('keeps its words beside the pinned object column while the months scroll under it', async () => {
+    serving(report({
+      rows: [
+        row(),
+        row({
+          locationId: 27,
+          locationName: 'Çadır',
+          knownAmount: null,
+          hasAnyRequest: false,
+          months: Array.from({ length: 12 }, (_, index) => noRequest(index + 1)),
+        }),
+      ],
+    }))
+    await renderPage()
+
+    // UI V2, C browser check: scrolled sideways, the sentence slid under the object column («…arişi yoxdur»). It sticks
+    // at that column's own width, so the two never overlap.
+    const words = within(table()).getByText('Sistemdə hələ sifarişi yoxdur')
+    expect(words).toHaveClass('sticky', 'left-30')
+    expect(table().querySelector('col')).toHaveClass('w-[7.5rem]')
+    expect(words.closest('td')).toHaveClass('text-on-surface-variant')
+  })
+
   it('leaves a location that ordered in an earlier year with its twelve months', async () => {
     serving(report({
       rows: [row({
@@ -1584,6 +1681,16 @@ describe('coming back from an order', () => {
     return screen.getByTestId('address').textContent ?? ''
   }
 
+  /**
+   * UI V2 phase D (03a; 06 §2a S4-1): a plain click on a month opens its details in place, and the order is one step on,
+   * from the details' «Sifarişə bax».
+   */
+  async function openOrderFrom(scope: HTMLElement, month: RegExp, surface: 'table' | 'cards') {
+    await userEvent.click(within(scope).getByRole('link', { name: month }))
+    const details = document.getElementById(`report-cell-detail-${surface}`)!
+    await userEvent.click(within(details).getByRole('link', { name: 'Sifarişə bax' }))
+  }
+
   function searchBox(): HTMLInputElement {
     return screen.getByRole('searchbox', { name: 'Obyekt axtar' })
   }
@@ -1614,7 +1721,7 @@ describe('coming back from an order', () => {
     renderWithOrder()
     await loaded()
 
-    await userEvent.click(within(document.getElementById('row-21')!).getByRole('link', { name: /Mart 2026/ }))
+    await openOrderFrom(document.getElementById('row-21')!, /Mart 2026/, 'table')
 
     expect(address()).toBe('/orders/2102?back=monthly')
     expect(screen.getByTestId('order-state')).toHaveTextContent('{"monthlyReport":true}')
@@ -1624,34 +1731,37 @@ describe('coming back from an order', () => {
     renderWithOrder()
     await loaded()
 
-    await userEvent.click(within(document.getElementById('row-3')!).getByRole('link', { name: /Avqust 2026/ }))
+    await openOrderFrom(document.getElementById('row-3')!, /Avqust 2026/, 'table')
     await screen.findByRole('button', { name: 'Geri' })
     await goBack()
 
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
     expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-3')
-    expect(address()).toBe('/dashboard/monthly')
+    // The entry the details opened, with them open again under the row (phase D).
+    expect(address()).toBe('/dashboard/monthly?year=2026&cell=3-08')
+    expect(document.getElementById('report-cell-detail-table')!.closest('tr')!.previousElementSibling).toHaveAttribute('id', 'row-3')
   })
 
   it('brings the phone card back instead, when the month was opened from a card', async () => {
     renderWithOrder()
     await loaded()
 
-    await userEvent.click(within(document.getElementById('row-21-phone')!).getByRole('link', { name: /Yanvar 2026/ }))
+    await openOrderFrom(document.getElementById('row-21-phone')!, /Yanvar 2026/, 'cards')
     await screen.findByRole('button', { name: 'Geri' })
     await goBack()
 
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
     expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-21-phone')
+    expect(document.getElementById('row-21-phone')).toContainElement(document.getElementById('report-cell-detail-cards'))
   })
 
   it('restores nothing on a fresh arrival, even with a place remembered for another visit', async () => {
     renderWithOrder()
     await loaded()
 
-    await userEvent.click(within(document.getElementById('row-3')!).getByRole('link', { name: /Avqust 2026/ }))
+    await openOrderFrom(document.getElementById('row-3')!, /Avqust 2026/, 'table')
     await userEvent.click(screen.getByRole('link', { name: 'Hesabata' }))
     await loaded()
 
@@ -1672,17 +1782,18 @@ describe('coming back from an order', () => {
       expect.objectContaining({ search: 'Novxan' }), expect.anything()))
     await loaded()
 
-    await userEvent.click(within(document.getElementById('row-21')!).getByRole('link', { name: /Yanvar 2026/ }))
+    await openOrderFrom(document.getElementById('row-21')!, /Yanvar 2026/, 'table')
     await screen.findByRole('button', { name: 'Geri' })
     reportsApi.fetchMonthlyReport.mockClear()
     await goBack()
 
-    expect(address()).toBe('/dashboard/monthly?search=Novxan')
+    // Phase D: the month's entry, which also names the year the month is in (03 §3.2).
+    expect(address()).toBe('/dashboard/monthly?search=Novxan&year=2026&cell=21-01')
     expect(searchBox()).toHaveValue('Novxan')
     expect(reportsApi.fetchMonthlyReport).toHaveBeenCalled()
     // Every question is the reader's search, each after the «All» question for «Ümumi faktiki xərc», which never
     // carries the search (UI V2, 03 §3.3).
-    expectPairs(queries(), { year: undefined, scope: 'All' }, { year: undefined, search: 'Novxan', scope: 'Monthly' })
+    expectPairs(queries(), { year: 2026, scope: 'All' }, { year: 2026, search: 'Novxan', scope: 'Monthly' })
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
     expect(scrollIntoView.mock.contexts[0]).toHaveAttribute('id', 'row-21')
   })
@@ -1693,14 +1804,14 @@ describe('coming back from an order', () => {
     await loaded()
     expect(searchBox()).toHaveValue('Novxan')
 
-    await userEvent.click(within(document.getElementById('row-1')!).getByRole('link', { name: /Fevral 2026/ }))
+    await openOrderFrom(document.getElementById('row-1')!, /Fevral 2026/, 'table')
     await screen.findByRole('button', { name: 'Geri' })
     await goBack()
 
     expect(searchBox()).toHaveValue('Novxan')
-    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan', scope: 'Monthly' }, expect.anything())
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: 2026, search: 'Novxan', scope: 'Monthly' }, expect.anything())
     const url = address()
-    expect(new URLSearchParams(url.split('?')[1]).get('search')).toBe('Novxan')
+    expect(url).toBe('/dashboard/monthly?search=Novxan&year=2026&cell=1-02')
     first.unmount()
 
     // The reload: the same address, rendered anew.
@@ -1709,10 +1820,12 @@ describe('coming back from an order', () => {
     await loaded()
 
     expect(searchBox()).toHaveValue('Novxan')
-    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: undefined, search: 'Novxan', scope: 'Monthly' }, expect.anything())
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenLastCalledWith({ year: 2026, search: 'Novxan', scope: 'Monthly' }, expect.anything())
     // UI V2 (03 §3.3): and nothing but that question, each time after its «All» question, which has no search.
-    expectPairs(queries(), { year: undefined, scope: 'All' }, { year: undefined, search: 'Novxan', scope: 'Monthly' })
-    expect(address()).toBe('/dashboard/monthly?search=Novxan')
+    expectPairs(queries(), { year: 2026, scope: 'All' }, { year: 2026, search: 'Novxan', scope: 'Monthly' })
+    expect(address()).toBe(url)
+    // The month the reader had open is open again (phase D).
+    expect(document.getElementById('report-cell-detail-table')).toHaveAccessibleName('Bayıl yolu')
   })
 
   it('writes a submitted search over the entry it is on, so the history does not grow', async () => {
@@ -1742,6 +1855,402 @@ describe('coming back from an order', () => {
     // One Back leaves the report: neither search pushed an entry of its own.
     await userEvent.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
     expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+})
+
+/**
+ * UI V2 phase D, in place (03a; the owner's «Yerində, sətrin altında», D-Y1): a month's details open under its object's
+ * row — inside its card below the table's width — one month at a time, named in the address as `cell`. Every figure of
+ * the month is the report's own; the order's lines are `GET /api/v1/orders/{id}`'s, fifty to a page.
+ */
+describe('a month’s details, in place (phase D)', () => {
+  const details = (surface: 'table' | 'cards' = 'table') => document.getElementById(`report-cell-detail-${surface}`)
+  const month = (rowId: string, name: RegExp) => within(document.getElementById(rowId)!).getByRole('link', { name })
+  const back = () => userEvent.click(screen.getByRole('button', { name: 'Brauzerdə geri' }))
+
+  async function loaded() {
+    await screen.findByRole('region', { name: 'İlin xülasəsi' })
+  }
+
+  beforeEach(() => serving(threeRows()))
+
+  it('opens under the object’s row on a plain click, as one row across the whole table, pinned to the box', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+    expect(month('row-21', /Avqust 2026/)).toHaveAttribute('aria-expanded', 'false')
+    expect(month('row-21', /Avqust 2026/)).not.toHaveAttribute('aria-controls')
+    expect(details()).toBeNull()
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+
+    const region = details()!
+    expect(region).toHaveAccessibleName('Fəvvarələr meydanı')
+    expect(within(region).getByText('Avqust 2026 · Aylıq sifarişlər')).toBeInTheDocument()
+    const detailRow = region.closest('tr')!
+    expect(detailRow.previousElementSibling).toHaveAttribute('id', 'row-21')
+    expect(detailRow.cells).toHaveLength(1)
+    expect(detailRow.cells[0]).toHaveAttribute('colspan', '14')
+    // Pinned to the box's left edge and above the floating header (03a §10, Q-1, Q-2).
+    expect(region.closest('td > div')).toHaveClass('sticky', 'left-0', 'z-11')
+    expect(month('row-21', /Avqust 2026/)).toHaveAttribute('aria-expanded', 'true')
+    expect(month('row-21', /Avqust 2026/)).toHaveAttribute('aria-controls', 'report-cell-detail-table')
+    expect(month('row-21', /Avqust 2026/)).toHaveClass('ring-primary')
+    expect(currentAddress()).toBe('/dashboard/monthly?year=2026&cell=21-08')
+  })
+
+  it('keeps one month open: another month moves the details there, and Back closes them rather than walking months', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    await userEvent.click(month('row-3', /Mart 2026/))
+
+    expect(document.querySelectorAll('#report-cell-detail-table')).toHaveLength(1)
+    expect(details()).toHaveAccessibleName('Heydər Əliyev')
+    expect(details()!.closest('tr')!.previousElementSibling).toHaveAttribute('id', 'row-3')
+    expect(month('row-21', /Avqust 2026/)).toHaveAttribute('aria-expanded', 'false')
+    expect(currentAddress()).toBe('/dashboard/monthly?year=2026&cell=3-03')
+
+    await back()
+    expect(currentAddress()).toBe('/dashboard/monthly')
+    expect(details()).toBeNull()
+    await back()
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  it('closes on its ✕, on «Bağla», on Esc and on the open month itself, and gives the focus back to that month', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    // The reader's own opening puts the focus on the details' heading.
+    expect(document.activeElement?.tagName).toBe('H3')
+    expect(document.activeElement).toHaveTextContent('Fəvvarələr meydanı')
+
+    await userEvent.keyboard('{Escape}')
+    expect(details()).toBeNull()
+    expect(currentAddress()).toBe('/dashboard/monthly')
+    expect(document.activeElement).toHaveAttribute('data-report-cell', '21-08')
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    await userEvent.click(within(details()!).getByRole('button', { name: 'Detalları bağla' }))
+    expect(details()).toBeNull()
+    expect(document.activeElement).toHaveAttribute('data-report-cell', '21-08')
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    await userEvent.click(within(details()!).getByRole('button', { name: 'Bağla' }))
+    expect(details()).toBeNull()
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    expect(details()).toBeNull()
+    expect(currentAddress()).toBe('/dashboard/monthly')
+
+    // Every close stepped back over the entry its opening added: one Back leaves the report.
+    await back()
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  it('closes once for an Esc pressed twice, never stepping off the report', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    await userEvent.keyboard('{Escape}{Escape}')
+
+    expect(currentAddress()).toBe('/dashboard/monthly')
+    expect(screen.queryByText('Əvvəlki səhifə')).toBeNull()
+  })
+
+  it('leaves Ctrl, ⌘ and the middle button to the link: the order opens elsewhere, nothing opens here', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+    // jsdom cannot open a tab; this stands in for the browser after the page has had its say.
+    const noNavigation = (event: Event) => event.preventDefault()
+    document.addEventListener('click', noNavigation)
+
+    const august = month('row-21', /Avqust 2026/)
+    await userEvent.keyboard('{Control>}')
+    await userEvent.click(august)
+    await userEvent.keyboard('{/Control}{Meta>}')
+    await userEvent.click(august)
+    await userEvent.keyboard('{/Meta}')
+    await userEvent.pointer({ keys: '[MouseMiddle]', target: august })
+    document.removeEventListener('click', noNavigation)
+
+    expect(details()).toBeNull()
+    expect(currentAddress()).toBe('/dashboard/monthly')
+    expect(august).toHaveAttribute('href', '/orders/2107?back=monthly')
+  })
+
+  it('says the month as the report answered it: its state, its amount, two named comparisons and its make-up', async () => {
+    const august = cell(8, {
+      orderRequestId: 2107,
+      status: 'Approved',
+      version: 2,
+      knownAmount: 2468,
+      previousMonthKnownAmount: 1234,
+      deltaAmount: 1234,
+      deltaPercent: 100,
+      recentAverageKnownAmount: 1542.5,
+      recentAveragePercent: 60,
+      isUnusual: true,
+      monthlyKnownAmount: 2468,
+      monthlyItemCount: 23,
+      outsideMonthlyKnownAmount: 120,
+      outsideMonthlyItemCount: 2,
+    })
+    serving(report({
+      rows: [row({
+        locationId: 21,
+        locationName: 'Fəvvarələr meydanı',
+        months: Array.from({ length: 12 }, (_, index) => (index === 7 ? august : cell(index + 1))),
+      })],
+    }))
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    expect(within(region).getByText('Təsdiqlənib')).toBeInTheDocument()
+    expect(within(region).getByText('Bu sifariş bu ay üçün əvvəlki sifarişi əvəz edir.')).toBeInTheDocument()
+    expect(region).not.toHaveTextContent(/versiya/i)
+    expect(within(region).getByText('Aylıq sifarişlərin məbləği')).toBeInTheDocument()
+    expect(within(region).getAllByText('2.468,00 ₼')).toHaveLength(2)
+
+    // Two comparisons, each on its own line under its own name (M-04), in the cost colours (9.1).
+    expect(within(region).getByText('Keçən aya görə')).toBeInTheDocument()
+    expect(within(region).getByText('+100% · +1.234,00 ₼ · xərc artıb')).toHaveClass(costDirectionToneClass(1))
+    expect(within(region).getByText('Keçən ay: 1.234,00 ₼')).toBeInTheDocument()
+    expect(within(region).getByText('Əvvəlki 3 mövcud ayın ortalamasına görə')).toBeInTheDocument()
+    expect(within(region).getByText('+60%')).toHaveClass(costDirectionToneClass(1))
+    expect(within(region).getByText('Əvvəlki 3 mövcud ayın ortalaması: 1.542,50 ₼')).toBeInTheDocument()
+    expect(within(region).getByText('Qeyri-adi ay')).toBeInTheDocument()
+    expect(within(region).getByText('Əvvəlki 3 mövcud ayın ortalamasından 50%-dən çox fərq.')).toBeInTheDocument()
+
+    // What the month was made of: the active scope's line in weight, no total line.
+    expect(within(region).getByText('Aylıq sifarişlər', { selector: 'dt' })).toHaveClass('font-semibold')
+    expect(within(region).getByText('23 sətir')).toBeInTheDocument()
+    expect(within(region).getByText('Aylıqdan Kənar sifarişlər', { selector: 'dt' })).not.toHaveClass('font-semibold')
+    expect(within(region).getByText('120,00 ₼')).toBeInTheDocument()
+    expect(within(region).queryByText('Təsnif edilməyib')).toBeNull()
+
+    // Opened by the address: nothing took the focus.
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('shows the order and a page of its real lines, from the order’s own endpoint, in the order page’s words', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(orderDetail([
+      orderLine(),
+      orderLine({
+        orderRequestItemId: 2,
+        productName: 'Qum',
+        unitPrice: null,
+        lineTotal: null,
+        pricingMode: 'InternalFreeSupply',
+        supplierId: null,
+        supplierName: null,
+        sourceSupplierName: 'Qala baza',
+        orderLineType: 'OutsideMonthly',
+        responsiblePersonId: null,
+        responsiblePersonName: null,
+      }),
+      orderLine({ orderRequestItemId: 3, productName: 'Lampa', unitPrice: null, lineTotal: null }),
+    ], { missingPriceItemCount: 1 }))
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    const list = await within(region).findByRole('list', { name: 'Sətirlər' })
+    // One question for the page, whichever layout shows the details.
+    expect(ordersApi.fetchOrder).toHaveBeenCalledWith(2107, { page: 1, pageSize: 50, hasPrice: undefined }, expect.anything())
+    expect(new Set(ordersApi.fetchOrder.mock.calls.map(([id, query]) => JSON.stringify([id, query]))).size).toBe(1)
+
+    expect(within(region).getByText('Bütün sifarişin məbləği')).toBeInTheDocument()
+    expect(within(region).getByText('2.588,00 ₼')).toBeInTheDocument()
+    expect(within(region).getByText('⚠ 1 sətirdə qiymət yoxdur. Qiyməti olmayan sətirlər bu məbləğə daxil deyil.'))
+      .toHaveClass('text-amber-800')
+    expect(within(region).getByRole('heading', { name: 'Sətirlər 3' })).toBeInTheDocument()
+
+    const lines = within(list).getAllByRole('listitem')
+    expect(lines).toHaveLength(3)
+    expect(within(lines[0]).getByText('Əlcək')).toBeInTheDocument()
+    expect(within(lines[0]).getByText('54,00 ₼')).toBeInTheDocument()
+    expect(lines[0]).toHaveTextContent('Cavabdeh: Çingiz Məmmədov')
+    expect(lines[0]).toHaveTextContent('× 4,50 ₼')
+    expect(lines[0]).toHaveTextContent('Təchizatçı X')
+    // Internal supply: no price was ever owed, said in calm grey, with the store it came from.
+    expect(lines[1]).toHaveTextContent('Daxili təminat')
+    expect(lines[1]).toHaveTextContent('Daxili: Qala baza')
+    expect(lines[1]).toHaveTextContent('Cavabdeh təyin edilməyib')
+    expect(within(lines[1]).getByText('—')).toBeInTheDocument()
+    expect(within(lines[2]).getByText('Qiymət yoxdur')).toHaveClass('text-amber-800')
+  })
+
+  it('leaves out the whole order’s amount beside «Hamısı», where the cell is the same lines', async () => {
+    await renderPage('/dashboard/monthly?scope=All&year=2026&cell=21-08')
+
+    const region = details()!
+    await within(region).findByRole('list', { name: 'Sətirlər' })
+    expect(within(region).getByText('Avqust 2026 · Hamısı')).toBeInTheDocument()
+    expect(within(region).getByText('Ümumi faktiki xərc')).toBeInTheDocument()
+    expect(within(region).queryByText('Bütün sifarişin məbləği')).toBeNull()
+  })
+
+  it('asks for the priced lines or the unpriced ones with the order’s own filter, and pages by fifty', async () => {
+    ordersApi.fetchOrder.mockResolvedValue(orderDetail([orderLine()], {
+      itemCount: 120,
+      items: { items: [orderLine()], page: 1, pageSize: 50, totalCount: 120 },
+    }))
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    expect(await within(region).findByText('Səhifə 1 / 3 · 120 sətir')).toBeInTheDocument()
+    expect(within(region).getByRole('button', { name: 'Əvvəlki' })).toBeDisabled()
+
+    await userEvent.click(within(region).getByRole('button', { name: 'Növbəti' }))
+    await waitFor(() => expect(ordersApi.fetchOrder).toHaveBeenLastCalledWith(2107, { page: 2, pageSize: 50, hasPrice: undefined }, expect.anything()))
+    // The lines are counted through the whole order, as the order page counts them.
+    expect(await within(region).findByText('51')).toBeInTheDocument()
+
+    await userEvent.selectOptions(within(region).getByRole('combobox', { name: 'Sətirlər' }), 'true')
+    await waitFor(() => expect(ordersApi.fetchOrder).toHaveBeenLastCalledWith(2107, { page: 1, pageSize: 50, hasPrice: true }, expect.anything()))
+    await userEvent.selectOptions(within(region).getByRole('combobox', { name: 'Sətirlər' }), 'false')
+    await waitFor(() => expect(ordersApi.fetchOrder).toHaveBeenLastCalledWith(2107, { page: 1, pageSize: 50, hasPrice: false }, expect.anything()))
+  })
+
+  it('says how many lines a filter left of the order, and numbers no line it cannot number (E-4)', async () => {
+    const lamp = orderLine({ orderRequestItemId: 9, productName: 'Lampa', unitPrice: null, lineTotal: null })
+    ordersApi.fetchOrder.mockImplementation((_id: number, query: { hasPrice?: boolean }) => Promise.resolve(
+      query.hasPrice === false
+        ? orderDetail([lamp], { itemCount: 110, items: { items: [lamp], page: 1, pageSize: 50, totalCount: 8 } })
+        : orderDetail([orderLine()], { itemCount: 110, items: { items: [orderLine()], page: 1, pageSize: 50, totalCount: 110 } })))
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    expect(await within(region).findByRole('heading', { name: 'Sətirlər 110' })).toBeInTheDocument()
+    // Every line: numbered as the order page numbers them.
+    expect(within(within(region).getByRole('list', { name: 'Sətirlər' })).getByText('1')).toBeInTheDocument()
+
+    await userEvent.selectOptions(within(region).getByRole('combobox', { name: 'Sətirlər' }), 'false')
+
+    expect(await within(region).findByRole('heading', { name: 'Sətirlər 8 / 110' })).toBeInTheDocument()
+    const list = within(region).getByRole('list', { name: 'Sətirlər' })
+    expect(within(list).getByText('Lampa')).toBeInTheDocument()
+    // A place in the filtered list is not the line's number in the order: none is written.
+    expect(within(list).queryByText('1')).toBeNull()
+  })
+
+  it('lets the comparison and the make-up wrap rather than run past the details at 200% text (E-1)', async () => {
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    const change = within(region).getByText('Keçən aya görə').parentElement!.querySelector('dd')!
+    expect(change).toHaveClass('min-w-0', 'max-w-full')
+    expect(change).not.toHaveClass('whitespace-nowrap')
+    const makeUp = within(region).getByText('Aylıq sifarişlər', { selector: 'dt' }).nextElementSibling!
+    expect(makeUp).toHaveClass('flex-wrap')
+    expect(makeUp).not.toHaveClass('whitespace-nowrap')
+    // Each figure itself stays whole.
+    for (const part of makeUp.children) {
+      expect(part).toHaveClass('whitespace-nowrap')
+    }
+  })
+
+  it('shows the month’s figures at once while its lines are on their way', async () => {
+    ordersApi.fetchOrder.mockReturnValue(new Promise(() => {}))
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    expect(within(region).getByText('Aylıq sifarişlərin məbləği')).toBeInTheDocument()
+    expect(region.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(within(region).queryByRole('list', { name: 'Sətirlər' })).toBeNull()
+  })
+
+  it('keeps the month’s figures and the way to the order when the order cannot be read', async () => {
+    ordersApi.fetchOrder.mockRejectedValue(new ApiError(500, 'Sifariş oxunmadı.'))
+    await renderPage('/dashboard/monthly?year=2026&cell=21-08')
+
+    const region = details()!
+    expect(await within(region).findByRole('alert')).toHaveTextContent('Sifariş oxunmadı.')
+    expect(within(region).getByText('Aylıq sifarişlərin məbləği')).toBeInTheDocument()
+    expect(within(region).getByRole('link', { name: 'Sifarişə bax' })).toHaveAttribute('href', '/orders/2107?back=monthly')
+    expect(within(region).getByRole('link', { name: 'Obyektin sifarişləri' })).toHaveAttribute('href', '/locations/21')
+  })
+
+  it('drops a month the answer on the screen does not have, in place, without an entry of its own', async () => {
+    renderAt('/dashboard/monthly?year=2026&cell=99-08')
+    await loaded()
+
+    await waitFor(() => expect(currentAddress()).toBe('/dashboard/monthly?year=2026'))
+    expect(details()).toBeNull()
+    await back()
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  it('opened by an address — a reload — closes in place, and the report stays (03a §10, Q-4)', async () => {
+    renderAt('/dashboard/monthly?year=2026&cell=21-08')
+    await loaded()
+    expect(details()).toHaveAccessibleName('Fəvvarələr meydanı')
+
+    await userEvent.click(within(details()!).getByRole('button', { name: 'Detalları bağla' }))
+    expect(currentAddress()).toBe('/dashboard/monthly?year=2026')
+    expect(details()).toBeNull()
+    await back()
+    expect(screen.getByText('Əvvəlki səhifə')).toBeInTheDocument()
+  })
+
+  it('writes the year the month is in, and asks the server nothing more for the report', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+    const asked = reportsApi.fetchMonthlyReport.mock.calls.length
+
+    await userEvent.click(month('row-21', /Avqust 2026/))
+    expect(currentAddress()).toBe('/dashboard/monthly?year=2026&cell=21-08')
+    await userEvent.keyboard('{Escape}')
+    expect(currentAddress()).toBe('/dashboard/monthly')
+
+    expect(reportsApi.fetchMonthlyReport).toHaveBeenCalledTimes(asked)
+  })
+
+  it('is put back by «Sıfırla» with the rest, the year kept and the focus left in the search box', async () => {
+    renderAt('/dashboard/monthly?year=2026&cell=21-08')
+    await loaded()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sıfırla' }))
+    expect(currentAddress()).toBe('/dashboard/monthly?year=2026')
+    expect(details()).toBeNull()
+    expect(searchField()).toHaveFocus()
+  })
+
+  it('closes when the year changes: another year’s month is another month', async () => {
+    renderAt('/dashboard/monthly?year=2026&cell=21-08')
+    await loaded()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'İl' }), '2025')
+    expect(currentAddress()).toBe('/dashboard/monthly?year=2025')
+  })
+
+  it('opens inside the object’s card below the table’s width, under its months, at a finger’s height', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+
+    const card = document.getElementById('row-21-phone')!
+    await userEvent.click(within(card).getByRole('link', { name: /Avqust 2026/ }))
+
+    const region = details('cards')!
+    expect(card).toContainElement(region)
+    expect(region).toHaveAccessibleName('Fəvvarələr meydanı')
+    expect(within(card).getByRole('link', { name: /Avqust 2026/ })).toHaveAttribute('aria-controls', 'report-cell-detail-cards')
+    expect(within(region).getByRole('link', { name: 'Sifarişə bax' })).toHaveClass('h-11')
+    expect(within(region).getByRole('button', { name: 'Bağla' })).toHaveClass('h-11')
+  })
+
+  it('leaves the stripes counting objects, not the details’ row (03a §10, Q-7)', async () => {
+    renderAt('/dashboard/monthly')
+    await loaded()
+    const band = () => document.querySelector('#row-3 th')!.className
+
+    const before = band()
+    await userEvent.click(month('row-1', /Mart 2026/))
+    expect(band()).toBe(before)
   })
 })
 

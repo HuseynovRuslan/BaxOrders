@@ -390,3 +390,131 @@ Lokal tətbiq (dev bazası 55434: 167 sifariş, hamısı «Təsdiqlənib»), Chr
    (soyuq ilk render > 1 s `findBy`); tək başına 45/45. Sahibin qərarı lazımdır.
 3. Qeyd (problem deyil): ilk yoxlamada «Sonrakı aylar» düyməsi «işləmir» göründü — səbəb yoxlama üsulu idi
    (valideyn pəncərədən proqramla `click()`); siçanla real klikdə düzgün işləyir.
+
+### C · S3 düzəlişi — 2026-10-17
+
+C brauzer yoxlamasının 1-ci problemi (S3): qutu yana sürüşəndə «Sistemdə hələ sifarişi yoxdur» sabit obyekt sütununun
+altına girirdi.
+- **Düzəliş.** `ReportTable.tsx`: söz 12 ayı tutan xananın içində `sticky left-30 inline-block px-2` olan `span`-dadır.
+  `left-30` 7,5 rem-dir, yəni obyekt sütununun öz eni (`col w-[7.5rem]`). Söz sütunun düz yanında yapışır və onun
+  altına girmir. Xananın rəngi və şrifti dəyişmir.
+- **Test.** `MonthlyReportPage.test.tsx` › a location that has never ordered › «keeps its words beside the pinned
+  object column while the months scroll under it». Fayl və `components/reports`: 152/152.
+- **Brauzer.** Vite + saxta API cavabları (testin öz fixture qurucuları ilə). Backend, baza və giriş istifadə olunmadı.
+  1280 px-də qutu 939 / 1096 idi, 157 px (sona qədər) sürüşdürüldü:
+  - sözün sol kənarı 120 px-də, obyekt sütununun sağ kənarı da 120 px-də — üst-üstə düşmür;
+  - səhifə yana sürüşmür.
+  Şəkil: `qa/phaseC-s3-fix-1280.png`.
+
+### D · forma dəyişdi — 2026-10-17
+
+Sahib D-nin formasını dəyişdi: sağ panel yox, **«Yerində, sətrin altında»**. Yeni UX və icra planı
+`03a-D-yerinde.md`-dədir. Kod yazılmayıb. Sahibin D-Y1 … D-Y3 cavabları gözlənilir.
+
+### D · yerində — icra, 2026-10-17
+
+Sahib D-Y1, D-Y2 və D-Y3-ü təsdiqlədi (`03a-D-yerinde.md` §11).
+- **Tənqid** (`04a-D-critique.md`, Sonnet, ayrıca proses) QEYDLƏRLƏ KEÇDİ: S1 yoxdur, iki S2 var. Hər ikisi icradan əvvəl
+  plana yazılıb həll olundu (`03a` §10).
+- **İş mühiti:** branch `v2-inteqrasiya` (`567d198` + `main`, birləşmə `654032c`, konfliktsiz), ayrıca worktree. Əsas
+  qovluğa toxunulmayıb.
+- **Commit:** yoxdur (yekun qəbula qədər).
+
+**Fayllar** (yolların başı `frontend/bax-orders-web/src/`)
+
+| Fayl | Nə |
+|---|---|
+| `analytics/reportCell.ts` (yeni) + test | `cell=<obyekt>-<AA>`: oxuma, yazma, müqayisə; ekrandakı cavabda xananın tapılması (sifarişi olan ay) |
+| `analytics/useReportCell.ts` (yeni) | Tarixçə: ilk açılış push (`state.reportCell`), keçid replace, bağlanma öz girişində `navigate(-1)`, başqa halda replace. Bir girişdə bir bağlanma (iki tez Esc səhifədən çıxarmır). URL-də il yoxdursa, il də yazılır |
+| `components/reports/cellOrder.ts` (yeni) | `useCellOrder`: mövcud `GET /api/v1/orders/{id}`, 50-lik səhifə, `hasPrice`. Səhifə üçün bir sorğu; cavab sualın açarı ilə saxlanır, köhnə ayın sətirləri yeni ayda görünmür |
+| `components/reports/ReportCellDetail.tsx` (yeni) | Qab: başlıq (`h3`, obyekt), alt sətir (ay · növ), ✕, 150 ms açılma, fokus. 03 §6.9.2–6.9.8 sözbəsöz: status, növün məbləği, iki adlı müqayisə, qeyri-adi ay, tərkib, sifariş, «Bütün sifarişin məbləği» («Hamısı»da yox), ⚠ sətri, süzgəc, səhifələmə, yüklənir/xəta/boş, «Sifarişə bax», «Obyektin sifarişləri», «Bağla» |
+| `components/reports/ReportOrderLines.tsx` (yeni) | Sətirlər: nömrə, ad, məbləğ («—», heç vaxt 0); spesifikasiya, növ nişanı, cavabdeh; miqdar × qiymət və ya «Daxili təminat» / «Qiymət yoxdur»; təchizatçı. Sifariş səhifəsinin sözləri, `OrderDetailPage`-ə toxunulmayıb |
+| `components/reports/ReportCell.tsx` | Adi klik / Enter detalı açır; Ctrl, ⌘, Shift, Alt, orta düymə linkindir (`href` dəyişməyib). `aria-expanded`; `aria-controls` yalnız açıq xanada |
+| `components/reports/ReportTable.tsx` | Seçilmiş sətrin altında `colSpan=14` detal sətri. Daxili qab `sticky left-0 z-11`, eni qutunun görünən eni (Q-1, Q-2) |
+| `components/reports/MonthlyReportYearList.tsx` | Detal kartın içində, ay şəbəkəsinin altında |
+| `components/reports/reportScroll.ts` | `useBoxWidth` — qutunun görünən eni (ResizeObserver) |
+| `components/reports/labels.ts` | Detalın mətnləri — hamısı 03-dən və sifariş səhifəsindən |
+| `pages/MonthlyReportPage.tsx` | Yuxarıdakıları birləşdirir. Əlavə olaraq: Esc qaydası, bağlananda fokusun xanaya qayıtması, URL-dəki tapılmayan `cell`-in replace ilə silinməsi, linklə gəlişdə sətrin görünən yerə gətirilməsi, il dəyişəndə `cell`-in silinməsi |
+| `navigation/useScrollMemory.ts` | `data-scroll-anchor`: sətrin xaricində çəkilən detal öz sətrinin adını verir, sifarişdən «Geri» sətri gətirir (24.3). Əlavə xarakterlidir: dashboard-da bu atribut yoxdur |
+
+**Plandan kənarlaşmalar və tapıntılar**
+
+1. **URL-ə yazılan il yeni sorğu yaratmır.** Ay açılanda `year` də yazılır (03 §3.2). Bu, ekrandakı cavabın ilidirsə,
+   səhifə serverdən yenidən soruşmur. Əks halda hər açılış cədvəli solğunlaşdırıb yenidən yükləyərdi. Testi var.
+2. **`scrollIntoView` işlənmir.** Brauzerdə tapıldı: yapışan detala `scrollIntoView` cədvəl qutusunu da başa
+   sürüşdürürdü (157 → 0). İndi yalnız səhifə şaquli sürüşür (`scrollPage`). Qutu açılmada da, Esc-də də yerində qalır.
+3. **Ekran oxuyucu üçün ad.** «Sətirlər 3» başlığında boşluq `span`-ın içində idi və ad «Sətirlər3» kimi yığılırdı.
+   Testlə tapılıb düzəldildi.
+4. **İkiqat qat.** Cədvəl və kartlar eyni anda DOM-dadır, biri `display: none`-dur. Hər iki detal fokus almağa cəhd edir;
+   gizli olan fokus ala bilmir, görünən saxlayır. Brauzerdə 1280, 768 və 390-da yoxlandı.
+5. **«Sifarişə bax»-dan qayıdış:** sətrin özü `block: 'center'` ilə gəlir, detal açıqdır. 06 §2a S4-1-in 6 testi bu
+   addımla yeniləndi. Yoxlamalar zəiflədilmədi, əksinə «detal yenidən açıqdır» yoxlaması əlavə olundu. Fərq URL-dədir:
+   açılış ili yazdığı üçün qayıdışdakı sorğular `year: 2026` ilə gedir.
+
+**Testlər**
+
+| Addım | Nəticə |
+|---|---|
+| Yeni: `reportCell.test.ts` | 5 |
+| Yeni: «a month’s details, in place (phase D)» | 18 — açılış və yer, bir dəfədə bir, tarixçə, 4 bağlanma yolu və fokus, iki Esc, modifikatorlu klik, rəqəmlər və rənglər, sətirlər və sözlər, «Hamısı», süzgəc və səhifələmə, yüklənir, xəta, tapılmayan `cell`, yeniləmədən sonra bağlanma, il yazılır və sorğu yoxdur, «Sıfırla», il dəyişir, kart, zolaq |
+| Yenilənən: «coming back from an order» | 6 (S4-1) |
+| `npm run build` | keçdi |
+| Tam qaçış (JSON: scratchpad `d-full2.json`) | **88 fayl, 1647/1647**, 98 s; B-09 2 596 ms, B-10 821 ms və 965 ms — keçdi |
+
+**Brauzer** (Vite + saxta API cavabları: testlərin fixture qurucuları + real formalı sifariş; giriş, backend və baza
+istifadə olunmadı)
+
+| En | Nəticə |
+|---|---|
+| 1280 | Qutu 939 / 1096. Açılmadan əvvəl və sonra `scrollWidth` 1096-dır (Q-1). Detal qutunun sol kənarındadır (0) və eni 939-dur — qutu 0-da da, 157-də də. Açılış qutunu sürüşdürmür (157 → 157). Fokus «Novxanı» başlığındadır, `aria-expanded=true`. Səhifə yana sürüşmür |
+| 1280, Q-2 | Səhifə detalın içindən keçərkən 72–124 zolağında detal görünür, üzən başlıq altda qalır. Detaldan aşağıda üzən başlıq görünür və işləyir |
+| 1280, Esc | Detal bağlanır, URL əvvəlki halına qayıdır, fokus görünən cədvəldəki xanadadır (103-08), qutu yerindədir |
+| 768, 390 | Detal kartın içindədir, bir sütundur, səhifə yana sürüşmür. Fokus görünən kartın başlığındadır. 44 px-dən kiçik toxunma hədəfi yoxdur |
+
+Şəkillər: `qa/d-1280-open.png`, `qa/d-1280-below.png`, `qa/d-768-card.png`, `qa/d-390-card.png`.
+
+**E-yə hazırlıq.** D bitib. E üçün `visual-qa` (B rejimi) real məlumatla tələb olunur: 1440, 1280, 1024, 768, 390 enləri
+× Koordinator, Rəhbər, Administrator (`03a` §8, `05-approval` §6). Bu yoxlamada edilmədi: real məlumat və rollar,
+ekran oxuyucunun özü, `prefers-reduced-motion`, uzun sifarişin (> 50 sətir) real səhifələnməsi.
+
+### E · müstəqil qəbul — 2026-10-17
+
+`07-qa.md`: hökm **QEYDLƏRLƏ KEÇDİ**. Açıq S1/S2 yoxdur; Q-1 və Q-2 real brauzerdə həll olunub. Tapıntılar:
+- E-1 (S3) — 200% mətndə müqayisə sətri və status nişanı;
+- E-2 (S3) — px tokenlər, R-24;
+- E-3 (S3) — telefonda «Sıralama» seçimi, C-dən qalıb;
+- E-4 (S4) — süzgəcdə nömrələmə.
+
+Sahibin tapşırığına görə heç biri düzəldilməyib, qərar sahibindir. Yalnız Administrator yoxlanıb.
+
+### E · düzəlişlər — 2026-10-18
+
+Sahibin qərarı: «E-1 və E-4 problemlərini təsdiqlənmiş dizayn və mövcud biznes qaydaları çərçivəsində düzəlt. API və
+maliyyə hesablamalarını dəyişmə. E-2 və E-3 bloklayıcı problem deyilsə, ROADMAP.md backlog-una əlavə et.»
+
+**E-1** — 200% mətndə telefonda iki problem var idi: müqayisə sətri detaldan kənara çıxırdı, nişan iri dairəyə çevrilirdi.
+- `ReportCellDetail.tsx`: müqayisə dəyəri artıq `whitespace-nowrap` deyil (`min-w-0 max-w-full`), hissələri arasında
+  bükülür. Tərkib sətri `flex-wrap`-dır, hər rəqəm özü bütöv qalır. Nişan bloku detalın enini aşmır.
+- Ortaq `StatusBadge` və `OrderStatusBadge`-in «Tarixi sifariş» nişanı: `rounded-full` → `rounded-2xl`, üstəlik
+  `max-w-full`.
+  - Bir sətirdə görünüş eynidir: 1 rem radius hər iki ölçünün yarım hündürlüyündən böyükdür (14 və 10 px).
+  - Çox sətirli nişan dairə yox, yumru küncli qutu olur. Bu yeganə ortaq komponent dəyişikliyidir.
+
+**E-4** — süzgəcdə nömrələr və say.
+- Sifariş səhifəsinin özü də süzülmüş siyahının sırasını nömrə kimi yazır, başlıqda isə bütün sifarişin sayını
+  göstərir. API sətrin sifarişdəki nömrəsini vermir. Ona görə düzəliş yalnız detaldadır, `OrderDetailPage`
+  dəyişməyib:
+  - süzgəcdə başlıq «Sətirlər 8 / 110» olur;
+  - süzgəcdə sətir nömrələri yazılmır, çünki yanlış olardı;
+  - «Bütün sətirlər»də hər şey əvvəlki kimidir.
+
+**E-2, E-3** — S3-dür, D-dən əvvəl də var idi. `ROADMAP.md`-də R-29 və R-30 kimi yazıldı: ciddilik, təsir, qəbul
+meyarı. Əsas qovluqdakı commit olunmamış backlog qaralaması (R-24…R-28) ilə nömrələr toqquşmur; E-2 R-24 ilə eyni kök
+səbəbdir.
+
+**Testlər**
+- Yeni: `OrderStatusBadge.test.tsx` +1; `MonthlyReportPage.test.tsx` +2 (E-4 başlıq və nömrə, E-1 bükülmə).
+- Əlaqəli 7 dəst: 298/298. `npm run build` keçdi.
+- Tam qaçış, 1-ci: 1649/1650. Düşən B-09 idi: 29 948 ms, qonşu testlər 95–710 ms, faylın medianı 250 ms — yükdən
+  deyil, testin öz ilişməsidir. Fayl təkbaşına 3 dəfə: 135/135.
+- Tam qaçış, 2-ci: **1650/1650**, B-09 3 059 ms.

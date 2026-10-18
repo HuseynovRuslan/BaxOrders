@@ -254,3 +254,28 @@ export function useBoxScroll({
 
   return { scroll, page }
 }
+
+/**
+ * How wide the box is in sight, kept current with it: a month's details, drawn as a row under its object's row, are
+ * exactly this wide and pinned to the box's left edge, so they are whole wherever the months are scrolled to and never
+ * widen the table (03a §10, Q-1). Zero until there is a box to measure — jsdom never has one — and the details then
+ * take the table's own width.
+ */
+export function useBoxWidth(box: RefObject<HTMLDivElement | null>, enabled: boolean): number {
+  const [width, setWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const element = box.current
+    if (!enabled || element === null) {
+      return
+    }
+
+    const measure = () => setWidth(element.clientWidth)
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(element)
+    return () => observer?.disconnect()
+  }, [box, enabled])
+
+  return width
+}

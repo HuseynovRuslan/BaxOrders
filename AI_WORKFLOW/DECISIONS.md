@@ -865,3 +865,34 @@ hesablamalar və Excel idxalı dəyişmir. Format düzəlişi C mərhələsi bit
 ayrıca addım kimi edilir. B-09 — C/D-ni saxlamayan ayrıca texniki tapşırıq.
 
 Sahib, 2026-10-16.
+
+**D-55 · UI V2 «Aylıq hesabat», D mərhələsi: xananın detalları yerində; E qəbulu.** Nömrə qeydi: D-53 (2026-10-17 məlumat
+düzəlişi) əsas qovluğun commit olunmamış qaralamasındadır, D-54 dashboard kartlarının detalları üçün ayrılıb — ikisi
+də sənəd commit-i ilə yazılacaq.
+
+Sahib, sözbəsöz qısaldılmış (tam mətn `DESIGN/2026-10-15-ui-v2-ayliq-hesabat/03a-D-yerinde.md` §11):
+
+> D mərhələsinin forması (2026-10-17): «Yerində, sətrin altında».
+>
+> **D-Y1 — TƏSDİQ.** Desktop: detallar kliklənən sətrin altında açılsın. Mobil və planşet: detallar obyekt kartının
+> daxilində açılsın. Eyni anda yalnız bir detal açıq olsun. URL, Back, fokus və sifarişdən qayıdış qaydaları qorunsun.
+> Horizontal scroll zamanı detallar sabit sütunun altında qalmasın. Mövcud API və biznes hesablamaları dəyişdirilməsin.
+>
+> **D-Y2 — TƏSDİQ, AMMA TƏHLÜKƏSİZ İZOLYASİYA İLƏ.** V2 ilə main-in birləşdirilmiş vəziyyətini ayrıca integration
+> branch və Git worktree-də hazırla. […] Push, production merge və deploy etmə.
+>
+> **D-Y3 — TƏSDİQ.** D mərhələsinə başlamazdan əvvəl Sonnet ilə qısa, müstəqil visual-qa dizayn tənqidi apar.
+
+E mərhələsi (2026-10-18): «E-1 və E-4 problemlərini təsdiqlənmiş dizayn və mövcud biznes qaydaları çərçivəsində
+düzəlt. API və maliyyə hesablamalarını dəyişmə. E-2 və E-3 bloklayıcı problem deyilsə, ROADMAP.md backlog-una əlavə
+et.» Sonra: «müstəqil QA nəticəsini qəbul edirəm: KEÇDİ. V2-nin ayrıca lokal commit edilməsinə icazə verirəm.»
+
+**Nə deməkdir.** Bu, D-51-in «xanaya klik sağda panel açır» bəndini əvəz edir. Sağdan açılan panel (Drawer) yalnız
+dashboard üçün deyil, burada da istənmir. Panelin məzmunu (03 §6.9) dəyişmir. Detallar yerində açılır: masaüstündə
+`colSpan=14` sətir kimi, cədvəl qutusunun görünən enində və qutunun sol kənarına yapışıq; 1024 px-dən aşağı kartın
+içində. İş `v2-inteqrasiya` branch-indədir (V2 + `main`). Tənqid `04a-D-critique.md`-dədir (QEYDLƏRLƏ KEÇDİ, iki S2
+icradan əvvəl həll olundu), qəbul `07-qa.md`-dədir (QEYDLƏRLƏ KEÇDİ; E-1, E-4 düzəldilib, təkrar yoxlama KEÇDİ). E-2 və
+E-3 backlog-dadır: `ROADMAP.md` R-29, R-30. Yalnız Administrator rolu yoxlanılıb. `main`-ə birləşmə, push və deploy —
+ayrıca qərarla.
+
+Sahib, 2026-10-17 və 2026-10-18.
