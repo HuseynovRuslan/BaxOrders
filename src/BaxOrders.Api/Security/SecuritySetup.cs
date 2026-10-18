@@ -60,9 +60,27 @@ internal static class SecuritySetup
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     return Task.CompletedTask;
                 };
+
+                // The session carries the account's security stamp. Disabling an account, changing its role and
+                // setting its password all move the stamp. Every ValidationInterval this re-reads the account: a
+                // stale stamp ends the session, a current one refreshes the principal, so a new role reaches the
+                // cookie too. AddIdentity() wires this itself; AddIdentityCore() with our own cookie does not.
+                options.Events.OnValidatePrincipal = SecurityStampValidator.ValidatePrincipalAsync;
+            })
+            // Ending a stale session, the stamp validator also signs out of Identity's two-factor "remember me"
+            // cookie, unconditionally — without the scheme that sign-out throws and the request fails with 500.
+            // Nothing here signs in with two factors, so the scheme is only ever cleared. AddIdentity() registers it
+            // the same way.
+            .AddCookie(IdentityConstants.TwoFactorRememberMeScheme, options =>
+            {
+                options.Cookie.Name = IdentityConstants.TwoFactorRememberMeScheme;
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             });
 
-        // How long a disabled account's existing session can outlive the decision to disable it.
+        // How long a disabled account's existing session can outlive the decision to disable it. A decision on an
+        // order does not get that window: CurrentApprovalAuthorityRequirement reads the account at the time.
         services.Configure<SecurityStampValidatorOptions>(options =>
             options.ValidationInterval = TimeSpan.FromMinutes(5));
 
@@ -73,9 +91,12 @@ internal static class SecuritySetup
                 policy.RequireRole(BaxOrdersRoles.Coordinator, BaxOrdersRoles.Admin))
             // Built from the one definition of approval authority rather than from a list of roles here, so the
             // endpoint, the service and the screens cannot disagree about who may decide.
+            // The cookie's role may be up to ValidationInterval old; a decision is checked against the account as it
+            // is now as well, so a Rəhbər disabled or moved to another role cannot approve on a session they still hold.
             .AddPolicy(BaxOrdersPolicies.CanDecideOrders, policy =>
                 policy.RequireAssertion(context =>
-                    BaxOrdersRoles.All.Any(role => ApprovalAuthority.IsHeldBy(role) && context.User.IsInRole(role))))
+                        BaxOrdersRoles.All.Any(role => ApprovalAuthority.IsHeldBy(role) && context.User.IsInRole(role)))
+                    .AddRequirements(new CurrentApprovalAuthorityRequirement()))
             // Looking at the queue is not deciding on it: an administrator keeps the page, read-only.
             .AddPolicy(BaxOrdersPolicies.CanViewApprovals, policy =>
                 policy.RequireAssertion(context =>
@@ -111,6 +132,8 @@ internal static class SecuritySetup
         // Applied to every controller, so no write can be reached without the token by being overlooked.
         services.Configure<MvcOptions>(options =>
             options.Filters.Add<AntiforgeryFilter>());
+
+        services.AddScoped<IAuthorizationHandler, CurrentApprovalAuthorityHandler>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
