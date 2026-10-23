@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/*
+ * BaxOrders · Rəhbərlik prototipi — tokens.
+ * A city-maintenance ledger: cool stone paper, sea-ink text, one Caspian teal for what can be clicked and chosen.
+ * Red and green belong to cost direction only (up / down); approval has its own neutral and amber, so the two
+ * meanings never share a colour.
+ */
+@theme {
+  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-figure: "Source Serif 4", ui-serif, Georgia, serif;
+
+  --color-ink: #12263a;
+  --color-ink-2: #34495b;
+  --color-muted: #5a6a70;
+  --color-stone: #f2f4f3;
+  --color-stone-2: #e8ecea;
+  --color-paper: #ffffff;
+  --color-line: #dbe1df;
+  --color-line-2: #c3ccc9;
+
+  --color-sea: #0f6e73;
+  --color-sea-2: #0b5559;
+  --color-sea-soft: #e2efef;
+  --color-bar: #2f6f86;
+  --color-bar-soft: #c9dde3;
+
+  --color-amber: #8f5200;
+  --color-amber-soft: #fff0d4;
+  --color-amber-line: #f0c983;
+
+  --color-up: #b42318;
+  --color-up-soft: #fdecea;
+  --color-down: #067647;
+  --color-down-soft: #e5f3ea;
+}
+
+/*
+ * The same palette at night: deep sea-slate ground, paper one step lighter, the teal and the cost colours lifted so they
+ * keep their contrast. Only the tokens change; every component reads them.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ink: #e4ebee;
+    --color-ink-2: #b9c6cc;
+    --color-muted: #93a3aa;
+    --color-stone: #0e1820;
+    --color-stone-2: #1b2832;
+    --color-paper: #142029;
+    --color-line: #26343e;
+    --color-line-2: #3a4b56;
+    --color-sea: #5bbcc0;
+    --color-sea-2: #86d3d6;
+    --color-sea-soft: #123538;
+    --color-bar: #5f9fb8;
+    --color-bar-soft: #2b4857;
+    --color-amber: #f0b45c;
+    --color-amber-soft: #352a14;
+    --color-amber-line: #6a4f1f;
+    --color-up: #f27a6e;
+    --color-up-soft: #3a1c19;
+    --color-down: #5ec491;
+    --color-down-soft: #13301f;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-ink: #e4ebee;
+  --color-ink-2: #b9c6cc;
+  --color-muted: #93a3aa;
+  --color-stone: #0e1820;
+  --color-stone-2: #1b2832;
+  --color-paper: #142029;
+  --color-line: #26343e;
+  --color-line-2: #3a4b56;
+  --color-sea: #5bbcc0;
+  --color-sea-2: #86d3d6;
+  --color-sea-soft: #123538;
+  --color-bar: #5f9fb8;
+  --color-bar-soft: #2b4857;
+  --color-amber: #f0b45c;
+  --color-amber-soft: #352a14;
+  --color-amber-line: #6a4f1f;
+  --color-up: #f27a6e;
+  --color-up-soft: #3a1c19;
+  --color-down: #5ec491;
+  --color-down-soft: #13301f;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-stone font-sans text-ink antialiased;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Numbers line up in every column and never jump as they change. */
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-sea);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* A row whose whole area opens it: the name is the link, its ::after covers the row. */
+  .stretched::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  /* A month that has not begun: a quiet hatch, never a zero. */
+  .hatch {
+    background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--color-stone-2) 6px 7px);
+  }
+}
