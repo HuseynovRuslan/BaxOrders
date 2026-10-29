@@ -54,7 +54,7 @@ export function OrderPage() {
               <th scope="col" className="px-3 py-2.5 text-right">Miqdar</th>
               <th scope="col" className="px-3 py-2.5 text-right">Qiymət</th>
               <th scope="col" className="px-3 py-2.5 text-right">Məbləğ</th>
-              <th scope="col" className="px-5 py-2.5">Təchizatçı</th>
+              <th scope="col" className="px-5 py-2.5">Şirkət</th>
             </tr>
           </thead>
           {ordered.map(([rootId, items]) => (
