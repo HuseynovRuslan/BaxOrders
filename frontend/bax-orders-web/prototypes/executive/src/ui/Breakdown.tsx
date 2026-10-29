@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ChevronRight } from 'lucide-react'
-import type { BreakdownRow, Figure, Period, ProductComparison } from '../data/analysis'
-import { direction, minus, percent, price as formatPrice, quantity as formatQuantity, quantityParts } from '../lib/format'
+import { Building2, ChevronRight } from 'lucide-react'
+import type { BreakdownRow, Figure, Period, ProductComparison, SupplierShare } from '../data/analysis'
+import { direction, minus, money, percent, price as formatPrice, quantity as formatQuantity, quantityParts } from '../lib/format'
 import { Delta, Money, NewTag } from './parts'
 
 type Sort = 'amount' | 'change'
@@ -14,13 +14,15 @@ type Sort = 'amount' | 'change'
  * bar would be the whole month, never just the largest row. The «Cəmi» row closes the table with the same figure as the band above it: the levels
  * describe one sum of money, never a separate one.
  */
-export function Breakdown({ label, nameHeader, rows, total, period, hrefOf, products = false, emptyText }: {
+export function Breakdown({ label, nameHeader, rows, total, period, hrefOf, suppliersHrefOf, products = false, emptyText }: {
   label: string
   nameHeader: string
   rows: readonly BreakdownRow[]
   total: Figure
   period: Period
   hrefOf: (row: BreakdownRow) => string
+  /** Products only: the product's «Şirkətlər üzrə», where «+N şirkət» opens. */
+  suppliersHrefOf?: (row: BreakdownRow) => string
   products?: boolean
   emptyText?: string
 }) {
@@ -92,6 +94,11 @@ export function Breakdown({ label, nameHeader, rows, total, period, hrefOf, prod
                       <span className="tnum shrink-0 text-xs text-muted"><span className="sr-only">Payı </span>{percent(share, false)}</span>
                     </span>
                   )}
+                  {products && row.suppliers?.length
+                    ? <Suppliers items={row.suppliers} href={suppliersHrefOf?.(row)} />
+                    : products && row.suppliersBefore?.length
+                      ? <Suppliers items={row.suppliersBefore} href={suppliersHrefOf?.(row)} before={period.isAverage ? 'Müqayisə dövründə' : 'Əvvəlki ay'} />
+                      : null}
                   {products && row.figure.hasCurrent && (
                     <span className="tnum mt-1 block text-sm text-ink-2 lg:hidden">
                       {row.quantity?.mixedUnits ? quantityParts(row.quantity.parts) : `${formatQuantity(row.quantity?.qty, row.quantity?.unit)} × ${formatPrice(row.quantity?.price)}`}
@@ -151,6 +158,58 @@ export function Breakdown({ label, nameHeader, rows, total, period, hrefOf, prod
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * Where the goods came from, said outright under the product. One company is one line: «Şirkət: Cleanfix».
+ * Several are a short list under «Şirkətlər · N», one company a line with its share of the product's money, the
+ * largest first — names in one column, shares in another, so the eye runs down them. Up to four are listed; more fold
+ * into «+N şirkət», a link (a tap, not a hover) to the product's «Şirkətlər üzrə». A product not bought this month
+ * names the comparison period's companies, muted and labelled so.
+ */
+function Suppliers({ items, href, before }: { items: readonly SupplierShare[]; href?: string; before?: string }) {
+  const total = items.reduce((sum, item) => sum + item.amount, 0)
+  const shown = items.length > 4 ? items.slice(0, 3) : items
+  const rest = items.slice(shown.length)
+  const tone = before ? 'text-ink-2' : 'text-ink'
+  const label = (
+    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-muted">
+      <Building2 aria-hidden="true" className="size-3.5 shrink-0" />
+      {before ? `${before} · ` : ''}{items.length === 1 ? 'Şirkət' : `Şirkətlər · ${items.length}`}<span className="sr-only">:</span>
+    </span>
+  )
+
+  if (items.length === 1) {
+    return (
+      <p className="mt-2 flex min-w-0 max-w-80 items-center gap-2" title={`${items[0].name}: ${money(items[0].amount)}`}>
+        {label}
+        <span className={`truncate text-[13px] font-semibold ${tone}`}>{items[0].name}</span>
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-2 max-w-64">
+      {label}
+      <ul className="mt-1 flex flex-col gap-0.5 border-l-2 border-line pl-2.5">
+        {shown.map((item, index) => (
+          <li key={item.id} title={`${item.name}: ${money(item.amount)}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 text-[13px] leading-5">
+            <span className={`truncate ${tone} ${index === 0 ? 'font-semibold' : ''}`}>{item.name}</span>
+            <span className="tnum text-xs text-muted"><span className="sr-only">payı </span>{percent(total > 0 ? item.amount / total : 0, false)}</span>
+          </li>
+        ))}
+        {rest.length > 0 && (
+          <li>
+            {href ? (
+              <Link to={href} className="relative z-10 inline-flex min-h-7 items-center text-xs font-semibold text-sea underline-offset-4 hover:underline">
+                +{rest.length} şirkət<span className="sr-only">: {rest.map((item) => item.name).join(', ')}. Şirkətlər üzrə müqayisəni aç</span>
+              </Link>
+            ) : <span className="text-xs font-semibold text-muted">+{rest.length} şirkət</span>}
+          </li>
+        )}
+      </ul>
+    </div>
   )
 }
 
