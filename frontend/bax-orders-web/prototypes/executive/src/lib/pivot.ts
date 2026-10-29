@@ -1,6 +1,6 @@
 import { useLocation, useSearchParams } from 'react-router'
 import { kindOptions, quantityOf, resolvePeriod, type Basis, type Kind, type QuantityFigure } from '../data/analysis'
-import { allLines, categories, LAST_MONTH_WITH_DATA, monthsWithData, products, sites, YEAR, type Line, type Product } from '../data/model'
+import { allLines, allSuppliers, categories, LAST_MONTH_WITH_DATA, monthsWithData, products, sites, YEAR, type Line, type Product } from '../data/model'
 import { monthName, percent, shortMonthNames } from './format'
 import { paths, useComparison } from './links'
 import { filterParams, type Change } from './year'
@@ -8,27 +8,29 @@ import { filterParams, type Change } from './year'
 /*
  * The analysis screen's reading (owner, 2026-10-19 — «Turbo.az kimi»): faceted filters — several objects, categories
  * at the three levels, products; any of the chosen within a filter, every filter together — and the result pivoted by
- * two directions, rows and columns, any of months, objects, the three levels of the catalogue and products. Read from
+ * two directions, rows and columns, any of months, objects, companies, the three levels of the catalogue and products. Read from
  * the same order lines as every other screen. The measure is the amount everywhere; quantities only for one product at
  * a time and in its own unit(s), never different products' or units' quantities added together.
  */
 
-export type Dim = 'ay' | 'obyekt' | 'ana' | 'orta' | 'alt' | 'mehsul'
+export type Dim = 'ay' | 'obyekt' | 'sirket' | 'ana' | 'orta' | 'alt' | 'mehsul'
 
 export const dimLabels: Record<Dim, string> = {
   ay: 'Aylar',
   obyekt: 'Obyektlər',
+  sirket: 'Şirkətlər',
   ana: 'Ana kateqoriyalar',
   orta: 'Orta kateqoriyalar',
   alt: 'Alt kateqoriyalar',
   mehsul: 'Məhsullar',
 }
 /** One of a direction, for a column head: «Obyekt», «Ana kateqoriya». */
-export const dimSingular: Record<Dim, string> = { ay: 'Ay', obyekt: 'Obyekt', ana: 'Ana kateqoriya', orta: 'Orta kateqoriya', alt: 'Alt kateqoriya', mehsul: 'Məhsul' }
-export const dimOrder: readonly Dim[] = ['ay', 'obyekt', 'ana', 'orta', 'alt', 'mehsul']
+export const dimSingular: Record<Dim, string> = { ay: 'Ay', obyekt: 'Obyekt', sirket: 'Şirkət', ana: 'Ana kateqoriya', orta: 'Orta kateqoriya', alt: 'Alt kateqoriya', mehsul: 'Məhsul' }
+export const dimOrder: readonly Dim[] = ['ay', 'obyekt', 'sirket', 'ana', 'orta', 'alt', 'mehsul']
 
 export interface Facets {
   sites: string[]
+  suppliers: string[]
   roots: string[]
   mids: string[]
   leaves: string[]
@@ -48,7 +50,7 @@ export interface Analysis {
 }
 
 export const analysisParams = {
-  from: 'ay1', to: 'ay2', sites: 'obyekt', roots: 'ana', mids: 'orta', leaves: 'alt', products: 'mehsul',
+  from: 'ay1', to: 'ay2', sites: 'obyekt', suppliers: 'sirket', roots: 'ana', mids: 'orta', leaves: 'alt', products: 'mehsul',
   rows: 'setir', cols: 'sutun', view: 'gorunus', sort: 'sira',
 } as const
 type ParamKey = keyof typeof analysisParams
@@ -90,6 +92,7 @@ export function readAnalysis(params: URLSearchParams): Analysis {
     to,
     facets: normalizeFacets({
       sites: list(params.get(analysisParams.sites), (id) => sites.has(id)),
+      suppliers: list(params.get(analysisParams.suppliers), (id) => allSuppliers.has(id)),
       roots: list(params.get(analysisParams.roots), isLevel(1)),
       mids: list(params.get(analysisParams.mids), isLevel(2)),
       leaves: list(params.get(analysisParams.leaves), isLevel(3)),
@@ -116,12 +119,13 @@ function categoryTest(roots: readonly string[], mids: readonly string[], leaves:
   return (product) => leafSet.has(product.leafId) || midSet.has(product.midId) || rootSet.has(product.rootId)
 }
 
-type Skip = 'sites' | 'categories' | 'mids' | 'leaves' | 'products'
+type Skip = 'sites' | 'suppliers' | 'categories' | 'mids' | 'leaves' | 'products'
 
 /** Whether a line is inside the filters (months apart), leaving one facet out when that facet's own list is counted. */
 function lineTest(kind: Kind, facets: Facets, skip?: Skip): (line: Line) => boolean {
   const siteSet = skip === 'sites' || !facets.sites.length ? null : new Set(facets.sites)
   const productSet = skip === 'products' || !facets.products.length ? null : new Set(facets.products)
+  const supplierSet = skip === 'suppliers' || !facets.suppliers.length ? null : new Set(facets.suppliers)
   const category = skip === 'categories' ? () => true
     : skip === 'mids' ? categoryTest(facets.roots, [], [])
       : skip === 'leaves' ? categoryTest(facets.roots, facets.mids, [])
@@ -129,6 +133,7 @@ function lineTest(kind: Kind, facets: Facets, skip?: Skip): (line: Line) => bool
   return (line) => (kind === 'all' || line.type === kind)
     && (!siteSet || siteSet.has(line.siteId))
     && (!productSet || productSet.has(line.productId))
+    && (!supplierSet || supplierSet.has(line.supplierId))
     && category(products.get(line.productId)!)
 }
 
@@ -163,6 +168,7 @@ export function facetOptions(analysis: Analysis, kind: Kind): Record<FacetKey, F
   const categoryName = (id: string) => categories.get(id)!.name
   return {
     sites: build(sums('sites', (line) => line.siteId), [...sites.keys()], (id) => sites.get(id)!.name, undefined, facets.sites),
+    suppliers: build(sums('suppliers', (line) => line.supplierId), [...allSuppliers.keys()], (id) => allSuppliers.get(id)!.name, undefined, facets.suppliers),
     roots: build(sums('categories', (line) => productOf(line).rootId), allOf(1).map((item) => item.id), categoryName, undefined, facets.roots),
     mids: build(sums('mids', (line) => productOf(line).midId), midIds, categoryName, (id) => categoryName(parentOf(id)), facets.mids),
     leaves: build(sums('leaves', (line) => productOf(line).leafId), leafIds, categoryName, (id) => categoryName(parentOf(id)), facets.leaves),
@@ -175,6 +181,7 @@ export function facetOptions(analysis: Analysis, kind: Kind): Record<FacetKey, F
 const keyOf: Record<Dim, (line: Line) => string> = {
   ay: (line) => String(line.month),
   obyekt: (line) => line.siteId,
+  sirket: (line) => line.supplierId,
   ana: (line) => products.get(line.productId)!.rootId,
   orta: (line) => products.get(line.productId)!.midId,
   alt: (line) => products.get(line.productId)!.leafId,
@@ -185,6 +192,7 @@ export function labelOf(dim: Dim, key: string): { name: string; short: string; p
   switch (dim) {
     case 'ay': return { name: monthName(Number(key)), short: shortMonthNames[Number(key) - 1] }
     case 'obyekt': return { name: sites.get(key)!.name, short: sites.get(key)!.name }
+    case 'sirket': return { name: allSuppliers.get(key)!.name, short: allSuppliers.get(key)!.name }
     case 'mehsul': return { name: products.get(key)!.name, short: products.get(key)!.name, parent: categories.get(products.get(key)!.leafId)!.name }
     default: {
       const category = categories.get(key)!
@@ -424,6 +432,8 @@ export const presets: readonly Preset[] = [
   { id: 'ay-kat', label: 'Aylar × Kateqoriyalar', rows: 'ay', cols: 'kat' },
   { id: 'obyekt-kat', label: 'Obyektlər × Kateqoriyalar', rows: 'obyekt', cols: 'kat' },
   { id: 'kat-obyekt', label: 'Kateqoriyalar × Obyektlər', rows: 'kat', cols: 'obyekt' },
+  { id: 'sirket-ay', label: 'Şirkətlər × Aylar', rows: 'sirket', cols: 'ay' },
+  { id: 'sirket-kat', label: 'Şirkətlər × Kateqoriyalar', rows: 'sirket', cols: 'kat' },
   { id: 'mehsul', label: 'Məhsullar: qiymət və miqdar', rows: 'mehsul', cols: null, view: 'cedvel' },
 ]
 
@@ -435,7 +445,7 @@ export const presetMatches = (preset: Preset, analysis: Analysis) => {
 
 /* ---- The reading ------------------------------------------------------------------------------------------------------ */
 
-const facetParam: Record<FacetKey, ParamKey> = { sites: 'sites', roots: 'roots', mids: 'mids', leaves: 'leaves', products: 'products' }
+const facetParam: Record<FacetKey, ParamKey> = { sites: 'sites', suppliers: 'suppliers', roots: 'roots', mids: 'mids', leaves: 'leaves', products: 'products' }
 
 /** The analysis as the screen reads it: the kind and the comparison as everywhere, the filters and the pivot its own. */
 export function useAnalysis() {
@@ -466,7 +476,7 @@ export function useAnalysis() {
   /**
    * A row taken as a filter, one level down — the way a catalogue narrows: a month opens its objects, an object its
    * categories, a category the level under it, a sub-category its products, a product its months (with its quantities
-   * and prices). The columns stay, unless they are the level the rows now show.
+   * and prices), a company its categories. The columns stay, unless they are the level the rows now show.
    */
   const drill = (dim: Dim, key: string) => {
     const facets = analysis.facets
@@ -476,6 +486,7 @@ export function useAnalysis() {
     switch (dim) {
       case 'ay': return go('obyekt', { from: key, to: key })
       case 'obyekt': return go(categoryDim(facets), facetsParams({ ...facets, sites: [key] }))
+      case 'sirket': return go(categoryDim(facets), facetsParams({ ...facets, suppliers: [key] }))
       case 'ana': return go('orta', facetsParams({ ...facets, roots: [key], mids: [], leaves: [] }))
       case 'orta': return go('alt', facetsParams({ ...facets, roots: [category!.parentId!], mids: [key], leaves: [] }))
       case 'alt': return go('mehsul', facetsParams({ ...facets, roots: [category!.path[0]], mids: [category!.parentId!], leaves: [key] }))
@@ -513,7 +524,7 @@ export function useAnalysis() {
     /** Any filter is on: the period or a facet. */
     filtered: analysis.from !== 1 || analysis.to !== 12 || Object.values(analysis.facets).some((ids) => ids.length > 0),
     /** Every filter off — the period and every facet. The kind, the comparison and the directions stay. */
-    resetFilters: () => write({ from: null, to: null, sites: null, roots: null, mids: null, leaves: null, products: null }),
+    resetFilters: () => write({ from: null, to: null, sites: null, suppliers: null, roots: null, mids: null, leaves: null, products: null }),
     /** The same analysis for another kind of order. */
     kindHref: (next: Kind) => {
       const nextParams = new URLSearchParams(location.search)
