@@ -1,5 +1,6 @@
 import {
   allLines,
+  allSuppliers,
   allOutsideRequests,
   approvals,
   categories,
@@ -97,12 +98,14 @@ export interface Scope {
   siteId?: string
   categoryId?: string
   productId?: string
+  supplierId?: string
 }
 
 function matches(line: Line, scope: Scope): boolean {
   if (scope.kind !== 'all' && line.type !== scope.kind) return false
   if (scope.siteId && line.siteId !== scope.siteId) return false
   if (scope.productId && line.productId !== scope.productId) return false
+  if (scope.supplierId && line.supplierId !== scope.supplierId) return false
   if (scope.categoryId) {
     const product = products.get(line.productId)!
     if (product.rootId !== scope.categoryId && product.midId !== scope.categoryId && product.leafId !== scope.categoryId) return false
@@ -164,6 +167,25 @@ export interface BreakdownRow {
   quantity?: QuantityFigure
   /** Products only: the same product in the comparison period — quantity and price changes. */
   product?: ProductComparison
+  /** Products only: the companies it was bought from this month, the largest amount first. */
+  suppliers?: SupplierShare[]
+  /** Products not bought this month: the companies of the comparison period, so the row still says who sold it. */
+  suppliersBefore?: SupplierShare[]
+}
+
+export interface SupplierShare {
+  id: string
+  name: string
+  amount: number
+}
+
+/** The companies of a set of lines, with what was bought from each, the largest first. */
+export function suppliersOf(lines: readonly Line[]): SupplierShare[] {
+  const byId = new Map<string, number>()
+  for (const line of lines) byId.set(line.supplierId, (byId.get(line.supplierId) ?? 0) + line.amount)
+  return [...byId]
+    .map(([id, amount]) => ({ id, name: allSuppliers.get(id)!.name, amount: round2(amount) }))
+    .sort((left, right) => right.amount - left.amount)
 }
 
 export interface QuantityFigure {
@@ -215,6 +237,8 @@ export function productRows(month: number, period: Period, kind: Kind, leafId: s
       figure: figure(month, period, { kind, siteId, productId: id }),
       quantity: quantityOf(linesFor(month, { kind, siteId, productId: id })),
       product: compareProduct(month, period, kind, id, siteId),
+      suppliers: suppliersOf(linesFor(month, { kind, siteId, productId: id })),
+      suppliersBefore: suppliersOf(period.months.flatMap((item) => linesFor(item, { kind, siteId, productId: id }))),
     }))
     .sort(byAmount)
 }
@@ -282,13 +306,13 @@ function side(lines: readonly Line[], months: number): ProductSide {
   }
 }
 
-export function compareProduct(month: number, period: Period, kind: Kind, productId: string, siteId?: string): ProductComparison {
-  const current = side(linesFor(month, { kind, productId, siteId }), 1)
+export function compareProduct(month: number, period: Period, kind: Kind, productId: string, siteId?: string, supplierId?: string): ProductComparison {
+  const current = side(linesFor(month, { kind, productId, siteId, supplierId }), 1)
   if (period.unavailable) {
     return { current, comparison: null, comparable: false, deltaAmount: null, deltaQty: null, qtyPct: null, pricePct: null, priceEffect: null, qtyEffect: null }
   }
 
-  const before = period.months.flatMap((item) => linesFor(item, { kind, productId, siteId }))
+  const before = period.months.flatMap((item) => linesFor(item, { kind, productId, siteId, supplierId }))
   const comparison = side(before, period.months.length)
   const comparable = current.units.length === 1 && comparison.units.length === 1 && current.units[0] === comparison.units[0]
     && current.qty !== null && comparison.qty !== null
@@ -324,6 +348,23 @@ export function productBySite(month: number, period: Period, kind: Kind, product
   return [...ids]
     .map((siteId) => ({ siteId, name: sites.get(siteId)!.name, comparison: compareProduct(month, period, kind, productId, siteId) }))
     .sort((left, right) => Math.abs(right.comparison.deltaAmount ?? right.comparison.current.amount) - Math.abs(left.comparison.deltaAmount ?? left.comparison.current.amount))
+}
+
+export interface ProductSupplierRow {
+  supplierId: string
+  name: string
+  comparison: ProductComparison
+}
+
+/**
+ * Which companies the product was bought from, this month or in the comparison, within an optional object — the
+ * largest this month first. Each with its own quantity and weighted price, so two companies' prices sit side by side.
+ */
+export function productBySupplier(month: number, period: Period, kind: Kind, productId: string, siteId?: string): ProductSupplierRow[] {
+  const ids = presentIn(month, period, { kind, productId, siteId }, (line) => line.supplierId)
+  return [...ids]
+    .map((supplierId) => ({ supplierId, name: allSuppliers.get(supplierId)!.name, comparison: compareProduct(month, period, kind, productId, siteId, supplierId) }))
+    .sort((left, right) => right.comparison.current.amount - left.comparison.current.amount || (right.comparison.comparison?.amount ?? 0) - (left.comparison.comparison?.amount ?? 0))
 }
 
 // ---- the year -------------------------------------------------------------------------------------------------------
