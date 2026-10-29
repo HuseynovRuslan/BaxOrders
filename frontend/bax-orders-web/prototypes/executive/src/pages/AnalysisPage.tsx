@@ -37,7 +37,7 @@ export function AnalysisPage() {
   const options = useMemo(() => facetOptions(analysis, kind), [search]) // eslint-disable-line react-hooks/exhaustive-deps
   const pivot = useMemo(() => computePivot(analysis, kind, basis), [search]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (year !== YEAR) return <NotFound message={`Demo yalnız ${YEAR} ilini göstərir.`} />
+  if (year !== YEAR) return <NotFound message={`Prototip yalnız ${YEAR} ilini göstərir.`} />
 
   const withData = monthsWithData.filter((month) => month >= analysis.from && month <= analysis.to)
   const period = withData.length ? monthRange(withData, YEAR) : `${monthName(analysis.from)}–${monthName(analysis.to)} ${YEAR}`
@@ -481,8 +481,8 @@ function Result({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading }) 
 
 /** A whole manat for a chart or a matrix cell: «12.345»; the exact figure is in the table and the cell's title. */
 const whole = (value: number) => (value > 0 && value < 0.5 ? '<1' : moneyParts(Math.round(value)).whole)
-/** The exact figure without the sign, for a dense table whose heading says «₼». */
-const exactNumber = (value: number) => { const parts = moneyParts(value); return `${parts.whole},${parts.cents}` }
+/** The table's figure, in whole manats like every amount; the heading says «₼». */
+const exactNumber = (value: number) => moneyParts(Math.round(value)).whole
 
 function MoreRows({ count, all, onToggle }: { count: number; all: boolean; onToggle: () => void }) {
   if (count <= ROW_LIMIT) return null

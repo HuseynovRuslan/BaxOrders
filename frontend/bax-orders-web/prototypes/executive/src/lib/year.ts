@@ -27,7 +27,7 @@ export const basisReference: Record<Basis, string> = {
   all: 'bütün əvvəlki ayların ortalamasına görə',
 }
 
-export const updatedText = `${DATA_UPDATED_AT.day} ${monthName(DATA_UPDATED_AT.month).toLocaleLowerCase('az')} ${DATA_UPDATED_AT.year}, ${DATA_UPDATED_AT.time}`
+export const updatedText = `${DATA_UPDATED_AT.day} ${monthName(DATA_UPDATED_AT.month).toLocaleLowerCase('az')} ${DATA_UPDATED_AT.year}${DATA_UPDATED_AT.time ? `, ${DATA_UPDATED_AT.time}` : ''}`
 
 const round2 = (value: number) => Math.round(value * 100) / 100
 const amountOf = (lines: readonly Line[]) => round2(lines.reduce((total, line) => total + line.amount, 0))

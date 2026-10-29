@@ -122,7 +122,7 @@ export function KpiStrip({ reading, kpi }: { reading: YearReading; kpi: KpiPanel
 /** The cards in the kind's own terms; the last one is always the latest month against the chosen comparison. */
 function cardsFor(reading: YearReading): Card[] {
   const { kind, total, latest, basis } = reading
-  const { whole, cents } = moneyParts(total.amount)
+  const { whole } = moneyParts(Math.round(total.amount))
   const value = (text: string, note: string, tone = '') => (
     <>
       <span className={`tnum mt-1.5 text-lg font-bold leading-none ${tone}`}>{text}</span>
@@ -136,7 +136,7 @@ function cardsFor(reading: YearReading): Card[] {
     body: (
       <>
         <span className="tnum mt-1 text-[30px] font-extrabold leading-none tracking-[-0.02em]">
-          {reading.hasOrders ? <>{whole}<span className="text-[0.5em] font-bold text-(--y-ink-2)">,{cents} ₼</span></> : <span className="text-(--y-muted)">—</span>}
+          {reading.hasOrders ? <>{whole}<span className="text-[0.5em] font-bold text-(--y-ink-2)"> ₼</span></> : <span className="text-(--y-muted)">—</span>}
         </span>
         {kind === 'all' && reading.hasOrders && <span className="mt-1 text-xs text-(--y-muted)">Ümumi xərc, təsdiq ediləcək məbləğ deyil</span>}
         {!reading.hasOrders && <span className="mt-1 text-xs text-(--y-muted)">Seçilmiş filtrdə sifariş yoxdur</span>}
@@ -607,10 +607,10 @@ function RequestsPanel({ reading, kpi }: { reading: YearReading; kpi: KpiPanelSt
         {requests.map((request) => (
           <li key={request.id}>
             <Link to={reading.href(paths.order(YEAR, request.month, request.siteId))} className={`grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-baseline gap-x-3 ${rowLink}`}>
-              <span className="tnum text-xs font-semibold text-(--y-muted)">{request.day} {shortMonthNames[request.month - 1].toLocaleLowerCase('az')}</span>
+              <span className="tnum text-xs font-semibold text-(--y-muted)">{request.day > 0 ? `${request.day} ` : ''}{shortMonthNames[request.month - 1].toLocaleLowerCase('az')}</span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">{sites.get(request.siteId)?.name}</span>
-                <span className="block truncate text-xs text-(--y-muted)" title={request.reason}>{request.reason}</span>
+                {request.reason && <span className="block truncate text-xs text-(--y-muted)" title={request.reason}>{request.reason}</span>}
               </span>
               <span className="tnum text-sm font-bold">{money(request.amount)}</span>
             </Link>

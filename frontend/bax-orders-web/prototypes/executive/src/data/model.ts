@@ -1,6 +1,23 @@
 import { catalogSeed, seasonality, siteSeeds } from './catalog'
 
 /**
+ * The owner's workbook (owner, 2026-10-28), as `scripts/import_workbook.py` writes it and the «Excel yüklə» button
+ * replaces it: read by `main.tsx` before this module loads. The file is kept out of git — it is real business data.
+ * Without it the prototype runs on the demo below.
+ */
+interface RealData {
+  meta: { source: string; sha256: string; lines: number; freeLines: number; importedAt?: string; edits?: DataEdit[] }
+  sites: Site[]
+  categories: Category[]
+  products: Product[]
+  lines: Line[]
+  orders: Order[]
+  outsideRequests: OutsideRequest[]
+}
+const loaded = (globalThis as { __BAX_DATA__?: Partial<RealData> }).__BAX_DATA__
+const real = loaded?.meta && Array.isArray(loaded.lines) && Array.isArray(loaded.products) ? loaded as RealData : undefined
+
+/**
  * DEMO MƏLUMAT — generated once, deterministically, from a fixed seed. Every amount in the prototype is the sum of
  * these lines (quantity × unit price, rounded to the qəpik per line), so the category, object and product views all
  * describe the same money and reconcile to the qəpik.
@@ -24,7 +41,12 @@ export interface Product {
   leafId: string
   rootId: string
   midId: string
+  /** The price set on the site («Mallar»): what a product the orders do not show yet costs. */
+  price?: number
 }
+
+/** An edit made on the site («Mallar»), as the server records it. */
+export interface DataEdit { at: string; op: string; text: string }
 
 export interface Site {
   id: string
@@ -64,9 +86,11 @@ export interface Supplier {
 
 export interface Order {
   id: string
+  /** Empty when the source has none (the workbook has no order numbers). */
   number: string
   siteId: string
   month: number
+  /** 0 when the source does not say. */
   submittedDay: number
   lineIds: string[]
 }
@@ -92,11 +116,26 @@ export interface MonthApproval {
 }
 
 export const YEAR = 2026
-/** The demo's today: 18 October 2026. */
-export const TODAY = { year: 2026, month: 10, day: 18 }
-/** When the demo's figures were last refreshed. */
-export const DATA_UPDATED_AT = { year: 2026, month: 10, day: 18, time: '09:40' }
-export const LAST_MONTH_WITH_DATA = 10
+const now = new Date()
+/** Today: the real date with the workbook, the demo's 18 October 2026 without it. */
+export const TODAY = real ? { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() } : { year: 2026, month: 10, day: 18 }
+/**
+ * When the figures were last brought in: the last upload (Baku time, as the server writes it), or — before any — the
+ * owner's corrected workbook of 17 October 2026 (D-53).
+ */
+/** The edits made on the site since the last import, oldest first. */
+export const DATA_EDITS: readonly DataEdit[] = real?.meta.edits ?? []
+// The figures' last change: an upload or an edit on the site, whichever came later (both are Baku time, one format).
+const lastChange = [real?.meta.importedAt, DATA_EDITS.at(-1)?.at].filter((value): value is string => Boolean(value)).sort().at(-1)
+const uploaded = lastChange?.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/)
+export const DATA_UPDATED_AT = uploaded
+  ? { year: Number(uploaded[1]), month: Number(uploaded[2]), day: Number(uploaded[3]), time: uploaded[4] }
+  : real ? { year: 2026, month: 10, day: 17, time: '' } : { year: 2026, month: 10, day: 18, time: '09:40' }
+export const LAST_MONTH_WITH_DATA = real ? Math.max(...real.lines.map((line) => line.month)) : 10
+/** Where the figures come from, for the frame's flag and footnote. */
+export const DATA_SOURCE = real
+  ? { kind: 'real' as const, file: real.meta.source, lines: real.meta.lines, freeLines: real.meta.freeLines, uploaded: Boolean(uploaded), edits: DATA_EDITS.length }
+  : { kind: 'demo' as const }
 
 // ---- seeded randomness --------------------------------------------------------------------------------------------
 
@@ -355,6 +394,23 @@ schedule.forEach(([month, day, siteId, kind]) => {
   outsideRequests.push(request)
 })
 
+// With the workbook here, its figures replace the demo's, in the same shapes.
+if (real) {
+  categories.clear()
+  for (const category of real.categories) categories.set(category.id, category)
+  products.clear()
+  for (const product of real.products) products.set(product.id, product)
+  sites.clear()
+  for (const site of real.sites) sites.set(site.id, site)
+  lines.length = 0
+  // The company comes from the workbook's «Şirkət» column by name; a line added on the site may have none.
+  lines.push(...real.lines.map((line) => ({ ...line, supplierId: line.supplierId || slug(line.supplier) || 'gosterilmeyib', supplier: line.supplier || 'Göstərilməyib' })))
+  orders.length = 0
+  orders.push(...real.orders)
+  outsideRequests.length = 0
+  outsideRequests.push(...real.outsideRequests)
+}
+
 export const allLines: readonly Line[] = lines
 export const allOrders = new Map(orders.map((order) => [order.id, order]))
 export const allOutsideRequests: readonly OutsideRequest[] = outsideRequests
@@ -369,9 +425,11 @@ export const allSuppliers = new Map<string, Supplier>(lines.map((line) => [line.
  */
 export const approvals: MonthApproval[] = Array.from({ length: LAST_MONTH_WITH_DATA }, (_, index) => {
   const month = index + 1
-  return month < LAST_MONTH_WITH_DATA
-    ? { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }
-    : { month, state: 'pending' }
+  // The real approvals are in the program, not in the workbook: January–September approved, October waiting (D-53),
+  // and a month the workbook adds later waits too, until the program says otherwise. No approval days are made up.
+  if (real) return month <= 9 ? { month, state: 'approved' } : { month, state: 'pending' }
+  if (month === LAST_MONTH_WITH_DATA) return { month, state: 'pending' }
+  return { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }
 })
 
 /** The reporting months: those with a monthly package. Outside-monthly figures are read within the same months. */

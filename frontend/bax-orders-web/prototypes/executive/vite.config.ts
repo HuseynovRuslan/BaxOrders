@@ -8,6 +8,15 @@ import { fileURLToPath } from 'node:url'
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react(), tailwindcss()],
-  server: { port: 5179, strictPort: true },
+  // In development the «Excel yüklə» button talks to a local import_service.py on :8099 (scripts/); with
+  // IMPORT_DEV=1 the figures come from that service too, as nginx serves them on the server.
+  server: {
+    port: 5179,
+    strictPort: true,
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8099', rewrite: (path) => path.replace(/^\/api/, '') },
+      ...(process.env.IMPORT_DEV === '1' ? { '/data': 'http://127.0.0.1:8099' } : {}),
+    },
+  },
   build: { outDir: 'dist', emptyOutDir: true },
 })

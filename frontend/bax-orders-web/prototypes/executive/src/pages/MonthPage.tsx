@@ -210,7 +210,7 @@ function KindStatus({ kind, month }: { kind: Kind; month: number }) {
 
 /** The three figures the month is read by: its amount, the comparison's, and the difference in manats and per cent. */
 function Figures({ month, kind, period, total, note }: { month: number; kind: Kind; period: Period; total: Figure; note: string }) {
-  const { whole, cents } = moneyParts(total.current)
+  const { whole } = moneyParts(Math.round(total.current))
   const missing = period.unavailable || period.incomplete
   const way = total.delta === null ? null : Math.abs(total.delta) < 0.005 ? 'flat' : total.delta > 0 ? 'up' : 'down'
   const comparisonLabel = period.unavailable ? 'Müqayisə dövrü' : period.isAverage ? `${basisLabel(period.basis)}` : `${monthName(period.months[0])} ${YEAR}`
@@ -219,7 +219,7 @@ function Figures({ month, kind, period, total, note }: { month: number; kind: Ki
       <div className="col-span-2 bg-(--y-surface) px-5 py-3 lg:col-span-1">
         <dt className="text-xs font-semibold text-(--y-muted)">{monthName(month)} {YEAR} · {kindNames[kind]}</dt>
         <dd className="tnum mt-1 text-[30px] font-extrabold leading-none tracking-[-0.02em]">
-          {whole}<span className="text-[0.5em] font-bold text-(--y-ink-2)">,{cents} ₼</span>
+          {whole}<span className="text-[0.5em] font-bold text-(--y-ink-2)"> ₼</span>
         </dd>
         <dd className="mt-1 text-xs text-(--y-muted)">{kind === 'all' ? `${note} · ümumi xərc, təsdiq məbləği deyil` : note}</dd>
       </div>

@@ -418,7 +418,7 @@ function siteSplit(row: ProductSiteRow, month: number, product: Product, link: (
     href: link(paths.product(YEAR, month, product.id, row.siteId)),
     sub: order && row.comparison.current.lineCount > 0 && (
       <Link to={link(paths.order(YEAR, month, row.siteId))} className="relative z-10 inline-flex min-h-7 items-center gap-1 whitespace-nowrap text-xs font-semibold text-sea underline-offset-4 hover:underline">
-        <FileText aria-hidden="true" className="size-3.5" />Sifariş {order.number}
+        <FileText aria-hidden="true" className="size-3.5" />Sifariş{order.number ? ` ${order.number}` : ''}
       </Link>
     ),
   }

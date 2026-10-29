@@ -43,7 +43,7 @@ export function SitePage() {
             className="inline-flex min-h-9 items-center gap-2 rounded-md border border-line bg-paper px-3 text-sm font-semibold text-ink hover:border-sea hover:text-sea"
           >
             <FileText aria-hidden="true" className="size-4" />
-            Aylıq sifariş: {order.number}
+            {order.number ? `Aylıq sifariş: ${order.number}` : 'Aylıq sifariş'}
             <span className="font-normal text-muted">({quantity(lineCount)} sətir)</span>
           </Link>
         )}

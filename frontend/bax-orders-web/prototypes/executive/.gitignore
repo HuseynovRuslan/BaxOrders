@@ -1,0 +1,3 @@
+# Real business data from the owner's workbook: never in git (see scripts/import_workbook.py).
+/public/data/
+/scripts/__pycache__/

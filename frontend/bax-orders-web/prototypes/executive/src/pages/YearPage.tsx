@@ -44,7 +44,7 @@ export function YearPage() {
   }, [])
 
   if (year !== YEAR) {
-    return <NotFound message={`Demo yalnız ${YEAR} ilini göstərir.`} />
+    return <NotFound message={`Prototip yalnız ${YEAR} ilini göstərir.`} />
   }
 
   const { kind, basis, setBasis, tiles, largest, filters } = reading
@@ -233,7 +233,7 @@ function FilterBar({ reading }: { reading: YearReading }) {
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label="Dövr" className="flex min-h-10 flex-wrap items-center gap-1 rounded-lg border border-(--y-line) bg-(--y-surface) py-0.5 pl-3 pr-1 text-sm">
           <span className="text-(--y-muted)">Dövr</span>
-          <span className="px-1 font-semibold" title="Demo yalnız 2026-nı göstərir">{YEAR}</span>
+          <span className="px-1 font-semibold" title="Prototip yalnız 2026-nı göstərir">{YEAR}</span>
           <select
             aria-label="Dövr: bütün il, bir ay və ya aralıq"
             value={period}

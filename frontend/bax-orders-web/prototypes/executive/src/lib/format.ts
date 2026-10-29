@@ -28,15 +28,15 @@ export function moneyParts(value: number): { whole: string; cents: string } {
   return { whole: `${value < 0 ? minus : ''}${group(integer)}`, cents }
 }
 
+/** An amount in whole manats (owner, 2026-10-28): the qəpik are not shown. */
 export function money(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  const { whole, cents } = moneyParts(value)
-  return `${whole},${cents} ₼`
+  return `${moneyParts(Math.round(value)).whole} ₼`
 }
 
 export function signedMoney(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  if (Math.abs(value) < 0.005) return '0,00 ₼'
+  if (Math.abs(value) < 0.5) return '0 ₼'
   return `${value > 0 ? '+' : ''}${money(value)}`
 }
 
@@ -65,7 +65,9 @@ export function quantityParts(parts: readonly { qty: number; unit: string }[]): 
 
 export function price(value: number | null | undefined, unit?: string | null): string {
   if (value === null || value === undefined) return '—'
-  return unit ? `${money(value)} / ${unit}` : money(value)
+  // A unit price keeps its qəpik: 0,36 ₼ a metre would otherwise read 0 ₼.
+  const { whole, cents } = moneyParts(value)
+  return unit ? `${whole},${cents} ₼ / ${unit}` : `${whole},${cents} ₼`
 }
 
 /** Which way a cost moved, in words: the colour never speaks alone. */

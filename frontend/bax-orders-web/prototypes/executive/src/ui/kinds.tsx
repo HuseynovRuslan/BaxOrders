@@ -138,11 +138,11 @@ export function OutsideRequestList({ requests, link, siteLink }: {
         <li key={request.id} className="flex flex-col gap-2 px-4 py-3.5 sm:px-5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <div className="min-w-0">
-              <p className="text-[15px] font-semibold text-ink">{request.reason}</p>
+              <p className="text-[15px] font-semibold text-ink">{request.reason || 'Aylıqdan kənar sifariş'}</p>
               <p className="text-sm text-muted">
-                {request.day} {monthName(request.month).toLocaleLowerCase('az')} {YEAR} ·{' '}
+                {request.day > 0 ? `${request.day} ` : ''}{monthName(request.month).toLocaleLowerCase('az')} {YEAR} ·{' '}
                 {siteLink && link ? <Link to={link(request.siteId)} className="text-sea underline-offset-4 hover:underline">{sites.get(request.siteId)!.name}</Link> : sites.get(request.siteId)!.name}
-                {' '}· {request.number}
+                {request.number ? ` · ${request.number}` : ''}
               </p>
             </div>
             <div className="flex flex-col items-end gap-0.5">

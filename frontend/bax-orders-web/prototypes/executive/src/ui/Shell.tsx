@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
 import { Link, Outlet, ScrollRestoration, useLocation } from 'react-router'
-import { YEAR } from '../data/model'
+import { Package } from 'lucide-react'
+import { DATA_SOURCE, YEAR } from '../data/model'
+import { updatedText } from '../lib/year'
+import { ImportButton, importEnabled } from './ImportButton'
 import { ThemeToggle } from './theme'
 
 /**
@@ -29,9 +32,25 @@ export function Shell() {
             <span className="hidden text-sm text-muted sm:inline">Rəhbərlik paneli</span>
           </Link>
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-line-2 bg-stone-2 px-2.5 py-1 text-xs font-semibold text-ink-2" title="Prototip: bütün rəqəmlər uydurmadır">
-              Demo məlumat
-            </span>
+            {importEnabled && (
+              <Link
+                to={`/${YEAR}/mallar`}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line-2 bg-paper px-3 text-xs font-semibold text-ink transition-colors hover:bg-stone-2"
+              >
+                <Package aria-hidden="true" className="size-3.5" />
+                Mallar
+              </Link>
+            )}
+            {importEnabled && <ImportButton />}
+            {DATA_SOURCE.kind === 'real' ? (
+              <span className="rounded-full border border-line-2 bg-stone-2 px-2.5 py-1 text-xs font-semibold text-ink-2" title={`Mənbə: ${DATA_SOURCE.file}`}>
+                Real məlumat · Excel
+              </span>
+            ) : (
+              <span className="rounded-full border border-line-2 bg-stone-2 px-2.5 py-1 text-xs font-semibold text-ink-2" title="Prototip: bütün rəqəmlər uydurmadır">
+                Demo məlumat
+              </span>
+            )}
             <ThemeToggle />
           </div>
         </div>
@@ -42,7 +61,9 @@ export function Shell() {
       </main>
 
       <footer className="mx-auto max-w-[1180px] pb-8 text-xs text-muted pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] sm:pl-[max(24px,env(safe-area-inset-left,0px))] sm:pr-[max(24px,env(safe-area-inset-right,0px))]">
-        Prototip. Kateqoriya quruluşu kitabdakı kimidir; obyektlər, məhsullar, miqdarlar və məbləğlər demo məqsədli uydurmadır.
+        {DATA_SOURCE.kind === 'real'
+          ? `Prototip. Rəqəmlər sahibin Excel kitabındandır: «${DATA_SOURCE.file}», ${DATA_SOURCE.lines} sətir${DATA_SOURCE.edits ? `, saytda ${DATA_SOURCE.edits} dəyişiklik edilib` : ''}; ${DATA_SOURCE.uploaded ? 'yenilənib' : 'düzəldilib'} ${updatedText}. Qala Bazadan daxili təchizat pulsuz sayılır. Təsdiq vəziyyəti proqramdakı kimidir: yanvar–sentyabr təsdiqlənib, sonrakı aylar gözləyir.`
+          : 'Prototip. Kateqoriya quruluşu kitabdakı kimidir; obyektlər, məhsullar, miqdarlar və məbləğlər demo məqsədli uydurmadır.'}
       </footer>
       <ScrollRestoration />
     </div>

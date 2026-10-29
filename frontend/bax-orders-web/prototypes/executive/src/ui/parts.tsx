@@ -10,12 +10,11 @@ import { direction, directionWords, monthName, moneyParts, percent, signedMoney 
 /** A money figure; at display sizes the qəpik is set smaller, so the manats are what the eye reads first. */
 export function Money({ value, size = 'md', className = '' }: { value: number | null; size?: 'xl' | 'lg2' | 'lg' | 'md' | 'sm'; className?: string }) {
   if (value === null) return <span className={`tnum text-muted ${className}`}>—</span>
-  const { whole, cents } = moneyParts(value)
+  const { whole } = moneyParts(Math.round(value))
   const display = size === 'xl' || size === 'lg2' || size === 'lg'
   return (
     <span className={`tnum whitespace-nowrap ${display ? 'font-figure font-semibold tracking-tight' : ''} ${sizeClass[size]} ${className}`}>
       {whole}
-      <span className={display ? 'text-[0.6em] font-medium' : ''}>,{cents}</span>
       <span className={display ? 'ml-1.5 text-[0.55em] font-medium text-ink-2' : 'ml-1'}>₼</span>
     </span>
   )

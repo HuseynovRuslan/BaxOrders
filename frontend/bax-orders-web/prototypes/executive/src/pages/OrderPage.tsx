@@ -36,11 +36,11 @@ export function OrderPage() {
   return (
     <>
       <Breadcrumbs trail={trailFor({ month, siteId: site.id, order: true, link })} />
-      <PageTitle eyebrow={`Aylıq sifariş ${order.number}`}>{site.name}, {monthName(month)} {YEAR}</PageTitle>
+      <PageTitle eyebrow={order.number ? `Aylıq sifariş ${order.number}` : 'Aylıq sifariş'}>{site.name}, {monthName(month)} {YEAR}</PageTitle>
 
       <div className="-mt-2 flex flex-wrap items-center gap-3 text-sm text-ink-2">
         <ApprovalBadge approval={approvalOf(month)} />
-        <span>Göndərilib: {order.submittedDay} {monthName(month).toLocaleLowerCase('az')}</span>
+        {order.submittedDay > 0 && <span>Göndərilib: {order.submittedDay} {monthName(month).toLocaleLowerCase('az')}</span>}
         <span>{lines.length} sətir</span>
       </div>
 
