@@ -66,6 +66,7 @@ export function CategoryPage() {
         period={period}
         products={leaf}
         hrefOf={(row) => link(leaf ? paths.product(YEAR, month, row.id, siteId) : paths.category(YEAR, month, row.id, siteId))}
+        suppliersHrefOf={leaf ? (row) => link(paths.product(YEAR, month, row.id, siteId), { gorunus: 'sirketler' }) : undefined}
       />
     </>
   )
