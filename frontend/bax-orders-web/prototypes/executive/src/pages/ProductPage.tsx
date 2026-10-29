@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
-import { FileText, MapPin } from 'lucide-react'
-import { compareProduct, hasData, isValidMonth, productBySite, type Period, type ProductComparison, type ProductSiteRow } from '../data/analysis'
+import { Building2, FileText, MapPin } from 'lucide-react'
+import { compareProduct, hasData, isValidMonth, productBySite, productBySupplier, type Period, type ProductComparison, type ProductSiteRow, type ProductSupplierRow } from '../data/analysis'
 import { allOrders, categories, products, sites, YEAR, type Product } from '../data/model'
 import { direction, minus, money, monthName, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
@@ -15,7 +15,7 @@ const viewParam = 'gorunus'
 /**
  * The last level, and the one that answers «why»: the product's money in both periods, split into how much was
  * ordered and at what price. «Ümumi müqayisə» for the product as a whole; «Obyektlər üzrə» for who ordered it, each
- * with the way to their order.
+ * with the way to their order; «Şirkətlər üzrə» for whom it was bought from, each company's price beside the others'.
  */
 export function ProductPage() {
   const params = useParams()
@@ -31,8 +31,12 @@ export function ProductPage() {
 
   const { period, basis, setBasis, kind, link } = comparison
   const result = compareProduct(month, period, kind, product.id, siteId)
-  const bySite = !siteId && search.get(viewParam) === 'obyektler'
+  const view = search.get(viewParam)
+  const bySite = !siteId && view === 'obyektler'
+  const bySupplier = view === 'sirketler'
   const siteRows = siteId ? [] : productBySite(month, period, kind, product.id)
+  const supplierRows = productBySupplier(month, period, kind, product.id, siteId)
+  const here = paths.product(YEAR, month, product.id, siteId)
 
   return (
     <>
@@ -58,21 +62,41 @@ export function ProductPage() {
         )}
       </div>
 
-      {!siteId && (
-        <ViewTabs
-          label="Görünüş"
-          tabs={[
-            { label: 'Ümumi müqayisə', to: link(paths.product(YEAR, month, product.id)), active: !bySite },
-            { label: 'Obyektlər üzrə', to: link(paths.product(YEAR, month, product.id), { [viewParam]: 'obyektler' }), active: bySite, count: siteRows.length },
-          ]}
-        />
-      )}
+      <ViewTabs
+        label="Görünüş"
+        tabs={[
+          { label: 'Ümumi müqayisə', to: link(here), active: !bySite && !bySupplier },
+          ...(siteId ? [] : [{ label: 'Obyektlər üzrə', to: link(here, { [viewParam]: 'obyektler' }), active: bySite, count: siteRows.length }]),
+          { label: 'Şirkətlər üzrə', to: link(here, { [viewParam]: 'sirketler' }), active: bySupplier, count: supplierRows.length },
+        ]}
+      />
 
       {bySite ? (
-        <SiteTable rows={siteRows} total={result} month={month} period={period} product={product} link={link} />
+        <SplitTable
+          label="Obyektlər üzrə"
+          nameHeader="Obyekt"
+          intro={<><span className="tnum font-semibold text-ink">{siteRows.length}</span> obyekt bu məhsulu bu ay və ya müqayisə dövründə sifariş edib. Fərqə görə sıralanıb.</>}
+          rows={siteRows.map((row) => siteSplit(row, month, product, link))}
+          total={result}
+          month={month}
+          period={period}
+          product={product}
+        />
+      ) : bySupplier ? (
+        <SplitTable
+          label="Şirkətlər üzrə"
+          nameHeader="Şirkət"
+          intro={<><span className="tnum font-semibold text-ink">{supplierRows.length}</span> şirkətdən bu ay və ya müqayisə dövründə alınıb{site ? ` (${site.name})` : ''}. Bu ayın məbləğinə görə sıralanıb; qiymət hər şirkətin öz çəkili ortasıdır.</>}
+          rows={supplierRows.map((row) => ({ key: row.supplierId, name: row.name, comparison: row.comparison, mark: cheapest(supplierRows, row) }))}
+          total={result}
+          month={month}
+          period={period}
+          product={product}
+        />
       ) : (
-        <Overview result={result} month={month} period={period} product={product} siteRows={siteRows}
-          onSites={siteId ? undefined : link(paths.product(YEAR, month, product.id), { [viewParam]: 'obyektler' })} />
+        <Overview result={result} month={month} period={period} product={product} siteRows={siteRows} supplierRows={supplierRows}
+          onSites={siteId ? undefined : link(here, { [viewParam]: 'obyektler' })}
+          onSuppliers={link(here, { [viewParam]: 'sirketler' })} />
       )}
     </>
   )
@@ -80,13 +104,15 @@ export function ProductPage() {
 
 // ---- Ümumi müqayisə -----------------------------------------------------------------------------------------------
 
-function Overview({ result, month, period, product, siteRows, onSites }: {
+function Overview({ result, month, period, product, siteRows, supplierRows, onSites, onSuppliers }: {
   result: ProductComparison
   month: number
   period: Period
   product: Product
   siteRows: ProductSiteRow[]
+  supplierRows: ProductSupplierRow[]
   onSites?: string
+  onSuppliers: string
 }) {
   const verdict = explain(result, period)
   const unit = result.current.units[0] ?? result.comparison?.units[0] ?? product.unit
@@ -170,6 +196,7 @@ function Overview({ result, month, period, product, siteRows, onSites }: {
             </Link>
           </section>
         )}
+        <SupplierCard rows={supplierRows} unit={unit} href={onSuppliers} />
         <section className="rounded-lg border border-line bg-paper p-5 text-sm text-ink-2">
           <h2 className="font-semibold text-ink">Vahid</h2>
           <p className="mt-1">{product.unit}{result.current.units.length > 1 ? ` (bu ay: ${result.current.units.join(', ')})` : ''}</p>
@@ -321,27 +348,115 @@ function explain(result: ProductComparison, period: Period): { headline: string;
   return { headline: `Məbləğ ${money(Math.abs(result.deltaAmount ?? 0))} ${amountWords} — ${share}.`, points }
 }
 
-// ---- Obyektlər üzrə -----------------------------------------------------------------------------------------------
+/**
+ * Who sold it this month: each company's amount, share and weighted price, so a second, dearer company is seen at
+ * once. Only this month's companies; the comparison is on «Şirkətlər üzrə».
+ */
+function SupplierCard({ rows, unit, href }: { rows: ProductSupplierRow[]; unit: string; href: string }) {
+  const current = rows.filter((row) => row.comparison.current.lineCount > 0)
+  const total = current.reduce((sum, row) => sum + row.comparison.current.amount, 0)
+  return (
+    <section aria-labelledby="suppliers" className="rounded-lg border border-line bg-paper p-5">
+      <h2 id="suppliers" className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <Building2 aria-hidden="true" className="size-4 text-sea" />
+        {current.length === 1 ? 'Şirkət' : `Şirkətlər · ${current.length}`}
+      </h2>
+      {current.length === 0 ? <p className="mt-2 text-sm text-muted">Bu ay alınmayıb.</p> : (
+        <ul className="mt-3 flex flex-col divide-y divide-line">
+          {current.map((row) => {
+            const side = row.comparison.current
+            const share = total > 0 ? side.amount / total : 0
+            return (
+              <li key={row.supplierId} className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
+                <span className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 break-words font-semibold text-ink">{row.name}</span>
+                  <Money value={side.amount} size="sm" className="shrink-0 font-semibold" />
+                </span>
+                {current.length > 1 && (
+                  <span aria-hidden="true" className="block h-1 rounded-full bg-stone-2">
+                    <span className="block h-1 rounded-full bg-bar" style={{ width: `${Math.max(1.5, share * 100)}%` }} />
+                  </span>
+                )}
+                <span className="tnum flex items-baseline justify-between gap-3 text-xs text-muted">
+                  <span>{side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${money(side.price)}`}</span>
+                  {current.length > 1 && <span><span className="sr-only">Payı </span>{percent(share, false)}</span>}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {rows.length > 0 && (
+        <Link to={href} className="mt-3 inline-flex min-h-9 items-center text-sm font-semibold text-sea underline-offset-4 hover:underline">
+          Şirkətlər üzrə müqayisə
+        </Link>
+      )}
+    </section>
+  )
+}
 
-function SiteTable({ rows, total, month, period, product, link }: {
-  rows: ProductSiteRow[]
-  /** The product across every object: the closing row, equal to the sum of the rows above it. */
+// ---- Obyektlər üzrə · Şirkətlər üzrə --------------------------------------------------------------------------------
+
+interface SplitRow {
+  key: string
+  name: string
+  comparison: ProductComparison
+  /** Where the row opens, when it opens somewhere. */
+  href?: string
+  /** A second line under the name: the object's order. */
+  sub?: ReactNode
+  /** A word beside the name: the lowest price this month. */
+  mark?: string
+}
+
+function siteSplit(row: ProductSiteRow, month: number, product: Product, link: (path: string, extra?: Record<string, string>) => string): SplitRow {
+  const order = allOrders.get(`${row.siteId}-${month}`)
+  return {
+    key: row.siteId,
+    name: row.name,
+    comparison: row.comparison,
+    href: link(paths.product(YEAR, month, product.id, row.siteId)),
+    sub: order && row.comparison.current.lineCount > 0 && (
+      <Link to={link(paths.order(YEAR, month, row.siteId))} className="relative z-10 inline-flex min-h-7 items-center gap-1 whitespace-nowrap text-xs font-semibold text-sea underline-offset-4 hover:underline">
+        <FileText aria-hidden="true" className="size-3.5" />Sifariş {order.number}
+      </Link>
+    ),
+  }
+}
+
+/**
+ * «ən ucuz» beside the company with the lowest weighted price this month — only where two or more companies sold it
+ * in the same unit and their prices really differ.
+ */
+function cheapest(rows: readonly ProductSupplierRow[], row: ProductSupplierRow): string | undefined {
+  const priced = rows.filter((item) => item.comparison.current.price !== null && item.comparison.current.units.length === 1)
+  if (priced.length < 2 || new Set(priced.map((item) => item.comparison.current.units[0])).size > 1) return undefined
+  const prices = priced.map((item) => item.comparison.current.price!)
+  const low = Math.min(...prices)
+  if (Math.max(...prices) - low < 0.01) return undefined
+  return row.comparison.current.price === low ? 'ən ucuz' : undefined
+}
+
+/** The product split by object or by company, each row both periods and the difference; the closing row is the product. */
+function SplitTable({ label, nameHeader, intro, rows, total, month, period, product }: {
+  label: string
+  nameHeader: string
+  intro: ReactNode
+  rows: SplitRow[]
+  /** The product as a whole: the closing row, equal to the sum of the rows above it. */
   total: ProductComparison
   month: number
   period: Period
   product: Product
-  link: (path: string, extra?: Record<string, string>) => string
 }) {
   const compareLabel = period.isAverage ? 'Müqayisə (aylıq orta)' : 'Əvvəlki ay'
   const columns = 'lg:grid-cols-[minmax(12rem,1fr)_13rem_13rem_11rem]'
   return (
-    <section aria-label="Obyektlər üzrə" className="rounded-lg border border-line bg-paper">
-      <p className="border-b border-line px-4 py-3 text-sm text-muted sm:px-5">
-        <span className="tnum font-semibold text-ink">{rows.length}</span> obyekt bu məhsulu bu ay və ya müqayisə dövründə sifariş edib. Fərqə görə sıralanıb.
-      </p>
-      <div role="table" aria-label="Obyektlər üzrə miqdar, qiymət və məbləğ">
+    <section aria-label={label} className="rounded-lg border border-line bg-paper">
+      <p className="border-b border-line px-4 py-3 text-sm text-muted sm:px-5">{intro}</p>
+      <div role="table" aria-label={`${label}: miqdar, qiymət və məbləğ`}>
         <div role="row" className={`hidden gap-4 border-b border-line px-5 py-2.5 text-xs font-semibold text-muted lg:grid ${columns}`}>
-          <span role="columnheader">Obyekt</span>
+          <span role="columnheader">{nameHeader}</span>
           <span role="columnheader" className="text-right">{monthName(month)} {YEAR}</span>
           <span role="columnheader" className="text-right">{compareLabel}</span>
           <span role="columnheader" className="text-right">Fərq</span>
@@ -349,18 +464,16 @@ function SiteTable({ rows, total, month, period, product, link }: {
         {rows.map((row) => {
           const cmp = row.comparison
           const unit = cmp.current.units[0] ?? cmp.comparison?.units[0] ?? product.unit
-          const order = allOrders.get(`${row.siteId}-${month}`)
           return (
-            <div key={row.siteId} role="row" className={`group relative grid grid-cols-1 gap-2 border-b border-line px-4 py-3.5 last:border-b-0 hover:bg-stone sm:px-5 lg:items-center lg:gap-4 ${columns}`}>
+            <div key={row.key} role="row" className={`group relative grid grid-cols-1 gap-2 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-5 lg:items-center lg:gap-4 ${row.href ? 'hover:bg-stone' : ''} ${columns}`}>
               <div role="cell" className="flex min-w-0 flex-col items-start gap-1">
-                <Link to={link(paths.product(YEAR, month, product.id, row.siteId))} className="stretched break-words text-[15px] font-semibold text-ink group-hover:text-sea">
-                  {row.name}
-                </Link>
-                {order && cmp.current.lineCount > 0 && (
-                  <Link to={link(paths.order(YEAR, month, row.siteId))} className="relative z-10 inline-flex min-h-7 items-center gap-1 whitespace-nowrap text-xs font-semibold text-sea underline-offset-4 hover:underline">
-                    <FileText aria-hidden="true" className="size-3.5" />Sifariş {order.number}
-                  </Link>
-                )}
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {row.href
+                    ? <Link to={row.href} className="stretched break-words text-[15px] font-semibold text-ink group-hover:text-sea">{row.name}</Link>
+                    : <span className="break-words text-[15px] font-semibold text-ink">{row.name}</span>}
+                  {row.mark && <span className="rounded bg-down-soft px-1.5 py-0.5 text-xs font-semibold text-down">{row.mark}</span>}
+                </span>
+                {row.sub}
               </div>
               <PeriodCell label={`${monthName(month)}:`} side={cmp.current.lineCount ? cmp.current : null} unit={unit} />
               <PeriodCell label={`${compareLabel}:`} side={cmp.comparison?.lineCount ? cmp.comparison : null} unit={unit} />
@@ -385,7 +498,7 @@ function SiteTable({ rows, total, month, period, product, link }: {
   )
 }
 
-/** One period of one object: the amount, and how it was made — quantity × the weighted price, or each unit apart. */
+/** One period of one object or company: the amount, and how it was made — quantity × the weighted price, or each unit apart. */
 function PeriodCell({ label, side, unit }: { label: string; side: ProductComparison['current'] | null; unit: string }) {
   return (
     <div role="cell" className="flex items-baseline justify-between gap-3 lg:flex-col lg:items-end lg:gap-0.5">
