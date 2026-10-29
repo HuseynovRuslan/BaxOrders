@@ -89,6 +89,7 @@ export function AnalysisPage() {
 
 const facetMeta: readonly { key: FacetKey; label: string; one: string; dim: Dim; empty: string }[] = [
   { key: 'sites', label: 'Obyektlər', one: 'Obyekt', dim: 'obyekt', empty: 'Bu filtrlərdə obyekt yoxdur.' },
+  { key: 'suppliers', label: 'Şirkətlər', one: 'Şirkət', dim: 'sirket', empty: 'Bu filtrlərdə şirkət yoxdur.' },
   { key: 'roots', label: 'Ana kateqoriya', one: 'Ana', dim: 'ana', empty: 'Bu filtrlərdə kateqoriya yoxdur.' },
   { key: 'mids', label: 'Orta kateqoriya', one: 'Orta', dim: 'orta', empty: 'Seçilmiş ana kateqoriyalarda orta kateqoriya yoxdur.' },
   { key: 'leaves', label: 'Alt kateqoriya', one: 'Alt', dim: 'alt', empty: 'Seçilmiş kateqoriyalarda alt kateqoriya yoxdur.' },
@@ -96,7 +97,7 @@ const facetMeta: readonly { key: FacetKey; label: string; one: string; dim: Dim;
 ]
 
 /**
- * The filters, open on a desktop from the start (a toggle on a phone): the period and five lists, each a search and
+ * The filters, open on a desktop from the start (a toggle on a phone): the period and six lists, each a search and
  * ticks, each choice with what it amounts to under the other filters. Under them, what is chosen as chips, each with
  * its own ×, and one reset for all of them.
  */
@@ -156,7 +157,7 @@ function FilterPanel({ reading, options }: { reading: AnalysisReading; options: 
         )}
       </div>
       {open && (
-        <div id="filter-fields" className="grid grid-cols-1 gap-x-3 gap-y-2.5 rounded-xl border border-(--y-line) bg-(--y-surface) p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-3 xl:grid-cols-6">
+        <div id="filter-fields" className="grid grid-cols-1 gap-x-3 gap-y-2.5 rounded-xl border border-(--y-line) bg-(--y-surface) p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-4">
           <PeriodField reading={reading} />
           {facetMeta.map((meta, index) => (
             <FacetField
@@ -165,7 +166,7 @@ function FilterPanel({ reading, options }: { reading: AnalysisReading; options: 
               options={options[meta.key]}
               selected={analysis.facets[meta.key]}
               empty={meta.empty}
-              align={index >= 3 ? 'right' : 'left'}
+              align={index % 2 === 0 ? 'right' : 'left'}
               onChange={(ids) => reading.setFacet(meta.key, ids)}
             />
           ))}
@@ -413,7 +414,7 @@ const segment = (active: boolean) =>
 
 /* ---- The figures above the result ------------------------------------------------------------------------------------- */
 
-const countWords: Record<Dim, string> = { ay: 'ay', obyekt: 'obyekt', ana: 'ana kateqoriya', orta: 'orta kateqoriya', alt: 'alt kateqoriya', mehsul: 'məhsul' }
+const countWords: Record<Dim, string> = { ay: 'ay', obyekt: 'obyekt', sirket: 'şirkət', ana: 'ana kateqoriya', orta: 'orta kateqoriya', alt: 'alt kateqoriya', mehsul: 'məhsul' }
 
 function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisReading; period: string }) {
   const { analysis, kind, basis } = reading
