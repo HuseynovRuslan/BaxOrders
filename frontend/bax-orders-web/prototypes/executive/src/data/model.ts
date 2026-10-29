@@ -51,7 +51,15 @@ export interface Line {
   unit: string
   price: number
   amount: number
+  /** The company the goods were bought from: the order file's «Şirkət» column. */
+  supplierId: string
   supplier: string
+}
+
+/** A company goods are bought from. */
+export interface Supplier {
+  id: string
+  name: string
 }
 
 export interface Order {
@@ -146,7 +154,36 @@ export const sites = new Map<string, Site>(siteSeeds.map((seed) => [slug(seed.na
 
 // ---- the year's orders --------------------------------------------------------------------------------------------
 
-const suppliers = ['Abşeron Təchizat MMC', 'Xəzər Ticarət MMC', 'Yaşıl Diyar MMC', 'Mərkəz Təminat MMC']
+/**
+ * The real companies of the order file («Sifarişlər üzrə bölgü», Aylıq sheet), per root category: those it buys that
+ * category from most often, each with its number of lines there, so the main company carries most of the lines here
+ * too. The internal stock («Qala Baza», «Anbar (Daxili)») is left out.
+ */
+const suppliersByRoot: Record<string, [name: string, lines: number][]> = {
+  'Təmizlik': [['Cleanfix', 412], ['Prestige Cleaning', 219], ['Azclean', 104], ['Proshine', 79], ['Səma Plastik', 77]],
+  'Yaşıllıq': [['Progres', 216], ['Ağakərim Ağakərimov', 108], ['Baku Garden', 47], ['Green Garden', 37]],
+  'Usta': [['El Promaster', 262], ['Eldost İnşaat', 222], ['Omid', 138], ['Star Boya (Cəfər)', 39]],
+  'Geyim': [['Elit Teks', 124], ['İnşaat MS', 100], ['Sign LTD', 49], ['Qasımoğlu Group', 26]],
+  'Suvarma': [['Aura İnşaat', 237], ['Progres', 78]],
+  'Fontan': [['Pooltech', 154], ['Poolstore', 6]],
+  'Nəqliyyat': [['SOCAR', 130]],
+  'Ofis': [['Aden Kırtasiye', 39]],
+  'Elektrik': [['Unical Texnik', 7], ['Akkur', 6], ['El Promaster', 5]],
+  'Məişət': [['Eldost İnşaat', 7], ['Cleanfix', 3]],
+}
+
+/** The company an object buys a product from: fixed per object and product, drawn by the companies' weights. */
+function supplierOf(product: Product, key: string): string {
+  const weighted = suppliersByRoot[categories.get(product.rootId)!.name]
+  let hash = 2166136261
+  for (const char of key) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0
+  let pick = hash % weighted.reduce((sum, [, lines]) => sum + lines, 0)
+  for (const [name, lines] of weighted) {
+    if (pick < lines) return name
+    pick -= lines
+  }
+  return weighted[0][0]
+}
 
 /** Stories the demo tells on purpose, so the product screen has something real to explain. */
 function storyPrice(productId: string, month: number, base: number): number {
@@ -202,9 +239,10 @@ siteSeeds.forEach((seed, siteIndex) => {
         : Math.max(1, Math.round(qty))
 
       // Two suppliers carry the trimmer head at different prices, so its month has more than one price.
-      const supplierIndex = product.id === 'trimmer-ucun-leskali-basliq' ? siteIndex % 2 : (siteIndex + product.id.length) % suppliers.length
+      const trimmer = product.id === 'trimmer-ucun-leskali-basliq'
+      const supplier = trimmer ? (siteIndex % 2 === 0 ? 'Progres' : 'Ağakərim Ağakərimov') : supplierOf(product, `${siteId}|${product.id}`)
       const drift = 1 + 0.004 * (month - 1)
-      const level = product.id === 'trimmer-ucun-leskali-basliq' ? (supplierIndex === 0 ? 1 : 1.12) : seed.priceLevel
+      const level = trimmer ? (siteIndex % 2 === 0 ? 1 : 1.12) : seed.priceLevel
       let price = round2(storyPrice(product.id, month, base.price) * drift * level)
       let unit = product.unit
 
@@ -227,7 +265,8 @@ siteSeeds.forEach((seed, siteIndex) => {
         unit,
         price,
         amount: round2(qty * price),
-        supplier: suppliers[supplierIndex],
+        supplierId: slug(supplier),
+        supplier,
       }
       lines.push(line)
       order.lineIds.push(line.id)
@@ -274,7 +313,7 @@ const schedule: [number, number, string, string][] = [
 ]
 
 const outsideRequests: OutsideRequest[] = []
-schedule.forEach(([month, day, siteId, kind], index) => {
+schedule.forEach(([month, day, siteId, kind]) => {
   if (!sites.has(siteId)) throw new Error(`demo data: no object ${siteId}`)
   const template = templates[kind]
   const perMonth = outsideRequests.filter((item) => item.month === month).length + 1
@@ -295,6 +334,7 @@ schedule.forEach(([month, day, siteId, kind], index) => {
     if (product.unit === 'metr') qty = Math.max(10, Math.round(qty / 10) * 10)
     // Bought in a hurry, from whoever had it: a little above the planned price.
     const price = round2(base.price * (1 + 0.004 * (month - 1)) * 1.06)
+    const supplier = supplierOf(product, `${request.id}|${productId}`)
     const line: Line = {
       id: `${request.id}-${productId}`,
       type: 'outside',
@@ -306,7 +346,8 @@ schedule.forEach(([month, day, siteId, kind], index) => {
       unit: product.unit,
       price,
       amount: round2(qty * price),
-      supplier: suppliers[(index + productId.length) % suppliers.length],
+      supplierId: slug(supplier),
+      supplier,
     }
     lines.push(line)
     request.lineIds.push(line.id)
@@ -318,6 +359,8 @@ export const allLines: readonly Line[] = lines
 export const allOrders = new Map(orders.map((order) => [order.id, order]))
 export const allOutsideRequests: readonly OutsideRequest[] = outsideRequests
 export const linesById = new Map(lines.map((line) => [line.id, line]))
+/** The companies the year's lines were bought from. */
+export const allSuppliers = new Map<string, Supplier>(lines.map((line) => [line.supplierId, { id: line.supplierId, name: line.supplier }]))
 
 /**
  * The monthly package's approval: a Rəhbər approves the month's monthly orders once, for every object. Usually by the
