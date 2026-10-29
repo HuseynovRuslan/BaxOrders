@@ -142,14 +142,14 @@ export interface TabItem {
 export function ViewTabs({ label, tabs }: { label: string; tabs: TabItem[] }) {
   return (
     <nav aria-label={label} className="border-b border-line">
-      <ul className="-mb-px flex gap-6">
+      <ul className="-mb-px flex gap-5 overflow-x-auto sm:gap-6">
         {tabs.map((tab) => (
           <li key={tab.label}>
             <Link
               to={tab.to}
               replace
               aria-current={tab.active ? 'page' : undefined}
-              className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-0.5 text-[15px] font-semibold ${
+              className={`inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-0.5 text-[15px] font-semibold ${
                 tab.active ? 'border-sea text-ink' : 'border-transparent text-muted hover:border-line-2 hover:text-ink'
               }`}
             >
