@@ -30,6 +30,8 @@ x-logging: &default-logging
 # Everything the API reads. Compose passes only the variables named here — a value in .env alone reaches nothing.
 x-api-environment: &api-environment
   ASPNETCORE_ENVIRONMENT: Production
+  # The commit this release was built from (deploy.sh sets it); GET /api/v1/version answers it.
+  BAXORDERS_COMMIT: ${BAXORDERS_COMMIT:-unknown}
   # The request arrives at the API over plain HTTP inside the stack, so without this the application believes
   # the scheme is http and marks its auth cookie accordingly. Built into ASP.NET Core; no code change.
   ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"

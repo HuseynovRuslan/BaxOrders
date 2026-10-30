@@ -26,6 +26,26 @@ Three rules this host enforces, learned the hard way by the projects already on 
 3. **Only the web container joins the shared network.** The API and the database are on this stack's private
    network and publish no port. PostgreSQL is not reachable from the host, let alone the internet.
 
+## Automatic deployment: main = the site
+
+Since 30 October 2026 a push to `main` deploys itself (the owner's decision, so Sabuhi can ship):
+
+1. GitHub Actions checks it — the frontend builds and its tests pass, the .NET tests pass against PostgreSQL
+   ([.github/workflows/deploy.yml](../.github/workflows/deploy.yml)).
+2. The VPS pulls it. GitHub's runners cannot reach this host's SSH port, so the server asks: cron runs
+   `~deploy/bin/baxorders-pull-deploy` (a copy of [scripts/pull-deploy.sh](scripts/pull-deploy.sh), outside any
+   release) every two minutes, and a new `main` whose checks passed is unpacked into `releases/<UTC stamp>` and
+   deployed with that release's `deploy.sh`.
+3. The workflow's `live` job waits until `GET /api/v1/version` answers the commit.
+
+What it will not do on its own:
+
+- **A commit that changes a migration is not deployed** — production migrates by hand (below). It waits until the
+  owner has applied the script and deployed it; the `live` job says so.
+- **During QRLog's clock-in peaks (07:30–09:30, 17:00–19:00 Baku)** it waits and deploys afterwards.
+- A commit whose checks or deploy failed is not retried; the next push is. The server's log:
+  `~deploy/.baxorders-pull-deploy/log`.
+
 ## First deployment
 
 ```bash
