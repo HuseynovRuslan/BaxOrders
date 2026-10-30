@@ -66,7 +66,7 @@ echo "$short" > "$here.unpacking/RELEASE"
 mv "$here.unpacking" "$here"
 
 say "$short: checks passed, deploying as release $release"
-if "$here/deploy/scripts/deploy.sh" "$release"; then
+if bash "$here/deploy/scripts/deploy.sh" "$release"; then
   echo "$sha" > "$state/deployed"
   say "$short: live"
 else
