@@ -1,7 +1,7 @@
 import { useLocation, useSearchParams } from 'react-router'
-import { kindOptions, quantityOf, resolvePeriod, type Basis, type Kind, type QuantityFigure } from '../data/analysis'
+import { kindOptions, quantityOf, resolvePeriod, type Basis, type Kind, type Period, type QuantityFigure } from '../data/analysis'
 import { allLines, allSuppliers, categories, LAST_MONTH_WITH_DATA, monthsWithData, products, sites, YEAR, type Line, type Product } from '../data/model'
-import { monthName, percent, shortMonthNames } from './format'
+import { monthName, monthRange, percent, shortMonthNames } from './format'
 import { paths, useComparison } from './links'
 import { filterParams, type Change } from './year'
 
@@ -73,14 +73,17 @@ export function normalizeFacets(facets: Facets): Facets {
   return { ...facets, mids, leaves }
 }
 
-/** The analysis in the address, every id checked against the catalogue and the objects. */
+/**
+ * The analysis in the address, every id checked against the catalogue and the objects. The range ends at the last
+ * month with data: a month not yet loaded is no choice, and an older link that asks for one stops at the last loaded.
+ */
 export function readAnalysis(params: URLSearchParams): Analysis {
   const month = (value: string | null, fallback: number) => {
     const number = Number(value)
-    return value && Number.isInteger(number) && number >= 1 && number <= 12 ? number : fallback
+    return value && Number.isInteger(number) && number >= 1 && number <= 12 ? Math.min(number, LAST_MONTH_WITH_DATA) : fallback
   }
   let from = month(params.get(analysisParams.from), 1)
-  let to = month(params.get(analysisParams.to), 12)
+  let to = month(params.get(analysisParams.to), LAST_MONTH_WITH_DATA)
   if (from > to) [from, to] = [to, from]
   const dim = (value: string | null) => (dimOrder.includes(value as Dim) ? value as Dim : null)
   const rows = dim(params.get(analysisParams.rows)) ?? 'obyekt'
@@ -239,6 +242,8 @@ export interface Pivot {
   latest: number | null
   latestAmount: number
   comparisonAmount: number | null
+  /** What the latest month is compared with, by name: «Oktyabr 2026», «Avqust–Oktyabr 2026 · aylıq ortalama». */
+  comparisonLabel: string | null
   change: Change
   lines: number
   /** The rows carry quantities and prices (one product each, or one product over its months). */
@@ -247,12 +252,34 @@ export interface Pivot {
   productTotal?: QuantityFigure
 }
 
+type RangePeriod = Period & { /** Months the rule would take fall before the range and were left out. */ cut: boolean }
+
+/**
+ * The comparison inside the chosen range only (owner, 2026-10-30): with Noyabr–Noyabr chosen, Noyabr is not compared
+ * with Oktyabr — a month the reader did not choose. Months before the range drop out; too few left is «məlumat azdır».
+ */
+function periodWithin(month: number, basis: Basis, from: number): RangePeriod {
+  const full = resolvePeriod(month, basis)
+  const months = full.months.filter((item) => item >= from)
+  if (months.length === full.months.length) return { ...full, cut: false }
+  const unavailable = months.length === 0
+  return {
+    ...full,
+    months,
+    unavailable,
+    incomplete: !unavailable && full.wanted !== null && months.length < full.wanted,
+    label: !unavailable && full.isAverage ? `${monthRange(months, YEAR)} · aylıq ortalama` : full.label,
+    cut: true,
+  }
+}
+
 /** A month's or a row's change, by the rules every screen follows: no orders is not −100 %, a short period no per cent. */
-function changeFrom(current: number, comparison: number | null, month: number | null, basis: Basis): Change {
-  if (!month) return { kind: 'none', text: 'müqayisə yoxdur', detail: 'Seçilmiş dövrdə sifariş yoxdur.' }
-  const period = resolvePeriod(month, basis)
+function changeFrom(current: number, comparison: number | null, month: number | null, period: RangePeriod | null): Change {
+  if (!month || !period) return { kind: 'none', text: 'müqayisə yoxdur', detail: 'Seçilmiş dövrdə sifariş yoxdur.' }
   if (!current) return { kind: 'none', text: 'sifariş yoxdur', detail: `${monthName(month)} ayında bu filtrdə sifariş yoxdur.` }
-  if (period.unavailable) return { kind: 'none', text: 'müqayisə yoxdur', detail: 'Müqayisə üçün əvvəlki ay yoxdur.' }
+  if (period.unavailable) {
+    return { kind: 'none', text: 'müqayisə yoxdur', detail: period.cut ? 'Seçilmiş dövrdə müqayisə üçün əvvəlki ay yoxdur.' : 'Müqayisə üçün əvvəlki ay yoxdur.' }
+  }
   if (period.incomplete) return { kind: 'none', text: 'məlumat azdır', detail: `Müqayisə üçün məlumat azdır: ${period.wanted} ay lazımdır, ${period.months.length} ay var.` }
   if (!comparison) return { kind: 'none', text: 'yeni', detail: 'Müqayisə dövründə sifariş yoxdur.' }
   const delta = round2(current - comparison)
@@ -286,7 +313,7 @@ export function computePivot(analysis: Analysis, kind: Kind, basis: Basis): Pivo
   const rowKey = keyOf[analysis.rows]
   const colKey = analysis.cols ? keyOf[analysis.cols] : null
   const latest = monthsWithData.filter((month) => month >= analysis.from && month <= Math.min(analysis.to, LAST_MONTH_WITH_DATA)).at(-1) ?? null
-  const period = latest ? resolvePeriod(latest, basis) : null
+  const period = latest ? periodWithin(latest, basis, analysis.from) : null
   const periodMonths = new Set(period && !period.unavailable ? period.months : [])
   const nPeriod = periodMonths.size || 1
   const monthRows = analysis.rows === 'ay'
@@ -336,16 +363,16 @@ export function computePivot(analysis: Analysis, kind: Kind, basis: Basis): Pivo
     let product: ProductFigures | undefined
     if (monthRows) {
       const month = Number(key)
-      const own = resolvePeriod(month, basis)
+      const own = periodWithin(month, basis, analysis.from)
       const before = own.unavailable ? [] : own.months.flatMap((item) => byMonth.get(item) ?? [])
       current = sumOf(byMonth.get(month))
       comparison = own.unavailable ? null : round2(sumOf(before) / own.months.length)
-      change = changeFrom(current, comparison, month, basis)
+      change = changeFrom(current, comparison, month, own)
       if (withProduct) product = productFigures(row.lines, row.lines, before, own.months.length, !own.unavailable && !own.incomplete)
     } else {
       current = round2(row.latest)
       comparison = period && !period.unavailable ? round2(row.comparison / nPeriod) : null
-      change = changeFrom(current, comparison, latest, basis)
+      change = changeFrom(current, comparison, latest, period)
       if (withProduct) product = productFigures(row.lines, row.latestLines, row.beforeLines, periodMonths.size, Boolean(period && !period.unavailable && !period.incomplete))
     }
     return {
@@ -385,7 +412,8 @@ export function computePivot(analysis: Analysis, kind: Kind, basis: Basis): Pivo
     latest,
     latestAmount: round2(latestTotal),
     comparisonAmount,
-    change: changeFrom(round2(latestTotal), comparisonAmount, latest, basis),
+    comparisonLabel: period && !period.unavailable ? period.label : null,
+    change: changeFrom(round2(latestTotal), comparisonAmount, latest, period),
     lines: count,
     withProduct,
     productTotal: withProduct && monthRows ? quantityOf(pivotRows.length ? [...rows.values()].flatMap((row) => row.lines) : []) : undefined,
@@ -499,7 +527,7 @@ export function useAnalysis() {
     const extra: Record<string, string> = {}
     const { facets } = analysis
     if (analysis.from !== 1) extra[filterParams.from] = String(analysis.from)
-    if (analysis.to !== 12) extra[filterParams.to] = String(analysis.to)
+    if (analysis.to !== LAST_MONTH_WITH_DATA) extra[filterParams.to] = String(analysis.to)
     if (facets.sites.length === 1) extra[filterParams.site] = facets.sites[0]
     // The year screen holds one category path: the deepest single choice, when there is exactly one at each level.
     if (!facets.products.length && facets.roots.length <= 1 && facets.mids.length <= 1 && facets.leaves.length <= 1) {
@@ -522,7 +550,7 @@ export function useAnalysis() {
     setDirections,
     drill,
     /** Any filter is on: the period or a facet. */
-    filtered: analysis.from !== 1 || analysis.to !== 12 || Object.values(analysis.facets).some((ids) => ids.length > 0),
+    filtered: analysis.from !== 1 || analysis.to !== LAST_MONTH_WITH_DATA || Object.values(analysis.facets).some((ids) => ids.length > 0),
     /** Every filter off — the period and every facet. The kind, the comparison and the directions stay. */
     resetFilters: () => write({ from: null, to: null, sites: null, suppliers: null, roots: null, mids: null, leaves: null, products: null }),
     /** The same analysis for another kind of order. */
