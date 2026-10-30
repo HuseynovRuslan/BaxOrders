@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
-import { ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, Hourglass, Search, SlidersHorizontal, Table2, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, Hourglass, Info, Search, SlidersHorizontal, Table2, X } from 'lucide-react'
 import { approvalOf } from '../data/analysis'
 import { LAST_MONTH_WITH_DATA, monthsWithData, YEAR } from '../data/model'
 import { money, moneyParts, monthName, monthNames, monthRange, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
@@ -104,7 +104,7 @@ const facetMeta: readonly { key: FacetKey; label: string; one: string; dim: Dim;
 function FilterPanel({ reading, options }: { reading: AnalysisReading; options: Record<FacetKey, FacetOption[]> }) {
   const { analysis } = reading
   const [open, setOpen] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches)
-  const whole = analysis.from === 1 && analysis.to === 12
+  const whole = analysis.from === 1 && analysis.to === LAST_MONTH_WITH_DATA
 
   const chips: { label: string; clear: () => void }[] = []
   if (!whole) {
@@ -178,8 +178,9 @@ function FilterPanel({ reading, options }: { reading: AnalysisReading; options: 
 
 function PeriodField({ reading }: { reading: AnalysisReading }) {
   const { from, to } = reading.analysis
-  const set = (first: number, last: number) => reading.write({ from: first === 1 ? null : String(first), to: last === 12 ? null : String(last) })
-  const months = monthNames.map((name, index) => (
+  // Only the months with data: the next one appears once its workbook is loaded, and no «to» in the address follows it.
+  const set = (first: number, last: number) => reading.write({ from: first === 1 ? null : String(first), to: last === LAST_MONTH_WITH_DATA ? null : String(last) })
+  const months = monthNames.slice(0, LAST_MONTH_WITH_DATA).map((name, index) => (
     <option key={name} value={index + 1} className="bg-(--y-surface)">{name}</option>
   ))
   return (
@@ -419,20 +420,30 @@ const countWords: Record<Dim, string> = { ay: 'ay', obyekt: 'obyekt', sirket: '�
 function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisReading; period: string }) {
   const { analysis, kind, basis } = reading
   const change = pivot.change
+  // One month in the range: its total is the latest month's, so the figure is said once, and nothing is compared.
+  const single = monthsWithData.filter((month) => month >= analysis.from && month <= analysis.to).length === 1
   return (
     <dl className="grid grid-cols-1 gap-x-8 gap-y-3 px-3 py-3 sm:grid-cols-3 sm:px-5 sm:py-4">
       <div className="min-w-0">
         <dt className="text-xs text-(--y-muted)">Cəmi · {period}</dt>
         <dd data-figure="total" className="tnum text-[22px] font-extrabold leading-tight tracking-[-0.01em]">{money(pivot.total)}</dd>
+        {single && (
+          <dd className="mt-1.5 inline-flex items-start gap-1.5 rounded-md border border-(--y-line) bg-(--y-band) px-2 py-1 text-xs font-semibold text-(--y-ink-2)">
+            <Info aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+            Müqayisə üçün dövrə ən azı iki ay daxil edin.
+          </dd>
+        )}
       </div>
-      <div className="min-w-0">
+      {!single && <div className="min-w-0">
         <dt className="text-xs text-(--y-muted)">{pivot.latest ? `${monthName(pivot.latest)} · son ay` : 'Son ay'}</dt>
         <dd className="flex flex-wrap items-center gap-x-2">
           <span data-figure="latest" className="tnum text-[22px] font-extrabold leading-tight tracking-[-0.01em]">{pivot.latestAmount ? money(pivot.latestAmount) : '—'}</span>
           {change.kind === 'value' ? <Chip change={change} /> : null}
         </dd>
-        <dd className="text-xs text-(--y-muted)">{change.kind === 'value' ? `${signedMoney(change.delta)} ${basisReference[basis]}` : change.detail}</dd>
-      </div>
+        <dd className="text-xs text-(--y-muted)">
+          {change.kind === 'value' ? `${signedMoney(change.delta)} · müqayisə: ${pivot.comparisonLabel ?? basisReference[basis]}` : change.detail}
+        </dd>
+      </div>}
       <div className="min-w-0">
         <dt className="text-xs text-(--y-muted)">Kəsişmə</dt>
         <dd data-figure="shape" className="text-[15px] font-bold leading-tight">
@@ -445,14 +456,11 @@ function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisRe
 }
 
 function Empty({ reading, period }: { reading: AnalysisReading; period: string }) {
-  const notStarted = reading.analysis.from > LAST_MONTH_WITH_DATA
   return (
     <div className="px-6 py-10 text-center">
-      <h3 id="empty-title" className="text-base font-bold">{notStarted ? 'Seçilmiş dövr hələ başlamayıb' : 'Seçilmiş filtrlərdə sifariş yoxdur'}</h3>
+      <h3 id="empty-title" className="text-base font-bold">Seçilmiş filtrlərdə sifariş yoxdur</h3>
       <p className="mx-auto mt-1 max-w-xl text-sm text-(--y-muted)">
-        {notStarted
-          ? `${period} üzrə hələ heç bir sifariş yoxdur.`
-          : `${period} · ${kindNames[reading.kind]}: bu birləşmədə sifariş qeydə alınmayıb. Məbləğ sıfır kimi göstərilmir — filtrlərdən birini dəyişin və ya hamısını sıfırlayın.`}
+        {`${period} · ${kindNames[reading.kind]}: bu birləşmədə sifariş qeydə alınmayıb. Məbləğ sıfır kimi göstərilmir — filtrlərdən birini dəyişin və ya hamısını sıfırlayın.`}
       </p>
       <button type="button" onClick={reading.resetFilters} className="mt-4 inline-flex min-h-10 items-center rounded-lg border border-(--y-line) px-4 text-sm font-semibold hover:bg-(--y-band)">
         Filtrləri sıfırla
@@ -918,7 +926,6 @@ function ListTable({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading 
 function Notes({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading }) {
   const { analysis, kind, basis } = reading
   const products = analysis.rows === 'mehsul' || analysis.cols === 'mehsul' || pivot.withProduct
-  const future = analysis.to > LAST_MONTH_WITH_DATA
   return (
     <ul className="-mt-1 flex flex-col gap-1 text-xs text-(--y-muted)">
       {kind === 'monthly' && <li>Təsdiq ay üzrə vahiddir: ayın bütün aylıq sifarişləri bir dəfə təsdiqlənir. Seçilmiş obyekt, kateqoriya və ya məhsul ayrıca təsdiqlənmir; ✓ və ⌛ ayın öz təsdiqidir.</li>}
@@ -927,13 +934,14 @@ function Notes({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading }) {
       {pivot.rows.length > 0 && (
         <li>
           {analysis.rows === 'ay'
-            ? `Hər ay ${basisReference[basis]} müqayisə olunur.`
-            : `Fərq: ${pivot.latest ? monthName(pivot.latest) : 'son ay'}, ${basisReference[basis]}.`}{' '}
+            ? `Hər ay ${basisReference[basis]} müqayisə olunur, yalnız seçilmiş dövrün ayları ilə.`
+            : pivot.comparisonLabel
+              ? `Fərq: ${pivot.latest ? monthName(pivot.latest) : 'son ay'}, müqayisə: ${pivot.comparisonLabel}.`
+              : 'Fərq: seçilmiş dövrdə müqayisə üçün əvvəlki ay yoxdur.'}{' '}
           Ada klikləyin: filtr kimi tətbiq olunur və bir səviyyə aşağı açılır.
         </li>
       )}
       {products && <li>Miqdar və orta qiymət yalnız bir məhsul üçün, öz vahidində göstərilir; fərqli məhsulların və vahidlərin miqdarı toplanmır. Orta qiymət çəkili ortadır: məbləğ ÷ miqdar.</li>}
-      {future && <li>{monthName(LAST_MONTH_WITH_DATA + 1)}{analysis.to > LAST_MONTH_WITH_DATA + 1 ? `–${monthName(analysis.to)}` : ''} hələ başlamayıb: həmin aylar boş göstərilmir, sıfır kimi sayılmır.</li>}
     </ul>
   )
 }
