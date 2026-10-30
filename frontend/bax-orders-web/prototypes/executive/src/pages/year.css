@@ -1,0 +1,57 @@
+/*
+ * The year and month screens in the chosen «Modern Analytics» style. Its neutrals are the app's own (paper, lines, ink), so it sits
+ * in the same frame as every other screen; what is its own is the data colour — a cobalt for the months, a mint for
+ * approval — and its type, Manrope. Red and green stay the cost directions and amber stays
+ * «waiting for approval», as everywhere in the prototype.
+ */
+.year-view,
+.month-view {
+  --y-surface: var(--color-paper);
+  --y-ink: var(--color-ink);
+  --y-ink-2: var(--color-ink-2);
+  --y-muted: var(--color-muted);
+  --y-line: var(--color-line);
+  --y-grid: #e9edf2;
+  --y-band: #eef2fe;
+  --y-bar: #2f5bea;
+  --y-bar-hover: #1b44cf;
+  --y-bar-pending: #a8baf5;
+  --y-ok: #0d8f7d;
+  --y-amber: var(--color-amber);
+  --y-amber-soft: var(--color-amber-soft);
+  --y-up: #c2311f;
+  --y-up-soft: #fdebe8;
+  --y-down: #0a7a52;
+  --y-down-soft: #e2f4ec;
+  font-family: "Manrope", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  color: var(--y-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .year-view,
+  :root:not([data-theme="light"]) .month-view {
+    --y-grid: #22303b; --y-band: #182b44; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
+    --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
+  }
+}
+
+:root[data-theme="dark"] .year-view,
+:root[data-theme="dark"] .month-view {
+  --y-grid: #22303b; --y-band: #182b44; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
+  --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
+}
+
+/* A month waiting for approval, on the approval track and in its key. */
+.year-view .track-pending {
+  background-image: repeating-linear-gradient(135deg, var(--y-amber) 0 4px, transparent 4px 7px);
+}
+
+/* A figure's detail opening under the strip: one short arrival, nothing more. */
+.year-view .kpi-panel {
+  animation: kpi-in 160ms ease-out;
+}
+
+@keyframes kpi-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}

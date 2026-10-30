@@ -1,0 +1,122 @@
+/*
+ * The three concepts' own palettes, each scoped to its page and each with a night version under the same theme switch
+ * as the rest of the prototype. Red and green stay the cost directions and amber stays «waiting for approval» in all
+ * three, so the business meaning of a colour never changes between them.
+ */
+
+/* A — Executive Minimal: graphite on cool white; one deep blue only for what is chosen. */
+.concept-a {
+  --a-bg: #f4f5f7;
+  --a-surface: #ffffff;
+  --a-ink: #10161d;
+  --a-ink-2: #444e5a;
+  --a-muted: #687280;
+  --a-line: #e0e4e9;
+  --a-line-2: #c8cfd7;
+  --a-accent: #1f4fa3;
+  --a-hover: #f1f4f9;
+  --a-bar: #1b2530;
+  --a-bar-pending: #a3adb8;
+  --a-up: #b42318;
+  --a-down: #067647;
+  --a-amber: #8f5200;
+  --a-amber-soft: #fcefd9;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--a-bg);
+  color: var(--a-ink);
+}
+
+/* B — Premium Editorial: ink on near-white paper, an oxford blue for the figures' bars, rules instead of boxes. */
+.concept-b {
+  --b-bg: #fbfaf8;
+  --b-ink: #16181d;
+  --b-ink-2: #43474f;
+  --b-muted: #72767e;
+  --b-rule: #dedad3;
+  --b-rule-strong: #16181d;
+  --b-hover: #f2f0ec;
+  --b-bar: #1d3a5c;
+  --b-bar-pending: #a9b6c7;
+  --b-up: #9b2c1f;
+  --b-down: #2f6b45;
+  --b-amber: #8a5a00;
+  --b-amber-soft: #f4e9d3;
+  font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  background: var(--b-bg);
+  color: var(--b-ink);
+}
+
+/* C — Modern Analytics: cool slate ground, white panels, a cobalt for the data and a mint for approval. */
+.concept-c {
+  --c-bg: #f3f5fa;
+  --c-surface: #ffffff;
+  --c-ink: #0c1324;
+  --c-ink-2: #46506a;
+  --c-muted: #69728c;
+  --c-line: #e3e6ef;
+  --c-grid: #e9ecf3;
+  --c-band: #eef2fe;
+  --c-bar: #2f5bea;
+  --c-bar-hover: #1b44cf;
+  --c-bar-pending: #a8baf5;
+  --c-marker: #0c1324;
+  --c-ok: #0d8f7d;
+  --c-amber: #a86400;
+  --c-amber-soft: #fff0d6;
+  --c-up: #c2311f;
+  --c-up-soft: #fdebe8;
+  --c-down: #0a7a52;
+  --c-down-soft: #e2f4ec;
+  --c-tip: #0c1324;
+  --c-tip-ink: #eef1f8;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .concept-a {
+    --a-bg: #0c0f13; --a-surface: #13171c; --a-ink: #e9ecf0; --a-ink-2: #b5bdc7; --a-muted: #8b95a1; --a-line: #242a32;
+    --a-line-2: #3a424c; --a-accent: #8fb1ff; --a-hover: #191e25; --a-bar: #dfe4ea; --a-bar-pending: #4f5864; --a-up: #f4867a;
+    --a-down: #63c795; --a-amber: #f0b45c; --a-amber-soft: #33270f;
+  }
+  :root:not([data-theme="light"]) .concept-b {
+    --b-bg: #111215; --b-ink: #ece9e2; --b-ink-2: #c4c1b9; --b-muted: #96938c; --b-rule: #2c2e33; --b-rule-strong: #ece9e2;
+    --b-hover: #191a1e; --b-bar: #a9c0e0; --b-bar-pending: #4a5668; --b-up: #f08a7c; --b-down: #7cc79a; --b-amber: #e5b465;
+    --b-amber-soft: #382c15;
+  }
+  :root:not([data-theme="light"]) .concept-c {
+    --c-bg: #090d17; --c-surface: #0f1526; --c-ink: #e7eaf4; --c-ink-2: #b2b9cf; --c-muted: #8790ab; --c-line: #1e2640;
+    --c-grid: #18203a; --c-band: #151d36; --c-bar: #6f8cff; --c-bar-hover: #97acff; --c-bar-pending: #33406f; --c-marker: #f2f4fa;
+    --c-ok: #3cc7b1; --c-amber: #f2b24c; --c-amber-soft: #382a10; --c-up: #ff8a7a; --c-up-soft: #3a1a17; --c-down: #4fd1a1;
+    --c-down-soft: #0f2f28; --c-tip: #e7eaf4; --c-tip-ink: #0c1324;
+  }
+}
+
+:root[data-theme="dark"] .concept-a {
+  --a-bg: #0c0f13; --a-surface: #13171c; --a-ink: #e9ecf0; --a-ink-2: #b5bdc7; --a-muted: #8b95a1; --a-line: #242a32;
+  --a-line-2: #3a424c; --a-accent: #8fb1ff; --a-hover: #191e25; --a-bar: #dfe4ea; --a-bar-pending: #4f5864; --a-up: #f4867a;
+  --a-down: #63c795; --a-amber: #f0b45c; --a-amber-soft: #33270f;
+}
+:root[data-theme="dark"] .concept-b {
+  --b-bg: #111215; --b-ink: #ece9e2; --b-ink-2: #c4c1b9; --b-muted: #96938c; --b-rule: #2c2e33; --b-rule-strong: #ece9e2;
+  --b-hover: #191a1e; --b-bar: #a9c0e0; --b-bar-pending: #4a5668; --b-up: #f08a7c; --b-down: #7cc79a; --b-amber: #e5b465;
+  --b-amber-soft: #382c15;
+}
+:root[data-theme="dark"] .concept-c {
+  --c-bg: #090d17; --c-surface: #0f1526; --c-ink: #e7eaf4; --c-ink-2: #b2b9cf; --c-muted: #8790ab; --c-line: #1e2640;
+  --c-grid: #18203a; --c-band: #151d36; --c-bar: #6f8cff; --c-bar-hover: #97acff; --c-bar-pending: #33406f; --c-marker: #f2f4fa;
+  --c-ok: #3cc7b1; --c-amber: #f2b24c; --c-amber-soft: #382a10; --c-up: #ff8a7a; --c-up-soft: #3a1a17; --c-down: #4fd1a1;
+  --c-down-soft: #0f2f28; --c-tip: #e7eaf4; --c-tip-ink: #0c1324;
+}
+
+/* B's figures: a newspaper serif with lining, tabular numerals, so the ledger's columns line up. */
+.font-display {
+  font-family: "Newsreader", "Source Serif 4", ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* C: a month waiting for approval, on the approval track. */
+.track-pending {
+  background-image: repeating-linear-gradient(135deg, var(--c-amber) 0 4px, transparent 4px 7px);
+}
