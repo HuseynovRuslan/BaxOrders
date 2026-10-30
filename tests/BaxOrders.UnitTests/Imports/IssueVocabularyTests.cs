@@ -19,8 +19,9 @@ namespace BaxOrders.UnitTests.Imports;
 /// </remarks>
 public sealed class IssueVocabularyTests
 {
-    private const string UnionFile = @"frontend\bax-orders-web\src\api\imports.ts";
-    private const string LabelFile = @"frontend\bax-orders-web\src\components\imports\labels.ts";
+    // Forward slashes: they separate paths on Windows and on Linux (the CI runner) alike; a backslash does not.
+    private const string UnionFile = "frontend/bax-orders-web/src/api/imports.ts";
+    private const string LabelFile = "frontend/bax-orders-web/src/components/imports/labels.ts";
 
     public static TheoryData<string> IssueTypes()
     {
