@@ -367,6 +367,72 @@ export function productBySupplier(month: number, period: Period, kind: Kind, pro
     .sort((left, right) => right.comparison.current.amount - left.comparison.current.amount || (right.comparison.comparison?.amount ?? 0) - (left.comparison.comparison?.amount ?? 0))
 }
 
+// ---- one order's changes --------------------------------------------------------------------------------------------
+
+/** Which way a product's unit price or quantity moved. */
+export type Move = 'up' | 'down'
+
+/**
+ * How far a weighted unit price has to move, either way, to be a price change (owner decision: 1%). 32,00 → 32,13 ₼
+ * still shows on the row, but no price filter lists it.
+ */
+export const PRICE_CHANGE_THRESHOLD = 0.01
+
+/** Below this a price has not moved at all: the weighted prices are quotients, and 0,0% is not a change. */
+const PRICE_UNMOVED = 0.0005
+
+export type OrderChangeState = 'new' | 'dropped' | 'changed' | 'steady'
+
+export interface OrderChangeRow {
+  productId: string
+  name: string
+  comparison: ProductComparison
+  state: OrderChangeState
+  /** Supplied free from the company's own store on either side: its quantity moves at no cost (D-45, D-46). */
+  internal: boolean
+  /** The price moved by at least the threshold — what the price filters list and the row marks ▲ / ▼. */
+  priceMove: Move | null
+  /** The price moved, but by less than the threshold: on the row, under no price filter. */
+  smallPriceMove: Move | null
+  /** By the quantity's effect on money, so free store material is under no quantity filter (owner decision). */
+  quantityMove: Move | null
+}
+
+/**
+ * Every product of an object's monthly order, this month or in the comparison, against the comparison — the largest
+ * change of money first. Only a product whose quantity and price can both be compared (one unit on both sides, paid on
+ * both sides) is given a price or a quantity move; a new product, a dropped one and store material are what they are.
+ */
+export function orderChanges(month: number, period: Period, siteId: string): OrderChangeRow[] {
+  if (period.unavailable) return []
+  const scope: Scope = { kind: 'monthly', siteId }
+  return [...presentIn(month, period, scope, (line) => line.productId)]
+    .map((productId) => {
+      const comparison = compareProduct(month, period, 'monthly', productId, siteId)
+      const internal = [month, ...period.months].some((item) => linesFor(item, { ...scope, productId }).some((line) => line.price === 0))
+      const split = comparison.comparable && !internal
+
+      const pct = comparison.pricePct
+      const priceMoved = split && pct !== null && Math.abs(pct) >= PRICE_UNMOVED && Boolean(comparison.priceEffect)
+      const way: Move = (pct ?? 0) > 0 ? 'up' : 'down'
+      const priceMove = priceMoved && Math.abs(pct!) >= PRICE_CHANGE_THRESHOLD ? way : null
+      const smallPriceMove = priceMoved && Math.abs(pct!) < PRICE_CHANGE_THRESHOLD ? way : null
+      const quantityMove: Move | null = split && comparison.qtyEffect && comparison.deltaQty
+        ? comparison.deltaQty > 0 ? 'up' : 'down'
+        : null
+
+      const state: OrderChangeState = comparison.current.lineCount === 0
+        ? 'dropped'
+        : comparison.comparison?.lineCount === 0
+          ? 'new'
+          : Math.abs(comparison.deltaAmount ?? 0) >= 0.005 || priceMove || quantityMove ? 'changed' : 'steady'
+
+      return { productId, name: products.get(productId)!.name, comparison, state, internal, priceMove, smallPriceMove, quantityMove }
+    })
+    .sort((left, right) => Math.abs(right.comparison.deltaAmount ?? 0) - Math.abs(left.comparison.deltaAmount ?? 0)
+      || left.name.localeCompare(right.name, 'az'))
+}
+
 // ---- the year -------------------------------------------------------------------------------------------------------
 
 export interface MonthTile {
