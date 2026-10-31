@@ -5,6 +5,7 @@ import { money, monthName, price, quantity } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
 import { trailFor } from '../lib/trail'
 import { OutsideFlowNote, OutsideRequestList, packageWords } from '../ui/kinds'
+import { OrderChanges } from '../ui/OrderChanges'
 import { ApprovalBadge, Breadcrumbs, Money, Notice, PageTitle } from '../ui/parts'
 import { NotFound } from './NotFound'
 
@@ -16,7 +17,7 @@ export function OrderPage() {
   const params = useParams()
   const year = Number(params.year)
   const month = Number(params.month)
-  const { link } = useComparison(month)
+  const { link, basis, period, setBasis } = useComparison(month)
   const site = sites.get(params.siteId ?? '')
   const order = site ? allOrders.get(`${site.id}-${month}`) : undefined
 
@@ -45,6 +46,16 @@ export function OrderPage() {
       </div>
 
       <Notice>Bu sifariş {monthName(month)} ayının aylıq sifarişlərindəndir: Rəhbər ayın aylıq sifarişlərini bütün obyektlər üçün bir dəfə təsdiqləyir ({packageWords(approvalOf(month)).toLocaleLowerCase('az')}). Bu sifarişin ayrıca təsdiqi yoxdur.</Notice>
+
+      {/* What changed against the comparison comes first: whose price went up or down, whose quantity (owner request). */}
+      <OrderChanges
+        month={month}
+        period={period}
+        siteId={site.id}
+        basis={basis}
+        onBasis={setBasis}
+        productHref={(productId) => link(paths.product(YEAR, month, productId, site.id), {}, { kind: 'monthly' })}
+      />
 
       <section aria-label="Sifarişin sətirləri" className="overflow-hidden rounded-lg border border-line bg-paper">
         <table className="w-full text-left text-[15px]">
