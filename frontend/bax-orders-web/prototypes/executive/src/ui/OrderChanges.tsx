@@ -257,7 +257,7 @@ function ChangeRow({ row, href, steady }: { row: OrderChangeRow; href: string; s
       </div>
 
       <div className="w-28 shrink-0 text-right sm:w-32">
-        <Delta value={cmp.deltaAmount} size="sm" />
+        <Delta value={cmp.deltaAmount} size="sm" exact />
         <p className="text-xs text-muted">Fərq</p>
       </div>
     </div>
@@ -269,7 +269,7 @@ function Effect({ label, value }: { label: string; value: number }) {
   return (
     <span className="inline-flex items-baseline gap-1.5 rounded-md bg-stone px-2 py-1 ring-1 ring-inset ring-line">
       <span className="text-muted">{label}</span>
-      <span className={`tnum font-semibold ${value > 0 ? 'text-up' : value < 0 ? 'text-down' : 'text-muted'}`}>{signedMoney(value)}</span>
+      <span className={`tnum font-semibold ${value > 0 ? 'text-up' : value < 0 ? 'text-down' : 'text-muted'}`}>{signedMoney(value, true)}</span>
     </span>
   )
 }

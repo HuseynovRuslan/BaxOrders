@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { Building2, ChevronRight } from 'lucide-react'
 import type { BreakdownRow, Figure, Period, ProductComparison, SupplierShare } from '../data/analysis'
-import { direction, minus, money, percent, price as formatPrice, quantity as formatQuantity, quantityParts } from '../lib/format'
+import { direction, exactMoney, minus, percent, price as formatPrice, quantity as formatQuantity, quantityParts } from '../lib/format'
 import { Delta, Money, NewTag } from './parts'
 
 type Sort = 'amount' | 'change'
@@ -126,17 +126,17 @@ export function Breakdown({ label, nameHeader, rows, total, period, hrefOf, supp
                 )}
 
                 <span role="cell" className="col-start-2 row-start-1 text-right md:col-start-auto md:row-start-auto">
-                  {row.figure.hasCurrent ? <Money value={row.figure.current} className="font-semibold" /> : <span className="text-sm text-muted">Bu ay yoxdur</span>}
+                  {row.figure.hasCurrent ? <Money value={row.figure.current} exact={products} className="font-semibold" /> : <span className="text-sm text-muted">Bu ay yoxdur</span>}
                 </span>
                 <span role="cell" className="tnum text-sm text-muted md:text-right md:text-ink-2">
                   <span className="md:hidden">{period.isAverage ? 'Orta' : 'Əvvəlki ay'}: </span>
-                  {period.unavailable ? '—' : row.figure.hasComparison ? <Money value={row.figure.comparison} size="sm" /> : 'yox idi'}
+                  {period.unavailable ? '—' : row.figure.hasComparison ? <Money value={row.figure.comparison} size="sm" exact={products} /> : 'yox idi'}
                 </span>
                 <span role="cell" className="flex justify-end text-sm">
                   {period.unavailable ? <span className="text-muted">—</span>
                     : !row.figure.hasComparison
-                      ? <span className="inline-flex items-center gap-2"><Delta value={row.figure.delta} size="sm" /><NewTag /></span>
-                      : <Delta value={row.figure.delta} pct={row.figure.pct} size="sm" />}
+                      ? <span className="inline-flex items-center gap-2"><Delta value={row.figure.delta} size="sm" exact={products} /><NewTag /></span>
+                      : <Delta value={row.figure.delta} pct={row.figure.pct} size="sm" exact={products} />}
                 </span>
               </div>
             )
@@ -147,13 +147,13 @@ export function Breakdown({ label, nameHeader, rows, total, period, hrefOf, supp
           <span role="rowheader" className="text-sm font-semibold text-ink">Cəmi</span>
           {products && <span role="cell" className="hidden lg:block" />}
           {products && <span role="cell" className="hidden lg:block" />}
-          <span role="cell" className="text-right"><Money value={total.current} className="font-semibold" /></span>
+          <span role="cell" className="text-right"><Money value={total.current} exact={products} className="font-semibold" /></span>
           <span role="cell" className="tnum text-sm text-ink-2 md:text-right">
             <span className="md:hidden text-muted">{period.isAverage ? 'Orta' : 'Əvvəlki ay'}: </span>
-            {period.unavailable ? '—' : <Money value={total.comparison} size="sm" />}
+            {period.unavailable ? '—' : <Money value={total.comparison} size="sm" exact={products} />}
           </span>
           <span role="cell" className="flex justify-end text-sm">
-            {period.unavailable ? <span className="text-muted">—</span> : <Delta value={total.delta} pct={total.pct} size="sm" />}
+            {period.unavailable ? <span className="text-muted">—</span> : <Delta value={total.delta} pct={total.pct} size="sm" exact={products} />}
           </span>
         </div>
       </div>
@@ -182,7 +182,7 @@ function Suppliers({ items, href, before }: { items: readonly SupplierShare[]; h
 
   if (items.length === 1) {
     return (
-      <p className="mt-2 flex min-w-0 max-w-80 items-center gap-2" title={`${items[0].name}: ${money(items[0].amount)}`}>
+      <p className="mt-2 flex min-w-0 max-w-80 items-center gap-2" title={`${items[0].name}: ${exactMoney(items[0].amount)}`}>
         {label}
         <span className={`truncate text-[13px] font-semibold ${tone}`}>{items[0].name}</span>
       </p>
@@ -194,7 +194,7 @@ function Suppliers({ items, href, before }: { items: readonly SupplierShare[]; h
       {label}
       <ul className="mt-1 flex flex-col gap-0.5 border-l-2 border-line pl-2.5">
         {shown.map((item, index) => (
-          <li key={item.id} title={`${item.name}: ${money(item.amount)}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 text-[13px] leading-5">
+          <li key={item.id} title={`${item.name}: ${exactMoney(item.amount)}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 text-[13px] leading-5">
             <span className={`truncate ${tone} ${index === 0 ? 'font-semibold' : ''}`}>{item.name}</span>
             <span className="tnum text-xs text-muted"><span className="sr-only">payı </span>{percent(total > 0 ? item.amount / total : 0, false)}</span>
           </li>

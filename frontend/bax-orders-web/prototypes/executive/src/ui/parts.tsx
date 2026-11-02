@@ -7,14 +7,18 @@ import { direction, directionWords, monthName, moneyParts, percent, signedMoney,
 
 // ---- figures ------------------------------------------------------------------------------------------------------
 
-/** A money figure; at display sizes the qəpik is set smaller, so the manats are what the eye reads first. */
-export function Money({ value, size = 'md', className = '' }: { value: number | null; size?: 'xl' | 'lg2' | 'lg' | 'md' | 'sm'; className?: string }) {
+/**
+ * A money figure in whole manats; `exact` keeps the qəpik, for an amount beside its quantity × price (exactMoney). At
+ * display sizes the qəpik is set smaller, so the manats are what the eye reads first.
+ */
+export function Money({ value, size = 'md', exact = false, className = '' }: { value: number | null; size?: 'xl' | 'lg2' | 'lg' | 'md' | 'sm'; exact?: boolean; className?: string }) {
   if (value === null) return <span className={`tnum text-muted ${className}`}>—</span>
-  const { whole } = moneyParts(wholeManats(value))
+  const { whole, cents } = moneyParts(exact ? value : wholeManats(value))
   const display = size === 'xl' || size === 'lg2' || size === 'lg'
   return (
     <span className={`tnum whitespace-nowrap ${display ? 'font-figure font-semibold tracking-tight' : ''} ${sizeClass[size]} ${className}`}>
       {whole}
+      {exact && <span className={display ? 'text-[0.55em] font-medium' : ''}>,{cents}</span>}
       <span className={display ? 'ml-1.5 text-[0.55em] font-medium text-ink-2' : 'ml-1'}>₼</span>
     </span>
   )
@@ -31,8 +35,8 @@ const sizeClass = {
 const tone = { up: 'text-up', down: 'text-down', flat: 'text-muted' } as const
 const toneSoft = { up: 'bg-up-soft text-up', down: 'bg-down-soft text-down', flat: 'bg-stone-2 text-muted' } as const
 
-/** A difference with its direction said in words as well as colour. */
-export function Delta({ value, pct, size = 'md', words = false }: { value: number | null; pct?: number | null; size?: 'lg' | 'md' | 'sm'; words?: boolean }) {
+/** A difference with its direction said in words as well as colour; `exact` keeps the qəpik, as Money's does. */
+export function Delta({ value, pct, size = 'md', words = false, exact = false }: { value: number | null; pct?: number | null; size?: 'lg' | 'md' | 'sm'; words?: boolean; exact?: boolean }) {
   const way = direction(value)
   if (way === null) return <span className="text-muted">—</span>
   const Icon = way === 'up' ? ArrowUpRight : way === 'down' ? ArrowDownRight : Minus
@@ -42,8 +46,8 @@ export function Delta({ value, pct, size = 'md', words = false }: { value: numbe
         <Icon aria-hidden="true" className={size === 'lg' ? 'size-6' : 'size-4'} strokeWidth={2.25} />
         {size === 'lg' ? (
           // At display size the manat sign is set smaller, as every other large figure sets it.
-          <span>{signedMoney(value).replace(' ₼', '')}<span className="ml-1.5 text-[0.55em] font-medium">₼</span></span>
-        ) : signedMoney(value)}
+          <span>{signedMoney(value, exact).replace(' ₼', '')}<span className="ml-1.5 text-[0.55em] font-medium">₼</span></span>
+        ) : signedMoney(value, exact)}
       </span>
       {pct !== undefined && pct !== null && (
         <span className={`tnum rounded px-1.5 py-0.5 text-xs font-semibold ${toneSoft[way]}`}>{percent(pct)}</span>

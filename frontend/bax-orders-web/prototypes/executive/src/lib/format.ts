@@ -37,10 +37,20 @@ export function money(value: number | null | undefined): string {
   return `${moneyParts(wholeManats(value)).whole} ₼`
 }
 
-export function signedMoney(value: number | null | undefined): string {
+/**
+ * An amount to the qəpik, for one shown beside its quantity × price (owner, 2026-11-02): 10 paçka × 1,75 ₼ must read
+ * 17,50 ₼, not 18 ₼. Its difference and its total keep the qəpik too, so the rows still add up.
+ */
+export function exactMoney(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  if (Math.abs(value) < 0.5) return '0 ₼'
-  return `${value > 0 ? '+' : ''}${money(value)}`
+  const { whole, cents } = moneyParts(value)
+  return `${whole},${cents} ₼`
+}
+
+export function signedMoney(value: number | null | undefined, exact = false): string {
+  if (value === null || value === undefined) return '—'
+  if (Math.abs(value) < (exact ? 0.005 : 0.5)) return exact ? '0,00 ₼' : '0 ₼'
+  return `${value > 0 ? '+' : ''}${exact ? exactMoney(value) : money(value)}`
 }
 
 export function percent(value: number | null | undefined, signed = true): string {
