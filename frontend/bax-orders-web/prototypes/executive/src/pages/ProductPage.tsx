@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { Building2, FileText, MapPin } from 'lucide-react'
 import { compareProduct, hasData, isValidMonth, productBySite, productBySupplier, type Period, type ProductComparison, type ProductSiteRow, type ProductSupplierRow } from '../data/analysis'
 import { allOrders, categories, products, sites, YEAR, type Product } from '../data/model'
-import { direction, minus, money, monthName, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
+import { direction, exactMoney, minus, monthName, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
 import { trailFor } from '../lib/trail'
 import { KindBadge } from '../ui/kinds'
@@ -149,9 +149,9 @@ function Overview({ result, month, period, product, siteRows, supplierRows, onSi
             <tbody className="divide-y divide-line text-[15px]">
               <MatrixRow
                 label="Məbləğ"
-                current={<Money value={result.current.lineCount ? result.current.amount : null} className="font-semibold" />}
-                previous={result.comparison && result.comparison.lineCount ? <Money value={result.comparison.amount} /> : <span className="text-muted">yox idi</span>}
-                change={result.deltaAmount === null ? <span className="text-muted">—</span> : <Delta value={result.deltaAmount} pct={result.comparison?.amount ? result.deltaAmount / result.comparison.amount : null} size="sm" />}
+                current={<Money value={result.current.lineCount ? result.current.amount : null} exact className="font-semibold" />}
+                previous={result.comparison && result.comparison.lineCount ? <Money value={result.comparison.amount} exact /> : <span className="text-muted">yox idi</span>}
+                change={result.deltaAmount === null ? <span className="text-muted">—</span> : <Delta value={result.deltaAmount} pct={result.comparison?.amount ? result.deltaAmount / result.comparison.amount : null} size="sm" exact />}
               />
               <MatrixRow
                 label="Miqdar"
@@ -164,7 +164,7 @@ function Overview({ result, month, period, product, siteRows, supplierRows, onSi
                 hint="məbləğ ÷ miqdar"
                 current={result.current.price === null ? <Mixed /> : <UnitPrice value={result.current.price} unit={unit} />}
                 previous={!result.comparison?.lineCount ? <span className="text-muted">—</span> : result.comparison.price === null ? <Mixed /> : <UnitPrice value={result.comparison.price} unit={unit} />}
-                change={result.pricePct === null || !result.comparison?.price ? <span className="text-muted">—</span> : <Change value={result.current.price! - result.comparison.price} pct={result.pricePct} text={signedMoney(result.current.price! - result.comparison.price)} />}
+                change={result.pricePct === null || !result.comparison?.price ? <span className="text-muted">—</span> : <Change value={result.current.price! - result.comparison.price} pct={result.pricePct} text={signedMoney(result.current.price! - result.comparison.price, true)} />}
               />
             </tbody>
           </table>
@@ -186,7 +186,7 @@ function Overview({ result, month, period, product, siteRows, supplierRows, onSi
                 {contributors.map((row) => (
                   <li key={row.siteId} className="flex items-baseline justify-between gap-3 py-2 text-sm">
                     <span className="min-w-0 break-words text-ink">{row.name}</span>
-                    <Delta value={row.comparison.deltaAmount} size="sm" />
+                    <Delta value={row.comparison.deltaAmount} size="sm" exact />
                   </li>
                 ))}
               </ol>
@@ -226,7 +226,7 @@ function MatrixRow({ label, hint, current, previous, change }: { label: string; 
 function UnitPrice({ value, unit }: { value: number; unit: string }) {
   return (
     <span className="inline-flex flex-col items-end">
-      <span className="whitespace-nowrap">{money(value)}</span>
+      <span className="whitespace-nowrap">{price(value)}</span>
       <span className="whitespace-nowrap text-xs text-muted">1 {unit} üçün</span>
     </span>
   )
@@ -287,7 +287,7 @@ function EffectSplit({ priceEffect, qtyEffect, total }: { priceEffect: number; q
                   style={row.value >= 0 ? { left: '50%', width: `${width}%` } : { right: '50%', width: `${width}%` }}
                 />
               </span>
-              <span className={`tnum col-start-2 text-sm font-semibold sm:col-start-auto sm:text-right ${way === 'up' ? 'text-up' : way === 'down' ? 'text-down' : 'text-muted'}`}>{signedMoney(row.value)}</span>
+              <span className={`tnum col-start-2 text-sm font-semibold sm:col-start-auto sm:text-right ${way === 'up' ? 'text-up' : way === 'down' ? 'text-down' : 'text-muted'}`}>{signedMoney(row.value, true)}</span>
             </div>
           )
         })}
@@ -305,7 +305,7 @@ function Notes({ result, period, unit }: { result: ProductComparison; period: Pe
   }
   // A range of prices across different units says nothing: the note is for one unit only.
   if (result.current.priceRange && result.current.units.length === 1 && high - low >= 0.01) {
-    notes.push({ text: `Bu ay ${result.current.lineCount} sifariş sətrində qiymət ${money(low)} ilə ${money(high)} arasındadır. Orta qiymət çəkili ortadır: ümumi məbləğ ümumi miqdara bölünür.` })
+    notes.push({ text: `Bu ay ${result.current.lineCount} sifariş sətrində qiymət ${price(low)} ilə ${price(high)} arasındadır. Orta qiymət çəkili ortadır: ümumi məbləğ ümumi miqdara bölünür.` })
   }
   if (period.isAverage && !period.unavailable) {
     notes.push({ text: `Müqayisə ${period.months.length} ayın aylıq ortalamasıdır: məbləğ və miqdar aylıq orta, qiymət həmin ayların çəkili ortasıdır (${unit} üzrə).` })
@@ -322,13 +322,13 @@ function Notes({ result, period, unit }: { result: ProductComparison; period: Pe
 function explain(result: ProductComparison, period: Period): { headline: string; points: string[] } {
   const current = result.current, before = result.comparison
   if (period.unavailable || !before) return { headline: 'Müqayisə üçün əvvəlki dövr yoxdur.', points: [] }
-  if (!current.lineCount) return { headline: `Bu ay sifariş olunmayıb. Müqayisə dövründə ayda orta ${money(before.amount)} idi.`, points: [] }
-  if (!before.lineCount) return { headline: `Bu məhsul müqayisə dövründə sifariş olunmayıb: bu ayın ${money(current.amount)} xərci yenidir.`, points: [] }
+  if (!current.lineCount) return { headline: `Bu ay sifariş olunmayıb. Müqayisə dövründə ayda orta ${exactMoney(before.amount)} idi.`, points: [] }
+  if (!before.lineCount) return { headline: `Bu məhsul müqayisə dövründə sifariş olunmayıb: bu ayın ${exactMoney(current.amount)} xərci yenidir.`, points: [] }
 
   const amountWords = direction(result.deltaAmount) === 'up' ? 'artıb' : direction(result.deltaAmount) === 'down' ? 'azalıb' : 'dəyişməyib'
   if (!result.comparable) {
     return {
-      headline: `Məbləğ ${money(Math.abs(result.deltaAmount ?? 0))} ${amountWords}. Vahidlər fərqli olduğu üçün bunu qiymətə və miqdara ayırmaq olmur.`,
+      headline: `Məbləğ ${exactMoney(Math.abs(result.deltaAmount ?? 0))} ${amountWords}. Vahidlər fərqli olduğu üçün bunu qiymətə və miqdara ayırmaq olmur.`,
       points: [],
     }
   }
@@ -345,7 +345,7 @@ function explain(result: ProductComparison, period: Period): { headline: string;
 
   const pe = Math.abs(result.priceEffect ?? 0), qe = Math.abs(result.qtyEffect ?? 0)
   const share = pe >= 2 * qe ? 'fərqin əsas hissəsi qiymət dəyişməsinə düşür' : qe >= 2 * pe ? 'fərqin əsas hissəsi miqdar dəyişməsinə düşür' : 'həm qiymət, həm miqdar dəyişib'
-  return { headline: `Məbləğ ${money(Math.abs(result.deltaAmount ?? 0))} ${amountWords} — ${share}.`, points }
+  return { headline: `Məbləğ ${exactMoney(Math.abs(result.deltaAmount ?? 0))} ${amountWords} — ${share}.`, points }
 }
 
 /**
@@ -370,7 +370,7 @@ function SupplierCard({ rows, unit, href }: { rows: ProductSupplierRow[]; unit: 
               <li key={row.supplierId} className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
                 <span className="flex items-baseline justify-between gap-3 text-sm">
                   <span className="min-w-0 break-words font-semibold text-ink">{row.name}</span>
-                  <Money value={side.amount} size="sm" className="shrink-0 font-semibold" />
+                  <Money value={side.amount} size="sm" exact className="shrink-0 font-semibold" />
                 </span>
                 {current.length > 1 && (
                   <span aria-hidden="true" className="block h-1 rounded-full bg-stone-2">
@@ -378,7 +378,7 @@ function SupplierCard({ rows, unit, href }: { rows: ProductSupplierRow[]; unit: 
                   </span>
                 )}
                 <span className="tnum flex items-baseline justify-between gap-3 text-xs text-muted">
-                  <span>{side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${money(side.price)}`}</span>
+                  <span>{side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${price(side.price)}`}</span>
                   {current.length > 1 && <span><span className="sr-only">Payı </span>{percent(share, false)}</span>}
                 </span>
               </li>
@@ -479,8 +479,8 @@ function SplitTable({ label, nameHeader, intro, rows, total, month, period, prod
               <PeriodCell label={`${compareLabel}:`} side={cmp.comparison?.lineCount ? cmp.comparison : null} unit={unit} />
               <div role="cell" className="flex justify-end">
                 {!cmp.comparison?.lineCount
-                  ? <span className="inline-flex items-center gap-2"><Delta value={cmp.deltaAmount} size="sm" /><NewTag /></span>
-                  : <Delta value={cmp.deltaAmount} pct={cmp.comparison.amount ? (cmp.deltaAmount ?? 0) / cmp.comparison.amount : null} size="sm" />}
+                  ? <span className="inline-flex items-center gap-2"><Delta value={cmp.deltaAmount} size="sm" exact /><NewTag /></span>
+                  : <Delta value={cmp.deltaAmount} pct={cmp.comparison.amount ? (cmp.deltaAmount ?? 0) / cmp.comparison.amount : null} size="sm" exact />}
               </div>
             </div>
           )
@@ -490,7 +490,7 @@ function SplitTable({ label, nameHeader, intro, rows, total, month, period, prod
           <PeriodCell label={`${monthName(month)}:`} side={total.current.lineCount ? total.current : null} unit={product.unit} />
           <PeriodCell label={`${compareLabel}:`} side={total.comparison?.lineCount ? total.comparison : null} unit={product.unit} />
           <div role="cell" className="flex justify-end">
-            <Delta value={total.deltaAmount} pct={total.comparison?.amount ? (total.deltaAmount ?? 0) / total.comparison.amount : null} size="sm" />
+            <Delta value={total.deltaAmount} pct={total.comparison?.amount ? (total.deltaAmount ?? 0) / total.comparison.amount : null} size="sm" exact />
           </div>
         </div>
       </div>
@@ -505,9 +505,9 @@ function PeriodCell({ label, side, unit }: { label: string; side: ProductCompari
       <span className="text-xs text-muted lg:hidden">{label}</span>
       {side === null ? <span className="text-sm text-muted">sifariş yox idi</span> : (
         <span className="flex flex-col items-end gap-0.5">
-          <Money value={side.amount} className="font-semibold" />
+          <Money value={side.amount} exact className="font-semibold" />
           <span className="tnum text-xs text-muted">
-            {side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${money(side.price)}`}
+            {side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${price(side.price)}`}
           </span>
         </span>
       )}

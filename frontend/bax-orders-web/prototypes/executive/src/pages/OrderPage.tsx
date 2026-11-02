@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router'
 import { approvalOf, hasData, isValidMonth, outsideRequestsIn } from '../data/analysis'
 import { allOrders, categories, linesById, products, sites, YEAR, type Line } from '../data/model'
-import { money, monthName, price, quantity } from '../lib/format'
+import { exactMoney, monthName, price, quantity } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
 import { trailFor } from '../lib/trail'
 import { OutsideFlowNote, OutsideRequestList, packageWords } from '../ui/kinds'
@@ -72,7 +72,7 @@ export function OrderPage() {
             <tbody key={rootId} className="border-b border-line last:border-b-0">
               <tr className="bg-stone/60">
                 <th scope="rowgroup" colSpan={3} className="px-4 py-2 text-sm font-semibold text-ink sm:px-5">{categories.get(rootId)!.name}</th>
-                <td className="px-3 py-2 text-right text-sm"><Money value={sum(items)} size="sm" className="font-semibold" /></td>
+                <td className="px-3 py-2 text-right text-sm"><Money value={sum(items)} size="sm" exact className="font-semibold" /></td>
                 <td className="hidden md:table-cell" />
               </tr>
               {[...items].sort((left, right) => right.amount - left.amount).map((line) => {
@@ -85,7 +85,7 @@ export function OrderPage() {
                     </td>
                     <td className="tnum text-sm text-ink-2 md:px-3 md:py-2.5 md:text-right">{quantity(line.qty, line.unit)}</td>
                     <td className="tnum text-sm text-ink-2 md:px-3 md:py-2.5 md:text-right">× {price(line.price)}</td>
-                    <td className="tnum ml-auto font-semibold md:px-3 md:py-2.5 md:text-right">{money(line.amount)}</td>
+                    <td className="tnum ml-auto font-semibold md:px-3 md:py-2.5 md:text-right">{exactMoney(line.amount)}</td>
                     <td className="w-full text-xs text-muted md:w-auto md:px-5 md:py-2.5 md:text-sm">{line.supplier}</td>
                   </tr>
                 )
@@ -95,7 +95,7 @@ export function OrderPage() {
           <tfoot className="border-t-2 border-line bg-stone">
             <tr>
               <th scope="row" colSpan={3} className="px-4 py-3 text-sm font-semibold sm:px-5">Aylıq sifarişin cəmi</th>
-              <td className="px-3 py-3 text-right"><Money value={sum(lines)} className="font-semibold" /></td>
+              <td className="px-3 py-3 text-right"><Money value={sum(lines)} exact className="font-semibold" /></td>
               <td className="hidden md:table-cell" />
             </tr>
           </tfoot>

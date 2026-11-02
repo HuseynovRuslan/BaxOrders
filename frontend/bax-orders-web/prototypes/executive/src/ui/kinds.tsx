@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { AlertTriangle, Check, Hourglass, Layers, Wrench } from 'lucide-react'
 import { approvalOf, kindOptions, type Kind, type outsideRequestsIn } from '../data/analysis'
 import { linesById, products, sites, YEAR, type MonthApproval } from '../data/model'
-import { monthName, money, price, quantity } from '../lib/format'
+import { exactMoney, monthName, price, quantity } from '../lib/format'
 import { Money, Notice } from './parts'
 
 export const kindLabels: Record<Kind, string> = Object.fromEntries(kindOptions.map((option) => [option.value, option.label])) as Record<Kind, string>
@@ -146,7 +146,7 @@ export function OutsideRequestList({ requests, link, siteLink }: {
               </p>
             </div>
             <div className="flex flex-col items-end gap-0.5">
-              <Money value={request.amount} className="font-semibold" />
+              <Money value={request.amount} exact className="font-semibold" />
               <span className="text-xs text-muted">Razılıq: sistemdə qeyd yoxdur</span>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function OutsideRequestList({ requests, link, siteLink }: {
               return (
                 <li key={id} className="flex justify-between gap-3">
                   <span className="min-w-0 break-words">{products.get(line.productId)!.name}</span>
-                  <span className="tnum shrink-0 text-right">{quantity(line.qty, line.unit)} × {price(line.price)} = {money(line.amount)}</span>
+                  <span className="tnum shrink-0 text-right">{quantity(line.qty, line.unit)} × {price(line.price)} = {exactMoney(line.amount)}</span>
                 </li>
               )
             })}
