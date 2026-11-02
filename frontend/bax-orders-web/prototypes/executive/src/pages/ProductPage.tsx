@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { Building2, FileText, MapPin } from 'lucide-react'
 import { compareProduct, hasData, isValidMonth, productBySite, productBySupplier, type Period, type ProductComparison, type ProductSiteRow, type ProductSupplierRow } from '../data/analysis'
 import { allOrders, categories, products, sites, YEAR, type Product } from '../data/model'
-import { direction, exactMoney, minus, money, monthName, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
+import { direction, exactMoney, minus, monthName, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
 import { trailFor } from '../lib/trail'
 import { KindBadge } from '../ui/kinds'
@@ -164,7 +164,7 @@ function Overview({ result, month, period, product, siteRows, supplierRows, onSi
                 hint="məbləğ ÷ miqdar"
                 current={result.current.price === null ? <Mixed /> : <UnitPrice value={result.current.price} unit={unit} />}
                 previous={!result.comparison?.lineCount ? <span className="text-muted">—</span> : result.comparison.price === null ? <Mixed /> : <UnitPrice value={result.comparison.price} unit={unit} />}
-                change={result.pricePct === null || !result.comparison?.price ? <span className="text-muted">—</span> : <Change value={result.current.price! - result.comparison.price} pct={result.pricePct} text={signedMoney(result.current.price! - result.comparison.price)} />}
+                change={result.pricePct === null || !result.comparison?.price ? <span className="text-muted">—</span> : <Change value={result.current.price! - result.comparison.price} pct={result.pricePct} text={signedMoney(result.current.price! - result.comparison.price, true)} />}
               />
             </tbody>
           </table>
@@ -226,7 +226,7 @@ function MatrixRow({ label, hint, current, previous, change }: { label: string; 
 function UnitPrice({ value, unit }: { value: number; unit: string }) {
   return (
     <span className="inline-flex flex-col items-end">
-      <span className="whitespace-nowrap">{money(value)}</span>
+      <span className="whitespace-nowrap">{price(value)}</span>
       <span className="whitespace-nowrap text-xs text-muted">1 {unit} üçün</span>
     </span>
   )
@@ -305,7 +305,7 @@ function Notes({ result, period, unit }: { result: ProductComparison; period: Pe
   }
   // A range of prices across different units says nothing: the note is for one unit only.
   if (result.current.priceRange && result.current.units.length === 1 && high - low >= 0.01) {
-    notes.push({ text: `Bu ay ${result.current.lineCount} sifariş sətrində qiymət ${money(low)} ilə ${money(high)} arasındadır. Orta qiymət çəkili ortadır: ümumi məbləğ ümumi miqdara bölünür.` })
+    notes.push({ text: `Bu ay ${result.current.lineCount} sifariş sətrində qiymət ${price(low)} ilə ${price(high)} arasındadır. Orta qiymət çəkili ortadır: ümumi məbləğ ümumi miqdara bölünür.` })
   }
   if (period.isAverage && !period.unavailable) {
     notes.push({ text: `Müqayisə ${period.months.length} ayın aylıq ortalamasıdır: məbləğ və miqdar aylıq orta, qiymət həmin ayların çəkili ortasıdır (${unit} üzrə).` })
@@ -378,7 +378,7 @@ function SupplierCard({ rows, unit, href }: { rows: ProductSupplierRow[]; unit: 
                   </span>
                 )}
                 <span className="tnum flex items-baseline justify-between gap-3 text-xs text-muted">
-                  <span>{side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${money(side.price)}`}</span>
+                  <span>{side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${price(side.price)}`}</span>
                   {current.length > 1 && <span><span className="sr-only">Payı </span>{percent(share, false)}</span>}
                 </span>
               </li>
@@ -507,7 +507,7 @@ function PeriodCell({ label, side, unit }: { label: string; side: ProductCompari
         <span className="flex flex-col items-end gap-0.5">
           <Money value={side.amount} exact className="font-semibold" />
           <span className="tnum text-xs text-muted">
-            {side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${money(side.price)}`}
+            {side.units.length > 1 ? quantityParts(side.parts) : `${quantity(side.qty, unit)} × ${price(side.price)}`}
           </span>
         </span>
       )}
