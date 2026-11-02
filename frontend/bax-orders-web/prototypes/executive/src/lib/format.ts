@@ -28,10 +28,13 @@ export function moneyParts(value: number): { whole: string; cents: string } {
   return { whole: `${value < 0 ? minus : ''}${group(integer)}`, cents }
 }
 
+/** Whole manats, a half rounded away from zero: 17,50 ₼ reads 18 ₼, so a difference of −17,50 ₼ reads −18 ₼, not −17. */
+export const wholeManats = (value: number) => Math.sign(value) * Math.round(Math.abs(value))
+
 /** An amount in whole manats (owner, 2026-10-28): the qəpik are not shown. */
 export function money(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  return `${moneyParts(Math.round(value)).whole} ₼`
+  return `${moneyParts(wholeManats(value)).whole} ₼`
 }
 
 export function signedMoney(value: number | null | undefined): string {

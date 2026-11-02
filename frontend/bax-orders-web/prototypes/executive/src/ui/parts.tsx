@@ -3,14 +3,14 @@ import { Link } from 'react-router'
 import { ArrowDownRight, ArrowUpRight, Check, ChevronRight, Hourglass, Info, Minus, TriangleAlert } from 'lucide-react'
 import { basisOptions, type Basis, type Figure, type Period } from '../data/analysis'
 import { YEAR, type MonthApproval } from '../data/model'
-import { direction, directionWords, monthName, moneyParts, percent, signedMoney } from '../lib/format'
+import { direction, directionWords, monthName, moneyParts, percent, signedMoney, wholeManats } from '../lib/format'
 
 // ---- figures ------------------------------------------------------------------------------------------------------
 
 /** A money figure; at display sizes the qəpik is set smaller, so the manats are what the eye reads first. */
 export function Money({ value, size = 'md', className = '' }: { value: number | null; size?: 'xl' | 'lg2' | 'lg' | 'md' | 'sm'; className?: string }) {
   if (value === null) return <span className={`tnum text-muted ${className}`}>—</span>
-  const { whole } = moneyParts(Math.round(value))
+  const { whole } = moneyParts(wholeManats(value))
   const display = size === 'xl' || size === 'lg2' || size === 'lg'
   return (
     <span className={`tnum whitespace-nowrap ${display ? 'font-figure font-semibold tracking-tight' : ''} ${sizeClass[size]} ${className}`}>
