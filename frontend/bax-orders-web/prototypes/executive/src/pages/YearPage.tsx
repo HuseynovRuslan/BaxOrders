@@ -3,16 +3,16 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { ArrowUpRight, Check, ChevronDown, Hourglass, SlidersHorizontal, Table2, X } from 'lucide-react'
 import { hasData, type Kind, type MonthTile } from '../data/analysis'
 import { YEAR } from '../data/model'
-import { money, monthName, monthNames, monthRange, percent, shortMonthNames, signedMoney } from '../lib/format'
+import { money, monthName, monthNameIn, monthNames, monthRange, percent, shortMonthNames, signedMoney } from '../lib/format'
 import { paths } from '../lib/links'
 import {
   arrowOf, basisReference, changeOf, filterOptions, groupings, groupRows, isCurrent, kindNames, rounded, scopeSplit, signedRounded,
   statusOf, updatedText, useYearReading, type Change, type GroupRow, type Option, type YearReading, type YearScope,
 } from '../lib/year'
 import { Tip, useTipTrigger } from '../ui/tip'
-import { NotFound } from './NotFound'
+import { YearNotFound } from './NotFound'
 import { Chip, KpiStrip, NoChange, useKpiPanel } from './YearKpi'
-import { BasisSelect, KindNav } from './YearControls'
+import { BasisSelect, KindNav, YearSelect } from './YearControls'
 import { analysisSearch } from '../lib/pivot'
 import './year.css'
 
@@ -43,9 +43,7 @@ export function YearPage() {
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  if (year !== YEAR) {
-    return <NotFound message={`Prototip yalnız ${YEAR} ilini göstərir.`} />
-  }
+  if (year !== YEAR) return <YearNotFound />
 
   const { kind, basis, setBasis, tiles, largest, filters } = reading
   const scale = niceScale(largest)
@@ -233,7 +231,7 @@ function FilterBar({ reading }: { reading: YearReading }) {
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label="Dövr" className="flex min-h-10 flex-wrap items-center gap-1 rounded-lg border border-(--y-line) bg-(--y-surface) py-0.5 pl-3 pr-1 text-sm">
           <span className="text-(--y-muted)">Dövr</span>
-          <span className="px-1 font-semibold" title="Prototip yalnız 2026-nı göstərir">{YEAR}</span>
+          <YearSelect />
           <select
             aria-label="Dövr: bütün il, bir ay və ya aralıq"
             value={period}
@@ -583,7 +581,7 @@ function MonthTip({ id, tile, kind, scope, scoped, change, anchor, open }: {
         {change.kind === 'value' ? (
           <>
             <div className="flex justify-between gap-3">
-              <dt className="opacity-75">{tile.period?.isAverage ? 'Ortalama' : `Əvvəlki ay · ${monthName(tile.month - 1)}`}</dt>
+              <dt className="opacity-75">{tile.period?.isAverage ? 'Ortalama' : `Əvvəlki ay · ${monthNameIn(tile.month - 1, YEAR)}`}</dt>
               <dd className="tnum font-semibold">{money(tile.comparison)}</dd>
             </div>
             {tile.period?.isAverage && <div className="-mt-0.5 opacity-60">{monthRange(tile.period.months, YEAR)}</div>}
