@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
-import { allLines, categories, LAST_MONTH_WITH_DATA, sites, type Line, type Product } from '../data/model'
+import { categories, LAST_MONTH_WITH_DATA, linesOfEveryYear, sites, YEAR, type Line, type Product } from '../data/model'
 import { money, moneyParts, monthName, monthNames } from '../lib/format'
 import { callApi, ChangeLines, ErrorBox, KeyField, keyRequired, OutcomeBox, ReopenButton, type Changes } from './ImportButton'
 
 /**
- * One edit in «Mallar» (owner, 2026-10-28): a product's price from a month on, its name or category, the product taken
- * out, or a new one — with, if wanted, its first order line. As with the workbook, the server checks it first and says
+ * One edit in «Mallar» (owner, 2026-10-28): a product's price from a month of the year on screen on (the later years
+ * too), its name or category, the product taken out, or a new one — with, if wanted, its first order line in that year. As with the workbook, the server checks it first and says
  * what would change («Yoxla»); nothing changes until «Təsdiq et», and «Geri qaytar» in «Excel yüklə» takes it back.
  */
 
@@ -79,7 +79,7 @@ type Status =
   | { kind: 'done'; summary: string[]; changes: Changes }
 
 const titles = { price: 'Qiyməti dəyiş', edit: 'Malı düzəlt', delete: 'Malı sil', add: 'Mal əlavə et' } as const
-const units = [...new Set(allLines.map((line) => line.unit))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'az'))
+const units = [...new Set(linesOfEveryYear.map((line) => line.unit))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'az'))
 const number = (value: string) => Number(value.replace(/\s/g, '').replace(',', '.'))
 
 export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: CatalogTask; keyValue: string; onKey: (value: string) => void; onClose: () => void }) {
@@ -112,12 +112,12 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
 
   function body() {
     switch (task.kind) {
-      case 'price': return { op: 'price', productId: product!.id, price: number(price), fromMonth, unit }
+      case 'price': return { op: 'price', productId: product!.id, price: number(price), fromMonth, fromYear: YEAR, unit }
       case 'edit': return { op: 'edit', productId: product!.id, name: name.trim(), leafId: picked.leaf }
       case 'delete': return { op: 'delete', productId: product!.id }
       case 'add': return {
         op: 'add', name: name.trim(), leafId: picked.leaf, unit: newUnit.trim(), price: number(price),
-        line: line.siteId ? { siteId: line.siteId, month: Number(line.month), qty: number(line.qty), kind: line.kind } : undefined,
+        line: line.siteId ? { siteId: line.siteId, year: YEAR, month: Number(line.month), qty: number(line.qty), kind: line.kind } : undefined,
       }
     }
   }
@@ -163,7 +163,7 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
         {editing && task.kind === 'price' && row && (
           <>
             <p className="text-sm text-ink-2">
-              İndiki qiymət: <b className="text-ink">{priceText(row)}</b>{row.latest ? ` (${monthName(row.latest.month)})` : ''}. Seçilən aydan sonrakı bütün aylarda
+              İndiki qiymət: <b className="text-ink">{priceText(row)}</b>{row.latest ? ` (${monthName(row.latest.month)} ${YEAR})` : ''}. Seçilən aydan sonrakı bütün aylarda, sonrakı illər də daxil,
               bu malın sifariş sətirləri yeni qiymətlə hesablanır; Qala Bazadan pulsuz sətirlər pulsuz qalır.
             </p>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -174,7 +174,7 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
               <label className={label}>
                 Hansı aydan
                 <select value={fromMonth} onChange={(event) => change(setFromMonth)(Number(event.target.value))} className={field}>
-                  {monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+                  {monthNames.map((month, index) => <option key={month} value={index + 1}>{month} {YEAR}</option>)}
                 </select>
               </label>
               {row.units.length > 1 && (
@@ -239,7 +239,7 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
                 <label className={label}>
                   Ay
                   <select value={line.month} disabled={!line.siteId} onChange={(event) => change(setLine)({ ...line, month: event.target.value })} className={`${field} disabled:opacity-50`}>
-                    {monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+                    {monthNames.map((month, index) => <option key={month} value={index + 1}>{month} {YEAR}</option>)}
                   </select>
                 </label>
                 <label className={label}>
