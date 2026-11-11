@@ -35,7 +35,7 @@ import traceback
 import urllib.parse
 
 from catalog_edit import EditError, apply_edit
-from import_workbook import MONTH_NAMES, WorkbookError, convert
+from import_workbook import LEGACY_YEAR, MONTH_NAMES, WorkbookError, convert
 
 DATA_DIR = os.environ.get('DATA_DIR', '/data')
 HISTORY_DIR = os.environ.get('HISTORY_DIR', '/history')
@@ -64,9 +64,10 @@ def fingerprint(raw):
 
 
 def month_totals(data):
+    """Each month's figures by kind, keyed by (year, month); a file from before years came in is all 2026."""
     totals = {}
     for line in data.get('lines', []):
-        figure = totals.setdefault(line['month'], dict(monthly=0.0, outside=0.0))
+        figure = totals.setdefault((line.get('year', LEGACY_YEAR), line['month']), dict(monthly=0.0, outside=0.0))
         figure[line['type']] += line['amount']
     return {month: {kind: round(value, 2) for kind, value in figure.items()} for month, figure in totals.items()}
 
@@ -75,12 +76,12 @@ def changes(before, after):
     """What the figures would do, month by month and kind by kind: what the Rəhbər would see move."""
     old, new = month_totals(before), month_totals(after)
     moved = []
-    for month in sorted(set(old) | set(new)):
+    for year, month in sorted(set(old) | set(new)):
         for kind in ('monthly', 'outside'):
-            a = old.get(month, {}).get(kind, 0.0)
-            b = new.get(month, {}).get(kind, 0.0)
+            a = old.get((year, month), {}).get(kind, 0.0)
+            b = new.get((year, month), {}).get(kind, 0.0)
             if abs(a - b) >= 0.005:
-                moved.append(dict(month=month, monthName=MONTH_NAMES[month - 1], kind=kind, before=a, after=b))
+                moved.append(dict(year=year, month=month, monthName=f'{MONTH_NAMES[month - 1]} {year}', kind=kind, before=a, after=b))
     return dict(linesBefore=len(before.get('lines', [])), linesAfter=len(after.get('lines', [])), moved=moved)
 
 
