@@ -197,7 +197,7 @@ export function ComparisonSelect({ basis, onChange, period, label = 'Müqayisə'
 }
 
 export function PeriodNote({ period }: { period: Period }) {
-  if (period.unavailable) return <span className="text-xs text-ink-2">Bu ay ilin ilk ayıdır: müqayisə üçün əvvəlki ay yoxdur.</span>
+  if (period.unavailable) return <span className="text-xs text-ink-2">Müqayisə üçün əvvəlki ayın məlumatı yoxdur.</span>
   if (period.incomplete) {
     return (
       <span className="text-xs text-ink-2">
