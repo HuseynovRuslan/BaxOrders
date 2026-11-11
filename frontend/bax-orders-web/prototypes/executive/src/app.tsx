@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, createHashRouter, Navigate, RouterProvider } from 'react-router'
+import { createBrowserRouter, createHashRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router'
 import './styles.css'
 import { Shell } from './ui/Shell'
 import { YearPage } from './pages/YearPage'
@@ -12,7 +12,7 @@ import { SitePage } from './pages/SitePage'
 import { ProductPage } from './pages/ProductPage'
 import { OrderPage } from './pages/OrderPage'
 import { NotFound } from './pages/NotFound'
-import { YEAR } from './data/model'
+import { selectYear, YEAR, YEARS } from './data/model'
 import { applyStoredTheme } from './ui/theme'
 import { ConceptLayout } from './concepts/shared'
 import { ConceptCompare } from './concepts/ConceptCompare'
@@ -24,6 +24,17 @@ applyStoredTheme()
 
 // A shared copy (a claude.ai Artifact) is one static page: its levels live after the # there. Locally, real paths.
 const createRouter = import.meta.env.VITE_ROUTER === 'hash' ? createHashRouter : createBrowserRouter
+
+/**
+ * The year in the address is the year every screen reads: chosen here, before the frame or any page under it draws.
+ * Another year draws them afresh, so nothing worked out for one year is shown for the next. A year with no figures is
+ * left to the page to say so.
+ */
+function YearScope() {
+  const asked = Number(useLocation().pathname.split('/')[1])
+  if (asked !== YEAR && YEARS.includes(asked)) selectYear(asked)
+  return <Outlet key={YEAR} />
+}
 
 const router = createRouter([
   // Three concepts for the year screen, for review; outside the app's own frame, each draws its own.
@@ -38,21 +49,26 @@ const router = createRouter([
     ],
   },
   {
-    element: <Shell />,
+    element: <YearScope />,
     children: [
-      // A review copy can open on another page (VITE_START=konsept, no slash: a shell may rewrite one); the app opens on the year.
-      { index: true, element: <Navigate to={`/${import.meta.env.VITE_START || YEAR}`} replace /> },
-      { path: ':year', element: <YearPage /> },
-      { path: ':year/analiz', element: <AnalysisPage /> },
-      { path: ':year/mallar', element: <ProductsPage /> },
-      { path: ':year/:month', element: <MonthPage /> },
-      { path: ':year/:month/kateqoriya/:categoryId', element: <CategoryPage /> },
-      { path: ':year/:month/mehsul/:productId', element: <ProductPage /> },
-      { path: ':year/:month/obyekt/:siteId', element: <SitePage /> },
-      { path: ':year/:month/obyekt/:siteId/kateqoriya/:categoryId', element: <CategoryPage /> },
-      { path: ':year/:month/obyekt/:siteId/mehsul/:productId', element: <ProductPage /> },
-      { path: ':year/:month/obyekt/:siteId/sifaris', element: <OrderPage /> },
-      { path: '*', element: <NotFound /> },
+      {
+        element: <Shell />,
+        children: [
+          // A review copy can open on another page (VITE_START=konsept, no slash: a shell may rewrite one); the app opens on the latest year.
+          { index: true, element: <Navigate to={`/${import.meta.env.VITE_START || YEAR}`} replace /> },
+          { path: ':year', element: <YearPage /> },
+          { path: ':year/analiz', element: <AnalysisPage /> },
+          { path: ':year/mallar', element: <ProductsPage /> },
+          { path: ':year/:month', element: <MonthPage /> },
+          { path: ':year/:month/kateqoriya/:categoryId', element: <CategoryPage /> },
+          { path: ':year/:month/mehsul/:productId', element: <ProductPage /> },
+          { path: ':year/:month/obyekt/:siteId', element: <SitePage /> },
+          { path: ':year/:month/obyekt/:siteId/kateqoriya/:categoryId', element: <CategoryPage /> },
+          { path: ':year/:month/obyekt/:siteId/mehsul/:productId', element: <ProductPage /> },
+          { path: ':year/:month/obyekt/:siteId/sifaris', element: <OrderPage /> },
+          { path: '*', element: <NotFound /> },
+        ],
+      },
     ],
   },
 ])
