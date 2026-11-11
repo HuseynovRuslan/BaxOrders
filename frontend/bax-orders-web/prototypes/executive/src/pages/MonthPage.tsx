@@ -4,12 +4,12 @@ import {
   approvalOf, basisOptions, categoryRows, figure, hasData, isValidMonth, linesFor, outsideRequestsIn, siteRows,
   type Basis, type BreakdownRow, type Figure, type Kind, type Period,
 } from '../data/analysis'
-import { TODAY, YEAR } from '../data/model'
-import { minus, money, moneyParts, monthName, monthRange, percent, signedMoney } from '../lib/format'
+import { monthsWithDataIn, TODAY, YEAR, YEARS } from '../data/model'
+import { minus, money, moneyParts, monthName, monthNameIn, monthRange, monthYear, percent, signedMoney } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
 import { kindNames, kindOrder } from '../lib/year'
 import { OutsideFlowNote, OutsideRequestList } from '../ui/kinds'
-import { NotFound } from './NotFound'
+import { NotFound, YearNotFound } from './NotFound'
 import { Chip } from './YearKpi'
 import './year.css'
 
@@ -35,9 +35,10 @@ export function MonthPage() {
   const [search, setSearch] = useSearchParams()
   const comparison = useComparison(month)
 
-  if (year !== YEAR || !isValidMonth(month)) return <NotFound />
+  if (year !== YEAR) return <YearNotFound />
+  if (!isValidMonth(month)) return <NotFound />
   if (!hasData(month)) {
-    const future = month > TODAY.month
+    const future = YEAR > TODAY.year || (YEAR === TODAY.year && month > TODAY.month)
     return <NotFound message={`${monthName(month)} ${YEAR} ${future ? 'hələ başlamayıb' : 'üzrə məlumat yoxdur'}.`} />
   }
 
@@ -213,7 +214,7 @@ function Figures({ month, kind, period, total, note }: { month: number; kind: Ki
   const { whole } = moneyParts(Math.round(total.current))
   const missing = period.unavailable || period.incomplete
   const way = total.delta === null ? null : Math.abs(total.delta) < 0.005 ? 'flat' : total.delta > 0 ? 'up' : 'down'
-  const comparisonLabel = period.unavailable ? 'Müqayisə dövrü' : period.isAverage ? `${basisLabel(period.basis)}` : `${monthName(period.months[0])} ${YEAR}`
+  const comparisonLabel = period.unavailable ? 'Müqayisə dövrü' : period.isAverage ? `${basisLabel(period.basis)}` : monthYear(period.months[0], YEAR)
   return (
     <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-(--y-line) bg-(--y-line) lg:grid-cols-[1.25fr_1fr_1.15fr]">
       <div className="col-span-2 bg-(--y-surface) px-5 py-3 lg:col-span-1">
@@ -316,7 +317,7 @@ function PartsTable({ rows, total, period, month, nameHeader, byAmount, hrefOf }
   const sorted = byAmount || !comparable
     ? rows
     : [...rows].sort((left, right) => Math.abs(right.figure.delta ?? 0) - Math.abs(left.figure.delta ?? 0) || right.figure.current - left.figure.current)
-  const against = period.unavailable ? 'Müqayisə' : period.isAverage ? 'Ortalama' : monthName(period.months[0])
+  const against = period.unavailable ? 'Müqayisə' : period.isAverage ? 'Ortalama' : monthNameIn(period.months[0], YEAR)
   const grid = 'md:grid-cols-[minmax(0,1fr)_9rem_9rem_9.5rem_5rem_1rem]'
   return (
     <div role="table" aria-label={nameHeader}>
@@ -376,20 +377,29 @@ function DeltaPct({ figure: f, comparable }: { figure: Figure; comparable: boole
   return <Chip change={{ kind: 'value', way, pct: f.pct, delta: f.delta, text: percent(f.pct) }} />
 }
 
-/** The month before and after, keeping the comparison, the kind, the view and the order. A month not begun cannot be opened. */
+/**
+ * The month before and after — into the year before or after at its ends — keeping the comparison, the kind, the view
+ * and the order. A month not begun cannot be opened.
+ */
 function MonthStepper({ month, link }: { month: number; link: (path: string) => string }) {
-  const previous = hasData(month - 1) ? month - 1 : null
-  const next = hasData(month + 1) ? month + 1 : null
+  const step = (to: number) => {
+    const year = YEAR + Math.floor((to - 1) / 12)
+    const inYear = ((to - 1) % 12 + 12) % 12 + 1
+    const open = year === YEAR ? hasData(inYear) : YEARS.includes(year) && monthsWithDataIn(year).includes(inYear)
+    return open ? { path: paths.month(year, inYear), name: monthNameIn(to, YEAR) } : null
+  }
+  const previous = step(month - 1)
+  const next = step(month + 1)
   const button = 'inline-flex size-9 items-center justify-center rounded-lg border border-(--y-line) bg-(--y-surface) text-(--y-ink-2) hover:border-(--y-bar) hover:text-(--y-bar)'
   const off = 'inline-flex size-9 items-center justify-center rounded-lg border border-(--y-line) text-(--y-line)'
   return (
     <span className="inline-flex gap-1" role="group" aria-label="Ay">
       {previous ? (
-        <Link to={link(paths.month(YEAR, previous))} aria-label={`Əvvəlki ay: ${monthName(previous)}`} className={button}><ChevronLeft className="size-4" /></Link>
+        <Link to={link(previous.path)} aria-label={`Əvvəlki ay: ${previous.name}`} className={button}><ChevronLeft className="size-4" /></Link>
       ) : <span className={off} aria-hidden="true"><ChevronLeft className="size-4" /></span>}
       {next ? (
-        <Link to={link(paths.month(YEAR, next))} aria-label={`Növbəti ay: ${monthName(next)}`} className={button}><ChevronRight className="size-4" /></Link>
-      ) : <span className={off} title={`${monthName(month + 1) ?? ''} hələ başlamayıb`} aria-hidden="true"><ChevronRight className="size-4" /></span>}
+        <Link to={link(next.path)} aria-label={`Növbəti ay: ${next.name}`} className={button}><ChevronRight className="size-4" /></Link>
+      ) : <span className={off} title={`${monthNameIn(month + 1, YEAR)} hələ başlamayıb`} aria-hidden="true"><ChevronRight className="size-4" /></span>}
     </span>
   )
 }
