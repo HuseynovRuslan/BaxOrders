@@ -1,16 +1,17 @@
 """
-Edits the owner makes on the site itself (owner, 2026-10-28, «Mallar»): a product's price from a month on, a new
+Edits the owner makes on the site itself (owner, 2026-10-28, «Mallar»): a product's price from a month of a year on, a new
 product (and, if wanted, its first order line), a product's name or category, a product taken out. Each works on the
 figures as they stand and returns the new figures with a short account of what it did, for the «Yoxla» step to show;
 nothing is written here (import_service.py writes, with the history and the undo).
 
-A price changes the order lines of that product from the chosen month on, in one unit — a pair and a box are never
-priced alike; internal supply from Qala Baza stays free (D-45, D-46).
+A price changes the order lines of that product from the chosen month on — the later years too — in one unit: a pair
+and a box are never priced alike; internal supply from Qala Baza stays free (D-45, D-46). A line written before years
+came in is 2026's.
 """
 import copy
 import math
 
-from import_workbook import MONTH_NAMES, fold, slug, text
+from import_workbook import FIRST_YEAR, LEGACY_YEAR, MONTH_NAMES, fold, slug, text
 
 FREE_SUPPLIER = 'qala baza'
 
@@ -54,6 +55,22 @@ def month_of(value):
     return month
 
 
+def year_of(value):
+    """The year an edit is for: the year on the screen it was made on (a request from before years came in, 2026)."""
+    if value is None:
+        return LEGACY_YEAR
+    try:
+        year = int(value)
+    except (TypeError, ValueError):
+        raise EditError('İl seçilməyib.')
+    need(FIRST_YEAR <= year <= 2100, f'İl {FIRST_YEAR} ilə 2100 arasında olmalıdır.')
+    return year
+
+
+def line_year(item):
+    return item.get('year', LEGACY_YEAR)
+
+
 def path_of(categories, leaf_id):
     leaf = categories[leaf_id]
     return ' › '.join(categories[node]['name'] for node in leaf['path'])
@@ -86,8 +103,9 @@ def apply_edit(current, edit):
         product = product_of()
         price = amount_of(edit.get('price'), 'Qiymət')
         start = month_of(edit.get('fromMonth', 1))
+        start_year = year_of(edit.get('fromYear'))
         unit = text(edit.get('unit')).lower() or None
-        lines = [line for line in data['lines'] if line['productId'] == product['id'] and line['month'] >= start]
+        lines = [line for line in data['lines'] if line['productId'] == product['id'] and (line_year(line), line['month']) >= (start_year, start)]
         free = [line for line in lines if fold(line['supplier']) == FREE_SUPPLIER and not line['price']]
         free_ids = {line['id'] for line in free}
         paid = [line for line in lines if line['id'] not in free_ids]
@@ -102,9 +120,10 @@ def apply_edit(current, edit):
             line['price'] = price
             line['amount'] = line['qty'] * price
         product['price'] = price
-        summary = [f'«{product["name"]}»: yeni qiymət {az_money(price)} / {unit}, {MONTH_NAMES[start - 1]} ayından etibarən.']
+        since = f'{MONTH_NAMES[start - 1]} {start_year}'
+        summary = [f'«{product["name"]}»: yeni qiymət {az_money(price)} / {unit}, {since} ayından etibarən.']
         summary.append(f'{len(paid)} sifariş sətri yeni qiymətlə hesablanır.' if paid
-                       else f'{MONTH_NAMES[start - 1]} ayından sonra bu malın {unit} ilə sifariş sətri yoxdur: qiymət yalnız siyahıda yazılır.')
+                       else f'{since} ayından sonra bu malın {unit} ilə sifariş sətri yoxdur: qiymət yalnız siyahıda yazılır.')
         if free:
             summary.append(f'Qala Bazadan {len(free)} pulsuz daxili təchizat sətri pulsuz qalır.')
 
@@ -132,6 +151,7 @@ def apply_edit(current, edit):
             site = sites.get(line.get('siteId'))
             need(site is not None, 'Obyekt seçilməyib.')
             month = month_of(line.get('month'))
+            year = year_of(line.get('year'))
             qty = amount_of(line.get('qty'), 'Miqdar', 0.001)
             kind = line.get('kind')
             need(kind in ('monthly', 'outside'), 'Sifarişin növü seçilməyib.')
@@ -141,21 +161,21 @@ def apply_edit(current, edit):
                 n += 1
             line_id = f'sayt-{n}'
             if kind == 'monthly':
-                group_id = f'{site["id"]}-{month}'
                 groups = data['orders']
-                fresh = dict(id=group_id, number='', siteId=site['id'], month=month, submittedDay=0, lineIds=[])
+                fresh = dict(id=f'{site["id"]}-{year}-{month}', number='', siteId=site['id'], year=year, month=month, submittedDay=0, lineIds=[])
             else:
-                group_id = f'kenar-{site["id"]}-{month}'
                 groups = data['outsideRequests']
-                fresh = dict(id=group_id, number='', siteId=site['id'], month=month, day=0, reason='', lineIds=[])
-            group = next((item for item in groups if item['id'] == group_id), None)
+                fresh = dict(id=f'kenar-{site["id"]}-{year}-{month}', number='', siteId=site['id'], year=year, month=month, day=0,
+                             reason='', lineIds=[])
+            # The object's order of that month, whatever its id: one written before years came in has none in it.
+            group = next((item for item in groups if item['siteId'] == site['id'] and line_year(item) == year and item['month'] == month), None)
             if group is None:
                 groups.append(fresh)
                 group = fresh
             group['lineIds'].append(line_id)
-            data['lines'].append(dict(id=line_id, type=kind, orderId=group_id, month=month, siteId=site['id'],
+            data['lines'].append(dict(id=line_id, type=kind, orderId=group['id'], year=year, month=month, siteId=site['id'],
                                       productId=product_id, qty=qty, unit=unit, price=price, amount=qty * price, supplier=''))
-            summary.append(f'Sifariş sətri: {site["name"]}, {MONTH_NAMES[month - 1]}, '
+            summary.append(f'Sifariş sətri: {site["name"]}, {MONTH_NAMES[month - 1]} {year}, '
                            f'{"aylıq" if kind == "monthly" else "aylıqdan kənar"} — {az_number(qty)} {unit} × {az_money(price)} = {az_money(qty * price)}.')
         else:
             summary.append('Sifariş sətri əlavə olunmur: mal yalnız siyahıya düşür, rəqəmlər dəyişmir.')
