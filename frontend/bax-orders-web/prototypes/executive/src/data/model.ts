@@ -10,10 +10,12 @@ interface RealData {
   sites: Site[]
   categories: Category[]
   products: Product[]
-  lines: Line[]
-  orders: Order[]
-  outsideRequests: OutsideRequest[]
+  /** No `year` in a file written before years came in (2026-11-10): its figures are 2026's alone (LEGACY_YEAR). */
+  lines: (Omit<Line, 'year' | 'supplierId'> & { year?: number; supplierId?: string })[]
+  orders: (Omit<Order, 'year'> & { year?: number })[]
+  outsideRequests: (Omit<OutsideRequest, 'year'> & { year?: number })[]
 }
+const LEGACY_YEAR = 2026
 const loaded = (globalThis as { __BAX_DATA__?: Partial<RealData> }).__BAX_DATA__
 const real = loaded?.meta && Array.isArray(loaded.lines) && Array.isArray(loaded.products) ? loaded as RealData : undefined
 
@@ -64,8 +66,10 @@ export type LineType = 'monthly' | 'outside'
 export interface Line {
   id: string
   type: LineType
-  /** The monthly order (object × month), or the outside-monthly request this line belongs to. */
+  /** The monthly order (object × year × month), or the outside-monthly request this line belongs to. */
   orderId: string
+  year: number
+  /** 1–12, within `year`. */
   month: number
   siteId: string
   productId: string
@@ -89,6 +93,7 @@ export interface Order {
   /** Empty when the source has none (the workbook has no order numbers). */
   number: string
   siteId: string
+  year: number
   month: number
   /** 0 when the source does not say. */
   submittedDay: number
@@ -100,6 +105,7 @@ export interface OutsideRequest {
   id: string
   number: string
   siteId: string
+  year: number
   month: number
   day: number
   reason: string
@@ -115,7 +121,9 @@ export interface MonthApproval {
   approvedOn?: { day: number; month: number }
 }
 
-export const YEAR = 2026
+/** The demo's year, and the month its figures stop at: October 2026. */
+const DEMO_YEAR = 2026
+const DEMO_LAST_MONTH = 10
 const now = new Date()
 /** Today: the real date with the workbook, the demo's 18 October 2026 without it. */
 export const TODAY = real ? { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() } : { year: 2026, month: 10, day: 18 }
@@ -131,7 +139,6 @@ const uploaded = lastChange?.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/)
 export const DATA_UPDATED_AT = uploaded
   ? { year: Number(uploaded[1]), month: Number(uploaded[2]), day: Number(uploaded[3]), time: uploaded[4] }
   : real ? { year: 2026, month: 10, day: 17, time: '' } : { year: 2026, month: 10, day: 18, time: '09:40' }
-export const LAST_MONTH_WITH_DATA = real ? Math.max(...real.lines.map((line) => line.month)) : 10
 /** Where the figures come from, for the frame's flag and footnote. */
 export const DATA_SOURCE = real
   ? { kind: 'real' as const, file: real.meta.source, lines: real.meta.lines, freeLines: real.meta.freeLines, uploaded: Boolean(uploaded), edits: DATA_EDITS.length }
@@ -244,14 +251,15 @@ const orders: Order[] = []
 
 siteSeeds.forEach((seed, siteIndex) => {
   const siteId = slug(seed.name)
-  for (let month = 1; month <= LAST_MONTH_WITH_DATA; month++) {
+  for (let month = 1; month <= DEMO_LAST_MONTH; month++) {
     if ((seed.from && month < seed.from) || seed.skip?.includes(month)) continue
 
     const orderId = `${siteId}-${month}`
     const order: Order = {
       id: orderId,
-      number: `SF-${YEAR}-${String(month).padStart(2, '0')}-${String(siteIndex + 1).padStart(2, '0')}`,
+      number: `SF-${DEMO_YEAR}-${String(month).padStart(2, '0')}-${String(siteIndex + 1).padStart(2, '0')}`,
       siteId,
+      year: DEMO_YEAR,
       month,
       submittedDay: 1 + Math.floor(random() * 4),
       lineIds: [],
@@ -297,6 +305,7 @@ siteSeeds.forEach((seed, siteIndex) => {
         id: `${orderId}-${product.id}`,
         type: 'monthly',
         orderId,
+        year: DEMO_YEAR,
         month,
         siteId,
         productId: product.id,
@@ -358,8 +367,9 @@ schedule.forEach(([month, day, siteId, kind]) => {
   const perMonth = outsideRequests.filter((item) => item.month === month).length + 1
   const request: OutsideRequest = {
     id: `kenar-${month}-${perMonth}`,
-    number: `AK-${YEAR}-${String(month).padStart(2, '0')}-${String(perMonth).padStart(2, '0')}`,
+    number: `AK-${DEMO_YEAR}-${String(month).padStart(2, '0')}-${String(perMonth).padStart(2, '0')}`,
     siteId,
+    year: DEMO_YEAR,
     month,
     day,
     reason: template.reason,
@@ -378,6 +388,7 @@ schedule.forEach(([month, day, siteId, kind]) => {
       id: `${request.id}-${productId}`,
       type: 'outside',
       orderId: request.id,
+      year: DEMO_YEAR,
       month,
       siteId,
       productId,
@@ -404,33 +415,108 @@ if (real) {
   for (const site of real.sites) sites.set(site.id, site)
   lines.length = 0
   // The company comes from the workbook's «Şirkət» column by name; a line added on the site may have none.
-  lines.push(...real.lines.map((line) => ({ ...line, supplierId: line.supplierId || slug(line.supplier) || 'gosterilmeyib', supplier: line.supplier || 'Göstərilməyib' })))
+  lines.push(...real.lines.map((line) => ({
+    ...line,
+    year: line.year ?? LEGACY_YEAR,
+    supplierId: line.supplierId || slug(line.supplier) || 'gosterilmeyib',
+    supplier: line.supplier || 'Göstərilməyib',
+  })))
   orders.length = 0
-  orders.push(...real.orders)
+  orders.push(...real.orders.map((order) => ({ ...order, year: order.year ?? LEGACY_YEAR })))
   outsideRequests.length = 0
-  outsideRequests.push(...real.outsideRequests)
+  outsideRequests.push(...real.outsideRequests.map((request) => ({ ...request, year: request.year ?? LEGACY_YEAR })))
 }
 
-export const allLines: readonly Line[] = lines
-export const allOrders = new Map(orders.map((order) => [order.id, order]))
-export const allOutsideRequests: readonly OutsideRequest[] = outsideRequests
+// ---- every year -----------------------------------------------------------------------------------------------------
+
+/** The years with orders, oldest first: the site shows one at a time (`YEAR`), and opens on the latest. */
+export const YEARS: readonly number[] = [...new Set(lines.map((line) => line.year))].sort((a, b) => a - b)
+/** Every year's lines: for what is the same whatever the year on screen — the units in use, a line by its id. */
+export const linesOfEveryYear: readonly Line[] = lines
 export const linesById = new Map(lines.map((line) => [line.id, line]))
-/** The companies the year's lines were bought from. */
+/** The companies lines were bought from, in any year: a comparison can reach into the year before. */
 export const allSuppliers = new Map<string, Supplier>(lines.map((line) => [line.supplierId, { id: line.supplierId, name: line.supplier }]))
 
+const monthsByYear = new Map<number, number[]>()
+for (const line of lines) {
+  if (line.type !== 'monthly') continue
+  const months = monthsByYear.get(line.year) ?? []
+  if (!months.includes(line.month)) months.push(line.month)
+  monthsByYear.set(line.year, months)
+}
+for (const months of monthsByYear.values()) months.sort((a, b) => a - b)
+
+/** A year's reporting months: those with a monthly package. Outside-monthly figures are read within the same months. */
+export const monthsWithDataIn = (year: number): readonly number[] => monthsByYear.get(year) ?? []
+
+/**
+ * The monthly packages approved in the program, not in the workbook: up to and including September 2026; October is
+ * waiting (D-53), and a month the workbook adds later waits too, until the program says otherwise. No approval days are
+ * made up.
+ */
+const APPROVED_THROUGH = { year: 2026, month: 9 }
+
+// ---- the year on screen -------------------------------------------------------------------------------------------
+//
+// Every screen reads one year: the one in the address, chosen by `selectYear` before any of them draws (app.tsx). The
+// bindings below are that year's and change with it — read them when they are needed, never copy them at load.
+
+/** The year on screen. */
+export let YEAR = YEARS.at(-1) ?? DEMO_YEAR
+/** The year's lines: months 1–12. */
+export let allLines: readonly Line[] = []
+/** The year's monthly orders, by object and month: `${siteId}-${month}`. */
+export let allOrders = new Map<string, Order>()
+export let allOutsideRequests: readonly OutsideRequest[] = []
+/** The year's reporting months. */
+export let monthsWithData: readonly number[] = []
+/** The latest month of the year with any order. */
+export let LAST_MONTH_WITH_DATA = 0
+/**
+ * Lines by month counted from January of the year on screen, the years before it included: 0 is the December before,
+ * −11 the January of the year before. A comparison reads the months before a month whatever their year — January's
+ * «previous month» is the December before it.
+ */
+export let linesByMonth = new Map<number, Line[]>()
+/** The months — counted the same way — with a monthly package, up to the year on screen's: what a comparison stands on. */
+export let comparableMonths: readonly number[] = []
 /**
  * The monthly package's approval: a Rəhbər approves the month's monthly orders once, for every object. Usually by the
  * 15th, but that is not a deadline: on 18 October the October package can still be waiting, and that is not «late».
  * Outside-monthly requests are not in it; the system keeps no record of their separate consent.
  */
-export const approvals: MonthApproval[] = Array.from({ length: LAST_MONTH_WITH_DATA }, (_, index) => {
-  const month = index + 1
-  // The real approvals are in the program, not in the workbook: January–September approved, October waiting (D-53),
-  // and a month the workbook adds later waits too, until the program says otherwise. No approval days are made up.
-  if (real) return month <= 9 ? { month, state: 'approved' } : { month, state: 'pending' }
-  if (month === LAST_MONTH_WITH_DATA) return { month, state: 'pending' }
-  return { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }
-})
+export let approvals: MonthApproval[] = []
 
-/** The reporting months: those with a monthly package. Outside-monthly figures are read within the same months. */
-export const monthsWithData: readonly number[] = [...new Set(lines.filter((line) => line.type === 'monthly').map((line) => line.month))].sort((a, b) => a - b)
+/** The figures of one year, for every screen; a year with no orders gives empty ones. */
+export function selectYear(year: number) {
+  YEAR = year
+  allLines = lines.filter((line) => line.year === year)
+  allOrders = new Map(orders.filter((order) => order.year === year).map((order) => [`${order.siteId}-${order.month}`, order]))
+  allOutsideRequests = outsideRequests.filter((request) => request.year === year)
+  monthsWithData = monthsWithDataIn(year)
+  LAST_MONTH_WITH_DATA = allLines.reduce((last, line) => Math.max(last, line.month), 0)
+
+  linesByMonth = new Map()
+  const comparable = new Set<number>()
+  for (const line of lines) {
+    if (line.year > year) continue
+    const month = (line.year - year) * 12 + line.month
+    const list = linesByMonth.get(month)
+    if (list) list.push(line)
+    else linesByMonth.set(month, [line])
+    if (line.type === 'monthly') comparable.add(month)
+  }
+  comparableMonths = [...comparable].sort((a, b) => a - b)
+
+  approvals = Array.from({ length: LAST_MONTH_WITH_DATA }, (_, index): MonthApproval => {
+    const month = index + 1
+    if (real) {
+      const approved = year < APPROVED_THROUGH.year || (year === APPROVED_THROUGH.year && month <= APPROVED_THROUGH.month)
+      return { month, state: approved ? 'approved' : 'pending' }
+    }
+    if (month === LAST_MONTH_WITH_DATA) return { month, state: 'pending' }
+    return { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }
+  })
+}
+
+selectYear(YEAR)
