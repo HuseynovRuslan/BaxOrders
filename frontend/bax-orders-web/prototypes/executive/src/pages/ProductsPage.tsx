@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import { Pencil, Plus, Search, Tag, Trash2 } from 'lucide-react'
-import { allLines, DATA_EDITS, products, YEAR, type Line } from '../data/model'
+import { allLines, DATA_EDITS, products, YEAR, YEARS, type Line } from '../data/model'
 import { money, monthName } from '../lib/format'
 import { CatalogDialog, CategoryPicker, pathOf, priceText, type CatalogTask, type ProductRow } from '../ui/CatalogDialog'
 import { importEnabled, when } from '../ui/ImportButton'
-import { NotFound } from './NotFound'
+import { YearNotFound } from './NotFound'
+import { YearSelect } from './YearControls'
 import './year.css'
 
 /**
@@ -25,7 +26,7 @@ export function ProductsPage() {
   // The import key, typed once for the visit: every edit on the page uses it.
   const [key, setKey] = useState('')
 
-  if (year !== YEAR) return <NotFound message={`Prototip yalnız ${YEAR} ilini göstərir.`} />
+  if (year !== YEAR) return <YearNotFound />
 
   const needle = query.trim().toLocaleLowerCase('az')
   const shown = rows
@@ -42,7 +43,7 @@ export function ProductsPage() {
         <div className="min-w-0">
           <h1 id="page-title" tabIndex={-1} className="text-[26px] font-extrabold leading-tight tracking-[-0.02em] outline-none">Mallar</h1>
           <p className="text-sm text-(--y-muted)">
-            {rows.length} mal. Qiymət, ad, kateqoriya, yeni mal və silinmə hamı üçün keçərlidir: hər dəyişiklik əvvəl yoxlanır, sonra təsdiqlənir.
+            {rows.length} mal. Son qiymət və məbləğ {YEAR} ilinin sifarişlərindəndir. Qiymət, ad, kateqoriya, yeni mal və silinmə hamı üçün keçərlidir: hər dəyişiklik əvvəl yoxlanır, sonra təsdiqlənir.
           </p>
         </div>
         {importEnabled && (
@@ -73,6 +74,12 @@ export function ProductsPage() {
               <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setLimit(60) }} placeholder="Malın adı…" className="min-w-0 flex-1 bg-transparent text-sm font-normal text-(--y-ink) outline-none" />
             </span>
           </label>
+          {YEARS.length > 1 && (
+            <label className="flex flex-col gap-1 text-xs font-semibold text-(--y-muted)">
+              İl
+              <span className="flex h-10 items-center rounded-lg border border-(--y-line) bg-(--y-surface) px-1 text-sm"><YearSelect /></span>
+            </label>
+          )}
           <CategoryPicker value={picked} onChange={(next) => { setPicked(next); setLimit(60) }} allowAll className="flex-1" />
           <label className="flex flex-col gap-1 text-xs font-semibold text-(--y-muted)">
             Sırala
@@ -90,7 +97,7 @@ export function ProductsPage() {
               <tr className="text-[11px] font-semibold text-(--y-ink-2)">
                 <th scope="col" className="border-b border-(--y-line) px-3 py-2 text-left">Mal</th>
                 <th scope="col" className="border-b border-(--y-line) px-3 py-2 text-right">Son qiymət</th>
-                <th scope="col" className="border-b border-(--y-line) px-3 py-2 text-right">İl üzrə məbləğ</th>
+                <th scope="col" className="border-b border-(--y-line) px-3 py-2 text-right">{YEAR} üzrə məbləğ</th>
                 <th scope="col" className="border-b border-(--y-line) px-3 py-2 text-right">Sətir</th>
                 {importEnabled && <th scope="col" className="border-b border-(--y-line) px-3 py-2"><span className="sr-only">Əməliyyatlar</span></th>}
               </tr>
