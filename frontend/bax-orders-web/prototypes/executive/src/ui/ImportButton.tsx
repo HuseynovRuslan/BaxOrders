@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Upload, X } from 'lucide-react'
-import { money, monthName, signedMoney } from '../lib/format'
+import { money, monthName, monthNames, signedMoney } from '../lib/format'
 
 /**
  * «Excel yüklə» (owner, 2026-10-28): the owner uploads the workbook and the site's figures change for everyone — in
@@ -21,12 +21,13 @@ interface Report {
   file: string
   lines: number
   objects: number
+  /** By «2026-01» (by «1» from a server before years came in). */
   months: Record<string, { monthly: number; outside: number }>
   freeLines: number
   missingPrice: number
   mismatchedTotals: number
 }
-interface Moved { month: number; monthName: string; kind: 'monthly' | 'outside'; before: number; after: number }
+interface Moved { year?: number; month: number; monthName: string; kind: 'monthly' | 'outside'; before: number; after: number }
 export interface Changes { linesBefore: number; linesAfter: number; moved: Moved[] }
 interface Version { source: string | null; importedAt: string | null; edits: number; lastEdit: { at: string; text: string } | null }
 /** The server's answer to a check or an apply: an import carries the report, an undo the two versions. */
@@ -137,7 +138,7 @@ export function ImportButton() {
           {status.kind !== 'done' && (
             <p className="text-sm leading-relaxed text-ink-2">
               {action === 'import'
-                ? 'Sifariş kitabı (.xlsx): «Aylıq» vərəqi və ay adlı vərəqlər, məsələn «Oktyabr», oxunur. Əvvəl yoxlanır və nəyin dəyişəcəyi göstərilir; rəqəmlər yalnız «Təsdiq et»-dən sonra, hamı üçün dəyişir.'
+                ? 'Sifariş kitabı (.xlsx): bütün illər bir «Əsas» vərəqində, ya da köhnə quruluşda «Aylıq» vərəqi; ay adlı vərəqlər (məsələn «Dekabr») də oxunur. Əvvəl yoxlanır və nəyin dəyişəcəyi göstərilir; rəqəmlər yalnız «Təsdiq et»-dən sonra, hamı üçün dəyişir.'
                 : 'Son dəyişiklik — Excel importu və ya «Mallar»-da edilən düzəliş — ləğv olunur və ondan əvvəlki rəqəmlər bərpa edilir. Əvvəl nəyin dəyişəcəyi göstərilir; rəqəmlər yalnız «Təsdiq et»-dən sonra dəyişir.'}
             </p>
           )}
@@ -241,6 +242,12 @@ export function when(at: string | null | undefined, fallback = '') {
   return `${Number(parts[3])} ${monthName(Number(parts[2])).toLocaleLowerCase('az')} ${parts[1]}, ${parts[4]}`
 }
 
+/** «Yanvar 2025» from the report's «2025-01»; a month alone from a server before years came in. */
+function monthKeyName(key: string) {
+  const parts = key.match(/^(\d{4})-(\d{1,2})$/)
+  return parts ? `${monthNames[Number(parts[2]) - 1]} ${parts[1]}` : monthName(Number(key))
+}
+
 /** What a version is, in the owner's words: its last edit on the site, or the workbook it came from. */
 function describe(version: Version) {
   if (version.lastEdit) return `saytda dəyişiklik — ${version.lastEdit.text} (${when(version.lastEdit.at)})`
@@ -260,7 +267,7 @@ export function ChangeLines({ changes, done }: { changes: Changes; done: boolean
       ) : (
         <ul className="mt-1 space-y-0.5">
           {changes.moved.map((item) => (
-            <li key={`${item.month}-${item.kind}`} className={`tnum ${item.before > 0 && item.after === 0 ? 'font-semibold text-up' : 'text-ink-2'}`}>
+            <li key={`${item.year ?? ''}-${item.month}-${item.kind}`} className={`tnum ${item.before > 0 && item.after === 0 ? 'font-semibold text-up' : 'text-ink-2'}`}>
               {item.monthName}, {item.kind === 'monthly' ? 'aylıq' : 'aylıqdan kənar'}: {money(item.before)} → <b className="text-ink">{money(item.after)}</b> ({signedMoney(item.after - item.before)})
               {item.before > 0 && item.after === 0 ? ' — bu ay saytdan itəcək' : item.before === 0 ? ' — yeni' : ''}
             </li>
@@ -290,7 +297,7 @@ function Outcome({ answer, action, done }: { answer: Answer; action: Action; don
   const heading = done
     ? action === 'import' ? 'Yükləndi: rəqəmlər hamı üçün yeniləndi.' : 'Geri qaytarıldı: əvvəlki rəqəmlər bərpa olundu.'
     : 'Yoxlandı — hələ heç nə dəyişməyib.'
-  const months = report ? Object.keys(report.months).map(Number).sort((a, b) => a - b) : []
+  const months = report ? Object.keys(report.months).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) : []
   const sum = (kind: 'monthly' | 'outside') => months.reduce((total, month) => total + report!.months[month][kind], 0)
   const lost = changes.moved.filter((item) => item.before > 0 && item.after === 0)
   const fewer = changes.linesAfter < changes.linesBefore * 0.9
@@ -299,7 +306,7 @@ function Outcome({ answer, action, done }: { answer: Answer; action: Action; don
     <OutcomeBox done={done} heading={heading}>
       {report && (
         <p className="text-ink-2">
-          «{report.file}» · {report.lines} sətir, {report.objects} obyekt · {months.length ? `${monthName(months[0])}–${monthName(months[months.length - 1])}` : ''}
+          «{report.file}» · {report.lines} sətir, {report.objects} obyekt · {months.length ? `${monthKeyName(months[0])} – ${monthKeyName(months[months.length - 1])}` : ''}
           <br />
           Aylıq sifarişlər: <b className="tnum text-ink">{money(sum('monthly'))}</b> · Aylıqdan kənar: <b className="tnum text-ink">{money(sum('outside'))}</b>
         </p>
