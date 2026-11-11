@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { Link, useLocation, useParams } from 'react-router'
 import { ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, Hourglass, Info, Search, SlidersHorizontal, Table2, X } from 'lucide-react'
 import { approvalOf } from '../data/analysis'
-import { LAST_MONTH_WITH_DATA, monthsWithData, YEAR } from '../data/model'
+import { LAST_MONTH_WITH_DATA, monthsWithData, YEAR, YEARS } from '../data/model'
 import { money, moneyParts, monthName, monthNames, monthRange, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
 import {
   categoryDim, cellOf, computePivot, dimLabels, dimOrder, dimSingular, facetOptions, foldColumns, labelOf, presetMatches, presets,
@@ -11,8 +11,8 @@ import {
 import { basisReference, kindNames, rounded, signedRounded, updatedText, type Change } from '../lib/year'
 import { packageWords } from '../ui/kinds'
 import { Tip, useTipTrigger } from '../ui/tip'
-import { NotFound } from './NotFound'
-import { BasisSelect, KindNav } from './YearControls'
+import { YearNotFound } from './NotFound'
+import { BasisSelect, KindNav, YearSelect } from './YearControls'
 import { Chip, NoChange } from './YearKpi'
 import { axisLabel, niceScale } from './YearPage'
 import './year.css'
@@ -37,7 +37,7 @@ export function AnalysisPage() {
   const options = useMemo(() => facetOptions(analysis, kind), [search]) // eslint-disable-line react-hooks/exhaustive-deps
   const pivot = useMemo(() => computePivot(analysis, kind, basis), [search]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (year !== YEAR) return <NotFound message={`Prototip yalnız ${YEAR} ilini göstərir.`} />
+  if (year !== YEAR) return <YearNotFound />
 
   const withData = monthsWithData.filter((month) => month >= analysis.from && month <= analysis.to)
   const period = withData.length ? monthRange(withData, YEAR) : `${monthName(analysis.from)}–${monthName(analysis.to)} ${YEAR}`
@@ -185,8 +185,9 @@ function PeriodField({ reading }: { reading: AnalysisReading }) {
   ))
   return (
     <div className="min-w-0">
-      <span id="period-label" className="mb-1 block text-[11px] font-semibold text-(--y-muted)">Dövr · {YEAR}</span>
+      <span id="period-label" className="mb-1 block text-[11px] font-semibold text-(--y-muted)">Dövr{YEARS.length < 2 ? ` · ${YEAR}` : ''}</span>
       <div role="group" aria-labelledby="period-label" className="flex min-h-10 items-center gap-0.5 rounded-lg border border-(--y-line) bg-(--y-surface) px-1 text-sm">
+        {YEARS.length > 1 && <><YearSelect className="shrink-0" /><span aria-hidden="true" className="h-5 w-px bg-(--y-line)" /></>}
         {/* The range never turns over: moving one end past the other brings the other along. */}
         <select aria-label="Başlanğıc ay" value={from} onChange={(event) => { const month = Number(event.target.value); set(month, Math.max(month, to)) }} className="h-9 min-w-0 flex-1 rounded-md bg-transparent px-1 font-semibold text-(--y-ink)">
           {months}
