@@ -3,17 +3,31 @@
 export const monthNames = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 export const shortMonthNames = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'İyn', 'İyl', 'Avq', 'Sen', 'Okt', 'Noy', 'Dek']
 
-export const monthName = (month: number) => monthNames[month - 1]
+/**
+ * A month as the screens count it: from January of the year on screen, so 0 is the December before it and 13 the
+ * January after — a comparison can reach into the year before.
+ */
+const index = (month: number) => (((month - 1) % 12) + 12) % 12
+export const monthName = (month: number) => monthNames[index(month)]
+/** The calendar year of a month counted from January of `year`. */
+export const yearOf = (month: number, year: number) => year + Math.floor((month - 1) / 12)
+/** «Dekabr 2025». */
+export const monthYear = (month: number, year: number) => `${monthName(month)} ${yearOf(month, year)}`
+/** The month's name, with its year only when it is not `year`'s: «Noyabr», «Dekabr 2025». */
+export const monthNameIn = (month: number, year: number) => (yearOf(month, year) === year ? monthName(month) : monthYear(month, year))
 
 /** The month in the dative, for «Sentyabra görə». */
 const monthDatives = ['Yanvara', 'Fevrala', 'Marta', 'Aprelə', 'Maya', 'İyuna', 'İyula', 'Avqusta', 'Sentyabra', 'Oktyabra', 'Noyabra', 'Dekabra']
-export const monthDative = (month: number) => monthDatives[month - 1]
+export const monthDative = (month: number) => monthDatives[index(month)]
 
-/** «İyul–Sentyabr 2026», or one month's name when the range is one month. */
+/** «İyul–Sentyabr 2026», «Noyabr 2025–Yanvar 2026», or one month's name when the range is one month. */
 export function monthRange(months: readonly number[], year: number): string {
   if (months.length === 0) return ''
   const first = months[0], last = months[months.length - 1]
-  return first === last ? `${monthName(first)} ${year}` : `${monthName(first)}–${monthName(last)} ${year}`
+  if (first === last) return monthYear(first, year)
+  return yearOf(first, year) === yearOf(last, year)
+    ? `${monthName(first)}–${monthName(last)} ${yearOf(last, year)}`
+    : `${monthYear(first, year)}–${monthYear(last, year)}`
 }
 
 function group(integer: string): string {
