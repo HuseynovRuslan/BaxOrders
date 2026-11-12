@@ -495,6 +495,24 @@ export function approvalOf(month: number): MonthApproval | null {
   return approvals.find((item) => item.month === month) ?? null
 }
 
+/** The month's monthly orders now: what an approval is given for. */
+export function monthlyAmount(month: number): { amount: number; lines: number; objects: number } {
+  const monthly = linesFor(month, { kind: 'monthly' })
+  return { amount: sum(monthly.map((line) => line.amount)), lines: monthly.length, objects: new Set(monthly.map((line) => line.siteId)).size }
+}
+
+/**
+ * An approved month whose monthly figures moved after the approval (a new workbook, a price changed in «Mallar»): the
+ * approval stands (owner, 2026-11-02) and says what it was given for and what the figure is now. Only a difference
+ * the screens show — whole manats — counts.
+ */
+export function approvalDrift(month: number): { approved: number; now: number } | null {
+  const approval = approvalOf(month)
+  if (approval?.state !== 'approved' || approval.amount === undefined) return null
+  const now = monthlyAmount(month).amount
+  return Math.round(now) === Math.round(approval.amount) ? null : { approved: approval.amount, now }
+}
+
 /**
  * The year so far for one kind, and — always about the monthly package alone — how much of the package is in months
  * already approved. Outside-monthly money is never inside an approved package figure.

@@ -113,7 +113,17 @@ export interface MonthApproval {
   state: ApprovalState
   /** The day it was approved, in the following month. */
   approvedOn?: { day: number; month: number }
+  /** Approved on the site: when (Baku time) and by whom — none for the months approved in the program (D-53). */
+  at?: string | null
+  by?: string
+  /** The monthly orders' amount and line count the approval was given for: the figures may move after it. */
+  amount?: number
+  lines?: number
 }
+
+/** data/approvals.json, written by the import service when the Rəhbər approves a month or takes it back. */
+interface ApprovalFile { months?: Record<string, { at?: string | null; by?: string; amount?: number; lines?: number }> }
+const approvalFile = (globalThis as { __BAX_APPROVALS__?: ApprovalFile }).__BAX_APPROVALS__
 
 export const YEAR = 2026
 const now = new Date()
@@ -425,8 +435,15 @@ export const allSuppliers = new Map<string, Supplier>(lines.map((line) => [line.
  */
 export const approvals: MonthApproval[] = Array.from({ length: LAST_MONTH_WITH_DATA }, (_, index) => {
   const month = index + 1
-  // The real approvals are in the program, not in the workbook: January–September approved, October waiting (D-53),
-  // and a month the workbook adds later waits too, until the program says otherwise. No approval days are made up.
+  // The real approvals are not in the workbook. Their own file says which months the Rəhbər approved, when and for how
+  // much; a month not in it waits. Without the file, as the program left them: January–September approved, the
+  // rest waiting (D-53). No approval days are made up.
+  if (real && approvalFile?.months) {
+    const record = approvalFile.months[String(month)]
+    if (!record) return { month, state: 'pending' }
+    const day = record.at?.match(/^\d{4}-(\d{2})-(\d{2})/)
+    return { month, state: 'approved', at: record.at ?? null, by: record.by, amount: record.amount, lines: record.lines, ...(day ? { approvedOn: { day: Number(day[2]), month: Number(day[1]) } } : {}) }
+  }
   if (real) return month <= 9 ? { month, state: 'approved' } : { month, state: 'pending' }
   if (month === LAST_MONTH_WITH_DATA) return { month, state: 'pending' }
   return { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }

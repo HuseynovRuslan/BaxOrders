@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { AlertTriangle, Check, Hourglass, Layers, Wrench } from 'lucide-react'
-import { approvalOf, kindOptions, type Kind, type outsideRequestsIn } from '../data/analysis'
+import { approvalDrift, approvalOf, kindOptions, type Kind, type outsideRequestsIn } from '../data/analysis'
 import { linesById, products, sites, YEAR, type MonthApproval } from '../data/model'
-import { exactMoney, monthName, price, quantity } from '../lib/format'
+import { exactMoney, money, monthName, price, quantity } from '../lib/format'
 import { Money, Notice } from './parts'
 
 export const kindLabels: Record<Kind, string> = Object.fromEntries(kindOptions.map((option) => [option.value, option.label])) as Record<Kind, string>
@@ -11,9 +11,9 @@ export const kindLabels: Record<Kind, string> = Object.fromEntries(kindOptions.m
 /** The package's approval in a few words, for the strip and the year's tips. */
 export function packageWords(approval: MonthApproval | null): string {
   if (!approval) return 'Aylıq sifariş yoxdur'
-  return approval.state === 'approved'
-    ? `Sifarişlər təsdiqlənib${approval.approvedOn ? `, ${approval.approvedOn.day} ${monthName(approval.approvedOn.month).toLocaleLowerCase('az')}` : ''}`
-    : 'Sifarişlər təsdiq gözləyir'
+  if (approval.state !== 'approved') return 'Sifarişlər təsdiq gözləyir'
+  const drift = approvalDrift(approval.month)
+  return `Sifarişlər təsdiqlənib${approval.approvedOn ? `, ${approval.approvedOn.day} ${monthName(approval.approvedOn.month).toLocaleLowerCase('az')}` : ''}${drift ? ` · sonra dəyişib: ${money(drift.approved)} → ${money(drift.now)}` : ''}`
 }
 
 /**
