@@ -62,7 +62,7 @@ export function Shell() {
 
       <footer className="mx-auto max-w-[1180px] pb-8 text-xs text-muted pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] sm:pl-[max(24px,env(safe-area-inset-left,0px))] sm:pr-[max(24px,env(safe-area-inset-right,0px))]">
         {DATA_SOURCE.kind === 'real'
-          ? `Prototip. Rəqəmlər sahibin Excel kitabındandır: «${DATA_SOURCE.file}», ${DATA_SOURCE.lines} sətir${DATA_SOURCE.edits ? `, saytda ${DATA_SOURCE.edits} dəyişiklik edilib` : ''}; ${DATA_SOURCE.uploaded ? 'yenilənib' : 'düzəldilib'} ${updatedText}. Qala Bazadan daxili təchizat pulsuz sayılır. Təsdiq vəziyyəti proqramdakı kimidir: yanvar–sentyabr təsdiqlənib, sonrakı aylar gözləyir.`
+          ? `Prototip. Rəqəmlər sahibin Excel kitabındandır: «${DATA_SOURCE.file}», ${DATA_SOURCE.lines} sətir${DATA_SOURCE.edits ? `, saytda ${DATA_SOURCE.edits} dəyişiklik edilib` : ''}; ${DATA_SOURCE.uploaded ? 'yenilənib' : 'düzəldilib'} ${updatedText}. Qala Bazadan daxili təchizat pulsuz sayılır. Təsdiq vəziyyəti proqramdakı kimidir: sentyabr 2026 daxil bütün aylar təsdiqlənib, sonrakı aylar gözləyir.`
           : 'Prototip. Kateqoriya quruluşu kitabdakı kimidir; obyektlər, məhsullar, miqdarlar və məbləğlər demo məqsədli uydurmadır.'}
       </footer>
       <ScrollRestoration />

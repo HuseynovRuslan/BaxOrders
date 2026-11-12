@@ -2,15 +2,18 @@
 The owner's workbook into the prototype (owner, 2026-10-28) — run by hand, and on the server behind the «Excel yüklə»
 button (import_service.py).
 
-Reads the workbook read-only: the «Aylıq» sheet and every sheet named after a month («Oktyabr», «Noyabr», …). «Əsas»
-and any other sheet are not read: «Əsas» repeats January–September, and the program reads «Aylıq» only (70b74a6).
+Reads the workbook read-only, in either of its two layouts. The one-table book (owner, 2026-11-10): one «Əsas» sheet
+with every year, the order kind in its own «Sifariş növü» column. The older book of 2026: the «Aylıq» sheet, whose
+order kind is the unheaded column after «Cavabdeh şəxs»; its «Əsas» repeats January–September and is not read, as the
+program reads «Aylıq» only (70b74a6). Either way every sheet named after a month («Oktyabr», «Noyabr», …) is read too.
 Columns are found by their headings, not by their place. The output is the prototype's own shape: objects, the
-Ana → Orta → Alt tree, products, lines, the monthly orders (object × month) and the outside-monthly lines grouped the
-same way.
+Ana → Orta → Alt tree, products, lines, the monthly orders (object × year × month) and the outside-monthly lines
+grouped the same way. Every line, order and request carries its year: the site shows one year at a time and compares
+across them (January with the December before it).
 
 Nothing is invented: the workbook has no order numbers, submission days or reasons, so those stay empty. Internal
 supply from Qala Baza is free (D-45, D-46). A file that does not hang together is refused whole, with the rows to look
-at — a row with no date, a date outside the year, a month in two sheets, a kind that is neither «Aylıq sifariş» nor
+at — a row with no date, a date before 2020 or after next year, a month in two sheets, a kind that is neither «Aylıq sifariş» nor
 «Aylıqdan kənar», an empty object, category or name, a quantity or price that is not a number.
 
     python -I scripts/import_workbook.py <workbook.xlsx> <out.json>
@@ -26,13 +29,14 @@ import unicodedata
 
 import openpyxl
 
-YEAR = 2026
+FIRST_YEAR = 2020  # no order book goes further back: an earlier date is a slip of the keyboard, as is one after next year
+LEGACY_YEAR = 2026  # figures written before years came in (2026-11-10) are 2026 alone and do not say so
 MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avqust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr']
 MONTH_NAMES = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun', 'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 HEADINGS = {
     'ana kateqoriya': 'root', 'orta kateqoriya': 'mid', 'alt kateqoriya': 'leaf', 'malın adı': 'name', 'ölçü': 'size',
     'vahid': 'size_unit', 'model/kod': 'model', 'miqdarı': 'qty', 'ö/v': 'unit', 'qiyməti': 'price', 'cəmi': 'total',
-    'şirkət': 'supplier', 'obyekt': 'site', 'tarix': 'date', 'cavabdeh şəxs': 'person',
+    'şirkət': 'supplier', 'obyekt': 'site', 'tarix': 'date', 'cavabdeh şəxs': 'person', 'sifariş növü': 'kind', 'növ': 'kind',
 }
 REQUIRED = ['root', 'mid', 'leaf', 'name', 'qty', 'unit', 'price', 'total', 'supplier', 'site', 'date', 'person']
 LABEL = {value: key for key, value in HEADINGS.items()}
@@ -79,6 +83,11 @@ def number_or_none(value):
         return None
 
 
+def month_key(year, month):
+    """«2026-01»: a month of a year, as the report names it — it sorts as the calendar does."""
+    return f'{year}-{month:02d}'
+
+
 def spelling(values):
     """One display name for each name: the spelling the workbook uses most."""
     counts = collections.defaultdict(collections.Counter)
@@ -87,12 +96,16 @@ def spelling(values):
     return {k: c.most_common(1)[0][0] for k, c in counts.items()}
 
 
-def read_rows(workbook):
+def read_rows(workbook, today=None):
     """The data rows of the sheets that hold orders, each with its sheet and row number; problems collected."""
-    sheets = [ws for ws in workbook.worksheets if fold(ws.title) == 'aylıq' or fold(ws.title) in MONTHS]
+    months = [ws for ws in workbook.worksheets if fold(ws.title) in MONTHS]
+    table = ([ws for ws in workbook.worksheets if fold(ws.title) == 'aylıq']
+             or [ws for ws in workbook.worksheets if fold(ws.title) == 'əsas'])
+    sheets = table + months
     if not sheets:
-        raise WorkbookError('Faylda «Aylıq» vərəqi və ay adlı vərəq (məsələn «Oktyabr») tapılmadı.',
+        raise WorkbookError('Faylda «Əsas» və ya «Aylıq» vərəqi, ya da ay adlı vərəq (məsələn «Oktyabr») tapılmadı.',
                             [f'Vərəqlər: {", ".join(ws.title for ws in workbook.worksheets)}'])
+    last_year = (today or datetime.date.today()).year + 1
     rows, problems, month_sheet = [], [], {}
     found = []
     for ws in sheets:
@@ -100,15 +113,19 @@ def read_rows(workbook):
         header_at = next((i for i, row in enumerate(values[:15]) if any(fold(c) == 'malın adı' for c in row)), None)
         col = None
         if header_at is not None:
-            col = {HEADINGS[fold(c)]: j for j, c in enumerate(values[header_at]) if fold(c) in HEADINGS}
+            col = {}
+            for j, c in enumerate(values[header_at]):
+                col.setdefault(HEADINGS.get(fold(c)), j)
+            col.pop(None, None)
             missing = [LABEL[k] for k in REQUIRED if k not in col]
             if missing:
                 problems.append(f'«{ws.title}»: bu sütunlar tapılmadı — {", ".join(missing)}.')
                 continue
-            col['kind'] = col['person'] + 1  # the kind has no heading: it is the column after «Cavabdeh şəxs»
+            # The older book's kind has no heading: it is the column after «Cavabdeh şəxs».
+            col.setdefault('kind', col['person'] + 1)
         found.append((ws, values, header_at, col))
-    # A month sheet without headings («Oktyabr» has none) is laid out as «Aylıq»; its rows are checked all the same.
-    layout = next((col for ws, _, _, col in found if col and fold(ws.title) == 'aylıq'), None) or next((col for *_, col in found if col), None)
+    # A month sheet without headings («Oktyabr» has none) is laid out as the main sheet; its rows are checked all the same.
+    layout = next((col for ws, _, _, col in found if col and ws in table), None) or next((col for *_, col in found if col), None)
     for ws, values, header_at, col in found:
         if col is None:
             if layout is None:
@@ -125,18 +142,18 @@ def read_rows(workbook):
                 if content:
                     problems.append(f'{where}: «Tarix» boşdur və ya tarix deyil ({text(date) or "boş"}).')
                 continue
-            if date.year != YEAR:
-                problems.append(f'{where}: tarix {YEAR}-ci ilə aid deyil ({date:%d.%m.%Y}).')
+            if not FIRST_YEAR <= date.year <= last_year:
+                problems.append(f'{where}: tarix {FIRST_YEAR}–{last_year} illərindən deyil ({date:%d.%m.%Y}).')
                 continue
-            other = month_sheet.setdefault(date.month, ws.title)
+            other = month_sheet.setdefault((date.year, date.month), ws.title)
             if other != ws.title:
-                problems.append(f'{MONTH_NAMES[date.month - 1]} həm «{other}», həm «{ws.title}» vərəqində var ({where}).')
+                problems.append(f'{MONTH_NAMES[date.month - 1]} {date.year} həm «{other}», həm «{ws.title}» vərəqində var ({where}).')
                 continue
-            rows.append(dict(sheet=ws.title, row=index + 1, where=where, r=r, col=col, month=date.month))
+            rows.append(dict(sheet=ws.title, row=index + 1, where=where, r=r, col=col, year=date.year, month=date.month))
     return sheets, rows, problems
 
 
-def convert(source, display_name):
+def convert(source, display_name, today=None):
     """The workbook (a path or bytes) as the prototype's data, and a short report; WorkbookError if it does not hold."""
     raw = source if isinstance(source, (bytes, bytearray)) else open(source, 'rb').read()
     sha = hashlib.sha256(raw).hexdigest()
@@ -145,7 +162,7 @@ def convert(source, display_name):
     except Exception as error:  # not an xlsx, or a damaged one
         raise WorkbookError('Fayl oxunmadı: bu, düzgün .xlsx faylı deyil.', [str(error)[:200]]) from error
 
-    sheets, rows, problems = read_rows(workbook)
+    sheets, rows, problems = read_rows(workbook, today)
     # «Cəmi» is a formula; Excel stores its result when it saves. A file saved by a tool that does not (or never opened
     # in Excel) has no results at all — and then «Qala Baza with an empty Cəmi» would make paid lines free.
     priced = [row for row in rows if number_or_none(row['r'][row['col']['price']]) and number_or_none(row['r'][row['col']['qty']])]
@@ -163,7 +180,7 @@ def convert(source, display_name):
     mismatch = []
 
     for row in rows:
-        r, col, month, where = row['r'], row['col'], row['month'], row['where']
+        r, col, year, month, where = row['r'], row['col'], row['year'], row['month'], row['where']
         kind = KINDS.get(fold(r[col['kind']]))
         if kind is None:
             problems.append(f'{where}: növ «{text(r[col["kind"]]) or "boş"}» — «Aylıq sifariş» və ya «Aylıqdan kənar» olmalıdır.')
@@ -223,14 +240,17 @@ def convert(source, display_name):
         if abs(round(amount, 2) - round(total, 2)) > 0.011:
             mismatch.append(where)
 
-        group = (site_id, month)
+        group = (site_id, year, month)
         if kind == 'monthly':
-            order = orders.setdefault(group, dict(id=f'{site_id}-{month}', number='', siteId=site_id, month=month, submittedDay=0, lineIds=[]))
+            order = orders.setdefault(group, dict(id=f'{site_id}-{year}-{month}', number='', siteId=site_id, year=year, month=month,
+                                                  submittedDay=0, lineIds=[]))
         else:
-            order = outside.setdefault(group, dict(id=f'kenar-{site_id}-{month}', number='', siteId=site_id, month=month, day=0, reason='', lineIds=[]))
-        line_id = f'{slug(row["sheet"])[:3]}-{row["row"]}'
+            order = outside.setdefault(group, dict(id=f'kenar-{site_id}-{year}-{month}', number='', siteId=site_id, year=year,
+                                                   month=month, day=0, reason='', lineIds=[]))
+        # The whole sheet name: «İyun» and «İyul» begin alike.
+        line_id = f'{slug(row["sheet"])}-{row["row"]}'
         order['lineIds'].append(line_id)
-        lines.append(dict(id=line_id, type=kind, orderId=order['id'], month=month, siteId=site_id, productId=product_id,
+        lines.append(dict(id=line_id, type=kind, orderId=order['id'], year=year, month=month, siteId=site_id, productId=product_id,
                           qty=qty, unit=unit, price=price, amount=amount, supplier=supplier))
 
     if problems:
@@ -243,14 +263,16 @@ def convert(source, display_name):
 
     months = collections.defaultdict(lambda: dict(monthly=0.0, outside=0.0))
     for line in lines:
-        months[line['month']][line['type']] += line['amount']
+        months[month_key(line['year'], line['month'])][line['type']] += line['amount']
+    years = sorted({line['year'] for line in lines})
     report = dict(
         file=display_name, sheets=[ws.title for ws in sheets], lines=len(lines), objects=len(sites), products=len(products),
+        years=years,
         months={m: dict(monthly=round(v['monthly'], 2), outside=round(v['outside'], 2)) for m, v in sorted(months.items())},
         freeLines=free, missingPrice=missing_price, mismatchedTotals=len(mismatch), mismatchExamples=mismatch[:5],
     )
     data = dict(
-        meta=dict(source=display_name, sha256=sha, sheets=report['sheets'], lines=len(lines), freeLines=free),
+        meta=dict(source=display_name, sha256=sha, sheets=report['sheets'], lines=len(lines), freeLines=free, years=years),
         sites=sorted(sites.values(), key=lambda s: s['name']),
         categories=list(categories.values()),
         products=list(products.values()),
@@ -272,7 +294,8 @@ if __name__ == '__main__':
         sys.exit(1)
     with open(target, 'w', encoding='utf-8') as out:
         json.dump(data, out, ensure_ascii=False, separators=(',', ':'))
-    print(f'sheets {report["sheets"]}: {report["lines"]} lines, {report["objects"]} objects, {report["products"]} products; '
-          f'Qala Baza free {report["freeLines"]}, no price {report["missingPrice"]}, qty × price ≠ Cəmi {report["mismatchedTotals"]}')
+    print(f'sheets {report["sheets"]}: {report["lines"]} lines, {report["objects"]} objects, {report["products"]} products, '
+          f'years {report["years"]}; Qala Baza free {report["freeLines"]}, no price {report["missingPrice"]}, '
+          f'qty × price ≠ Cəmi {report["mismatchedTotals"]}')
     for month, figures in report['months'].items():
-        print(f'  {month:2d}: aylıq {figures["monthly"]:12,.2f}  kənar {figures["outside"]:10,.2f}')
+        print(f'  {month}: aylıq {figures["monthly"]:12,.2f}  kənar {figures["outside"]:10,.2f}')

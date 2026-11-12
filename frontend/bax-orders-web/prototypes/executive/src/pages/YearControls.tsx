@@ -1,6 +1,34 @@
-import { Link } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { basisOptions, type Basis, type Kind } from '../data/analysis'
+import { YEAR, YEARS } from '../data/model'
 import { kindNames, kindOrder } from '../lib/year'
+
+/**
+ * The year on screen, as a choice among the years with figures: the same screen of another year, its kind, comparison
+ * and filters kept. An open row of the split closes — it may not be in the other year. With one year, just the year.
+ */
+export function YearSelect({ className = '' }: { className?: string }) {
+  const navigate = useNavigate()
+  const { pathname, search } = useLocation()
+  if (YEARS.length < 2) return <span className={`px-1 font-semibold ${className}`}>{YEAR}</span>
+  const go = (year: string) => {
+    const params = new URLSearchParams(search)
+    params.delete('sec')
+    params.delete('yol')
+    const query = params.toString()
+    navigate(`${pathname.replace(/^\/\d{4}/, `/${year}`)}${query ? `?${query}` : ''}`)
+  }
+  return (
+    <select
+      aria-label="İl"
+      value={YEAR}
+      onChange={(event) => go(event.target.value)}
+      className={`h-9 rounded-md bg-transparent pl-1 pr-6 font-semibold text-(--y-ink) ${className}`}
+    >
+      {YEARS.map((year) => <option key={year} value={year} className="bg-(--y-surface)">{year}</option>)}
+    </select>
+  )
+}
 
 /** The order kind, as three links that keep everything else in the address: the year and the analysis screens share it. */
 export function KindNav({ kind, hrefOf }: { kind: Kind; hrefOf: (kind: Kind) => string }) {

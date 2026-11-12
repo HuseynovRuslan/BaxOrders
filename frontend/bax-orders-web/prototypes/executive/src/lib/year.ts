@@ -332,7 +332,7 @@ export function groupRows(filters: YearFilters, kind: Kind, basis: Basis, latest
 
 /* ---- Reading a figure ----------------------------------------------------------------------------------------------- */
 
-export const isCurrent = (tile: MonthTile) => tile.latest && tile.month === TODAY.month
+export const isCurrent = (tile: MonthTile) => tile.latest && YEAR === TODAY.year && tile.month === TODAY.month
 
 /** To the manat, for a chart or a cell: «35.444 ₼». The exact figure is always one step away. */
 export const rounded = (value: number | null) => (value === null ? '—' : `${moneyParts(Math.round(value)).whole} ₼`)

@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { YEAR } from '../data/model'
+import { YEAR, YEARS } from '../data/model'
 
 export function NotFound({ message = 'Bu ünvanda səhifə yoxdur.' }: { message?: string }) {
   return (
@@ -9,4 +9,9 @@ export function NotFound({ message = 'Bu ünvanda səhifə yoxdur.' }: { message
       <Link to={`/${YEAR}`} className="font-semibold text-sea underline-offset-4 hover:underline">{YEAR} ilinin icmalına qayıt</Link>
     </section>
   )
+}
+
+/** A year the figures do not reach: which years they do. */
+export function YearNotFound() {
+  return <NotFound message={`Bu il üçün məlumat yoxdur. Məlumat olan illər: ${YEARS.join(', ')}.`} />
 }

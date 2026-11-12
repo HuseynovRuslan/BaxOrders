@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router'
 import { Check, ChevronDown, ChevronRight, Hourglass, X } from 'lucide-react'
 import { categoryRows, productRows, resolvePeriod, siteRows, type BreakdownRow, type Kind, type MonthTile } from '../data/analysis'
 import { categories, sites, YEAR } from '../data/model'
-import { money, moneyParts, monthName, monthRange, percent, price, quantity, quantityParts, shortMonthNames, signedMoney } from '../lib/format'
+import { money, moneyParts, monthName, monthNameIn, monthRange, percent, price, quantity, quantityParts, shortMonthNames, signedMoney } from '../lib/format'
 import { paths } from '../lib/links'
 import {
   arrowOf, basisReference, changeOf, childLevelName, kindNames, rounded, scopeRequests, scopeSplit, yearChildren, yearMonths, yearSites,
@@ -67,6 +67,12 @@ interface Card {
   span?: string
 }
 
+const stripColumns: Record<number, string> = {
+  2: 'lg:grid-cols-[1.4fr_1fr]',
+  3: 'lg:grid-cols-[1.4fr_1fr_1.1fr]',
+  4: 'lg:grid-cols-[1.4fr_1fr_1fr_1.1fr]',
+}
+
 /** The strip of four cards and, under it, the detail of the one that is open. */
 export function KpiStrip({ reading, kpi }: { reading: YearReading; kpi: KpiPanelState }) {
   const buttons = useRef(new Map<PanelId, HTMLButtonElement>())
@@ -91,7 +97,8 @@ export function KpiStrip({ reading, kpi }: { reading: YearReading; kpi: KpiPanel
 
   return (
     <div onKeyDown={onKeyDown} className="flex flex-col gap-2">
-      <div role="group" aria-label="İlin göstəriciləri" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-(--y-line) bg-(--y-line) lg:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
+      {/* As many columns as cards: a year with no month waiting (any past year) has three, and leaves no empty cell. */}
+      <div role="group" aria-label="İlin göstəriciləri" className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-(--y-line) bg-(--y-line) ${stripColumns[cards.length] ?? stripColumns[4]}`}>
         {cards.map((card) => (
           <button
             key={card.panel}
@@ -530,7 +537,7 @@ function ChangePanel({ reading, kpi }: { reading: YearReading; kpi: KpiPanelStat
   const tile = reading.latest!
   const change = changeOf(tile)
   const period = tile.period ?? resolvePeriod(tile.month, reading.basis)
-  const against = period.isAverage ? `Ortalama (${monthRange(period.months, YEAR)})` : monthName(tile.month - 1)
+  const against = period.isAverage ? `Ortalama (${monthRange(period.months, YEAR)})` : monthNameIn(tile.month - 1, YEAR)
   const title = `${monthName(tile.month)}, ${basisReference[reading.basis]}`
   if (change.kind === 'none') {
     return (

@@ -4,7 +4,9 @@ import {
   allOutsideRequests,
   approvals,
   categories,
+  comparableMonths,
   LAST_MONTH_WITH_DATA,
+  linesByMonth,
   monthsWithData,
   products,
   sites,
@@ -14,7 +16,7 @@ import {
   type MonthApproval,
   type OutsideRequest,
 } from './model'
-import { monthName, monthRange } from '../lib/format'
+import { monthRange, monthYear } from '../lib/format'
 
 /**
  * Everything the screens show, read from the demo's lines. Amounts are sums of line amounts; a comparison over
@@ -53,7 +55,7 @@ export function readBasis(param: string | null): Basis {
 
 export interface Period {
   basis: Basis
-  /** The months the comparison actually stands on. */
+  /** The months the comparison actually stands on, counted from January of the year on screen (0: the December before). */
   months: number[]
   /** How many months the rule asks for; null for «all». */
   wanted: number | null
@@ -62,12 +64,13 @@ export interface Period {
   unavailable: boolean
   /** Fewer months exist than the rule asks for. */
   incomplete: boolean
-  /** «Sentyabr 2026», «İyul–Sentyabr 2026 · aylıq ortalama». */
+  /** «Sentyabr 2026», «İyul–Sentyabr 2026 · aylıq ortalama», «Noyabr 2025–Yanvar 2026 · aylıq ortalama». */
   label: string
 }
 
+/** The months before `month` with a monthly package — into the years before, so January compares with December. */
 export function resolvePeriod(month: number, basis: Basis): Period {
-  const before = monthsWithData.filter((item) => item < month)
+  const before = comparableMonths.filter((item) => item < month)
   const wanted = basis === 'previous' ? 1 : basis === 'avg3' ? 3 : basis === 'avg6' ? 6 : null
   const months = basis === 'previous'
     ? before.filter((item) => item === month - 1)
@@ -86,7 +89,7 @@ export function resolvePeriod(month: number, basis: Basis): Period {
       ? 'Müqayisə üçün əvvəlki ay yoxdur'
       : isAverage
         ? `${monthRange(months, YEAR)} · aylıq ortalama`
-        : `${monthName(months[0])} ${YEAR}`,
+        : monthYear(months[0], YEAR),
   }
 }
 
@@ -113,13 +116,9 @@ function matches(line: Line, scope: Scope): boolean {
   return true
 }
 
-const byMonth = new Map<number, Line[]>()
-for (const line of allLines) {
-  byMonth.set(line.month, [...(byMonth.get(line.month) ?? []), line])
-}
-
+/** A month's lines in the scope; the month counted from January of the year on screen, so the year before is reachable. */
 export function linesFor(month: number, scope: Scope): Line[] {
-  return (byMonth.get(month) ?? []).filter((line) => matches(line, scope))
+  return (linesByMonth.get(month) ?? []).filter((line) => matches(line, scope))
 }
 
 const round2 = (value: number) => Math.round(value * 100) / 100
