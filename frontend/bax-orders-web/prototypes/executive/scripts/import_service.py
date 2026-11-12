@@ -1,7 +1,7 @@
 """
 The «Excel yüklə» button's server side (owner, 2026-10-28): the site's figures change for everyone when the owner
 uploads a workbook. Runs in its own container on the QRLog VPS, reachable only through the site's nginx at
-/api/import and /api/undo.
+/api/import, /api/undo, /api/catalog and /api/approve.
 
 Two steps, so a wrong file is seen before it counts (owner, 2026-10-28):
 
@@ -11,6 +11,14 @@ Two steps, so a wrong file is seen before it counts (owner, 2026-10-28):
     POST /undo                those figures restored; the ones they replace are kept all the same
     POST /catalog?mode=check  an edit made on the site («Mallar»: a price, a new product, a name or category, a
     POST /catalog             product taken out — catalog_edit.py), checked and then applied the same way
+    POST /approve             the Rəhbər approves a month's monthly orders, or takes the approval back — with the
+                              Rəhbər's code (REHBER_CODE), never without one (owner, 2026-11-02)
+
+Approvals live in their own file (approvals.json), so a new workbook or an edit never touches them: each keeps the
+amount and lines it approved, and the site shows when a month's figures moved after its approval. A month is keyed by
+its year and number («2026-11»); a file from before years came in keyed it by the number alone («11»), which is
+2026's, and is read so. An approval taken back stays as a «pending» record: a month with no record is as the program
+left it, and the program approved every month up to September 2026.
 
 With IMPORT_KEY set, every request carries it (header X-Import-Key). Empty, the steps are open to anyone who has the
 site's address — the owner's choice (2026-10-28) — and the history (100 steps back) and the baseline copy kept outside
@@ -42,6 +50,9 @@ HISTORY_DIR = os.environ.get('HISTORY_DIR', '/history')
 KEY = os.environ.get('IMPORT_KEY', '').encode()  # empty: no key asked (owner, 2026-10-28)
 PORT = int(os.environ.get('PORT', '8080'))
 DATA_FILE = os.path.join(DATA_DIR, 'real-data.json')
+APPROVALS_FILE = os.path.join(DATA_DIR, 'approvals.json')
+REHBER_CODE = os.environ.get('REHBER_CODE', '').encode()
+REHBER_NAME = os.environ.get('REHBER_NAME', '') or 'Rəhbər'
 MAX_BYTES = 25 * 1024 * 1024
 KEEP = 100  # history entries kept, by time
 BAKU = datetime.timezone(datetime.timedelta(hours=4))
@@ -49,6 +60,7 @@ BEFORE = '-oncesi.json'  # the figures an import replaced: what an undo restores
 
 lock = threading.Lock()
 failures = []  # when a wrong key came, for slowing a guesser down
+code_failures = []  # when a wrong Rəhbər code came
 
 
 def current_bytes():
@@ -148,6 +160,27 @@ def prune():
         traceback.print_exc()
 
 
+def approval_key(year, month):
+    return f'{year}-{month:02d}'
+
+
+def read_approvals():
+    """approvals.json, with a month keyed by its number alone (a file from before years came in) read as 2026's."""
+    try:
+        with open(APPROVALS_FILE, encoding='utf-8') as current:
+            approvals = json.load(current)
+    except FileNotFoundError:
+        approvals = {}
+    months = approvals.get('months', {})
+    # The month alone first, so a «YYYY-MM» record of the same month, were both there, wins.
+    approvals['months'] = {
+        **{approval_key(LEGACY_YEAR, int(key)): value for key, value in months.items() if key.isdigit()},
+        **{key: value for key, value in months.items() if not key.isdigit()},
+    }
+    approvals.setdefault('events', [])
+    return approvals
+
+
 def undo_target():
     """The figures before the last import still standing: the newest «…-oncesi.json» in the history."""
     if not os.path.isdir(HISTORY_DIR):
@@ -176,9 +209,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             return self.reply(200, dict(ok=True))
-        if self.path == '/data/real-data.json' and os.path.exists(DATA_FILE):
-            # For development (IMPORT_DEV=1 in vite.config.ts); on the server nginx serves the file itself.
-            payload = current_bytes()
+        served = dict(zip(('/data/real-data.json', '/data/approvals.json'), (DATA_FILE, APPROVALS_FILE))).get(self.path)
+        if served and os.path.exists(served):
+            # For development (IMPORT_DEV=1 in vite.config.ts); on the server nginx serves the files itself.
+            with open(served, 'rb') as current:
+                payload = current.read()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(payload)))
@@ -190,7 +225,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         url = urllib.parse.urlsplit(self.path)
         mode = urllib.parse.parse_qs(url.query).get('mode', ['apply'])[0]
-        if url.path not in ('/import', '/undo', '/catalog') or mode not in ('check', 'apply'):
+        if url.path not in ('/import', '/undo', '/catalog', '/approve') or mode not in ('check', 'apply'):
             return self.reply(404, dict(error='Tapılmadı.'))
         length = int(self.headers.get('Content-Length') or 0)
         if length > MAX_BYTES:
@@ -215,6 +250,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.import_workbook(body, mode)
                 if url.path == '/catalog':
                     return self.catalog(body, mode)
+                if url.path == '/approve':
+                    return self.approve(body, mode)
                 return self.undo(mode)
             except Exception:
                 traceback.print_exc()
@@ -304,6 +341,81 @@ class Handler(http.server.BaseHTTPRequestHandler):
         prune()
         self.log_message('edit %s: %s', edit.get('op'), summary[0])
         self.reply(200, dict(ok=True, mode='apply', summary=summary, changes=moved))
+
+    def approve(self, body, mode):
+        """The Rəhbər's approval of a month's monthly orders, or its withdrawal: one decision for the month, with the
+        Rəhbər's code; the amount and lines it covers are kept, so a later change of the figures shows."""
+        try:
+            request = json.loads(body or b'{}')
+            month = int(request.get('month'))
+            # A page from before years came in sends no year: its months were all 2026's.
+            year = int(request.get('year', LEGACY_YEAR))
+        except (ValueError, TypeError):
+            return self.reply(400, dict(error='Ay seçilməyib.'))
+        action = request.get('action', 'approve')
+        if not 1 <= month <= 12 or not 2000 <= year <= 2100 or action not in ('approve', 'revoke'):
+            return self.reply(400, dict(error='Sorğu oxunmadı.'))
+        if not REHBER_CODE:
+            return self.reply(403, dict(error='Rəhbər kodu serverdə təyin edilməyib: təsdiq bağlıdır.'))
+        now = time.monotonic()
+        code_failures[:] = [t for t in code_failures if now - t < 600]
+        if len(code_failures) >= 10:
+            return self.reply(429, dict(error='Çox səhv kod cəhdi oldu. 10 dəqiqə sonra yenidən yoxlayın.'))
+        if not hmac.compare_digest(str(request.get('code', '')).strip().encode(), REHBER_CODE):
+            code_failures.append(now)
+            time.sleep(1)
+            return self.reply(401, dict(error='Rəhbər kodu səhvdir.'))
+
+        raw = current_bytes()
+        data = json.loads(raw) if raw else {}
+        monthly = [line for line in data.get('lines', [])
+                   if line.get('year', LEGACY_YEAR) == year and line['month'] == month and line['type'] == 'monthly']
+        amount = round(sum(line['amount'] for line in monthly), 2)
+        objects = len({line['siteId'] for line in monthly})
+        approvals = read_approvals()
+        key = approval_key(year, month)
+        before = approvals['months'].get(key)
+        approved = bool(before) and before.get('state', 'approved') == 'approved'
+        name = f'{MONTH_NAMES[month - 1]} {year}'
+        summary = dict(year=year, month=month, monthName=name, amount=amount, lines=len(monthly), objects=objects,
+                       current=before if approved else None)
+        if action == 'approve' and not monthly:
+            return self.reply(400, dict(error=f'{name}: aylıq sifariş yoxdur, təsdiqləməyə bir şey yoxdur.'))
+        if action == 'revoke' and not approved:
+            return self.reply(400, dict(error=f'{name} təsdiqlənməyib: geri alınacaq təsdiq yoxdur.'))
+        if mode == 'check':
+            return self.reply(200, dict(ok=True, mode='check', **summary))
+        expected = request.get('expected')
+        if action == 'approve' and (not isinstance(expected, (int, float)) or abs(expected - amount) >= 0.005):
+            # The Rəhbər approves the amount they saw: if the figures moved since, they see the new ones first.
+            return self.reply(409, dict(error='Rəqəmlər dəyişib. Səhifəni yeniləyib yenidən baxın. Heç nə təsdiqlənmədi.', **summary))
+
+        at = datetime.datetime.now(BAKU).isoformat(timespec='minutes')
+        if action == 'approve':
+            approvals['months'][key] = dict(state='approved', at=at, by=REHBER_NAME, amount=amount, lines=len(monthly))
+        else:
+            # Kept, not dropped: a month with no record is as the program left it, and the program approved every month
+            # up to September 2026, so a dropped record would quietly turn a withdrawal back into an approval.
+            approvals['months'][key] = dict(state='pending', at=at, by=REHBER_NAME)
+        approvals['events'].append(dict(year=year, month=month, action=action, at=at, by=REHBER_NAME, amount=amount,
+                                        lines=len(monthly)))
+        payload = json.dumps(approvals, ensure_ascii=False, indent=1).encode()
+        temporary = APPROVALS_FILE + '.tmp'
+        try:
+            if os.path.exists(APPROVALS_FILE):
+                with open(APPROVALS_FILE, 'rb') as current:
+                    # Named so an undo of the figures never takes it for them (it ends in «-tesdiq.json», not «-oncesi.json»).
+                    keep(f'{new_stamp(datetime.datetime.now(BAKU))}-tesdiq.json', current.read())
+            with open(temporary, 'wb') as out:
+                out.write(payload)
+            replace(temporary, APPROVALS_FILE)
+        except OSError:
+            traceback.print_exc()
+            if os.path.exists(temporary):
+                os.remove(temporary)
+            return self.reply(500, dict(error='Təsdiq yazılmadı: server xətası. Heç nə dəyişmədi.'))
+        self.log_message('%s %s: %s, %.2f', action, name, REHBER_NAME, amount)
+        self.reply(200, dict(ok=True, mode='apply', action=action, at=at, by=REHBER_NAME, **summary))
 
     def undo(self, mode):
         target = undo_target()

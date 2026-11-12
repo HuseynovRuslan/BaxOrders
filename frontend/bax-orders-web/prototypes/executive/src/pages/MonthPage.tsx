@@ -1,13 +1,14 @@
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Check, ChevronLeft, ChevronRight, Hourglass, Wrench } from 'lucide-react'
 import {
-  approvalOf, basisOptions, categoryRows, figure, hasData, isValidMonth, linesFor, outsideRequestsIn, siteRows,
+  approvalDrift, approvalOf, basisOptions, categoryRows, figure, hasData, isValidMonth, linesFor, outsideRequestsIn, siteRows,
   type Basis, type BreakdownRow, type Figure, type Kind, type Period,
 } from '../data/analysis'
 import { monthsWithDataIn, TODAY, YEAR, YEARS } from '../data/model'
 import { minus, money, moneyParts, monthName, monthNameIn, monthRange, monthYear, percent, signedMoney } from '../lib/format'
 import { paths, useComparison } from '../lib/links'
 import { kindNames, kindOrder } from '../lib/year'
+import { ApproveButton } from '../ui/ApproveButton'
 import { OutsideFlowNote, OutsideRequestList } from '../ui/kinds'
 import { NotFound, YearNotFound } from './NotFound'
 import { Chip } from './YearKpi'
@@ -185,20 +186,34 @@ function KindStatus({ kind, month }: { kind: Kind; month: number }) {
   if (kind === 'monthly') {
     const approval = approvalOf(month)
     if (!approval) return null
-    return approval.state === 'approved' ? (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-(--y-ok)/12 px-2.5 py-1 text-sm font-semibold text-(--y-ok)">
-        <Check aria-hidden="true" className="size-4" strokeWidth={2.75} />
-        Sifarişlər təsdiqlənib
-        {approval.approvedOn && <span className="font-medium text-(--y-ink-2)">· {approval.approvedOn.day} {monthName(approval.approvedOn.month).toLocaleLowerCase('az')}</span>}
-      </span>
-    ) : (
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full bg-(--y-amber-soft) px-2.5 py-1 text-sm font-semibold text-(--y-amber)"
-        title="Rəhbər ayın aylıq sifarişlərini ayda bir dəfə təsdiqləyir — adətən ayın 15-nə qədər, bəzən daha gec. Gözləmək gecikmə demək deyil."
-      >
-        <Hourglass aria-hidden="true" className="size-4" strokeWidth={2.25} />
-        Sifarişlər təsdiq gözləyir
-      </span>
+    const drift = approvalDrift(month)
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {approval.state === 'approved' ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-(--y-ok)/12 px-2.5 py-1 text-sm font-semibold text-(--y-ok)"
+            title={approval.by ? `${approval.by}${approval.amount !== undefined ? ` · ${money(approval.amount)}` : ''}` : undefined}
+          >
+            <Check aria-hidden="true" className="size-4" strokeWidth={2.75} />
+            Sifarişlər təsdiqlənib
+            {approval.approvedOn && <span className="font-medium text-(--y-ink-2)">· {approval.approvedOn.day} {monthName(approval.approvedOn.month).toLocaleLowerCase('az')}</span>}
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-(--y-amber-soft) px-2.5 py-1 text-sm font-semibold text-(--y-amber)"
+            title="Rəhbər ayın aylıq sifarişlərini ayda bir dəfə təsdiqləyir — adətən ayın 15-nə qədər, bəzən daha gec. Gözləmək gecikmə demək deyil."
+          >
+            <Hourglass aria-hidden="true" className="size-4" strokeWidth={2.25} />
+            Sifarişlər təsdiq gözləyir
+          </span>
+        )}
+        {drift && (
+          <span className="tnum inline-flex items-center gap-1.5 rounded-full bg-(--y-amber-soft) px-2.5 py-1 text-sm font-semibold text-(--y-amber)">
+            Təsdiqdən sonra dəyişib: {money(drift.approved)} → {money(drift.now)}
+          </span>
+        )}
+        <ApproveButton month={month} />
+      </div>
     )
   }
   return (

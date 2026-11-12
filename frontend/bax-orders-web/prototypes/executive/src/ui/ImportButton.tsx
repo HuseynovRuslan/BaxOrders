@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Upload, X } from 'lucide-react'
+import { approvalIn, LEGACY_YEAR } from '../data/model'
 import { money, monthName, monthNames, signedMoney } from '../lib/format'
 
 /**
@@ -34,7 +35,7 @@ interface Version { source: string | null; importedAt: string | null; edits: num
 interface Answer { ok: true; mode: 'check' | 'apply'; base?: string; report?: Report; changes: Changes; current?: Version; restore?: Version; editsLost?: number }
 
 /** One step against the import service: the key, the check's fingerprint on an apply, and the answer or why not. */
-export async function callApi(path: 'import' | 'undo' | 'catalog', step: 'check' | 'apply', key: string, init: { body?: BodyInit | null; headers?: Record<string, string>; base?: string } = {}) {
+export async function callApi(path: 'import' | 'undo' | 'catalog' | 'approve', step: 'check' | 'apply', key: string, init: { body?: BodyInit | null; headers?: Record<string, string>; base?: string } = {}) {
   const headers: Record<string, string> = { ...(key ? { 'X-Import-Key': key } : {}), ...init.headers }
   if (init.base) headers['X-Base'] = init.base
   try {
@@ -103,7 +104,7 @@ export function ImportButton() {
       >
         <Upload aria-hidden="true" className="size-3.5" />
         <span className="hidden sm:inline">Excel yüklə</span>
-        <span className="sm:hidden">Yüklə</span>
+        <span className="max-[379px]:sr-only sm:hidden">Yüklə</span>
       </button>
       <dialog
         ref={dialog}
@@ -270,6 +271,7 @@ export function ChangeLines({ changes, done }: { changes: Changes; done: boolean
             <li key={`${item.year ?? ''}-${item.month}-${item.kind}`} className={`tnum ${item.before > 0 && item.after === 0 ? 'font-semibold text-up' : 'text-ink-2'}`}>
               {item.monthName}, {item.kind === 'monthly' ? 'aylıq' : 'aylıqdan kənar'}: {money(item.before)} → <b className="text-ink">{money(item.after)}</b> ({signedMoney(item.after - item.before)})
               {item.before > 0 && item.after === 0 ? ' — bu ay saytdan itəcək' : item.before === 0 ? ' — yeni' : ''}
+              {item.kind === 'monthly' && approvalIn(item.year ?? LEGACY_YEAR, item.month).state === 'approved' && <span className="font-semibold text-amber"> · təsdiqlənmiş ay</span>}
             </li>
           ))}
         </ul>

@@ -15,7 +15,7 @@ interface RealData {
   orders: (Omit<Order, 'year'> & { year?: number })[]
   outsideRequests: (Omit<OutsideRequest, 'year'> & { year?: number })[]
 }
-const LEGACY_YEAR = 2026
+export const LEGACY_YEAR = 2026
 const loaded = (globalThis as { __BAX_DATA__?: Partial<RealData> }).__BAX_DATA__
 const real = loaded?.meta && Array.isArray(loaded.lines) && Array.isArray(loaded.products) ? loaded as RealData : undefined
 
@@ -119,11 +119,37 @@ export interface MonthApproval {
   state: ApprovalState
   /** The day it was approved, in the following month. */
   approvedOn?: { day: number; month: number }
+  /** Approved on the site: when (Baku time) and by whom — none for the months approved in the program (D-53). */
+  at?: string | null
+  by?: string
+  /** The monthly orders' amount and line count the approval was given for: the figures may move after it. */
+  amount?: number
+  lines?: number
+  /**
+   * The approvals file has a record of the month: an approval given or taken back on the site, or one of the program's
+   * months the file was started with. Only such an approval can be taken back on the site.
+   */
+  recorded?: boolean
 }
 
 /** The demo's year, and the month its figures stop at: October 2026. */
 const DEMO_YEAR = 2026
 const DEMO_LAST_MONTH = 10
+
+/**
+ * data/approvals.json, written by the import service when the Rəhbər approves a month or takes the approval back: one
+ * record per month, keyed `YYYY-MM`. A file written before years came in (2026-11-12) keys a month by its number alone
+ * (`'10'`): that month is 2026's (LEGACY_YEAR), as every figure then was.
+ */
+interface ApprovalRecord { state?: ApprovalState; at?: string | null; by?: string; amount?: number; lines?: number }
+interface ApprovalFile { months?: Record<string, ApprovalRecord> }
+const approvalKey = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`
+const approvalRecords = new Map<string, ApprovalRecord>()
+// A month's number alone comes first among a JS object's keys, so a `YYYY-MM` record of the same month, were both in
+// the file, is read after it and wins.
+for (const [key, record] of Object.entries((globalThis as { __BAX_APPROVALS__?: ApprovalFile }).__BAX_APPROVALS__?.months ?? {})) {
+  approvalRecords.set(/^\d{1,2}$/.test(key) ? approvalKey(LEGACY_YEAR, Number(key)) : key, record)
+}
 const now = new Date()
 /** Today: the real date with the workbook, the demo's 18 October 2026 without it. */
 export const TODAY = real ? { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() } : { year: 2026, month: 10, day: 18 }
@@ -456,6 +482,30 @@ export const monthsWithDataIn = (year: number): readonly number[] => monthsByYea
  */
 const APPROVED_THROUGH = { year: 2026, month: 9 }
 
+/**
+ * A month's approval, in any year. The site's record decides where there is one: an approval, or an approval taken
+ * back. A month with no record is as the program left it: approved up to and including September 2026, waiting after.
+ * The demo approves every month but its last, a few days into the month after.
+ */
+export function approvalIn(year: number, month: number): MonthApproval {
+  if (!real) {
+    return month >= DEMO_LAST_MONTH
+      ? { month, state: 'pending' }
+      : { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }
+  }
+  const record = approvalRecords.get(approvalKey(year, month))
+  if (record) {
+    if (record.state === 'pending') return { month, state: 'pending', recorded: true }
+    const day = record.at?.match(/^\d{4}-(\d{2})-(\d{2})/)
+    return {
+      month, state: 'approved', recorded: true, at: record.at ?? null, by: record.by, amount: record.amount, lines: record.lines,
+      ...(day ? { approvedOn: { day: Number(day[2]), month: Number(day[1]) } } : {}),
+    }
+  }
+  const approved = year < APPROVED_THROUGH.year || (year === APPROVED_THROUGH.year && month <= APPROVED_THROUGH.month)
+  return { month, state: approved ? 'approved' : 'pending' }
+}
+
 // ---- the year on screen -------------------------------------------------------------------------------------------
 //
 // Every screen reads one year: the one in the address, chosen by `selectYear` before any of them draws (app.tsx). The
@@ -508,15 +558,7 @@ export function selectYear(year: number) {
   }
   comparableMonths = [...comparable].sort((a, b) => a - b)
 
-  approvals = Array.from({ length: LAST_MONTH_WITH_DATA }, (_, index): MonthApproval => {
-    const month = index + 1
-    if (real) {
-      const approved = year < APPROVED_THROUGH.year || (year === APPROVED_THROUGH.year && month <= APPROVED_THROUGH.month)
-      return { month, state: approved ? 'approved' : 'pending' }
-    }
-    if (month === LAST_MONTH_WITH_DATA) return { month, state: 'pending' }
-    return { month, state: 'approved', approvedOn: { day: 3 + (month % 4), month: month + 1 } }
-  })
+  approvals = Array.from({ length: LAST_MONTH_WITH_DATA }, (_, index) => approvalIn(year, index + 1))
 }
 
 selectYear(YEAR)
