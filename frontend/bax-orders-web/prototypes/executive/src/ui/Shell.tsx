@@ -25,25 +25,26 @@ export function Shell() {
         Əsas məzmuna keç
       </a>
       <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-4 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] sm:pl-[max(24px,env(safe-area-inset-left,0px))] sm:pr-[max(24px,env(safe-area-inset-right,0px))]">
+        <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-2 sm:gap-4 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] sm:pl-[max(24px,env(safe-area-inset-left,0px))] sm:pr-[max(24px,env(safe-area-inset-right,0px))]">
           <Link to={`/${YEAR}`} className="flex items-center gap-2.5 rounded">
             <Mark />
             <span className="text-[17px] font-bold tracking-tight text-ink">BaxOrders</span>
             <span className="hidden text-sm text-muted sm:inline">Rəhbərlik paneli</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {importEnabled && (
               <Link
                 to={`/${YEAR}/mallar`}
                 className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line-2 bg-paper px-3 text-xs font-semibold text-ink transition-colors hover:bg-stone-2"
               >
                 <Package aria-hidden="true" className="size-3.5" />
-                Mallar
+                <span className="max-[379px]:sr-only">Mallar</span>
               </Link>
             )}
             {importEnabled && <ImportButton />}
             {DATA_SOURCE.kind === 'real' ? (
-              <span className="rounded-full border border-line-2 bg-stone-2 px-2.5 py-1 text-xs font-semibold text-ink-2" title={`Mənbə: ${DATA_SOURCE.file}`}>
+              // On a phone the header has no room for it; the footer names the source all the same.
+              <span className="hidden rounded-full border border-line-2 bg-stone-2 px-2.5 py-1 text-xs font-semibold text-ink-2 md:inline-block" title={`Mənbə: ${DATA_SOURCE.file}`}>
                 Real məlumat · Excel
               </span>
             ) : (
@@ -62,7 +63,7 @@ export function Shell() {
 
       <footer className="mx-auto max-w-[1180px] pb-8 text-xs text-muted pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] sm:pl-[max(24px,env(safe-area-inset-left,0px))] sm:pr-[max(24px,env(safe-area-inset-right,0px))]">
         {DATA_SOURCE.kind === 'real'
-          ? `Prototip. Rəqəmlər sahibin Excel kitabındandır: «${DATA_SOURCE.file}», ${DATA_SOURCE.lines} sətir${DATA_SOURCE.edits ? `, saytda ${DATA_SOURCE.edits} dəyişiklik edilib` : ''}; ${DATA_SOURCE.uploaded ? 'yenilənib' : 'düzəldilib'} ${updatedText}. Qala Bazadan daxili təchizat pulsuz sayılır. Təsdiq vəziyyəti proqramdakı kimidir: sentyabr 2026 daxil bütün aylar təsdiqlənib, sonrakı aylar gözləyir.`
+          ? `Prototip. Rəqəmlər sahibin Excel kitabındandır: «${DATA_SOURCE.file}», ${DATA_SOURCE.lines} sətir${DATA_SOURCE.edits ? `, saytda ${DATA_SOURCE.edits} dəyişiklik edilib` : ''}; ${DATA_SOURCE.uploaded ? 'yenilənib' : 'düzəldilib'} ${updatedText}. Qala Bazadan daxili təchizat pulsuz sayılır. Aylıq sifarişləri Rəhbər ay səhifəsində öz kodu ilə təsdiqləyir; sentyabr 2026 daxil bütün aylar proqramda təsdiqlənib.`
           : 'Prototip. Kateqoriya quruluşu kitabdakı kimidir; obyektlər, məhsullar, miqdarlar və məbləğlər demo məqsədli uydurmadır.'}
       </footer>
       <ScrollRestoration />
