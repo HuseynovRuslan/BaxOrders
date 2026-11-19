@@ -30,14 +30,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .year-view,
   :root:not([data-theme="light"]) .month-view {
-    --y-grid: #22303b; --y-band: #182b44; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
+    --y-grid: #1f344a; --y-band: #1c354a; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
     --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
   }
 }
 
 :root[data-theme="dark"] .year-view,
 :root[data-theme="dark"] .month-view {
-  --y-grid: #22303b; --y-band: #182b44; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
+  --y-grid: #1f344a; --y-band: #1c354a; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
   --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
 }
 

@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Upload, X } from 'lucide-react'
 import { approvalIn, LEGACY_YEAR } from '../data/model'
 import { money, monthName, monthNames, signedMoney } from '../lib/format'
+import './select.css'
 
 /**
  * «Excel yüklə» (owner, 2026-10-28): the owner uploads the workbook and the site's figures change for everyone — in
@@ -109,7 +110,7 @@ export function ImportButton() {
       <dialog
         ref={dialog}
         aria-labelledby="import-title"
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-paper p-0 text-ink shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] backdrop:bg-ink/40"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-paper p-0 text-ink shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] backdrop:bg-[rgb(6_14_24/0.55)]"
       >
         <form onSubmit={submit} className="flex flex-col gap-4 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
@@ -209,7 +210,7 @@ export function KeyField({ value, onChange }: { value: string; onChange: (value:
         autoComplete="current-password"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-lg border border-line px-3 font-normal"
+        className="dd-field w-full"
       />
     </label>
   )
