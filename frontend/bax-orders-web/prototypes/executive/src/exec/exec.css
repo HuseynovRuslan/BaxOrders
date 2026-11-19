@@ -1,0 +1,265 @@
+/*
+ * The executive frame (Konsept A.3): the overview, the areas map and whatever comes after them. Its tokens live under
+ * `.exec` only, so the year screens and their frame keep theirs untouched. The theme is the app's own — `data-theme`
+ * on <html>, or the device's choice — so one switch serves every screen.
+ *
+ * Roles, not years: the earlier year of a comparison is teal, the focus year violet (2025 and 2026 today; 2026 and 2027
+ * next year). Amber means one thing only — waiting for approval — and the violet is kept far from it. Change carries no
+ * green or red here: a rise in cost is not a success or a failure on its own, so its chip is neutral and its arrow says
+ * the way.
+ */
+.exec {
+  --x-bg: #f1f4f8;
+  --x-surface: #ffffff;
+  --x-surface-2: #f6f8fb;
+  --x-line: #dde4ec;
+  --x-line-2: #c6d1dd;
+  --x-ink: #0f2133;
+  --x-ink-2: #34485d;
+  --x-muted: #5a6c7f;
+  --x-band: #edf2f8;
+  --x-focus: #2f6fe0;
+  --x-link: #2259d6;
+
+  --x-prev: #0e9384;
+  --x-prev-ink: #0a776b;
+  --x-prev-soft: #dff3ef;
+  --x-focus-year: #6a4bd6;
+  --x-focus-year-ink: #5a3cc4;
+  --x-focus-year-soft: #ece7fb;
+  --x-ok: #0e9384;
+  --x-ok-ink: #0a776b;
+  --x-amber: #a2650c;
+  --x-amber-bar: #e1a23a;
+  --x-amber-soft: #fbefd9;
+  --x-chip: #e7edf4;
+  --x-chip-ink: #1d3247;
+  --x-danger: #b42318;
+
+  --x-tip: #0f2133;
+  --x-tip-ink: #f1f5f9;
+  --x-shadow: 0 1px 2px rgb(15 33 51 / 0.06), 0 1px 1px rgb(15 33 51 / 0.04);
+
+  /* The sidebar is navy in both themes, as in the approved light reference. Its quiet text stays well readable on it. */
+  --x-side: #10243a;
+  --x-side-2: #183150;
+  --x-side-line: #22405f;
+  --x-side-ink: #dde7f1;
+  --x-side-muted: #a9bdd0;
+  --x-side-accent: #2dd4bf;
+
+  --x-map-tint: transparent;
+
+  font-family: "Manrope", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  color: var(--x-ink);
+  background: var(--x-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .exec {
+    --x-bg: #0b1520;
+    --x-surface: #122231;
+    --x-surface-2: #142638;
+    --x-line: #294055;
+    --x-line-2: #30475e;
+    --x-ink: #eaf2fa;
+    --x-ink-2: #c2d1e0;
+    --x-muted: #91a7bb;
+    --x-band: #1c354a;
+    --x-focus: #7fb0ff;
+    --x-link: #86b4ff;
+    --x-prev: #2dd4bf;
+    --x-prev-ink: #5eead4;
+    --x-prev-soft: #10343a;
+    --x-focus-year: #a48bff;
+    --x-focus-year-ink: #c2b2ff;
+    --x-focus-year-soft: #2a2552;
+    --x-ok: #2dd4bf;
+    --x-ok-ink: #5eead4;
+    --x-amber: #f4b54f;
+    --x-amber-bar: #f0b048;
+    --x-amber-soft: #36290f;
+    --x-chip: #1c354a;
+    --x-chip-ink: #e2ebf5;
+    --x-danger: #ff8a7a;
+    --x-tip: #e9f0f7;
+    --x-tip-ink: #0f2133;
+    --x-shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 24px -18px rgb(0 0 0 / 0.55);
+    --x-side: #0b192b;
+    --x-side-2: #16304b;
+    --x-side-line: #1c344f;
+    --x-map-tint: rgb(10 22 37 / 0.28);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] .exec {
+  --x-bg: #0b1520;
+  --x-surface: #122231;
+  --x-surface-2: #142638;
+  --x-line: #294055;
+  --x-line-2: #30475e;
+  --x-ink: #eaf2fa;
+  --x-ink-2: #c2d1e0;
+  --x-muted: #91a7bb;
+  --x-band: #1c354a;
+  --x-focus: #7fb0ff;
+  --x-link: #86b4ff;
+  --x-prev: #2dd4bf;
+  --x-prev-ink: #5eead4;
+  --x-prev-soft: #10343a;
+  --x-focus-year: #a48bff;
+  --x-focus-year-ink: #c2b2ff;
+  --x-focus-year-soft: #2a2552;
+  --x-ok: #2dd4bf;
+  --x-ok-ink: #5eead4;
+  --x-amber: #f4b54f;
+  --x-amber-bar: #f0b048;
+  --x-amber-soft: #36290f;
+  --x-chip: #1c354a;
+  --x-chip-ink: #e2ebf5;
+  --x-danger: #ff8a7a;
+  --x-tip: #e9f0f7;
+  --x-tip-ink: #0f2133;
+  --x-shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 24px -18px rgb(0 0 0 / 0.55);
+  --x-side: #0b192b;
+  --x-side-2: #16304b;
+  --x-side-line: #1c344f;
+  --x-map-tint: rgb(10 22 37 / 0.28);
+  color-scheme: dark;
+}
+
+/* In Tailwind's own layers, so a utility on an element (an `outline-none` heading) still wins over these defaults. */
+@layer base {
+  .exec :focus-visible {
+    outline: 2px solid var(--x-focus);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* A card: one surface, one hairline, the same small shadow — the reference's quiet enterprise panels. */
+  .exec .x-card {
+    background: var(--x-surface);
+    border: 1px solid var(--x-line);
+    border-radius: 14px;
+    box-shadow: var(--x-shadow);
+  }
+
+  /* A month whose monthly package still waits for approval: the focus year's bar is hatched, never amber. */
+  .exec .x-hatch {
+    background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.38) 0 3px, transparent 3px 7px);
+  }
+}
+
+/* The basemap follows the theme: the light tiles calmed, the dark ones turned to the frame's navy. Only the tiles. */
+.exec .x-map .leaflet-tile-pane {
+  filter: saturate(0.35) brightness(1.03) contrast(0.95);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .exec .x-map .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(200deg) saturate(0.45) brightness(0.82) contrast(0.92);
+  }
+}
+:root[data-theme="dark"] .exec .x-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(200deg) saturate(0.45) brightness(0.82) contrast(0.92);
+}
+.exec .x-map .leaflet-container {
+  background: var(--x-surface-2);
+  font-family: inherit;
+}
+.exec .x-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--x-surface) 85%, transparent);
+  color: var(--x-muted);
+  font-size: 10px;
+}
+.exec .x-map .leaflet-control-attribution a {
+  color: var(--x-link);
+}
+
+/* The drawer and the mobile menu arrive once, shortly; nothing else on these pages moves on its own. */
+.exec .x-slide-in {
+  animation: x-slide-in 180ms ease-out;
+}
+@keyframes x-slide-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exec .x-slide-in { animation: none; }
+}
+
+/* ---- The map's pins, clusters and tips (inside the map, so they read the frame's colours) ---- */
+.exec .x-marker {
+  background: none;
+  border: 0;
+}
+.exec .x-marker .x-pin-shape {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.35));
+  transition: transform 120ms ease-out;
+  transform-origin: 50% 100%;
+}
+.exec .x-marker .x-pin-shape path { fill: var(--x-prev); stroke: var(--x-surface); stroke-width: 2; }
+.exec .x-marker .x-pin-shape circle { fill: var(--x-surface); }
+.exec .x-marker.is-quiet .x-pin-shape path { fill: var(--x-muted); }
+.exec .x-marker:hover .x-pin-shape,
+.exec .x-marker:focus-visible .x-pin-shape { transform: scale(1.12); }
+.exec .x-marker.is-selected .x-pin-shape path { fill: var(--x-surface); stroke: var(--x-prev); stroke-width: 2.5; }
+.exec .x-marker.is-selected .x-pin-shape circle { fill: var(--x-prev); }
+.exec .x-marker.is-selected::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--x-prev) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--x-prev) 55%, transparent);
+  pointer-events: none;
+}
+.exec .x-pin-label {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--x-ink);
+  background: var(--x-surface);
+  color: var(--x-ink);
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}
+.exec .x-cluster {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--x-focus-year-soft);
+  border: 2.5px solid var(--x-focus-year);
+  color: var(--x-ink);
+  font-weight: 800;
+  font-size: 18px;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--x-focus-year) 18%, transparent), 0 4px 10px rgb(0 0 0 / 0.3);
+}
+.exec .x-cluster:hover { background: var(--x-focus-year); color: #fff; }
+.exec .x-map .leaflet-tooltip.x-map-tip {
+  background: var(--x-tip);
+  color: var(--x-tip-ink);
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+}
+.exec .x-map .leaflet-tooltip.x-map-tip::before { border-top-color: var(--x-tip); }
+.exec .x-map .leaflet-marker-icon:focus-visible { outline: 2px solid var(--x-focus); outline-offset: 3px; border-radius: 50%; }
