@@ -1,7 +1,8 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Upload, X } from 'lucide-react'
+import { Download, Upload, X } from 'lucide-react'
 import { approvalIn, LEGACY_YEAR } from '../data/model'
 import { money, monthName, monthNames, signedMoney } from '../lib/format'
+import { useBackupDownload } from './backupDownload'
 import './select.css'
 
 /**
@@ -10,7 +11,7 @@ import './select.css'
  * change, month by month (a month that would disappear in red); nothing changes until «Təsdiq et». «Geri qaytar»
  * takes the last change back — an import or an edit made in «Mallar» — checked and confirmed the same way. The server
  * refuses a file that does not hang together, with the rows to look at. The site has no login, so every step asks
- * for the import key.
+ * for the import key. Before a new file, the figures as they stand can be saved as an Excel file (data/backup.ts).
  */
 
 /** On the server's build (VITE_IMPORT=on) and in development; a copy with no import service shows no button. */
@@ -145,6 +146,8 @@ export function ImportButton() {
             </p>
           )}
 
+          {action === 'import' && status.kind !== 'done' && <BackupBeforeImport />}
+
           {status.kind !== 'done' && status.kind !== 'checked' && (
             <>
               {action === 'import' && (
@@ -196,6 +199,34 @@ export function ImportButton() {
         </form>
       </dialog>
     </>
+  )
+}
+
+/** Before a new workbook replaces the figures, they can be saved as an Excel file first (owner, 2026-11-17). */
+function BackupBeforeImport() {
+  const { state, start } = useBackupDownload()
+  const busy = state.kind === 'busy'
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-line bg-stone px-4 py-3 text-sm">
+      <p className="text-ink-2">Yeni fayl saytdakı rəqəmləri əvəz edir. Hazırkı rəqəmləri saxlamaq üçün əvvəlcə onları Excel kimi endirin.</p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <button
+          type="button"
+          onClick={() => void start()}
+          disabled={busy}
+          aria-busy={busy}
+          aria-describedby="import-backup-status"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line-2 bg-paper px-3 text-sm font-semibold text-ink transition-colors hover:bg-stone-2 disabled:cursor-progress disabled:opacity-70"
+        >
+          <Download aria-hidden="true" className="size-4 shrink-0" />
+          {busy ? 'Hazırlanır…' : 'Hazırkı məlumatı Excel kimi endir'}
+        </button>
+        <p id="import-backup-status" aria-live="polite" className="min-w-0 break-words">
+          {state.kind === 'done' && <span className="text-down">Endirildi: «{state.fileName}»</span>}
+          {state.kind === 'error' && <span className="font-semibold text-up">{state.message}</span>}
+        </p>
+      </div>
+    </div>
   )
 }
 
