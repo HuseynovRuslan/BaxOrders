@@ -506,6 +506,21 @@ export function approvalIn(year: number, month: number): MonthApproval {
   return { month, state: approved ? 'approved' : 'pending' }
 }
 
+/** The latest month of each year with any order, monthly or outside. */
+const lastMonthByYear = new Map<number, number>()
+for (const line of lines) lastMonthByYear.set(line.year, Math.max(lastMonthByYear.get(line.year) ?? 0, line.month))
+
+/**
+ * One month's approval in any year, without choosing that year for the screens: `approvalIn`, the very rule
+ * `selectYear` applies to the year on screen (the site's record first), for pages that read several years at once (the
+ * overview, the map). Null for a month after the year's latest month with orders, as `approvals` has no entry for it.
+ */
+export function approvalFor(year: number, month: number): MonthApproval | null {
+  const last = lastMonthByYear.get(year) ?? 0
+  if (!Number.isInteger(month) || month < 1 || month > last) return null
+  return approvalIn(year, month)
+}
+
 // ---- the year on screen -------------------------------------------------------------------------------------------
 //
 // Every screen reads one year: the one in the address, chosen by `selectYear` before any of them draws (app.tsx). The
