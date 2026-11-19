@@ -1,0 +1,311 @@
+/*
+ * The one dropdown of the app (ui/Select.tsx): its closed control and its open list, the same on every screen — the
+ * overview, the map, the year screens and the dialogs. The list is drawn by the page, not by the browser, so a dark
+ * page never opens a white system menu. Its colours live on the root, as the theme switch sets it (`data-theme` on
+ * <html>, or the device's choice), because the open list sits outside any screen's own tokens.
+ */
+:root {
+  --dd-bg: #ffffff;
+  --dd-border: #c6d1dd;
+  --dd-border-hover: #8fa6bd;
+  --dd-ink: #0f2133;
+  --dd-muted: #5a6c7f;
+  --dd-menu-bg: #ffffff;
+  --dd-menu-border: #d3dde8;
+  --dd-shadow: 0 14px 30px -10px rgb(15 33 51 / 0.22), 0 2px 6px rgb(15 33 51 / 0.06);
+  --dd-hover: #eef3fa;
+  --dd-selected: #e1ecfb;
+  --dd-accent: #0b8f84;
+  --dd-disabled: #9aa9b8;
+  --dd-focus: #2f6fe0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --dd-bg: #142638;
+    --dd-border: #30475e;
+    --dd-border-hover: #4b6782;
+    --dd-ink: #eaf2fa;
+    --dd-muted: #91a7bb;
+    --dd-menu-bg: #142638;
+    --dd-menu-border: #35516a;
+    --dd-shadow: 0 18px 38px -12px rgb(0 0 0 / 0.65), 0 2px 8px rgb(0 0 0 / 0.3);
+    --dd-hover: #1c354a;
+    --dd-selected: #21465c;
+    --dd-accent: #27c7b8;
+    --dd-disabled: #5d738a;
+    --dd-focus: #7fb0ff;
+  }
+}
+
+:root[data-theme="dark"] {
+  --dd-bg: #142638;
+  --dd-border: #30475e;
+  --dd-border-hover: #4b6782;
+  --dd-ink: #eaf2fa;
+  --dd-muted: #91a7bb;
+  --dd-menu-bg: #142638;
+  --dd-menu-border: #35516a;
+  --dd-shadow: 0 18px 38px -12px rgb(0 0 0 / 0.65), 0 2px 8px rgb(0 0 0 / 0.3);
+  --dd-hover: #1c354a;
+  --dd-selected: #21465c;
+  --dd-accent: #27c7b8;
+  --dd-disabled: #5d738a;
+  --dd-focus: #7fb0ff;
+}
+
+/* In Tailwind's components layer, so a utility on the control (its width, its margin) still wins. */
+@layer components {
+  /* The closed control. «field»: a control of its own; «bare»: one of several inside a `dd-group` box. */
+  .dd-trigger {
+    position: relative;
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 36px 0 12px;
+    border: 1px solid var(--dd-border);
+    border-radius: 10px;
+    background: var(--dd-bg);
+    color: var(--dd-ink);
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease;
+  }
+  .dd-trigger:hover:not(:disabled) {
+    border-color: var(--dd-border-hover);
+  }
+  .dd-trigger[aria-expanded="true"] {
+    border-color: var(--dd-border-hover);
+  }
+  .dd-trigger:focus-visible {
+    outline: 2px solid var(--dd-focus);
+    outline-offset: 2px;
+  }
+  .dd-trigger:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .dd-trigger--bare {
+    min-height: 36px;
+    padding: 0 26px 0 6px;
+    border-color: transparent;
+    border-radius: 8px;
+    background: transparent;
+    font-size: inherit;
+  }
+  .dd-trigger--bare:hover:not(:disabled),
+  .dd-trigger--bare[aria-expanded="true"] {
+    border-color: transparent;
+    background: var(--dd-hover);
+  }
+  .dd-trigger--bare .dd-chevron {
+    right: 6px;
+  }
+  .dd-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .dd-prefix {
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: var(--dd-muted);
+  }
+  .dd-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: var(--dd-muted);
+  }
+  .dd-chevron {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    margin-top: -8px;
+    color: var(--dd-muted);
+    pointer-events: none;
+    transition: transform 160ms ease;
+  }
+  .dd-trigger[aria-expanded="true"] .dd-chevron {
+    transform: rotate(180deg);
+    color: var(--dd-ink);
+  }
+
+  /*
+   * A text field drawn as the dropdown is: the same height, ground, line and corners, so a form's fields and lists read
+   * as one set. On an <input> itself, or on a box around one (a search with its icon, a field with suggestions).
+   */
+  .dd-field {
+    display: flex;
+    min-width: 0;
+    min-height: 42px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--dd-border);
+    border-radius: 10px;
+    background: var(--dd-bg);
+    color: var(--dd-ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    transition: border-color 140ms ease;
+  }
+  .dd-field:hover {
+    border-color: var(--dd-border-hover);
+  }
+  input.dd-field:focus,
+  .dd-field:focus-within {
+    border-color: var(--dd-border-hover);
+    outline: 2px solid var(--dd-focus);
+    outline-offset: 1px;
+  }
+  .dd-field::placeholder,
+  .dd-field-input::placeholder {
+    color: var(--dd-muted);
+    opacity: 1;
+  }
+  .dd-field:disabled,
+  .dd-field.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .dd-field-input {
+    min-width: 0;
+    flex: 1;
+    height: 40px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    outline: none;
+  }
+  .dd-field-input:focus,
+  .dd-field-input:focus-visible {
+    outline: none;
+  }
+  .dd-field-toggle {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 8px;
+    color: var(--dd-muted);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .dd-field-toggle:hover:not(:disabled) {
+    background: var(--dd-hover);
+    color: var(--dd-ink);
+  }
+
+  /* A box holding a label and one or more bare controls, drawn as one control. */
+  .dd-group {
+    display: flex;
+    min-width: 0;
+    min-height: 42px;
+    align-items: center;
+    border: 1px solid var(--dd-border);
+    border-radius: 10px;
+    background: var(--dd-bg);
+    color: var(--dd-ink);
+    transition: border-color 140ms ease;
+  }
+  .dd-group:hover {
+    border-color: var(--dd-border-hover);
+  }
+  .dd-group-label {
+    white-space: nowrap;
+    color: var(--dd-muted);
+  }
+
+  /* The open list. */
+  .dd-menu {
+    position: fixed;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: max-content;
+    max-width: min(30rem, calc(100vw - 16px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px;
+    border: 1px solid var(--dd-menu-border);
+    border-radius: 12px;
+    background: var(--dd-menu-bg);
+    color: var(--dd-ink);
+    box-shadow: var(--dd-shadow);
+    font-size: 14px;
+    line-height: 1.3;
+    /* A long list scrolls with a slim bar in the list's own colours, not the system's grey one. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--dd-border-hover) transparent;
+    animation: dd-in 120ms ease-out;
+  }
+  .dd-menu[data-measuring] {
+    visibility: hidden;
+    animation: none;
+  }
+  .dd-heading {
+    padding: 8px 10px 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--dd-muted);
+  }
+  .dd-option {
+    display: flex;
+    min-height: 38px;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 100ms ease;
+  }
+  .dd-option[data-active] {
+    background: var(--dd-hover);
+  }
+  .dd-option[aria-selected="true"] {
+    background: var(--dd-selected);
+    font-weight: 600;
+  }
+  .dd-option[aria-disabled="true"] {
+    cursor: default;
+    color: var(--dd-disabled);
+    background: transparent;
+  }
+  .dd-option-label {
+    min-width: 0;
+    flex: 1;
+  }
+  .dd-check {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--dd-accent);
+  }
+  .dd-check[data-hidden] {
+    visibility: hidden;
+  }
+}
+
+@keyframes dd-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dd-menu { animation: none; }
+  .dd-trigger, .dd-chevron, .dd-option, .dd-group, .dd-field, .dd-field-toggle { transition: none; }
+}
