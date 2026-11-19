@@ -9,6 +9,7 @@ import {
   arrowOf, basisReference, changeOf, filterOptions, groupings, groupRows, isCurrent, kindNames, rounded, scopeSplit, signedRounded,
   statusOf, updatedText, useYearReading, type Change, type GroupRow, type Option, type YearReading, type YearScope,
 } from '../lib/year'
+import { Select } from '../ui/Select'
 import { Tip, useTipTrigger } from '../ui/tip'
 import { YearNotFound } from './NotFound'
 import { Chip, KpiStrip, NoChange, useKpiPanel } from './YearKpi'
@@ -215,41 +216,31 @@ function FilterBar({ reading }: { reading: YearReading }) {
     // The range never turns over: moving one end past the other brings the other along.
     months(which === 'from' ? month : Math.min(filters.from, month), which === 'to' ? month : Math.max(filters.to, month))
   }
+  const monthChoices = monthNames.map((name, index) => ({ value: String(index + 1), label: name }))
   const endSelect = (which: 'from' | 'to') => (
-    <select
-      aria-label={which === 'from' ? 'Başlanğıc ay' : 'Son ay'}
-      value={filters[which]}
-      onChange={(event) => setEnd(which, Number(event.target.value))}
-      className="h-9 rounded-md bg-transparent pl-1 pr-6 font-semibold text-(--y-ink)"
-    >
-      {monthNames.map((name, index) => <option key={name} value={index + 1} className="bg-(--y-surface)">{name}</option>)}
-    </select>
+    <Select
+      variant="bare"
+      label={which === 'from' ? 'Başlanğıc ay' : 'Son ay'}
+      value={String(filters[which])}
+      options={monthChoices}
+      onChange={(value) => setEnd(which, Number(value))}
+    />
   )
+  const periodChoices = [
+    { value: 'year', label: 'Bütün il' },
+    ...monthNames.map((name, index) => ({
+      value: `m${index + 1}`, label: `${name}${hasData(index + 1) ? '' : ' — hələ başlamayıb'}`, display: name, disabled: !hasData(index + 1), group: 'Bir ay',
+    })),
+    { value: 'range', label: 'Aralıq seç…', group: 'Bir neçə ay' },
+  ]
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Dövr" className="flex min-h-10 flex-wrap items-center gap-1 rounded-lg border border-(--y-line) bg-(--y-surface) py-0.5 pl-3 pr-1 text-sm">
-          <span className="text-(--y-muted)">Dövr</span>
+        <div role="group" aria-label="Dövr" className="dd-group flex-wrap gap-1 py-0.5 pl-3 pr-1 text-sm">
+          <span className="dd-group-label">Dövr</span>
           <YearSelect />
-          <select
-            aria-label="Dövr: bütün il, bir ay və ya aralıq"
-            value={period}
-            onChange={(event) => choosePeriod(event.target.value)}
-            className="h-9 rounded-md bg-transparent pl-1 pr-6 font-semibold text-(--y-ink)"
-          >
-            <option value="year" className="bg-(--y-surface)">Bütün il</option>
-            <optgroup label="Bir ay" className="bg-(--y-surface)">
-              {monthNames.map((name, index) => (
-                <option key={name} value={`m${index + 1}`} disabled={!hasData(index + 1)} className="bg-(--y-surface)">
-                  {name}{hasData(index + 1) ? '' : ' — hələ başlamayıb'}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Bir neçə ay" className="bg-(--y-surface)">
-              <option value="range" className="bg-(--y-surface)">Aralıq seç…</option>
-            </optgroup>
-          </select>
+          <Select variant="bare" label="Dövr: bütün il, bir ay və ya aralıq" value={period} options={periodChoices} onChange={choosePeriod} />
           {period === 'range' && (
             <>
               {endSelect('from')}
@@ -318,19 +309,20 @@ function FilterSelect({ label, all, value, options, disabled = false, onChange }
   onChange: (value: string | null) => void
 }) {
   return (
-    <label className={`flex min-h-10 min-w-0 items-center gap-1 rounded-lg border border-(--y-line) bg-(--y-surface) py-0.5 pl-3 pr-1 text-sm ${disabled ? 'opacity-50' : ''}`}>
-      <span className="whitespace-nowrap text-(--y-muted)">{label}</span>
-      <select
+    <label className={`dd-group gap-1 py-0.5 pl-3 pr-1 text-sm ${disabled ? 'opacity-50' : ''}`}>
+      <span className="dd-group-label">{label}</span>
+      <Select
+        variant="bare"
+        label={label}
         value={value ?? ''}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value || null)}
-        className="h-9 min-w-0 flex-1 rounded-md bg-transparent pl-1 pr-6 font-semibold text-(--y-ink) sm:max-w-56"
-      >
-        <option value="" className="bg-(--y-surface)">{all}</option>
-        {options.map((option) => (
-          <option key={option.id} value={option.id} className="bg-(--y-surface)">{option.name} · {option.amount ? rounded(option.amount) : 'bu filtrdə yoxdur'}</option>
-        ))}
-      </select>
+        options={[
+          { value: '', label: all },
+          ...options.map((option) => ({ value: option.id, label: `${option.name} · ${option.amount ? rounded(option.amount) : 'bu filtrdə yoxdur'}` })),
+        ]}
+        onChange={(next) => onChange(next || null)}
+        className="flex-1 sm:max-w-56"
+      />
     </label>
   )
 }
@@ -354,12 +346,10 @@ function GroupingSwitch({ reading }: { reading: YearReading }) {
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-sm md:hidden">
+      <div className="flex items-center gap-2 text-sm md:hidden">
         <span className="text-(--y-muted)">Qruplaşdır</span>
-        <select value={current} onChange={(event) => choose(event.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-(--y-line) bg-(--y-surface) px-2 font-semibold text-(--y-ink)">
-          {groupings.map((item) => <option key={item.value} value={item.value} className="bg-(--y-surface)">{item.label}</option>)}
-        </select>
-      </label>
+        <Select label="Qruplaşdır" value={current} options={groupings} onChange={choose} className="flex-1" />
+      </div>
     </>
   )
 }

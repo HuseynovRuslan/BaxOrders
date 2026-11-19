@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { basisOptions, type Basis, type Kind } from '../data/analysis'
 import { YEAR, YEARS } from '../data/model'
 import { kindNames, kindOrder } from '../lib/year'
+import { Select } from '../ui/Select'
 
 /**
  * The year on screen, as a choice among the years with figures: the same screen of another year, its kind, comparison
@@ -19,14 +20,14 @@ export function YearSelect({ className = '' }: { className?: string }) {
     navigate(`${pathname.replace(/^\/\d{4}/, `/${year}`)}${query ? `?${query}` : ''}`)
   }
   return (
-    <select
-      aria-label="İl"
-      value={YEAR}
-      onChange={(event) => go(event.target.value)}
-      className={`h-9 rounded-md bg-transparent pl-1 pr-6 font-semibold text-(--y-ink) ${className}`}
-    >
-      {YEARS.map((year) => <option key={year} value={year} className="bg-(--y-surface)">{year}</option>)}
-    </select>
+    <Select
+      variant="bare"
+      label="İl"
+      value={String(YEAR)}
+      options={YEARS.map((year) => ({ value: String(year), label: String(year) }))}
+      onChange={go}
+      className={className}
+    />
   )
 }
 
@@ -55,15 +56,16 @@ export function KindNav({ kind, hrefOf }: { kind: Kind; hrefOf: (kind: Kind) => 
 /** What every change is measured against: the month before, or the monthly average of the months before it. */
 export function BasisSelect({ basis, onChange }: { basis: Basis; onChange: (basis: Basis) => void }) {
   return (
-    <label className="flex min-h-11 items-center gap-2 rounded-lg border border-(--y-line) bg-(--y-surface) py-1 pl-3 pr-1 text-sm">
-      <span className="whitespace-nowrap text-(--y-muted)">Müqayisə üçün</span>
-      <select
+    <label className="dd-group gap-2 py-0.5 pl-3 pr-1 text-sm">
+      <span className="dd-group-label">Müqayisə üçün</span>
+      <Select
+        variant="bare"
+        label="Müqayisə üçün"
         value={basis}
-        onChange={(event) => onChange(event.target.value as Basis)}
-        className="h-9 min-w-0 flex-1 rounded-md bg-transparent pl-1 pr-7 font-semibold text-(--y-ink)"
-      >
-        {basisOptions.map((option) => <option key={option.value} value={option.value} className="bg-(--y-surface)">{option.label}</option>)}
-      </select>
+        options={basisOptions}
+        onChange={(value) => onChange(value as Basis)}
+        className="flex-1"
+      />
     </label>
   )
 }

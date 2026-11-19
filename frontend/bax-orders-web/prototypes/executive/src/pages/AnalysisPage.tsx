@@ -10,6 +10,7 @@ import {
 } from '../lib/pivot'
 import { basisReference, kindNames, rounded, signedRounded, updatedText, type Change } from '../lib/year'
 import { packageWords } from '../ui/kinds'
+import { Select } from '../ui/Select'
 import { Tip, useTipTrigger } from '../ui/tip'
 import { YearNotFound } from './NotFound'
 import { BasisSelect, KindNav, YearSelect } from './YearControls'
@@ -180,22 +181,16 @@ function PeriodField({ reading }: { reading: AnalysisReading }) {
   const { from, to } = reading.analysis
   // Only the months with data: the next one appears once its workbook is loaded, and no «to» in the address follows it.
   const set = (first: number, last: number) => reading.write({ from: first === 1 ? null : String(first), to: last === LAST_MONTH_WITH_DATA ? null : String(last) })
-  const months = monthNames.slice(0, LAST_MONTH_WITH_DATA).map((name, index) => (
-    <option key={name} value={index + 1} className="bg-(--y-surface)">{name}</option>
-  ))
+  const months = monthNames.slice(0, LAST_MONTH_WITH_DATA).map((name, index) => ({ value: String(index + 1), label: name }))
   return (
     <div className="min-w-0">
       <span id="period-label" className="mb-1 block text-[11px] font-semibold text-(--y-muted)">Dövr{YEARS.length < 2 ? ` · ${YEAR}` : ''}</span>
-      <div role="group" aria-labelledby="period-label" className="flex min-h-10 items-center gap-0.5 rounded-lg border border-(--y-line) bg-(--y-surface) px-1 text-sm">
-        {YEARS.length > 1 && <><YearSelect className="shrink-0" /><span aria-hidden="true" className="h-5 w-px bg-(--y-line)" /></>}
+      <div role="group" aria-labelledby="period-label" className="dd-group gap-0.5 px-1 text-sm">
+        {YEARS.length > 1 && <><YearSelect className="shrink-0" /><span aria-hidden="true" className="h-5 w-px bg-(--dd-border)" /></>}
         {/* The range never turns over: moving one end past the other brings the other along. */}
-        <select aria-label="Başlanğıc ay" value={from} onChange={(event) => { const month = Number(event.target.value); set(month, Math.max(month, to)) }} className="h-9 min-w-0 flex-1 rounded-md bg-transparent px-1 font-semibold text-(--y-ink)">
-          {months}
-        </select>
+        <Select variant="bare" label="Başlanğıc ay" value={String(from)} options={months} onChange={(value) => { const month = Number(value); set(month, Math.max(month, to)) }} className="flex-1" />
         <span aria-hidden="true" className="text-(--y-muted)">–</span>
-        <select aria-label="Son ay" value={to} onChange={(event) => { const month = Number(event.target.value); set(Math.min(from, month), month) }} className="h-9 min-w-0 flex-1 rounded-md bg-transparent px-1 font-semibold text-(--y-ink)">
-          {months}
-        </select>
+        <Select variant="bare" label="Son ay" value={String(to)} options={months} onChange={(value) => { const month = Number(value); set(Math.min(from, month), month) }} className="flex-1" />
       </div>
     </div>
   )
@@ -321,7 +316,7 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
   const apply = (preset: Preset) => reading.setDirections(resolve(preset.rows)!, resolve(preset.cols), preset.view)
   const setRows = (rows: Dim) => reading.setDirections(rows, analysis.cols === rows ? analysis.rows : analysis.cols)
   const swap = () => analysis.cols && reading.setDirections(analysis.cols, analysis.rows)
-  const select = 'h-10 min-w-0 rounded-lg border border-(--y-line) bg-(--y-surface) pl-2.5 pr-8 text-sm font-semibold text-(--y-ink)'
+  const select = 'min-w-0 text-sm'
   const sorts: { value: Sort; label: string }[] = [
     { value: 'mebleg', label: 'Məbləğ' },
     { value: 'ferq', label: 'Fərq' },
@@ -351,12 +346,10 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
       </div>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <div className="flex min-w-0 items-end gap-1.5">
-          <label className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold text-(--y-muted)">
+          <div className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold text-(--y-muted)">
             Sətirlər
-            <select value={analysis.rows} onChange={(event) => setRows(event.target.value as Dim)} className={select}>
-              {dimOrder.map((dim) => <option key={dim} value={dim} className="bg-(--y-surface)">{dimLabels[dim]}</option>)}
-            </select>
-          </label>
+            <Select label="Sətirlər" value={analysis.rows} options={dimOrder.map((dim) => ({ value: dim, label: dimLabels[dim] }))} onChange={(value) => setRows(value as Dim)} className={select} />
+          </div>
           <button
             type="button"
             onClick={swap}
@@ -367,13 +360,16 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
           >
             <ArrowLeftRight aria-hidden="true" className="size-4" />
           </button>
-          <label className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold text-(--y-muted)">
+          <div className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold text-(--y-muted)">
             Sütunlar
-            <select value={analysis.cols ?? 'yox'} onChange={(event) => reading.setDirections(analysis.rows, event.target.value === 'yox' ? null : event.target.value as Dim)} className={select}>
-              <option value="yox" className="bg-(--y-surface)">Yoxdur — sıralı siyahı</option>
-              {dimOrder.filter((dim) => dim !== analysis.rows).map((dim) => <option key={dim} value={dim} className="bg-(--y-surface)">{dimLabels[dim]}</option>)}
-            </select>
-          </label>
+            <Select
+              label="Sütunlar"
+              value={analysis.cols ?? 'yox'}
+              options={[{ value: 'yox', label: 'Yoxdur — sıralı siyahı' }, ...dimOrder.filter((dim) => dim !== analysis.rows).map((dim) => ({ value: dim, label: dimLabels[dim] }))]}
+              onChange={(value) => reading.setDirections(analysis.rows, value === 'yox' ? null : value as Dim)}
+              className={select}
+            />
+          </div>
         </div>
         <Segmented label="Görünüş">
           {(['qrafik', 'cedvel'] as const).map((view) => (

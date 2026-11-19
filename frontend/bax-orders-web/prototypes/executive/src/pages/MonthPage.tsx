@@ -9,6 +9,7 @@ import { minus, money, moneyParts, monthName, monthNameIn, monthRange, monthYear
 import { paths, useComparison } from '../lib/links'
 import { kindNames, kindOrder } from '../lib/year'
 import { ApproveButton } from '../ui/ApproveButton'
+import { Select } from '../ui/Select'
 import { OutsideFlowNote, OutsideRequestList } from '../ui/kinds'
 import { NotFound, YearNotFound } from './NotFound'
 import { Chip } from './YearKpi'
@@ -96,15 +97,9 @@ export function MonthPage() {
               </Link>
             ))}
           </nav>
-          <label className="flex min-h-11 items-center gap-2 rounded-lg border border-(--y-line) bg-(--y-surface) py-1 pl-3 pr-1 text-sm">
-            <span className="whitespace-nowrap text-(--y-muted)">Müqayisə üçün</span>
-            <select
-              value={basis}
-              onChange={(event) => setBasis(event.target.value as Basis)}
-              className="h-9 min-w-0 flex-1 rounded-md bg-transparent pl-1 pr-7 font-semibold text-(--y-ink)"
-            >
-              {basisOptions.map((option) => <option key={option.value} value={option.value} className="bg-(--y-surface)">{option.label}</option>)}
-            </select>
+          <label className="dd-group gap-2 py-0.5 pl-3 pr-1 text-sm">
+            <span className="dd-group-label">Müqayisə üçün</span>
+            <Select variant="bare" label="Müqayisə üçün" value={basis} options={basisOptions} onChange={(value) => setBasis(value as Basis)} className="flex-1" />
           </label>
         </div>
       </div>
