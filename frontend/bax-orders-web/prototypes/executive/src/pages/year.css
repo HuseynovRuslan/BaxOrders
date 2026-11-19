@@ -23,6 +23,10 @@
   --y-up-soft: #fdebe8;
   --y-down: #0a7a52;
   --y-down-soft: #e2f4ec;
+  /* A list's rows: the line between them, the row under the pointer, a row's own button under it. */
+  --y-divider: #e6ebf0;
+  --y-row-hover: #f3f6fb;
+  --y-action-hover: #e4ecf8;
   font-family: "Manrope", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
   color: var(--y-ink);
 }
@@ -32,6 +36,7 @@
   :root:not([data-theme="light"]) .month-view {
     --y-grid: #1f344a; --y-band: #1c354a; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
     --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
+    --y-divider: #1f3549; --y-row-hover: #172e40; --y-action-hover: #21405a;
   }
 }
 
@@ -39,6 +44,21 @@
 :root[data-theme="dark"] .month-view {
   --y-grid: #1f344a; --y-band: #1c354a; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
   --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
+  --y-divider: #1f3549; --y-row-hover: #172e40; --y-action-hover: #21405a;
+}
+
+/*
+ * A list of rows (the products of «Mallar»): the whole row lights under the pointer — every cell, not the name alone —
+ * in a quiet colour, without moving; a row's own buttons light a step further, so the two never look alike.
+ */
+.year-view .row-list tbody tr > * {
+  transition: background-color 100ms ease;
+}
+.year-view .row-list tbody tr:hover > * {
+  background: var(--y-row-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .year-view .row-list tbody tr > * { transition: none; }
 }
 
 /* A month waiting for approval, on the approval track and in its key. */
