@@ -27,6 +27,8 @@
   --y-divider: #e6ebf0;
   --y-row-hover: #f3f6fb;
   --y-action-hover: #e4ecf8;
+  /* The shadow a sticky column casts on what is scrolled under it. */
+  --y-edge: rgb(15 33 51 / 0.24);
   font-family: "Manrope", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
   color: var(--y-ink);
 }
@@ -36,7 +38,7 @@
   :root:not([data-theme="light"]) .month-view {
     --y-grid: #1f344a; --y-band: #1c354a; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
     --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
-    --y-divider: #1f3549; --y-row-hover: #172e40; --y-action-hover: #21405a;
+    --y-divider: #1f3549; --y-row-hover: #172e40; --y-action-hover: #21405a; --y-edge: rgb(0 0 0 / 0.6);
   }
 }
 
@@ -44,7 +46,7 @@
 :root[data-theme="dark"] .month-view {
   --y-grid: #1f344a; --y-band: #1c354a; --y-bar: #6f8cff; --y-bar-hover: #97acff; --y-bar-pending: #34447a;
   --y-ok: #3cc7b1; --y-up: #ff8a7a; --y-up-soft: #3a1c19; --y-down: #4fd1a1; --y-down-soft: #10302a;
-  --y-divider: #1f3549; --y-row-hover: #172e40; --y-action-hover: #21405a;
+  --y-divider: #1f3549; --y-row-hover: #172e40; --y-action-hover: #21405a; --y-edge: rgb(0 0 0 / 0.6);
 }
 
 /*
@@ -196,13 +198,14 @@
   .year-view .strip-label { transition: none; }
 }
 
-/* «Hazır analizlər»: one row that scrolls; the side with chips out of sight fades. */
+/* «Hazır analizlər»: one row that scrolls, with no scrollbar of its own; the side with chips out of sight fades and
+   has its ‹ or › (AnalysisPage, PresetRow). */
 .year-view .preset-strip {
-  scrollbar-width: thin;
-  scrollbar-color: var(--y-line) transparent;
+  scrollbar-width: none;
   --fade-before: 0px;
   --fade-after: 0px;
   mask-image: linear-gradient(to right, transparent 0, black var(--fade-before), black calc(100% - var(--fade-after)), transparent 100%);
 }
 .year-view .preset-strip[data-more-before] { --fade-before: 2rem; }
 .year-view .preset-strip[data-more-after] { --fade-after: 2rem; }
+.year-view .preset-strip::-webkit-scrollbar { display: none; }

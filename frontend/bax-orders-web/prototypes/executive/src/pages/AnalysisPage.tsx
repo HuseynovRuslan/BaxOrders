@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import {
-  ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, CircleAlert, Clock3, Hourglass, Info, Maximize2, Minimize2, Search, SlidersHorizontal, Table2, X,
+  ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clock3, Hourglass, Info, Maximize2, Minimize2, Search, SlidersHorizontal, Table2, X,
 } from 'lucide-react'
 import { approvalDrift, approvalOf } from '../data/analysis'
 import { LAST_MONTH_WITH_DATA, monthsWithData, TODAY, YEAR, YEARS } from '../data/model'
@@ -142,7 +142,7 @@ function FilterPanel({ reading, options }: { reading: AnalysisReading; options: 
         </button>
         {chips.length > 0 ? (
           <>
-            <ul aria-label="Aktiv filtrlər" className="flex flex-wrap items-center gap-1.5">
+            <ul aria-label="Aktiv filtrlər" aria-live="polite" className="flex flex-wrap items-center gap-1.5">
               {chips.map((chip) => (
                 <li key={chip.label} className="inline-flex items-center gap-1 rounded-full border border-(--y-bar)/30 bg-(--y-band) py-0.5 pl-2.5 pr-1 text-xs font-semibold text-(--y-ink)">
                   {chip.label}
@@ -400,8 +400,9 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
 }
 
 /**
- * «Hazır analizlər» on one line: the chips scroll sideways under the label, and the side with chips out of sight fades,
- * so it shows there are more. A chip reached with Tab scrolls itself into view.
+ * «Hazır analizlər» on one line: the chips scroll sideways under the label, with no scrollbar of their own. The side
+ * with chips out of sight fades and gets a small ‹ or › that scrolls the row by most of its width; a chip reached
+ * with Tab scrolls itself into view, and a trackpad or Shift and the wheel move the row as well.
  */
 function PresetRow({ children }: { children: ReactNode }) {
   const strip = useRef<HTMLDivElement>(null)
@@ -423,9 +424,19 @@ function PresetRow({ children }: { children: ReactNode }) {
       resize?.disconnect()
     }
   }, [])
+  function page(way: 1 | -1) {
+    const element = strip.current
+    if (!element) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    element.scrollBy({ left: way * Math.max(120, element.clientWidth * 0.7), behavior: reduce ? 'auto' : 'smooth' })
+  }
+  const nudge = 'grid size-8 shrink-0 place-items-center rounded-full border border-(--y-line) text-(--y-ink-2) transition-colors hover:bg-(--y-band) hover:text-(--y-ink)'
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
+    <div className="flex min-w-0 items-center gap-2">
       <span id="presets-label" className="shrink-0 text-xs font-semibold text-(--y-muted)">Hazır analizlər</span>
+      <button type="button" aria-label="Əvvəlki hazır analizlər" tabIndex={-1} onClick={() => page(-1)} className={`${nudge} ${more.before ? '' : 'invisible'}`}>
+        <ChevronLeft aria-hidden="true" className="size-4" />
+      </button>
       <div
         ref={strip}
         role="group"
@@ -436,6 +447,9 @@ function PresetRow({ children }: { children: ReactNode }) {
       >
         {children}
       </div>
+      <button type="button" aria-label="Növbəti hazır analizlər" tabIndex={-1} onClick={() => page(1)} className={`${nudge} ${more.after ? '' : 'invisible'}`}>
+        <ChevronRight aria-hidden="true" className="size-4" />
+      </button>
     </div>
   )
 }
@@ -508,8 +522,8 @@ function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisRe
           <dd key={drift.month} data-drift={drift.month} className="tnum mt-0.5 flex items-start gap-1.5 text-xs font-semibold text-(--y-amber)">
             <CircleAlert aria-hidden="true" className="mt-px size-3.5 shrink-0" />
             <span>
-              {monthName(drift.month)}: təsdiqdə {money(drift.approved)}, sonra {money(drift.now)}
-              <span className="font-normal text-(--y-muted)">{narrowed ? ' · ayın bütün aylıq paketi' : ' · paket təsdiqdən sonra dəyişib'}</span>
+              {monthName(drift.month)} təsdiqdən sonra dəyişib: {moneyParts(Math.round(drift.approved)).whole} → {money(drift.now)}
+              {narrowed && <span className="font-normal text-(--y-muted)"> · bütün paket</span>}
             </span>
           </dd>
         ))}
@@ -542,6 +556,56 @@ function Empty({ reading, period }: { reading: AnalysisReading; period: string }
 /* ---- The result ---------------------------------------------------------------------------------------------------------- */
 
 const ROW_LIMIT = 30
+
+/**
+ * Where a table scrolls. One that fits the column reads in the page: its head row sticks to the top of the window
+ * (under the phone's top bar) and nothing scrolls inside it, so there is one scrollbar, the page's. Only a table wider
+ * than the column gets a box of its own (`boxed`), which scrolls both ways and keeps its head row and first column in
+ * sight; the wheel goes on to the page at the box's ends. Measured whenever the box or the table changes size.
+ * `edges` says on which side something is scrolled under the sticky columns, for their shadows.
+ */
+function useTableBox() {
+  const region = useRef<HTMLDivElement>(null)
+  const table = useRef<HTMLTableElement>(null)
+  const [boxed, setBoxed] = useState(false)
+  const [edges, setEdges] = useState({ left: false, right: false })
+  useLayoutEffect(() => {
+    const box = region.current
+    const grid = table.current
+    if (!box || !grid) return
+    const measure = () => {
+      const style = getComputedStyle(box)
+      const room = box.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)
+      const wide = room > 0 && grid.offsetWidth > room + 1
+      setBoxed(wide)
+      const left = wide && box.scrollLeft > 1
+      const right = wide && box.scrollLeft < box.scrollWidth - box.clientWidth - 1
+      setEdges((current) => (current.left === left && current.right === right ? current : { left, right }))
+    }
+    measure()
+    box.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', measure)
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    resize?.observe(box)
+    resize?.observe(grid)
+    return () => {
+      box.removeEventListener('scroll', measure)
+      window.removeEventListener('resize', measure)
+      resize?.disconnect()
+    }
+  }, [])
+  const regionClass = boxed
+    ? 'relative -mx-1 max-h-[calc(100dvh-5.5rem)] overflow-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar) xl:max-h-[calc(100dvh-2rem)]'
+    : 'relative -mx-1 px-1 pb-1'
+  // The head row's place: the box's top, or the window's — under the phone's top bar (3.5rem) until the sidebar shows.
+  const top = boxed ? 'top-0' : 'top-14 xl:top-0'
+  return { region, table, boxed, edges, regionClass, top }
+}
+
+/** The shadow a sticky column casts on what is scrolled under it, on the side it faces. */
+const shadowLeft = 'shadow-[-4px_0_0_var(--y-surface),16px_0_14px_-14px_var(--y-edge)]'
+const padLeft = 'shadow-[-4px_0_0_var(--y-surface)]'
+const shadowRight = 'md:shadow-[-16px_0_14px_-14px_var(--y-edge)]'
 
 function Result({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading }) {
   const { analysis } = reading
@@ -660,6 +724,7 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
   const [allCols, setAllCols] = useState(false)
   const [hot, setHot] = useState<string | null>(null)
   const [big, setBig] = useState(readStripSize)
+  const box = useTableBox()
   const folded = allCols ? { cols: pivot.cols, folded: 0 } : foldColumns(pivot, analysis.cols)
   const cols = folded.cols
   const rows = allRows ? pivot.rows : pivot.rows.slice(0, ROW_LIMIT)
@@ -669,20 +734,24 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
   const monthly = kind === 'monthly'
   const shade = (value: number) => `color-mix(in oklab, var(--y-bar) ${Math.round(6 + 40 * Math.sqrt(value / cellMax))}%, transparent)`
   const surface = 'bg-(--y-surface)'
-  // Down the left: the row names, the chart's axis and the corner stay while the columns scroll under them; the shadow
-  // fills the box's own padding to their left, so nothing scrolling under them shows beside them.
-  const stickyLeft = `sticky left-0 z-[1] ${surface} shadow-[-4px_0_0_var(--y-surface)]`
-  // Across the top: the head row stays while the rows scroll under it (inside the table's own box).
-  const headTop = `sticky top-0 z-[2] ${surface}`
-  const corner = `sticky left-0 top-0 z-[4] ${surface} shadow-[-4px_0_0_var(--y-surface)]`
+  // Down the left: the row names, the chart's axis and the corner stay while the columns scroll under them. One shadow
+  // fills the box's own padding to their left, so nothing scrolling under them shows beside them; the other falls on
+  // the columns under them, only while there are some.
+  const leftShade = box.edges.left ? shadowLeft : padLeft
+  const stickyLeft = `sticky left-0 z-[1] ${surface} ${leftShade}`
+  // Across the top: the head row stays while the rows scroll under it — at the window's top, or the box's.
+  const headTop = `sticky ${box.top} z-[2] ${surface}`
+  const corner = `sticky left-0 ${box.top} z-[4] ${surface} ${leftShade}`
   // On a desktop the totals — and, in the table, the change — stay at the right edge while the columns scroll under them.
   const edge = `${surface} md:sticky md:z-[1]`
-  const headEdge = `sticky top-0 z-[2] ${surface} md:z-[3]`
-  const totalAt = `${exact ? 'md:right-[9.5rem]' : 'md:right-0'} md:shadow-[-12px_0_12px_-12px_rgba(15,23,42,0.28)]`
+  const headEdge = `sticky ${box.top} z-[2] ${surface} md:z-[3]`
+  const totalAt = `${exact ? 'md:right-[9.5rem]' : 'md:right-0'} ${box.edges.right ? shadowRight : ''}`
   const changeAt = 'md:right-0 md:w-[9.5rem] md:min-w-[9.5rem]'
   const lit = (key: string) => (hot === key ? ' is-hot-col' : '')
   const months = analysis.cols === 'ay'
   const marks = { comparison: months ? pivot.comparisonMonths : [], running: months && !monthly ? runningMonth() : null }
+  const shown = (month: number | null) => month !== null && cols.some((col) => Number(col.key) === month)
+  const key = { comparison: marks.comparison.some(shown), running: shown(marks.running) }
 
   function toggleSize() {
     const next = !big
@@ -697,12 +766,16 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
   return (
     <div className="flex flex-col gap-1">
       <div
+        ref={box.region}
         role="region"
         aria-labelledby="matrix-caption"
-        tabIndex={0}
-        className="relative -mx-1 max-h-[calc(100dvh-5.5rem)] overflow-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar) xl:max-h-[calc(100dvh-2rem)]"
+        tabIndex={box.boxed ? 0 : undefined}
+        data-boxed={box.boxed || undefined}
+        onPointerLeave={() => setHot(null)}
+        className={box.regionClass}
       >
         <table
+          ref={box.table}
           data-matrix={exact ? 'exact' : 'heat'}
           className="w-full border-separate border-spacing-0 text-[13px]"
           style={{ '--strip-h': big ? '300px' : 'clamp(160px, 20vh, 220px)' } as CSSProperties}
@@ -724,6 +797,7 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
                 big={big}
                 onToggleSize={toggleSize}
                 onShowAll={() => setAllCols(true)}
+                legend={key}
               />
             )}
             <tr>
@@ -826,13 +900,13 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
               <span className="h-2 w-24 rounded-full" style={{ background: 'linear-gradient(90deg, color-mix(in oklab, var(--y-bar) 6%, transparent), color-mix(in oklab, var(--y-bar) 46%, transparent))' }} />
               çox · xananın məbləği, ₼
             </p>
-            {marks.comparison.some((month) => cols.some((col) => Number(col.key) === month)) && (
+            {key.comparison && (
               <p className="flex items-center gap-1.5">
                 <span aria-hidden="true" className="strip-key is-comparison" />
                 Müqayisə: {pivot.comparisonLabel}
               </p>
             )}
-            {marks.running !== null && cols.some((col) => Number(col.key) === marks.running) && (
+            {key.running && marks.running !== null && (
               <p className="flex items-center gap-1.5">
                 <span aria-hidden="true" className="strip-key is-running" />
                 {monthName(marks.running)} davam edir — rəqəmlər {updatedText} yükləməsinədir
@@ -891,7 +965,7 @@ const spokenAmount = (value: number) => `${moneyParts(Math.round(value)).whole} 
  * size switch over the totals. One stop for Tab, the arrows go from bar to bar; a bar's figures open on focus and under
  * the pointer, and a click takes its column as a filter (as a name does), or opens every column from «Digər».
  */
-function StripRow({ pivot, cols, reading, hot, onHot, marks, axisClass, endClass, big, onToggleSize, onShowAll }: {
+function StripRow({ pivot, cols, reading, hot, onHot, marks, axisClass, endClass, big, onToggleSize, onShowAll, legend }: {
   pivot: Pivot
   cols: PivotColumn[]
   reading: AnalysisReading
@@ -903,6 +977,8 @@ function StripRow({ pivot, cols, reading, hot, onHot, marks, axisClass, endClass
   big: boolean
   onToggleSize: () => void
   onShowAll: () => void
+  /** Which of the bars' own looks are on the chart, to name them beside it. */
+  legend: { comparison: boolean; running: boolean }
 }) {
   const { analysis } = reading
   const largest = Math.max(...cols.map((col) => col.total), 0)
@@ -955,7 +1031,7 @@ function StripRow({ pivot, cols, reading, hot, onHot, marks, axisClass, endClass
         </td>
       ))}
       <td className={`${endClass} p-0 align-top`}>
-        <div className="flex justify-end p-1.5">
+        <div className="flex flex-col items-end gap-2 p-1.5">
           <button
             type="button"
             onClick={onToggleSize}
@@ -965,6 +1041,12 @@ function StripRow({ pivot, cols, reading, hot, onHot, marks, axisClass, endClass
             {big ? <Minimize2 aria-hidden="true" className="size-3.5" /> : <Maximize2 aria-hidden="true" className="size-3.5" />}
             {big ? 'Kiçilt' : 'Böyüt'}
           </button>
+          {(legend.comparison || legend.running) && (
+            <ul aria-label="Qrafikin işarələri" className="flex flex-col items-end gap-1 pr-0.5 text-[11px] text-(--y-muted)">
+              {legend.comparison && <li className="flex items-center gap-1.5 whitespace-nowrap"><span aria-hidden="true" className="strip-key is-comparison" />müqayisə ayı</li>}
+              {legend.running && <li className="flex items-center gap-1.5 whitespace-nowrap"><span aria-hidden="true" className="strip-key is-running" />davam edir</li>}
+            </ul>
+          )}
         </div>
       </td>
     </tr>
@@ -1223,24 +1305,25 @@ function ListTable({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading 
   const months = analysis.rows === 'ay'
   const product = pivot.withProduct
   // The head row stays in sight while the rows scroll under it (inside the table's own box).
-  const head = 'sticky top-0 z-[2] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-right align-bottom text-[11px] font-semibold leading-tight text-(--y-ink-2)'
+  const box = useTableBox()
+  const head = `sticky ${box.top} z-[2] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-right align-bottom text-[11px] font-semibold leading-tight text-(--y-ink-2)`
   const cell = 'tnum whitespace-nowrap border-b border-(--y-line) px-3 py-2 text-right'
   const foot = 'tnum whitespace-nowrap border-t-2 border-(--y-line) px-3 py-2 text-right font-bold'
   // On a desktop the change stays at the right edge, should the table be wider than the screen.
-  const edge = 'bg-(--y-surface) md:sticky md:right-0 md:z-[1] md:shadow-[-12px_0_12px_-12px_rgba(15,23,42,0.28)]'
-  const headEdge = 'md:right-0 md:z-[3] md:shadow-[-12px_0_12px_-12px_rgba(15,23,42,0.28)]'
+  const edge = `bg-(--y-surface) md:sticky md:right-0 md:z-[1] ${box.edges.right ? shadowRight : ''}`
+  const headEdge = `md:right-0 md:z-[3] ${box.edges.right ? shadowRight : ''}`
   const reason = 'Müqayisə üçün eyni vahiddə məlumat yoxdur və ya müqayisə dövrü natamamdır.'
   const total = pivot.productTotal
   const share = (value: number) => percent(pivot.total ? value / pivot.total : 0, false)
   const sub = 'block text-[11px] font-normal text-(--y-muted)'
   return (
     <div className="flex flex-col gap-1">
-      <div role="region" aria-labelledby="list-caption" tabIndex={0} className="relative -mx-1 max-h-[calc(100dvh-5.5rem)] overflow-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar) xl:max-h-[calc(100dvh-2rem)]">
-        <table data-table="list" className="w-full border-separate border-spacing-0 text-[13px]">
+      <div ref={box.region} role="region" aria-labelledby="list-caption" tabIndex={box.boxed ? 0 : undefined} data-boxed={box.boxed || undefined} className={box.regionClass}>
+        <table ref={box.table} data-table="list" className="w-full border-separate border-spacing-0 text-[13px]">
           <caption id="list-caption" className="sr-only">{dimLabels[analysis.rows]} · {kindNames[kind]}</caption>
           <thead>
             <tr>
-              <SortHead reading={reading} sort="ad" className="sticky left-0 top-0 z-[4] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-left align-bottom text-[11px] font-semibold text-(--y-ink-2)">
+              <SortHead reading={reading} sort="ad" className={`sticky left-0 ${box.top} z-[4] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-left align-bottom text-[11px] font-semibold text-(--y-ink-2) ${box.edges.left ? shadowLeft : padLeft}`}>
                 {dimSingular[analysis.rows]}
               </SortHead>
               {product && <th scope="col" className={head}>Miqdar · orta qiymət</th>}
@@ -1255,7 +1338,7 @@ function ListTable({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading 
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} data-row={row.key} className="group">
-                <th scope="row" className="sticky left-0 z-[1] max-w-[18rem] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-left font-semibold group-hover:bg-(--y-band)">
+                <th scope="row" className={`sticky left-0 z-[1] max-w-[18rem] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-left font-semibold group-hover:bg-(--y-band) ${box.edges.left ? shadowLeft : padLeft}`}>
                   <span className="flex items-center gap-1.5">
                     <button type="button" onClick={() => reading.drill(analysis.rows, row.key)} title={`${row.name}: filtr kimi tətbiq et və bir səviyyə aşağı aç`} className="min-w-0 truncate text-left hover:text-(--y-bar)">
                       {row.name}
@@ -1284,7 +1367,7 @@ function ListTable({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading 
           </tbody>
           <tfoot>
             <tr data-row="total">
-              <th scope="row" className="sticky left-0 z-[1] border-t-2 border-(--y-line) bg-(--y-surface) px-3 py-2 text-left font-extrabold">
+              <th scope="row" className={`sticky left-0 z-[1] border-t-2 border-(--y-line) bg-(--y-surface) px-3 py-2 text-left font-extrabold ${box.edges.left ? shadowLeft : padLeft}`}>
                 Cəmi{rows.length < pivot.rows.length ? <span className="ml-1 text-[11px] font-semibold text-(--y-muted)">(bütün {pivot.rows.length})</span> : null}
               </th>
               {product && (

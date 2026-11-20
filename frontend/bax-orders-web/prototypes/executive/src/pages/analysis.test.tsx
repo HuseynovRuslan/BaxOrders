@@ -107,13 +107,38 @@ describe('the column totals over the matrix', () => {
     expect(screen.getByText('Müqayisə: Oktyabr 2026')).toBeInTheDocument()
     // Monthly orders: November's package is the month's plan, not a part of a month.
     expect(document.querySelector('.strip-bar.is-running')).toBeNull()
+    // Named beside the chart, with the bars' own looks — not only in the key under the table.
+    const key = screen.getByRole('list', { name: 'Qrafikin işarələri' })
+    expect(within(key).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['müqayisə ayı'])
+    expect(key.querySelector('.strip-key.is-comparison')).toBeInTheDocument()
     cleanup()
 
     await open('/2026/analiz?nov=hamisi')
     expect(bar('11').querySelector('.strip-bar')).toHaveClass('is-running')
     expect(head('11')).toHaveTextContent('davam edir')
     expect(tipOf(bar('11'))).toHaveTextContent(/Ay davam edir: rəqəmlər .+ yükləməsinədir/)
-    expect(screen.getAllByText('davam edir').length).toBeGreaterThan(1)
+    expect(within(screen.getByRole('list', { name: 'Qrafikin işarələri' })).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['müqayisə ayı', 'davam edir'])
+    // The running month is marked by its stripes and its words, never by the pointer's band.
+    expect(document.querySelectorAll('.is-hot-col')).toHaveLength(0)
+  })
+
+  it('lets go of the lit column when the pointer leaves the table', async () => {
+    await open()
+    fireEvent.pointerOver(bar('4'))
+    expect(document.querySelectorAll('.is-hot-col').length).toBeGreaterThan(0)
+    fireEvent.pointerLeave(document.querySelector('[role="region"][aria-labelledby="matrix-caption"]')!)
+    expect(document.querySelectorAll('.is-hot-col')).toHaveLength(0)
+  })
+
+  it('shows a filter a bar applies beside «Filtrlər», and takes it off in one click', async () => {
+    await open()
+    await userEvent.click(bar('4'))
+    const chips = screen.getByRole('list', { name: 'Aktiv filtrlər' })
+    expect(chips).toHaveAttribute('aria-live', 'polite')
+    expect(within(chips).getByText('Ay: Aprel')).toBeInTheDocument()
+    await userEvent.click(within(chips).getByRole('button', { name: 'Ay: Aprel filtrini sil' }))
+    expect(screen.queryByRole('list', { name: 'Aktiv filtrlər' })).not.toBeInTheDocument()
+    expect(screen.getByText('Bütün il, bütün obyekt və kateqoriyalar')).toBeInTheDocument()
   })
 
   it('grows and shrinks, and the page remembers the choice', async () => {
@@ -131,16 +156,50 @@ describe('the column totals over the matrix', () => {
     expect(window.localStorage.getItem('baxorders-analiz-qrafik')).toBe('adi')
   })
 
-  it('is not drawn in the table view, whose head row still stays in sight', async () => {
+  it('is not drawn in the table view; a table that fits reads in the page, its head row stuck to the window', async () => {
     await open('/2026/analiz?gorunus=cedvel')
     expect(document.querySelector('tr[data-chart]')).toBeNull()
     const region = document.querySelector('[role="region"][aria-labelledby="matrix-caption"]')!
-    expect(region).toHaveClass('overflow-auto')
-    // The wheel goes on to the page at the box's end: no vertical overscroll containment.
-    expect(region.className).not.toMatch(/overscroll-(y-)?contain/)
-    expect(head('1')).toHaveClass('sticky', 'top-0')
+    // No box of its own: one scrollbar, the page's.
+    expect(region).not.toHaveAttribute('data-boxed')
+    expect(region.className).not.toMatch(/overflow-auto|max-h-/)
+    expect(region).not.toHaveAttribute('tabindex')
+    // Under the phone's top bar, at the very top beside the sidebar.
+    expect(head('1')).toHaveClass('sticky', 'top-14', 'xl:top-0')
     expect(document.querySelector('table[data-matrix] tbody th')).toHaveClass('sticky', 'left-0')
     expect(screen.getByRole('columnheader', { name: /Obyekt.*Ay · ₼/ })).toBeInTheDocument()
+    // Nothing is under the sticky columns: no shadow on either side.
+    expect(document.querySelector('table[data-matrix] tbody td[data-col="total"]')!.className).not.toMatch(/var\(--y-edge\)/)
+    expect(document.querySelector('table[data-matrix] tbody th')!.className).not.toMatch(/var\(--y-edge\)/)
+  })
+
+  it('gives a table wider than the column a box of its own, with shadows only where columns are under the sticky ones', async () => {
+    // jsdom has no layout: the table is told to be wider than its box.
+    const wide = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.tagName === 'TABLE' ? 2000 : 0 })
+    const room = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('role') === 'region' ? 1000 : 0 })
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.getAttribute('role') === 'region' ? 2008 : 0 })
+    try {
+      await open('/2026/analiz?gorunus=cedvel')
+      const region = document.querySelector<HTMLElement>('[role="region"][aria-labelledby="matrix-caption"]')!
+      await waitFor(() => expect(region).toHaveAttribute('data-boxed'))
+      expect(region).toHaveClass('overflow-auto')
+      expect(region).toHaveAttribute('tabindex', '0')
+      // The wheel goes on to the page at the box's end: no vertical overscroll containment.
+      expect(region.className).not.toMatch(/overscroll-(y-)?contain/)
+      expect(head('1')).toHaveClass('sticky', 'top-0')
+      // At the left end: columns are under the right edge only.
+      expect(document.querySelector('tbody td[data-col="total"]')!.className).toMatch(/var\(--y-edge\)/)
+      expect(document.querySelector('table[data-matrix] tbody th')!.className).not.toMatch(/var\(--y-edge\)/)
+      // Scrolled: under both.
+      region.scrollLeft = 300
+      fireEvent.scroll(region)
+      await waitFor(() => expect(document.querySelector('table[data-matrix] tbody th')!.className).toMatch(/var\(--y-edge\)/))
+      expect(document.querySelector('tbody td[data-col="total"]')!.className).toMatch(/var\(--y-edge\)/)
+    } finally {
+      wide.mockRestore()
+      room.mockRestore()
+      scroll.mockRestore()
+    }
   })
 })
 
@@ -154,19 +213,22 @@ describe('room for the result', () => {
     expect(document.getElementById('filter-fields')).toBeInTheDocument()
   })
 
-  it('puts the ready-made directions on one row', async () => {
+  it('puts the ready-made directions on one row, with ‹ › for the ones out of sight', async () => {
     await open()
     const row = screen.getByRole('group', { name: 'Hazır analizlər' })
     expect(row).toHaveClass('preset-strip', 'overflow-x-auto')
     expect(within(row).getAllByRole('button')).toHaveLength(9)
     expect(within(row).getByRole('button', { name: 'Obyektlər × Aylar' })).toHaveAttribute('aria-pressed', 'true')
+    // Nothing is out of sight on a page with no layout: the buttons keep their place, unseen.
+    expect(screen.getByRole('button', { name: 'Növbəti hazır analizlər', hidden: true })).toHaveClass('invisible')
+    expect(screen.getByRole('button', { name: 'Əvvəlki hazır analizlər', hidden: true })).toHaveClass('invisible')
   })
 })
 
 describe('the month marks and the latest month', () => {
   it('says beside the change when a month it stands on moved after its approval', async () => {
     await open()
-    expect(document.querySelector('[data-drift="10"]')).toHaveTextContent('Oktyabr: təsdiqdə 150 ₼, sonra 170 ₼')
+    expect(document.querySelector('[data-drift="10"]')).toHaveTextContent(/^Oktyabr təsdiqdən sonra dəyişib: 150 → 170 ₼$/)
   })
 
   it('opens what a mark means on a tap and from the keyboard, with its own sign for a month that moved', async () => {
