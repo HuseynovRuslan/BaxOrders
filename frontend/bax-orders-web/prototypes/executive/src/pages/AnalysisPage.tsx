@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
-import { ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, Hourglass, Info, Search, SlidersHorizontal, Table2, X } from 'lucide-react'
-import { approvalOf } from '../data/analysis'
-import { LAST_MONTH_WITH_DATA, monthsWithData, YEAR, YEARS } from '../data/model'
-import { money, moneyParts, monthName, monthNames, monthRange, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
+import {
+  ArrowDown, ArrowLeft, ArrowLeftRight, BarChart3, Check, ChevronDown, CircleAlert, Clock3, Hourglass, Info, Maximize2, Minimize2, Search, SlidersHorizontal, Table2, X,
+} from 'lucide-react'
+import { approvalDrift, approvalOf } from '../data/analysis'
+import { LAST_MONTH_WITH_DATA, monthsWithData, TODAY, YEAR, YEARS } from '../data/model'
+import { money, moneyParts, monthDative, monthName, monthNames, monthRange, monthYear, percent, price, quantity, quantityParts, signedMoney } from '../lib/format'
 import {
   categoryDim, cellOf, computePivot, dimLabels, dimOrder, dimSingular, facetOptions, foldColumns, labelOf, presetMatches, presets,
-  useAnalysis, type AnalysisReading, type Dim, type FacetKey, type FacetOption, type Pivot, type PivotRow, type Preset, type ProductFigures, type Sort,
+  useAnalysis, type AnalysisReading, type Dim, type FacetKey, type FacetOption, type Pivot, type PivotColumn, type PivotRow, type Preset, type ProductFigures, type Sort,
 } from '../lib/pivot'
 import { basisReference, kindNames, rounded, signedRounded, updatedText, type Change } from '../lib/year'
 import { packageWords } from '../ui/kinds'
@@ -98,13 +100,14 @@ const facetMeta: readonly { key: FacetKey; label: string; one: string; dim: Dim;
 ]
 
 /**
- * The filters, open on a desktop from the start (a toggle on a phone): the period and six lists, each a search and
- * ticks, each choice with what it amounts to under the other filters. Under them, what is chosen as chips, each with
- * its own ×, and one reset for all of them.
+ * The filters behind one button, closed when the page opens (owner, 2026-11-20: the chart and the table come first):
+ * the period and six lists, each a search and ticks, each choice with what it amounts to under the other filters.
+ * Beside the button, what is chosen as chips, each with its own ×, and one reset for all of them — or, with nothing
+ * chosen, what the figures cover.
  */
 function FilterPanel({ reading, options }: { reading: AnalysisReading; options: Record<FacetKey, FacetOption[]> }) {
   const { analysis } = reading
-  const [open, setOpen] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches)
+  const [open, setOpen] = useState(false)
   const whole = analysis.from === 1 && analysis.to === LAST_MONTH_WITH_DATA
 
   const chips: { label: string; clear: () => void }[] = []
@@ -325,8 +328,7 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
 
   return (
     <div className="flex flex-col gap-3 border-b border-(--y-line) px-3 py-3 sm:px-5 sm:py-4">
-      <div role="group" aria-label="Hazır analizlər" className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs font-semibold text-(--y-muted)">Hazır analizlər</span>
+      <PresetRow>
         {presets.map((preset) => {
           const active = presetMatches(preset, analysis)
           return (
@@ -335,7 +337,7 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
               type="button"
               aria-pressed={active}
               onClick={() => apply(preset)}
-              className={`min-h-8 rounded-full border px-3 text-xs font-semibold transition-colors ${
+              className={`min-h-8 shrink-0 whitespace-nowrap rounded-full border px-3 text-xs font-semibold transition-colors ${
                 active ? 'border-(--y-ink) bg-(--y-ink) text-(--y-surface)' : 'border-(--y-line) text-(--y-ink-2) hover:bg-(--y-band)'
               }`}
             >
@@ -343,7 +345,7 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
             </button>
           )
         })}
-      </div>
+      </PresetRow>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <div className="flex min-w-0 items-end gap-1.5">
           <div className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold text-(--y-muted)">
@@ -397,6 +399,47 @@ function Toolbar({ reading }: { reading: AnalysisReading }) {
   )
 }
 
+/**
+ * «Hazır analizlər» on one line: the chips scroll sideways under the label, and the side with chips out of sight fades,
+ * so it shows there are more. A chip reached with Tab scrolls itself into view.
+ */
+function PresetRow({ children }: { children: ReactNode }) {
+  const strip = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState({ before: false, after: false })
+  useEffect(() => {
+    const element = strip.current
+    if (!element) return
+    const measure = () => {
+      const before = element.scrollLeft > 1
+      const after = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+      setMore((current) => (current.before === before && current.after === after ? current : { before, after }))
+    }
+    measure()
+    element.addEventListener('scroll', measure, { passive: true })
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    resize?.observe(element)
+    return () => {
+      element.removeEventListener('scroll', measure)
+      resize?.disconnect()
+    }
+  }, [])
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span id="presets-label" className="shrink-0 text-xs font-semibold text-(--y-muted)">Hazır analizlər</span>
+      <div
+        ref={strip}
+        role="group"
+        aria-labelledby="presets-label"
+        data-more-before={more.before || undefined}
+        data-more-after={more.after || undefined}
+        className="preset-strip flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5"
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function Segmented({ label, children }: { label: string; children: ReactNode }) {
   const id = useId()
   return (
@@ -417,6 +460,17 @@ const countWords: Record<Dim, string> = { ay: 'ay', obyekt: 'obyekt', sirket: '�
 function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisReading; period: string }) {
   const { analysis, kind, basis } = reading
   const change = pivot.change
+  // Outside-monthly orders come in all month long, so the running month's figure can still grow. The monthly package is
+  // the month's plan, made and approved once: it is not a part of a month (owner, 2026-11-20).
+  const running = kind !== 'monthly' && pivot.latest !== null && pivot.latest === runningMonth()
+  // A month the change stands on whose package moved after its approval: said beside the change, the figures as they are.
+  const drifts = kind === 'monthly' && pivot.latest !== null
+    ? [...new Set([...pivot.comparisonMonths, pivot.latest])].sort((a, b) => a - b).flatMap((month) => {
+      const drift = approvalDrift(month)
+      return drift ? [{ month, ...drift }] : []
+    })
+    : []
+  const narrowed = Object.values(analysis.facets).some((ids) => ids.length > 0)
   // One month in the range: its total is the latest month's, so the figure is said once, and nothing is compared.
   const single = monthsWithData.filter((month) => month >= analysis.from && month <= analysis.to).length === 1
   return (
@@ -432,7 +486,14 @@ function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisRe
         )}
       </div>
       {!single && <div className="min-w-0">
-        <dt className="text-xs text-(--y-muted)">{pivot.latest ? `${monthName(pivot.latest)} · son ay` : 'Son ay'}</dt>
+        <dt className="flex flex-wrap items-center gap-x-1.5 text-xs text-(--y-muted)">
+          {pivot.latest ? `${monthName(pivot.latest)} · son ay` : 'Son ay'}
+          {running && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-(--y-line) bg-(--y-band) px-1.5 py-px text-[11px] font-semibold text-(--y-ink-2)">
+              <Clock3 aria-hidden="true" className="size-3" />davam edir
+            </span>
+          )}
+        </dt>
         <dd className="flex flex-wrap items-center gap-x-2">
           <span data-figure="latest" className="tnum text-[22px] font-extrabold leading-tight tracking-[-0.01em]">{pivot.latestAmount ? money(pivot.latestAmount) : '—'}</span>
           {change.kind === 'value' ? <Chip change={change} /> : null}
@@ -440,6 +501,18 @@ function Summary({ pivot, reading, period }: { pivot: Pivot; reading: AnalysisRe
         <dd className="text-xs text-(--y-muted)">
           {change.kind === 'value' ? `${signedMoney(change.delta)} · müqayisə: ${pivot.comparisonLabel ?? basisReference[basis]}` : change.detail}
         </dd>
+        {running && pivot.latest && (
+          <dd className="text-xs text-(--y-muted)">{monthName(pivot.latest)} davam edir: rəqəmlər {updatedText} yükləməsinədir{change.kind === 'value' ? ', fərq qəti deyil' : ''}.</dd>
+        )}
+        {drifts.map((drift) => (
+          <dd key={drift.month} data-drift={drift.month} className="tnum mt-0.5 flex items-start gap-1.5 text-xs font-semibold text-(--y-amber)">
+            <CircleAlert aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+            <span>
+              {monthName(drift.month)}: təsdiqdə {money(drift.approved)}, sonra {money(drift.now)}
+              <span className="font-normal text-(--y-muted)">{narrowed ? ' · ayın bütün aylıq paketi' : ' · paket təsdiqdən sonra dəyişib'}</span>
+            </span>
+          </dd>
+        ))}
       </div>}
       <div className="min-w-0">
         <dt className="text-xs text-(--y-muted)">Kəsişmə</dt>
@@ -498,14 +571,57 @@ function MoreRows({ count, all, onToggle }: { count: number; all: boolean; onTog
   )
 }
 
-/** The month's approval beside its name, where the monthly orders are in view: the month's, never the filter's. */
-function ApprovalMark({ month }: { month: number }) {
+/**
+ * The month's approval beside its name, where the monthly orders are in view: the month's, never the filter's. ✓ the
+ * package is approved, ⌛ it waits, «!» it was approved and its figures moved after. What the mark means opens in the
+ * page's own tip — under the pointer, on keyboard focus, and on a tap — not in a title only a mouse can read. Inside
+ * another button (a chart's column, whose own tip says the same) it is a plain mark.
+ */
+function ApprovalMark({ month, interactive = true }: { month: number; interactive?: boolean }) {
   const approval = approvalOf(month)
+  const { open, handlers } = useTipTrigger()
+  const [pinned, setPinned] = useState(false)
+  const mark = useRef<HTMLButtonElement>(null)
+  const anchor = useCallback(() => mark.current, [])
+  const tipId = `approval-tip-${useId()}`
   if (!approval) return null
+  const drift = approval.state === 'approved' ? approvalDrift(month) : null
   const words = `Ay üzrə: ${packageWords(approval).toLocaleLowerCase('az')}`
-  return approval.state === 'approved'
-    ? <span title={words} className="inline-flex text-(--y-ok)"><Check aria-hidden="true" className="size-3.5" strokeWidth={2.75} /><span className="sr-only">{words}</span></span>
-    : <span title={words} className="inline-flex text-(--y-amber)"><Hourglass aria-hidden="true" className="size-3.5" strokeWidth={2.25} /><span className="sr-only">{words}</span></span>
+  const look = approval.state !== 'approved'
+    ? { Icon: Hourglass, tone: 'text-(--y-amber)', stroke: 2.25, title: 'Təsdiq gözləyir' }
+    : drift
+      ? { Icon: CircleAlert, tone: 'text-(--y-amber)', stroke: 2.25, title: 'Təsdiqlənib' }
+      : { Icon: Check, tone: 'text-(--y-ok)', stroke: 2.75, title: 'Təsdiqlənib' }
+  const icon = <look.Icon aria-hidden="true" className="size-3.5" strokeWidth={look.stroke} />
+  if (!interactive) return <span className={`inline-flex ${look.tone}`}>{icon}<span className="sr-only">{words}</span></span>
+  return (
+    <>
+      <button
+        ref={mark}
+        type="button"
+        aria-label={`${monthName(month)}: aylıq paketin təsdiqi`}
+        aria-describedby={tipId}
+        aria-expanded={open || pinned}
+        {...handlers}
+        onBlur={() => { handlers.onBlur(); setPinned(false) }}
+        onKeyDown={(event) => { handlers.onKeyDown(event); if (event.key === 'Escape') setPinned(false) }}
+        onClick={() => setPinned((value) => !value)}
+        className={`-my-1 inline-grid size-6 shrink-0 place-items-center rounded-md hover:bg-(--y-band) focus-visible:outline-2 focus-visible:outline-(--y-bar) ${look.tone}`}
+      >
+        {icon}
+      </button>
+      <Tip id={tipId} anchor={anchor} open={open || pinned} width="w-64">
+        <p className="text-xs opacity-75">{monthYear(month, YEAR)} · aylıq paket</p>
+        <p className="font-bold leading-snug">{look.title}{approval.approvedOn ? `, ${approval.approvedOn.day} ${monthName(approval.approvedOn.month).toLocaleLowerCase('az')}` : ''}{drift ? ' · sonra dəyişib' : ''}</p>
+        {drift && <p className="tnum mt-0.5 text-xs">Təsdiqdə {money(drift.approved)}, indi {money(drift.now)}.</p>}
+        <p className="mt-1.5 border-t border-current/20 pt-1.5 text-xs opacity-80">
+          {approval.state === 'approved'
+            ? 'Ayın bütün aylıq sifarişləri bir paket kimi bir dəfə təsdiqlənir; filtrdə seçilən obyekt və ya kateqoriya ayrıca təsdiqlənmir.'
+            : 'Rəhbər ayın aylıq sifarişlərini bir dəfə, paket kimi təsdiqləyir; gözləmək gecikmə demək deyil.'}
+        </p>
+      </Tip>
+    </>
+  )
 }
 
 function ChangeCell({ change }: { change: Change }) {
@@ -530,63 +646,113 @@ function SortHead({ reading, sort, children, className = '' }: { reading: Analys
 
 /**
  * Two directions as one matrix: a row per item of the one, a column per item of the other, the totals of both and the
- * whole. As a chart, each cell is shaded by its amount, the column totals stand over the columns and the row totals
- * lie beside the rows; as a table, the exact figures and each row's change. Many columns read as the largest and a
- * «Digər» that adds the rest, until asked for all; a name opens its row one level down.
+ * whole. As a chart, each cell is shaded by its amount, the column totals stand over the columns as a chart of their
+ * own (`StripRow`) and the row totals lie beside the rows; as a table, the exact figures and each row's change. Many
+ * columns read as the largest and a «Digər» that adds the rest, until asked for all; a name opens its row one level down.
+ *
+ * The table scrolls in its own box both ways, so its head row stays in sight going down and its first column going
+ * across; the totals chart is a row of the same table, so every bar stands over its own column whatever the widths.
+ * Pointing at a bar lights its column, pointing at a column's head lights its bar.
  */
 function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: AnalysisReading; exact: boolean }) {
   const { analysis, kind } = reading
   const [allRows, setAllRows] = useState(false)
   const [allCols, setAllCols] = useState(false)
+  const [hot, setHot] = useState<string | null>(null)
+  const [big, setBig] = useState(readStripSize)
   const folded = allCols ? { cols: pivot.cols, folded: 0 } : foldColumns(pivot, analysis.cols)
   const cols = folded.cols
   const rows = allRows ? pivot.rows : pivot.rows.slice(0, ROW_LIMIT)
   const cellMax = Math.max(...pivot.rows.flatMap((row) => cols.filter((col) => !col.folded).map((col) => cellOf(row, col))), 1)
-  const colMax = Math.max(...cols.map((col) => col.total), 1)
   const rowMax = Math.max(...pivot.rows.map((row) => row.total), 1)
   const format = exact ? exactNumber : whole
   const monthly = kind === 'monthly'
   const shade = (value: number) => `color-mix(in oklab, var(--y-bar) ${Math.round(6 + 40 * Math.sqrt(value / cellMax))}%, transparent)`
-  const sticky = 'sticky left-0 z-[1] bg-(--y-surface)'
+  const surface = 'bg-(--y-surface)'
+  // Down the left: the row names, the chart's axis and the corner stay while the columns scroll under them; the shadow
+  // fills the box's own padding to their left, so nothing scrolling under them shows beside them.
+  const stickyLeft = `sticky left-0 z-[1] ${surface} shadow-[-4px_0_0_var(--y-surface)]`
+  // Across the top: the head row stays while the rows scroll under it (inside the table's own box).
+  const headTop = `sticky top-0 z-[2] ${surface}`
+  const corner = `sticky left-0 top-0 z-[4] ${surface} shadow-[-4px_0_0_var(--y-surface)]`
   // On a desktop the totals — and, in the table, the change — stay at the right edge while the columns scroll under them.
-  const edge = 'bg-(--y-surface) md:sticky md:z-[1]'
+  const edge = `${surface} md:sticky md:z-[1]`
+  const headEdge = `sticky top-0 z-[2] ${surface} md:z-[3]`
   const totalAt = `${exact ? 'md:right-[9.5rem]' : 'md:right-0'} md:shadow-[-12px_0_12px_-12px_rgba(15,23,42,0.28)]`
   const changeAt = 'md:right-0 md:w-[9.5rem] md:min-w-[9.5rem]'
+  const lit = (key: string) => (hot === key ? ' is-hot-col' : '')
+  const months = analysis.cols === 'ay'
+  const marks = { comparison: months ? pivot.comparisonMonths : [], running: months && !monthly ? runningMonth() : null }
+
+  function toggleSize() {
+    const next = !big
+    setBig(next)
+    try {
+      window.localStorage.setItem(STRIP_KEY, next ? 'böyük' : 'adi')
+    } catch {
+      // Not remembered this time; the choice still holds while the page is open.
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1">
-      <div role="region" aria-labelledby="matrix-caption" tabIndex={0} className="relative -mx-1 overflow-x-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar)">
-        <table data-matrix={exact ? 'exact' : 'heat'} className="w-full border-separate border-spacing-0 text-[13px]">
+      <div
+        role="region"
+        aria-labelledby="matrix-caption"
+        tabIndex={0}
+        className="relative -mx-1 max-h-[calc(100dvh-5.5rem)] overflow-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar) xl:max-h-[calc(100dvh-2rem)]"
+      >
+        <table
+          data-matrix={exact ? 'exact' : 'heat'}
+          className="w-full border-separate border-spacing-0 text-[13px]"
+          style={{ '--strip-h': big ? '300px' : 'clamp(160px, 20vh, 220px)' } as CSSProperties}
+        >
           <caption id="matrix-caption" className="sr-only">
             {dimLabels[analysis.rows]} × {dimLabels[analysis.cols!]} · {kindNames[kind]} · məbləğ, manatla
           </caption>
           <thead>
             {!exact && (
-              <tr aria-hidden="true">
-                <td className={sticky} />
-                {cols.map((col) => (
-                  <td key={col.key} className="h-12 px-1 align-bottom">
-                    <span className={`mx-auto block w-1/2 max-w-7 rounded-t-[3px] ${col.folded ? 'bg-(--y-grid)' : 'bg-(--y-bar)/75'}`} style={{ height: `${Math.max(4, (col.total / colMax) * 100)}%` }} />
-                  </td>
-                ))}
-                <td className={`${edge} ${totalAt}`} />
-              </tr>
+              <StripRow
+                pivot={pivot}
+                cols={cols}
+                reading={reading}
+                hot={hot}
+                onHot={setHot}
+                marks={marks}
+                axisClass={stickyLeft}
+                endClass={`${edge} ${totalAt}`}
+                big={big}
+                onToggleSize={toggleSize}
+                onShowAll={() => setAllCols(true)}
+              />
             )}
             <tr>
-              <SortHead reading={reading} sort="ad" className={`${sticky} z-[2] whitespace-nowrap border-b border-(--y-line) px-3 py-2 text-left align-bottom text-[11px] font-semibold text-(--y-muted)`}>
-                {dimSingular[analysis.rows]} <span aria-hidden="true">\</span> {dimSingular[analysis.cols!]}
+              <SortHead reading={reading} sort="ad" className={`${corner} whitespace-nowrap border-b border-(--y-line) px-3 py-2 text-left align-bottom text-[11px] font-semibold text-(--y-muted)`}>
+                {dimSingular[analysis.rows]} <span aria-hidden="true">\</span> {dimSingular[analysis.cols!]} · ₼
               </SortHead>
-              {cols.map((col) => (
-                <th key={col.key} scope="col" title={col.folded ? `${col.folded.length} ${countWords[analysis.cols!]} birlikdə` : col.parent ? `${col.name} (${col.parent})` : col.name} className="min-w-[4.75rem] max-w-[7rem] border-b border-(--y-line) px-2 py-2 text-right align-bottom text-[11px] font-semibold leading-tight text-(--y-ink-2)">
-                  <span className="flex items-end justify-end gap-1">
-                    <span className="line-clamp-2 break-words">{col.short}</span>
-                    {analysis.cols === 'ay' && monthly && <ApprovalMark month={Number(col.key)} />}
-                  </span>
-                </th>
-              ))}
-              <SortHead reading={reading} sort="mebleg" className={`${edge} ${totalAt} border-b border-(--y-line) px-3 py-2 text-right align-bottom text-[11px] font-semibold text-(--y-ink-2)`}>Cəmi</SortHead>
+              {cols.map((col) => {
+                const running = marks.running !== null && Number(col.key) === marks.running
+                return (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    data-col={col.key}
+                    title={col.folded ? `${col.folded.length} ${countWords[analysis.cols!]} birlikdə` : col.parent ? `${col.name} (${col.parent})` : col.name}
+                    onPointerEnter={() => setHot(col.key)}
+                    onPointerLeave={() => setHot(null)}
+                    className={`${headTop} min-w-[4.75rem] max-w-[7rem] border-b border-(--y-line) px-2 py-2 text-right align-bottom text-[11px] font-semibold leading-tight text-(--y-ink-2)${lit(col.key)}`}
+                  >
+                    <span className="flex items-end justify-end gap-1">
+                      <span className="line-clamp-2 break-words">{col.short}</span>
+                      {months && monthly && <ApprovalMark month={Number(col.key)} />}
+                    </span>
+                    {running && <span className="mt-0.5 block text-[10px] font-semibold text-(--y-muted)">davam edir</span>}
+                  </th>
+                )
+              })}
+              <SortHead reading={reading} sort="mebleg" className={`${headEdge} ${totalAt} border-b border-(--y-line) px-3 py-2 text-right align-bottom text-[11px] font-semibold text-(--y-ink-2)`}>Cəmi</SortHead>
               {exact && (
-                <SortHead reading={reading} sort="ferq" className={`${edge} ${changeAt} border-b border-(--y-line) px-3 py-2 text-right align-bottom text-[11px] font-semibold text-(--y-ink-2)`}>
+                <SortHead reading={reading} sort="ferq" className={`${headEdge} ${changeAt} border-b border-(--y-line) px-3 py-2 text-right align-bottom text-[11px] font-semibold text-(--y-ink-2)`}>
                   {analysis.rows === 'ay' ? 'Fərq' : pivot.latest ? `${monthName(pivot.latest)}, fərq` : 'Fərq'}
                 </SortHead>
               )}
@@ -595,7 +761,7 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} data-row={row.key} className="group">
-                <th scope="row" className={`${sticky} max-w-[15rem] border-b border-(--y-line) px-3 py-1.5 text-left font-semibold group-hover:bg-(--y-band)`}>
+                <th scope="row" className={`${stickyLeft} max-w-[15rem] border-b border-(--y-line) px-3 py-1.5 text-left font-semibold group-hover:bg-(--y-band)`}>
                   <span className="flex items-center gap-1.5">
                     <button
                       type="button"
@@ -617,7 +783,7 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
                       data-col={col.key}
                       data-amount={value}
                       title={`${row.name} · ${col.name}: ${value ? money(value) : 'sifariş yoxdur'}`}
-                      className="tnum whitespace-nowrap border-b border-(--y-line) px-2 py-1.5 text-right"
+                      className={`tnum whitespace-nowrap border-b border-(--y-line) px-2 py-1.5 text-right${lit(col.key)}`}
                       style={!exact && value ? { backgroundColor: col.folded ? 'var(--y-grid)' : shade(value) } : undefined}
                     >
                       {value ? format(value) : <span className="text-(--y-muted)">—</span>}
@@ -640,11 +806,11 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
           </tbody>
           <tfoot>
             <tr data-row="total">
-              <th scope="row" className={`${sticky} border-t-2 border-(--y-line) px-3 py-2 text-left font-extrabold`}>
+              <th scope="row" className={`${stickyLeft} border-t-2 border-(--y-line) px-3 py-2 text-left font-extrabold`}>
                 Cəmi{rows.length < pivot.rows.length ? <span className="ml-1 text-[11px] font-semibold text-(--y-muted)">(bütün {pivot.rows.length})</span> : null}
               </th>
               {cols.map((col) => (
-                <td key={col.key} data-col={col.key} data-amount={col.total} className="tnum whitespace-nowrap border-t-2 border-(--y-line) px-2 py-2 text-right font-bold">{format(col.total)}</td>
+                <td key={col.key} data-col={col.key} data-amount={col.total} className={`tnum whitespace-nowrap border-t-2 border-(--y-line) px-2 py-2 text-right font-bold${lit(col.key)}`}>{format(col.total)}</td>
               ))}
               <td data-col="total" data-amount={pivot.total} className={`${edge} ${totalAt} tnum whitespace-nowrap border-t-2 border-(--y-line) px-3 py-2 text-right font-extrabold`}>{format(pivot.total)}</td>
               {exact && <td className={`${edge} ${changeAt} whitespace-nowrap border-t-2 border-(--y-line) px-3 py-2 text-right`}><ChangeCell change={pivot.change} /></td>}
@@ -654,11 +820,25 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         {!exact && (
-          <p aria-hidden="true" className="flex items-center gap-2 text-[11px] text-(--y-muted)">
-            az
-            <span className="h-2 w-24 rounded-full" style={{ background: 'linear-gradient(90deg, color-mix(in oklab, var(--y-bar) 6%, transparent), color-mix(in oklab, var(--y-bar) 46%, transparent))' }} />
-            çox · xananın məbləği, ₼
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-(--y-muted)">
+            <p aria-hidden="true" className="flex items-center gap-2">
+              az
+              <span className="h-2 w-24 rounded-full" style={{ background: 'linear-gradient(90deg, color-mix(in oklab, var(--y-bar) 6%, transparent), color-mix(in oklab, var(--y-bar) 46%, transparent))' }} />
+              çox · xananın məbləği, ₼
+            </p>
+            {marks.comparison.some((month) => cols.some((col) => Number(col.key) === month)) && (
+              <p className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="strip-key is-comparison" />
+                Müqayisə: {pivot.comparisonLabel}
+              </p>
+            )}
+            {marks.running !== null && cols.some((col) => Number(col.key) === marks.running) && (
+              <p className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="strip-key is-running" />
+                {monthName(marks.running)} davam edir — rəqəmlər {updatedText} yükləməsinədir
+              </p>
+            )}
+          </div>
         )}
         {exact && <p className="text-[11px] text-(--y-muted)">Məbləğlər manatla.</p>}
         {(folded.folded > 0 || allCols) && (
@@ -669,6 +849,218 @@ function PivotMatrix({ pivot, reading, exact }: { pivot: Pivot; reading: Analysi
       </div>
       <MoreRows count={pivot.rows.length} all={allRows} onToggle={() => setAllRows(!allRows)} />
     </div>
+  )
+}
+
+/* ---- The column totals over the matrix ---------------------------------------------------------------------------- */
+
+const STRIP_KEY = 'baxorders-analiz-qrafik'
+
+/** The chart's size, as this browser last left it: the usual height or the large one. */
+function readStripSize(): boolean {
+  try {
+    return window.localStorage.getItem(STRIP_KEY) === 'böyük'
+  } catch {
+    return false
+  }
+}
+
+/** The month still running in the year on screen, if any: its figures can still grow. */
+function runningMonth(): number | null {
+  return YEAR === TODAY.year ? TODAY.month : null
+}
+
+/**
+ * The axis of the totals chart: three or four round steps up to the largest column, which stands at 85 % of the
+ * chart's height, the rest kept for its figure.
+ */
+function stripTicks(max: number): number[] {
+  if (max <= 0) return [0]
+  const power = 10 ** Math.floor(Math.log10(max))
+  const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10].map((factor) => factor * power).find((candidate) => Math.floor(max / candidate) <= 3) ?? max
+  return Array.from({ length: Math.floor(max / step) + 1 }, (_, index) => index * step)
+}
+
+/** A column's total, short: «94 min», «624»; the exact figure is in the tip and in the table. */
+const shortAmount = (value: number) => (value >= 1000 ? `${Math.round(value / 1000).toLocaleString('az')} min` : whole(value))
+/** «213.456 manat», for a screen reader. */
+const spokenAmount = (value: number) => `${moneyParts(Math.round(value)).whole} manat`
+
+/**
+ * The column totals as a chart, a row of the matrix itself: a bar over each column, the axis in the first column, the
+ * size switch over the totals. One stop for Tab, the arrows go from bar to bar; a bar's figures open on focus and under
+ * the pointer, and a click takes its column as a filter (as a name does), or opens every column from «Digər».
+ */
+function StripRow({ pivot, cols, reading, hot, onHot, marks, axisClass, endClass, big, onToggleSize, onShowAll }: {
+  pivot: Pivot
+  cols: PivotColumn[]
+  reading: AnalysisReading
+  hot: string | null
+  onHot: (key: string | null) => void
+  marks: { comparison: number[]; running: number | null }
+  axisClass: string
+  endClass: string
+  big: boolean
+  onToggleSize: () => void
+  onShowAll: () => void
+}) {
+  const { analysis } = reading
+  const largest = Math.max(...cols.map((col) => col.total), 0)
+  const ticks = stripTicks(largest)
+  const ratio = (value: number) => (largest > 0 ? value / largest : 0)
+  const buttons = useRef<(HTMLButtonElement | null)[]>([])
+  const [cursor, setCursor] = useState(0)
+  const at = Math.min(cursor, cols.length - 1)
+
+  function move(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const moves: Record<string, number> = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: cols.length - 1 }
+    if (!(event.key in moves)) return
+    event.preventDefault()
+    const next = Math.max(0, Math.min(cols.length - 1, moves[event.key]))
+    setCursor(next)
+    buttons.current[next]?.focus()
+  }
+
+  return (
+    <tr data-chart="col-totals">
+      <td className={`${axisClass} p-0 align-bottom`}>
+        <div className="strip-cell">
+          <span className="sr-only">Sütunların cəmi, qrafik: {cols.length} sütun. Oxlarla bir sütundan digərinə keçin.</span>
+          {ticks.map((tick) => (
+            <span key={tick} aria-hidden="true" className={`strip-tick-label tnum${tick === 0 ? ' is-zero' : ''}`} style={{ '--t': ratio(tick) } as CSSProperties}>
+              {axisLabel(tick)}
+            </span>
+          ))}
+        </div>
+      </td>
+      {cols.map((col, index) => (
+        <td key={col.key} data-col={col.key} className={`p-0 align-bottom${hot === col.key ? ' is-hot-col' : ''}`}>
+          <StripBar
+            col={col}
+            index={index}
+            ratio={ratio(col.total)}
+            ticks={ticks.map(ratio)}
+            pivot={pivot}
+            reading={reading}
+            dim={hot !== null && hot !== col.key}
+            comparison={analysis.cols === 'ay' && marks.comparison.includes(Number(col.key))}
+            running={marks.running !== null && Number(col.key) === marks.running}
+            tabIndex={index === at ? 0 : -1}
+            buttonRef={(element) => { buttons.current[index] = element }}
+            onKey={move}
+            onFocusBar={() => setCursor(index)}
+            onHot={onHot}
+            onActivate={() => (col.folded ? onShowAll() : reading.drill(analysis.cols!, col.key))}
+          />
+        </td>
+      ))}
+      <td className={`${endClass} p-0 align-top`}>
+        <div className="flex justify-end p-1.5">
+          <button
+            type="button"
+            onClick={onToggleSize}
+            title={big ? 'Qrafiki kiçilt' : 'Qrafiki böyüt'}
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-(--y-line) px-2 text-xs font-semibold text-(--y-ink-2) hover:bg-(--y-band) hover:text-(--y-ink)"
+          >
+            {big ? <Minimize2 aria-hidden="true" className="size-3.5" /> : <Maximize2 aria-hidden="true" className="size-3.5" />}
+            {big ? 'Kiçilt' : 'Böyüt'}
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function StripBar({ col, index, ratio, ticks, pivot, reading, dim, comparison, running, tabIndex, buttonRef, onKey, onFocusBar, onHot, onActivate }: {
+  col: PivotColumn
+  index: number
+  ratio: number
+  /** The axis' steps, as shares of the largest column. */
+  ticks: number[]
+  pivot: Pivot
+  reading: AnalysisReading
+  /** Another column is pointed at. */
+  dim: boolean
+  comparison: boolean
+  running: boolean
+  tabIndex: number
+  buttonRef: (element: HTMLButtonElement | null) => void
+  onKey: (event: KeyboardEvent<HTMLButtonElement>, index: number) => void
+  onFocusBar: () => void
+  onHot: (key: string | null) => void
+  onActivate: () => void
+}) {
+  const { open, handlers } = useTipTrigger()
+  const bar = useRef<HTMLSpanElement>(null)
+  const anchor = useCallback(() => bar.current, [])
+  const tipId = `strip-tip-${index}`
+  const month = reading.analysis.cols === 'ay' ? Number(col.key) : null
+  const name = month ? monthName(month) : col.folded ? `Digər: ${col.folded.length} ${countWords[reading.analysis.cols!]}` : col.name
+  const tone = col.folded ? ' is-folded' : running ? ' is-running' : comparison ? ' is-comparison' : ''
+  return (
+    <div className="strip-cell" style={{ '--r': ratio } as CSSProperties}>
+      {ticks.map((tick) => <span key={tick} aria-hidden="true" className={`strip-grid${tick === 0 ? ' is-zero' : ''}`} style={{ '--t': tick } as CSSProperties} />)}
+      <button
+        ref={buttonRef}
+        type="button"
+        data-bar={col.key}
+        tabIndex={tabIndex}
+        aria-label={`${name}: ${spokenAmount(col.total)}${col.folded ? '. Hamısını ayrıca göstər' : '. Filtr kimi tətbiq et'}`}
+        aria-describedby={tipId}
+        onPointerEnter={(event) => { handlers.onPointerEnter(event); onHot(col.key) }}
+        onPointerLeave={() => { handlers.onPointerLeave(); onHot(null) }}
+        onFocus={(event) => { handlers.onFocus(event); onFocusBar(); onHot(col.key) }}
+        onBlur={() => { handlers.onBlur(); onHot(null) }}
+        onKeyDown={(event) => { handlers.onKeyDown(event); onKey(event, index) }}
+        onClick={onActivate}
+        className="strip-hit"
+      >
+        <span ref={bar} className={`strip-bar${tone}${dim ? ' is-dim' : ''}`} />
+        <span aria-hidden="true" className="strip-label tnum">{shortAmount(col.total)}</span>
+      </button>
+      <StripTip id={tipId} col={col} name={name} month={month} pivot={pivot} reading={reading} comparison={comparison} running={running} anchor={anchor} open={open} />
+    </div>
+  )
+}
+
+/** A column total's figures: the amount, its share of the whole, and — for a month — the month before and its approval. */
+function StripTip({ id, col, name, month, pivot, reading, comparison, running, anchor, open }: {
+  id: string
+  col: PivotColumn
+  name: string
+  month: number | null
+  pivot: Pivot
+  reading: AnalysisReading
+  comparison: boolean
+  running: boolean
+  anchor: () => Element | null
+  open: boolean
+}) {
+  const { analysis, kind } = reading
+  const before = month && month > 1 && month - 1 >= analysis.from ? month - 1 : null
+  const previous = before ? pivot.cols.find((item) => Number(item.key) === before) : undefined
+  let change: ReactNode = null
+  if (before && previous) {
+    const delta = col.total - previous.total
+    change = <>{monthDative(before)} görə: <span className="tnum font-semibold">{percent(delta / previous.total)} ({signedMoney(delta)})</span></>
+  } else if (before) {
+    change = monthsWithData.includes(before) ? `${monthName(before)} ayında bu filtrdə sifariş yoxdur — faiz hesablanmır` : `${monthName(before)} üçün məlumat yoxdur`
+  }
+  return (
+    <Tip id={id} anchor={anchor} open={open} width="w-64">
+      <p className="text-xs opacity-75">{month ? monthYear(month, YEAR) : name}{col.parent ? ` · ${col.parent}` : ''}</p>
+      <p className="tnum text-lg font-extrabold leading-snug">{money(col.total)}</p>
+      <p className="text-xs opacity-75">Ümumi cəmdə payı: {percent(pivot.total ? col.total / pivot.total : 0, false)} · {kindNames[kind]}</p>
+      {(change || running || comparison || col.folded || (month && kind === 'monthly' && approvalOf(month))) && (
+        <div className="mt-1.5 flex flex-col gap-0.5 border-t border-current/20 pt-1.5 text-xs">
+          {change && <p>{change}</p>}
+          {running && <p className="opacity-80">Ay davam edir: rəqəmlər {updatedText} yükləməsinədir və ay bitənə qədər arta bilər{change && previous ? '; fərq qəti deyil' : ''}.</p>}
+          {comparison && pivot.latest && <p className="opacity-80">Müqayisə ayı: {monthName(pivot.latest)} bununla müqayisə olunur ({pivot.comparisonLabel}).</p>}
+          {col.folded && <p className="opacity-80">{col.folded.length} {countWords[analysis.cols!]} birlikdə. Klikləyin — hamısı ayrıca göstərilsin.</p>}
+          {month && kind === 'monthly' && approvalOf(month) && <p className="opacity-75">Ay üzrə: {packageWords(approvalOf(month)).toLocaleLowerCase('az')}</p>}
+        </div>
+      )}
+    </Tip>
   )
 }
 
@@ -716,7 +1108,7 @@ function Column({ row, top, pivot, reading }: { row: PivotRow; top: number; pivo
         </span>
         <span className="mt-2 flex max-w-full items-center gap-1 px-0.5 text-xs font-semibold text-(--y-ink-2)">
           <span className="line-clamp-2 break-words text-center">{row.short}</span>
-          {months && kind === 'monthly' && <ApprovalMark month={Number(row.key)} />}
+          {months && kind === 'monthly' && <ApprovalMark month={Number(row.key)} interactive={false} />}
         </span>
         <span className="tnum mt-1 whitespace-nowrap text-[14px] font-extrabold leading-5">{rounded(row.total)}</span>
         <span className="mt-1 flex h-5 items-center">{row.change.kind === 'value' ? <Chip change={row.change} /> : <NoChange change={row.change} />}</span>
@@ -784,12 +1176,12 @@ function BarList({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading })
             <button
               type="button"
               onClick={() => reading.drill(analysis.rows, row.key)}
-              aria-label={`${row.name}${row.parent ? ` (${row.parent})` : ''}: ${money(row.total)}. Filtr kimi tətbiq et`}
+              aria-label={`${row.name}${row.parent ? ` (${row.parent})` : ''}: ${money(row.total)}${analysis.rows === 'ay' && kind === 'monthly' && approvalOf(Number(row.key)) ? `. Ay üzrə: ${packageWords(approvalOf(Number(row.key))).toLocaleLowerCase('az')}` : ''}. Filtr kimi tətbiq et`}
               className="stretched min-w-0 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--y-bar) md:order-1"
             >
               <span className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-semibold group-hover:text-(--y-bar)" title={row.name}>{row.name}</span>
-                {analysis.rows === 'ay' && kind === 'monthly' && <ApprovalMark month={Number(row.key)} />}
+                {analysis.rows === 'ay' && kind === 'monthly' && <ApprovalMark month={Number(row.key)} interactive={false} />}
               </span>
               {row.product
                 ? <span className="block truncate text-[11px] text-(--y-muted)">{quantityText(row.product.range)} · {row.product.range.price !== null ? price(row.product.range.price, row.product.range.unit) : 'fərqli vahidlər'}</span>
@@ -830,23 +1222,25 @@ function ListTable({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading 
   const rows = all ? pivot.rows : pivot.rows.slice(0, ROW_LIMIT)
   const months = analysis.rows === 'ay'
   const product = pivot.withProduct
-  const head = 'border-b border-(--y-line) px-3 py-2 text-right align-bottom text-[11px] font-semibold leading-tight text-(--y-ink-2)'
+  // The head row stays in sight while the rows scroll under it (inside the table's own box).
+  const head = 'sticky top-0 z-[2] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-right align-bottom text-[11px] font-semibold leading-tight text-(--y-ink-2)'
   const cell = 'tnum whitespace-nowrap border-b border-(--y-line) px-3 py-2 text-right'
   const foot = 'tnum whitespace-nowrap border-t-2 border-(--y-line) px-3 py-2 text-right font-bold'
   // On a desktop the change stays at the right edge, should the table be wider than the screen.
   const edge = 'bg-(--y-surface) md:sticky md:right-0 md:z-[1] md:shadow-[-12px_0_12px_-12px_rgba(15,23,42,0.28)]'
+  const headEdge = 'md:right-0 md:z-[3] md:shadow-[-12px_0_12px_-12px_rgba(15,23,42,0.28)]'
   const reason = 'Müqayisə üçün eyni vahiddə məlumat yoxdur və ya müqayisə dövrü natamamdır.'
   const total = pivot.productTotal
   const share = (value: number) => percent(pivot.total ? value / pivot.total : 0, false)
   const sub = 'block text-[11px] font-normal text-(--y-muted)'
   return (
     <div className="flex flex-col gap-1">
-      <div role="region" aria-labelledby="list-caption" tabIndex={0} className="relative -mx-1 overflow-x-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar)">
+      <div role="region" aria-labelledby="list-caption" tabIndex={0} className="relative -mx-1 max-h-[calc(100dvh-5.5rem)] overflow-auto overscroll-x-contain px-1 pb-1 focus-visible:outline-2 focus-visible:outline-(--y-bar) xl:max-h-[calc(100dvh-2rem)]">
         <table data-table="list" className="w-full border-separate border-spacing-0 text-[13px]">
           <caption id="list-caption" className="sr-only">{dimLabels[analysis.rows]} · {kindNames[kind]}</caption>
           <thead>
             <tr>
-              <SortHead reading={reading} sort="ad" className="sticky left-0 z-[2] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-left align-bottom text-[11px] font-semibold text-(--y-ink-2)">
+              <SortHead reading={reading} sort="ad" className="sticky left-0 top-0 z-[4] border-b border-(--y-line) bg-(--y-surface) px-3 py-2 text-left align-bottom text-[11px] font-semibold text-(--y-ink-2)">
                 {dimSingular[analysis.rows]}
               </SortHead>
               {product && <th scope="col" className={head}>Miqdar · orta qiymət</th>}
@@ -855,7 +1249,7 @@ function ListTable({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading 
               <th scope="col" className={head}>Müqayisə</th>
               {product && <th scope="col" className={head}>Miqdar dəyişməsi</th>}
               {product && <th scope="col" className={head}>Qiymət dəyişməsi</th>}
-              <SortHead reading={reading} sort="ferq" className={`${head} ${edge}`}>Fərq</SortHead>
+              <SortHead reading={reading} sort="ferq" className={`${head} ${headEdge}`}>Fərq</SortHead>
             </tr>
           </thead>
           <tbody>
@@ -925,7 +1319,7 @@ function Notes({ pivot, reading }: { pivot: Pivot; reading: AnalysisReading }) {
   const products = analysis.rows === 'mehsul' || analysis.cols === 'mehsul' || pivot.withProduct
   return (
     <ul className="-mt-1 flex flex-col gap-1 text-xs text-(--y-muted)">
-      {kind === 'monthly' && <li>Təsdiq ay üzrə vahiddir: ayın bütün aylıq sifarişləri bir dəfə təsdiqlənir. Seçilmiş obyekt, kateqoriya və ya məhsul ayrıca təsdiqlənmir; ✓ və ⌛ ayın öz təsdiqidir.</li>}
+      {kind === 'monthly' && <li>Təsdiq ay üzrə vahiddir: ayın bütün aylıq sifarişləri bir dəfə təsdiqlənir. Seçilmiş obyekt, kateqoriya və ya məhsul ayrıca təsdiqlənmir; ✓ (təsdiqlənib), ⌛ (təsdiq gözləyir) və «!» (təsdiqdən sonra dəyişib) ayın öz təsdiqidir — işarəyə klikləyin və ya üzərinə gəlin, izahı açılır.</li>}
       {kind === 'outside' && <li>Aylıqdan kənar sifarişlərin hər biri ayrıca razılıqla verilir; burada yalnız məbləğlər göstərilir.</li>}
       {kind === 'all' && <li>«Hamısı» — ümumi xərcdir, təsdiq ediləcək məbləğ deyil.</li>}
       {pivot.rows.length > 0 && (

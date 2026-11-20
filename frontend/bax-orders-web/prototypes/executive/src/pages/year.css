@@ -75,3 +75,134 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
 }
+
+/*
+ * «Ətraflı analiz»: the column totals over the matrix, a row of the table itself, so each bar stands over its column.
+ * Its height is the table's --strip-h (usual or large); the largest column reaches 85 % of it (--strip-plot), the rest
+ * is room for its figure. A bar grows by scaleY, never by its height, and stands still for a reader who asked for less
+ * motion. The month a comparison stands on is a lighter bar in an outline; a month still running is striped.
+ */
+.year-view table[data-matrix] {
+  --strip-plot: calc(var(--strip-h) * 0.85);
+}
+.year-view .strip-cell {
+  position: relative;
+  height: var(--strip-h);
+  container-type: inline-size;
+}
+.year-view .strip-grid {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(var(--strip-plot) * var(--t));
+  border-top: 1px dashed var(--y-line);
+  pointer-events: none;
+}
+.year-view .strip-grid.is-zero {
+  border-top-style: solid;
+}
+.year-view .strip-tick-label {
+  position: absolute;
+  right: 0.75rem;
+  bottom: calc(var(--strip-plot) * var(--t));
+  transform: translateY(50%);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--y-muted);
+  white-space: nowrap;
+}
+.year-view .strip-tick-label.is-zero {
+  transform: none;
+}
+.year-view .strip-hit {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 6px;
+}
+.year-view .strip-hit:focus-visible {
+  outline: 2px solid var(--y-bar);
+  outline-offset: -2px;
+}
+.year-view .strip-bar {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 52%;
+  max-width: 2.5rem;
+  height: var(--strip-plot);
+  border-radius: 5px 5px 0 0;
+  background: var(--y-bar);
+  transform: translateX(-50%) scaleY(var(--r));
+  transform-origin: 50% 100%;
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 150ms ease, background-color 150ms ease;
+}
+.year-view .strip-hit:hover .strip-bar {
+  background-color: var(--y-bar-hover);
+}
+.year-view .strip-bar.is-comparison {
+  background-color: color-mix(in oklab, var(--y-bar) 35%, var(--y-surface));
+  box-shadow: inset 0 0 0 1.5px var(--y-bar);
+}
+.year-view .strip-bar.is-running {
+  background-color: var(--y-bar-pending);
+  background-image: repeating-linear-gradient(90deg, var(--y-bar) 0 2px, transparent 2px 6px);
+}
+.year-view .strip-bar.is-folded {
+  background-color: var(--y-grid);
+  box-shadow: inset 0 0 0 1px var(--y-line);
+}
+.year-view .strip-bar.is-dim {
+  opacity: 0.4;
+}
+.year-view .strip-label {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--y-ink-2);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(calc(var(--r) * var(--strip-plot) * -1 - 5px));
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+/* A column too narrow for its figure keeps the bar; the figure is in its tip and in the table. */
+@container (max-width: 2.75rem) {
+  .year-view .strip-label { display: none; }
+}
+/* The column a bar or a head points at: a light wash over its cells, over the heat colour too. */
+.year-view .is-hot-col {
+  background-image: linear-gradient(color-mix(in oklab, var(--y-bar) 14%, transparent), color-mix(in oklab, var(--y-bar) 14%, transparent));
+}
+/* The key under the chart, in the bars' own looks. */
+.year-view .strip-key {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px 3px 0 0;
+}
+.year-view .strip-key.is-comparison {
+  background-color: color-mix(in oklab, var(--y-bar) 35%, var(--y-surface));
+  box-shadow: inset 0 0 0 1.5px var(--y-bar);
+}
+.year-view .strip-key.is-running {
+  background-color: var(--y-bar-pending);
+  background-image: repeating-linear-gradient(90deg, var(--y-bar) 0 2px, transparent 2px 5px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .year-view .strip-bar,
+  .year-view .strip-label { transition: none; }
+}
+
+/* «Hazır analizlər»: one row that scrolls; the side with chips out of sight fades. */
+.year-view .preset-strip {
+  scrollbar-width: thin;
+  scrollbar-color: var(--y-line) transparent;
+  --fade-before: 0px;
+  --fade-after: 0px;
+  mask-image: linear-gradient(to right, transparent 0, black var(--fade-before), black calc(100% - var(--fade-after)), transparent 100%);
+}
+.year-view .preset-strip[data-more-before] { --fade-before: 2rem; }
+.year-view .preset-strip[data-more-after] { --fade-after: 2rem; }

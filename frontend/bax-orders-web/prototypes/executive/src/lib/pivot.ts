@@ -244,6 +244,8 @@ export interface Pivot {
   comparisonAmount: number | null
   /** What the latest month is compared with, by name: «Oktyabr 2026», «Avqust–Oktyabr 2026 · aylıq ortalama». */
   comparisonLabel: string | null
+  /** The months of the year that comparison stands on (none without one): the chart marks them. */
+  comparisonMonths: number[]
   change: Change
   lines: number
   /** The rows carry quantities and prices (one product each, or one product over its months). */
@@ -413,6 +415,7 @@ export function computePivot(analysis: Analysis, kind: Kind, basis: Basis): Pivo
     latestAmount: round2(latestTotal),
     comparisonAmount,
     comparisonLabel: period && !period.unavailable ? period.label : null,
+    comparisonMonths: period && !period.unavailable ? [...period.months] : [],
     change: changeFrom(round2(latestTotal), comparisonAmount, latest, period),
     lines: count,
     withProduct,
