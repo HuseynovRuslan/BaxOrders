@@ -73,6 +73,13 @@ export const latestYear = (): number => YEARS.at(-1) ?? TODAY.year
 /** The year before, when it has figures. */
 export const previousYearOf = (year: number): number | null => (YEARS.includes(year - 1) ? year - 1 : null)
 
+/**
+ * The years a period can be read in: those with at least one monthly package, oldest first. Taken from the figures
+ * themselves, never from a list of years: a year comes into the choices when its lines are imported (2020–2024 once the
+ * historical workbook is in), and a year with outside-monthly lines alone has no reporting month to show.
+ */
+export const reportingYears = (): number[] => YEARS.filter((year) => monthsWithDataIn(year).length > 0)
+
 /* ---- Periods -------------------------------------------------------------------------------------------------------- */
 
 export interface PeriodOption {

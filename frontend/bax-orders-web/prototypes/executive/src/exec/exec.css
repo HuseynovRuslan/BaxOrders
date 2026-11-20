@@ -39,6 +39,8 @@
   --x-tip: #0f2133;
   --x-tip-ink: #f1f5f9;
   --x-shadow: 0 1px 2px rgb(15 33 51 / 0.06), 0 1px 1px rgb(15 33 51 / 0.04);
+  /* A card that floats over the page or the map (the map's pin card). */
+  --x-pop-shadow: 0 14px 30px -12px rgb(15 33 51 / 0.32), 0 2px 6px rgb(15 33 51 / 0.08);
 
   /* The sidebar is navy in both themes, as in the approved light reference. Its quiet text stays well readable on it. */
   --x-side: #10243a;
@@ -49,6 +51,8 @@
   --x-side-accent: #2dd4bf;
 
   --x-map-tint: transparent;
+  /* Text on the teal accent (a chosen tab, a primary button). */
+  --x-on-accent: #ffffff;
 
   font-family: "Manrope", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
   color: var(--x-ink);
@@ -85,10 +89,12 @@
     --x-tip: #e9f0f7;
     --x-tip-ink: #0f2133;
     --x-shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 24px -18px rgb(0 0 0 / 0.55);
+    --x-pop-shadow: 0 18px 38px -14px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35);
     --x-side: #0b192b;
     --x-side-2: #16304b;
     --x-side-line: #1c344f;
     --x-map-tint: rgb(10 22 37 / 0.28);
+    --x-on-accent: #06231f;
     color-scheme: dark;
   }
 }
@@ -122,10 +128,12 @@
   --x-tip: #e9f0f7;
   --x-tip-ink: #0f2133;
   --x-shadow: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 24px -18px rgb(0 0 0 / 0.55);
+  --x-pop-shadow: 0 18px 38px -14px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35);
   --x-side: #0b192b;
   --x-side-2: #16304b;
   --x-side-line: #1c344f;
   --x-map-tint: rgb(10 22 37 / 0.28);
+  --x-on-accent: #06231f;
   color-scheme: dark;
 }
 
@@ -189,77 +197,207 @@
   .exec .x-slide-in { animation: none; }
 }
 
-/* ---- The map's pins, clusters and tips (inside the map, so they read the frame's colours) ---- */
+/* ---- The map's pins, clusters and tips (inside the map, so they read the frame's colours) ----
+ * Three kinds of pin, told apart by fill as well as by colour: a solid teal pin has figures and orders in the period; a
+ * solid grey one has figures and no order; a hollow one has no confirmed figures. A «!» instead of the dot marks a
+ * record whose coordinates the source asks to check. The chosen pin is larger, ringed and named. */
 .exec .x-marker {
   background: none;
   border: 0;
 }
-.exec .x-marker .x-pin-shape {
+.exec .x-marker .x-pin-shape,
+.exec .x-legend-pin {
   display: block;
+  overflow: visible;
+}
+.exec .x-marker .x-pin-shape {
   width: 100%;
   height: 100%;
-  overflow: visible;
-  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.32));
   transition: transform 120ms ease-out;
   transform-origin: 50% 100%;
 }
-.exec .x-marker .x-pin-shape path { fill: var(--x-prev); stroke: var(--x-surface); stroke-width: 2; }
-.exec .x-marker .x-pin-shape circle { fill: var(--x-surface); }
-.exec .x-marker.is-quiet .x-pin-shape path { fill: var(--x-muted); }
+.exec .x-legend-pin { width: 12px; height: 16px; }
+.exec :is(.x-marker .x-pin-shape, .x-legend-pin) path { fill: var(--x-prev); stroke: var(--x-surface); stroke-width: 2; }
+.exec :is(.x-marker .x-pin-shape, .x-legend-pin) circle { fill: var(--x-surface); }
+.exec :is(.x-marker.is-quiet .x-pin-shape, .x-legend-pin.is-quiet) path { fill: var(--x-muted); }
+.exec :is(.x-marker.is-unlinked .x-pin-shape, .x-legend-pin.is-unlinked) path { fill: var(--x-surface); stroke: var(--x-ink-2); stroke-width: 2.4; }
+.exec :is(.x-marker.is-unlinked .x-pin-shape, .x-legend-pin.is-unlinked) circle { fill: var(--x-ink-2); }
+.exec .x-pin-glyph { fill: var(--x-surface); font: 800 14px/1 "Manrope", system-ui, sans-serif; }
+.exec :is(.x-marker.is-unlinked, .x-legend-pin.is-unlinked) .x-pin-glyph { fill: var(--x-ink); }
+.exec :is(.x-marker.is-review .x-pin-shape, .x-legend-pin.is-review) path { stroke-dasharray: 3 2; stroke: var(--x-ink); }
 .exec .x-marker:hover .x-pin-shape,
 .exec .x-marker:focus-visible .x-pin-shape { transform: scale(1.12); }
-.exec .x-marker.is-selected .x-pin-shape path { fill: var(--x-surface); stroke: var(--x-prev); stroke-width: 2.5; }
-.exec .x-marker.is-selected .x-pin-shape circle { fill: var(--x-prev); }
+.exec .x-marker.is-selected .x-pin-shape path { fill: var(--x-prev); stroke: var(--x-surface); stroke-width: 2.5; stroke-dasharray: none; }
+.exec .x-marker.is-selected.is-unlinked .x-pin-shape path { fill: var(--x-surface); stroke: var(--x-prev); stroke-width: 3; }
+.exec .x-marker.is-selected .x-pin-shape circle { fill: var(--x-surface); }
+.exec .x-marker.is-selected.is-unlinked .x-pin-shape circle { fill: var(--x-prev); }
 .exec .x-marker.is-selected::before {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: -14px;
-  width: 64px;
-  height: 64px;
-  margin-left: -32px;
+  bottom: -12px;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--x-prev) 22%, transparent);
+  background: color-mix(in srgb, var(--x-prev) 20%, transparent);
   border: 1px solid color-mix(in srgb, var(--x-prev) 55%, transparent);
   pointer-events: none;
 }
+/* The chosen pin's name: whole, on up to a few balanced lines — never cut to «Azərbaycan Respublikası Prez…». */
 .exec .x-pin-label {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  white-space: nowrap;
-  padding: 4px 12px;
+  width: max-content;
+  max-width: 260px;
+  white-space: normal;
+  text-wrap: balance;
+  text-align: center;
+  line-height: 1.3;
+  padding: 5px 11px;
   border-radius: 8px;
-  border: 1.5px solid var(--x-ink);
+  border: 1px solid var(--x-line-2);
   background: var(--x-surface);
   color: var(--x-ink);
   font-weight: 800;
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.22);
 }
 .exec .x-cluster {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--x-focus-year-soft);
-  border: 2.5px solid var(--x-focus-year);
+  background: color-mix(in srgb, var(--x-prev) 22%, var(--x-surface));
+  border: 2px solid var(--x-prev);
   color: var(--x-ink);
   font-weight: 800;
-  font-size: 18px;
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--x-focus-year) 18%, transparent), 0 4px 10px rgb(0 0 0 / 0.3);
+  font-size: 16px;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--x-prev) 16%, transparent), 0 3px 8px rgb(0 0 0 / 0.28);
+  transition: background-color 120ms ease-out;
 }
-.exec .x-cluster:hover { background: var(--x-focus-year); color: #fff; }
-.exec .x-map .leaflet-tooltip.x-map-tip {
-  background: var(--x-tip);
-  color: var(--x-tip-ink);
+.exec .x-cluster.is-quiet { border-color: var(--x-ink-2); background: var(--x-surface); box-shadow: 0 0 0 5px color-mix(in srgb, var(--x-ink-2) 14%, transparent), 0 3px 8px rgb(0 0 0 / 0.28); }
+.exec .x-cluster:hover, .exec .x-cluster:focus-visible { background: var(--x-prev); color: var(--x-on-accent); }
+/* The card over a pin or a circle (AreaMap's MapTip): the page's own surface and hairline in both themes — never a white
+ * panel on the dark map. Its width follows the text between 240 and 340 px and never passes the map's edges, so a long
+ * official name wraps into a few readable lines instead of a column of single words (Leaflet's tooltip, whose box has no
+ * width of its own, shrank to its longest word). It takes no clicks. */
+.exec .x-tip-card {
+  position: absolute;
+  z-index: 450;
+  width: max-content;
+  min-width: min(240px, calc(100% - 16px));
+  max-width: min(340px, calc(100% - 16px));
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--x-line);
+  background: var(--x-surface);
+  color: var(--x-ink);
+  box-shadow: var(--x-pop-shadow);
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-align: left;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  animation: x-tip-in 120ms ease-out;
+}
+.exec .x-tip-card::after {
+  content: "";
+  position: absolute;
+  left: var(--x-tip-arrow, 50%);
+  bottom: -6px;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  background: var(--x-surface);
+  border-right: 1px solid var(--x-line);
+  border-bottom: 1px solid var(--x-line);
+  transform: rotate(45deg);
+}
+.exec .x-tip-card.is-below::after {
+  top: -6px;
+  bottom: auto;
   border: 0;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.35;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+  border-left: 1px solid var(--x-line);
+  border-top: 1px solid var(--x-line);
 }
-.exec .x-map .leaflet-tooltip.x-map-tip::before { border-top-color: var(--x-tip); }
+@keyframes x-tip-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exec .x-tip-card { animation: none; }
+}
+.exec .x-tip-card p { margin: 0; }
+.exec .x-tip-head { display: flex; align-items: flex-start; gap: 9px; }
+.exec .x-tip-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  text-wrap: pretty;
+}
+.exec .x-tip-pin { flex: none; width: 14px; height: 19px; margin-top: 1px; }
+.exec .x-tip-count {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1.5px solid var(--x-prev);
+  background: color-mix(in srgb, var(--x-prev) 18%, var(--x-surface));
+  font-size: 12px;
+  font-weight: 800;
+}
+.exec .x-tip-line { margin-top: 5px !important; padding-left: 23px; color: var(--x-ink-2); font-size: 13px; }
+.exec .x-tip-label { color: var(--x-muted); }
+.exec .x-tip-detail { color: var(--x-ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+.exec .x-tip-note { display: flex; align-items: center; gap: 5px; }
+.exec .x-tip-list { margin: 6px 0 0; padding: 0 0 0 23px; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 600; line-height: 1.35; }
+.exec .x-tip-help {
+  margin-top: 9px !important;
+  padding-top: 7px;
+  border-top: 1px solid var(--x-line);
+  color: var(--x-muted);
+  font-size: 12px;
+}
 .exec .x-map .leaflet-marker-icon:focus-visible { outline: 2px solid var(--x-focus); outline-offset: 3px; border-radius: 50%; }
+.exec .x-map .leaflet-control-scale-line {
+  background: color-mix(in srgb, var(--x-surface) 85%, transparent);
+  border-color: var(--x-ink-2);
+  color: var(--x-ink-2);
+  font-size: 10px;
+}
+
+/* Several pins on one spot: the list to choose one from. */
+.exec .x-map .x-cluster-popup .leaflet-popup-content-wrapper {
+  background: var(--x-surface);
+  color: var(--x-ink);
+  border: 1px solid var(--x-line-2);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.3);
+}
+.exec .x-map .x-cluster-popup .leaflet-popup-tip { background: var(--x-surface); }
+.exec .x-map .x-cluster-popup .leaflet-popup-content { margin: 10px; font: inherit; }
+.exec .x-map .x-cluster-popup .leaflet-popup-close-button { color: var(--x-ink-2); }
+.exec .x-cluster-list-title { margin: 0 24px 6px 4px !important; font-weight: 800; font-size: 14px; }
+.exec .x-cluster-list ul { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.exec .x-cluster-list button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--x-ink);
+}
+.exec .x-cluster-list button:hover, .exec .x-cluster-list button:focus-visible { background: var(--x-band); }
+.exec .x-cluster-list-name { font-weight: 700; font-size: 14px; line-height: 1.3; }
+.exec .x-cluster-list-meta { font-size: 12px; color: var(--x-ink-2); }
