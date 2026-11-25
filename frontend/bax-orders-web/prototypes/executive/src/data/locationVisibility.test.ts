@@ -49,8 +49,8 @@ describe('the hidden duplicate', () => {
     expect(VISIBLE_LOCATIONS.map((location) => location.id)).toEqual(AREA_LOCATIONS.map((location) => location.id).filter((id) => id !== 'LOC-0014'))
   })
 
-  it('takes no money off the map: the 17 links and the candidates name shown records only', () => {
-    expect(Object.keys(FINANCE_LINKS)).toHaveLength(17)
+  it('takes no money off the map: the 20 links and the candidates name shown records only', () => {
+    expect(Object.keys(FINANCE_LINKS)).toHaveLength(20)
     const shown = new Set(VISIBLE_LOCATIONS.map((location) => location.id))
     for (const id of [...Object.keys(FINANCE_LINKS), ...Object.keys(FINANCE_LINK_CANDIDATES)]) expect(shown.has(id)).toBe(true)
   })

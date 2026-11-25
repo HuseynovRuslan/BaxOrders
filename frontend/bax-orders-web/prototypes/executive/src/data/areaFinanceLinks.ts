@@ -35,6 +35,10 @@ export const FINANCE_LINKS: Readonly<Record<string, FinanceLink>> = {
   'LOC-0046': { siteId: 'f-m', sourceName: 'F.M', basis: 'business', ref: 'CB-06' },
   'LOC-0037': { siteId: 'puskin', sourceName: 'Puşkin', basis: 'business', ref: 'CB-01' },
   'LOC-0034': { siteId: 'parlament', sourceName: 'Parlament', basis: 'business', ref: 'CB-02' },
+  // The owner's answers on the merged 2022–2026 workbook (2026-11-24). «Moskva Dövlət Universiteti» is the full name the
+  // owner writes in place of «MDU»: the current figures have neither name, and the link works once that workbook is in.
+  'LOC-0002': { siteId: 'moskva-dovlet-universiteti', sourceName: 'Moskva Dövlət Universiteti', basis: 'business', ref: 'CB-41' },
+  'LOC-0031': { siteId: 'bibiheybet', sourceName: 'Bibiheybət', basis: 'business', ref: 'CB-43' },
   // Accepted from the data (DB-04: the short and the long name are one object; still active after the corrected
   // workbook, result B), not said by the owner.
   'LOC-0035': { siteId: 'xetai', sourceName: 'Xətai', basis: 'data', ref: 'DB-04' },
@@ -50,11 +54,13 @@ export const FINANCE_LINKS: Readonly<Record<string, FinanceLink>> = {
   'LOC-0038': { siteId: 'muzey-merkezi', sourceName: 'Muzey Mərkəzi', basis: 'same-name', ref: 'CB-38' },
   'LOC-0047': { siteId: 'adnsu', sourceName: 'ADNSU', basis: 'same-name', ref: 'CB-38' },
   'LOC-0048': { siteId: 'idea', sourceName: 'İDEA', basis: 'same-name', ref: 'CB-38' },
+  // A separate object from «Bibiheybət» (CB-43). The merged 2022–2026 workbook has it, the current figures do not.
+  'LOC-0018': { siteId: 'bibiheybet-mescidi', sourceName: 'Bibiheybət məscidi', basis: 'same-name', ref: 'CB-43' },
 }
 
 /**
  * Pairs that look alike but are NOT confirmed — kept apart until the owner answers. They show no money; the panel names
- * the candidate so the owner can confirm or reject it. Several pins on one candidate (Bibiheybət) need saying which.
+ * the candidate so the owner can confirm or reject it. Several pins on one candidate would need the owner to say which.
  */
 export interface FinanceLinkCandidate {
   siteId: string
@@ -70,7 +76,5 @@ export const FINANCE_LINK_CANDIDATES: Readonly<Record<string, FinanceLinkCandida
   'LOC-0036': { siteId: 'axundov', sourceName: 'Axundov', question: 'Excel-də «Axundov» (CB-38), lokasiyada «Axundov bağı» — eyni obyektdirmi?' },
   'LOC-0041': { siteId: 'dede-qorqud', sourceName: 'Dədə Qorqud', question: 'Excel-də «Dədə Qorqud», lokasiyada «Dədə Qorqud parkı» — eyni obyektdirmi?' },
   'LOC-0043': { siteId: 'space-tv-qarsisi', sourceName: 'Space Tv qarşısı', question: 'Excel-də «Space Tv qarşısı» (CB-38), lokasiyada «Space park» — eyni obyektdirmi?' },
-  'LOC-0018': { siteId: 'bibiheybet', sourceName: 'Bibiheybət', question: 'Excel-də bir «Bibiheybət» var, xəritədə iki nöqtə (məscid və qəsəbə) — hansına aiddir, yoxsa hər ikisinə?' },
-  'LOC-0031': { siteId: 'bibiheybet', sourceName: 'Bibiheybət', question: 'Excel-də bir «Bibiheybət» var, xəritədə iki nöqtə (məscid və qəsəbə) — hansına aiddir, yoxsa hər ikisinə?' },
   'LOC-0022': { siteId: 'qala-baza', sourceName: 'Qala baza', question: 'Excel-də «Qala baza» (CB-39: həm obyekt, həm təchizatçı), lokasiyada «Qala anbarı» — eyni yerdirmi?' },
 }

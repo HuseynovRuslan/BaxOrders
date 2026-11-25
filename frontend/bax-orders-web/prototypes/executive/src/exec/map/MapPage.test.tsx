@@ -7,8 +7,8 @@ import { useFixture } from '../../test/fixture'
 /*
  * The map page on the fixture's figures and the owner's 48 real locations. The fixture has none of the owner's objects,
  * so the links are the test's own: Aeroport yolu (LOC-0049) → Alfa, Fəvvarələr meydanı (LOC-0046) → Beta, and both
- * Bibiheybət pins (LOC-0018, LOC-0031) → Delta, one object for two pins. Nərimanov heykəli parkı (LOC-0039) is a
- * candidate; every other location has no link.
+ * Bibiheybət pins (LOC-0018, LOC-0031) → Delta, one object for two pins. That pairing is the test's alone: in the real
+ * links they are two objects (CB-43). Nərimanov heykəli parkı (LOC-0039) is a candidate; every other location has no link.
  */
 
 useFixture()

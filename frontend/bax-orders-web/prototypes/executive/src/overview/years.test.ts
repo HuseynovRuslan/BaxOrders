@@ -102,8 +102,9 @@ describe('a year before without figures is «no data», never 0', () => {
 })
 
 describe('approval of an older year', () => {
-  it('follows the program’s rule until the owner decides otherwise: every month up to September 2026 approved', () => {
-    // The historical workbook has no approval column (see docs/2026-11-19-tarixi-excel-2020-2024.md, «Təsdiq»).
+  it('follows the program’s rule, as the owner chose on 2026-11-24: every month up to September 2026 approved', () => {
+    // The historical workbook has no approval column (see docs/2026-11-19-tarixi-excel-2020-2024.md, «Təsdiq»); the
+    // owner wants its months shown as «Təsdiqlənib».
     expect(model.approvalFor(2023, 5)?.state).toBe('approved')
     expect(model.approvalFor(2024, 3)?.state).toBe('approved')
   })

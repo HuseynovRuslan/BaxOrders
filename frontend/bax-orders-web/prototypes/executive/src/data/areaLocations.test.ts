@@ -147,6 +147,16 @@ describe('the financial links', () => {
     }
     expect(FINANCE_LINKS['LOC-0049']).toMatchObject({ siteId: 'aeroport-yolu', basis: 'same-name' })
     expect(FINANCE_LINKS['LOC-0024']).toMatchObject({ siteId: 'h-e-m', sourceName: 'H.Ə.M', basis: 'business', ref: 'CB-08' })
-    expect(Object.keys(FINANCE_LINKS)).toHaveLength(17)
+    expect(Object.keys(FINANCE_LINKS)).toHaveLength(20)
+  })
+
+  it('keeps the owner’s answers of 2026-11-24: one Bibiheybət object per pin, «MQU Universiteti» under its full name', () => {
+    expect(FINANCE_LINKS['LOC-0031']).toMatchObject({ siteId: 'bibiheybet', basis: 'business', ref: 'CB-43' })
+    expect(FINANCE_LINKS['LOC-0018']).toMatchObject({ siteId: 'bibiheybet-mescidi', sourceName: 'Bibiheybət məscidi', ref: 'CB-43' })
+    expect(FINANCE_LINKS['LOC-0002']).toMatchObject({ siteId: 'moskva-dovlet-universiteti', basis: 'business', ref: 'CB-41' })
+    // Two objects, two pins: neither is the other's (NM-18), and no candidate is left on them.
+    expect(FINANCE_LINKS['LOC-0018'].siteId).not.toBe(FINANCE_LINKS['LOC-0031'].siteId)
+    expect(FINANCE_LINK_CANDIDATES['LOC-0018']).toBeUndefined()
+    expect(FINANCE_LINK_CANDIDATES['LOC-0031']).toBeUndefined()
   })
 })

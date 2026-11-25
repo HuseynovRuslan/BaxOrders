@@ -46,6 +46,9 @@ sübutu ilə yazılıb; oxşar ad, rəhbər və ya məsafə ilə heç nə uyğun
 **Əhatə: 48 lokasiyadan 17-si, 36 obyektdən 17-si.** Hər obyekt bir nöqtəyə bağlıdır (bir obyekt bir neçə nöqtəyə
 bağlansa, kod məbləği hər cəmdə bir dəfə sayır və paneldə bunu yazır).
 
+> Bu bölmə 19 noyabr vəziyyətini göstərir. 24 noyabrda daha 3 bağlantı əlavə olundu, Bibiheybət namizədləri isə
+> bağlandı. Bax: bölmə 6.
+
 | Lokasiya | Ad | Excel obyekti | Sübut |
 | --- | --- | --- | --- |
 | LOC-0024 | Heydər Əliyev Mərkəzi | H.Ə.M | sahibin cavabı CB-08 |
@@ -156,3 +159,25 @@ Onların məbləği xəritə səhifəsinin icmalında «Xəritəyə bağlanmayan
 - **Paneldə:** LOC-0020-nin «Qeyd və mənbə» hissəsində «Təkrar qeyd: LOC-0014» sətri, onun koordinatları və sahibin qərarı
   göstərilir.
 - **Digər POSSIBLE_DUPLICATE qeyd** (LOC-0026, DUP-02) bu qərara daxil deyil: göstərilir.
+
+## 6. Sahibin cavabları (24 noyabr 2026)
+
+Birləşdirilmiş 2022–2026 Excel-i yoxlananda sahib üç suala cavab verdi. Cavablar `docs/business-decisions.md`-də
+CB-41 … CB-43 və NM-18 kimi yazılıb.
+
+| Lokasiya | Ad | Excel obyekti | Sübut |
+| --- | --- | --- | --- |
+| LOC-0031 | Bibiheybət qəsəbəsi | Bibiheybət | sahibin cavabı CB-43 |
+| LOC-0018 | Bibiheybət məscidi | Bibiheybət məscidi | eyni ad; CB-43: ayrı obyektdir (NM-18) |
+| LOC-0002 | MQU Universiteti | Moskva Dövlət Universiteti (köhnə yazılışı «MDU») | sahibin cavabı CB-41 |
+
+- «Azərsu» ilə «Yasamal (Azərsu)» bir obyektdir və adı «Azərsu» olaraq qalır (CB-42). Xəritədə bu obyektin nöqtəsi yoxdur.
+- **Yeni saylar:**
+  - bağlantılar 17-dən 20-yə qalxır;
+  - namizədlər 7 lokasiya və 7 obyekt olur;
+  - namizədi olmayan lokasiyalar 22-dən 21-ə enir (xəritədə 21-dən 20-yə).
+- **Yeni Excel yüklənənə qədər:**
+  - Cari məlumatda «moskva-dovlet-universiteti» və «bibiheybet-mescidi» obyektləri yoxdur.
+  - Ona görə LOC-0002 və LOC-0018-in panelində «…cari sifariş məlumatında yoxdur» yazılır, xəritənin icmalı da bunu qeyd edir. Məbləğ göstərilmir.
+  - Birləşdirilmiş Excel yüklənəndə bu öz-özünə düzəlir. Sahib Excel-də «MDU»-nu artıq «Moskva Dövlət Universiteti» ilə əvəz edib (v12, 24 noyabr).
+  - LOC-0031 dərhal işləyir, çünki «Bibiheybət» cari məlumatda var.
