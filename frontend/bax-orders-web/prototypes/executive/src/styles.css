@@ -41,14 +41,14 @@
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-ink: #e4ebee;
-    --color-ink-2: #b9c6cc;
-    --color-muted: #93a3aa;
-    --color-stone: #0e1820;
-    --color-stone-2: #1b2832;
-    --color-paper: #142029;
-    --color-line: #26343e;
-    --color-line-2: #3a4b56;
+    --color-ink: #eaf2fa;
+    --color-ink-2: #c2d1e0;
+    --color-muted: #91a7bb;
+    --color-stone: #0b1520;
+    --color-stone-2: #172c42;
+    --color-paper: #122231;
+    --color-line: #294055;
+    --color-line-2: #35516a;
     --color-sea: #5bbcc0;
     --color-sea-2: #86d3d6;
     --color-sea-soft: #123538;
@@ -66,14 +66,14 @@
 }
 
 :root[data-theme="dark"] {
-  --color-ink: #e4ebee;
-  --color-ink-2: #b9c6cc;
-  --color-muted: #93a3aa;
-  --color-stone: #0e1820;
-  --color-stone-2: #1b2832;
-  --color-paper: #142029;
-  --color-line: #26343e;
-  --color-line-2: #3a4b56;
+  --color-ink: #eaf2fa;
+  --color-ink-2: #c2d1e0;
+  --color-muted: #91a7bb;
+  --color-stone: #0b1520;
+  --color-stone-2: #172c42;
+  --color-paper: #122231;
+  --color-line: #294055;
+  --color-line-2: #35516a;
   --color-sea: #5bbcc0;
   --color-sea-2: #86d3d6;
   --color-sea-soft: #123538;
@@ -121,6 +121,16 @@
 }
 
 @layer components {
+  /*
+   * The page column beside the sidebar, on every screen: a quiet light from the top of the page that fades into the
+   * ground. In the dark, a navy one (owner, 2026-11-17, «Subtle Navy Gradient»); in the light, barely a lift. No
+   * picture, no pattern, nothing that moves.
+   */
+  .app-canvas {
+    background-image: radial-gradient(1100px 520px at 50% -160px, rgb(255 255 255 / 0.8), rgb(255 255 255 / 0) 70%);
+    background-repeat: no-repeat;
+  }
+
   /* A row whose whole area opens it: the name is the link, its ::after covers the row. */
   .stretched::after {
     content: "";
@@ -132,4 +142,18 @@
   .hatch {
     background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--color-stone-2) 6px 7px);
   }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-canvas {
+    background-image:
+      radial-gradient(1100px 560px at 50% -140px, rgb(16 38 55 / 0.95), rgb(16 38 55 / 0) 72%),
+      linear-gradient(180deg, #0b1520 0%, #0a1620 50%, #09151e 100%);
+  }
+}
+
+:root[data-theme="dark"] .app-canvas {
+  background-image:
+    radial-gradient(1100px 560px at 50% -140px, rgb(16 38 55 / 0.95), rgb(16 38 55 / 0) 72%),
+    linear-gradient(180deg, #0b1520 0%, #0a1620 50%, #09151e 100%);
 }

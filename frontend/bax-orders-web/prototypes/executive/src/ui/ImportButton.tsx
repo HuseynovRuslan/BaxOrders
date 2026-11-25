@@ -1,7 +1,9 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Upload, X } from 'lucide-react'
+import { Download, Upload, X } from 'lucide-react'
 import { approvalIn, LEGACY_YEAR } from '../data/model'
 import { money, monthName, monthNames, signedMoney } from '../lib/format'
+import { useBackupDownload } from './backupDownload'
+import './select.css'
 
 /**
  * «Excel yüklə» (owner, 2026-10-28): the owner uploads the workbook and the site's figures change for everyone — in
@@ -9,7 +11,7 @@ import { money, monthName, monthNames, signedMoney } from '../lib/format'
  * change, month by month (a month that would disappear in red); nothing changes until «Təsdiq et». «Geri qaytar»
  * takes the last change back — an import or an edit made in «Mallar» — checked and confirmed the same way. The server
  * refuses a file that does not hang together, with the rows to look at. The site has no login, so every step asks
- * for the import key.
+ * for the import key. Before a new file, the figures as they stand can be saved as an Excel file (data/backup.ts).
  */
 
 /** On the server's build (VITE_IMPORT=on) and in development; a copy with no import service shows no button. */
@@ -109,7 +111,7 @@ export function ImportButton() {
       <dialog
         ref={dialog}
         aria-labelledby="import-title"
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-paper p-0 text-ink shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] backdrop:bg-ink/40"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-paper p-0 text-ink shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] backdrop:bg-[rgb(6_14_24/0.55)]"
       >
         <form onSubmit={submit} className="flex flex-col gap-4 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
@@ -143,6 +145,8 @@ export function ImportButton() {
                 : 'Son dəyişiklik — Excel importu və ya «Mallar»-da edilən düzəliş — ləğv olunur və ondan əvvəlki rəqəmlər bərpa edilir. Əvvəl nəyin dəyişəcəyi göstərilir; rəqəmlər yalnız «Təsdiq et»-dən sonra dəyişir.'}
             </p>
           )}
+
+          {action === 'import' && status.kind !== 'done' && <BackupBeforeImport />}
 
           {status.kind !== 'done' && status.kind !== 'checked' && (
             <>
@@ -198,6 +202,34 @@ export function ImportButton() {
   )
 }
 
+/** Before a new workbook replaces the figures, they can be saved as an Excel file first (owner, 2026-11-17). */
+function BackupBeforeImport() {
+  const { state, start } = useBackupDownload()
+  const busy = state.kind === 'busy'
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-line bg-stone px-4 py-3 text-sm">
+      <p className="text-ink-2">Yeni fayl saytdakı rəqəmləri əvəz edir. Hazırkı rəqəmləri saxlamaq üçün əvvəlcə onları Excel kimi endirin.</p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <button
+          type="button"
+          onClick={() => void start()}
+          disabled={busy}
+          aria-busy={busy}
+          aria-describedby="import-backup-status"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line-2 bg-paper px-3 text-sm font-semibold text-ink transition-colors hover:bg-stone-2 disabled:cursor-progress disabled:opacity-70"
+        >
+          <Download aria-hidden="true" className="size-4 shrink-0" />
+          {busy ? 'Hazırlanır…' : 'Hazırkı məlumatı Excel kimi endir'}
+        </button>
+        <p id="import-backup-status" aria-live="polite" className="min-w-0 break-words">
+          {state.kind === 'done' && <span className="text-down">Endirildi: «{state.fileName}»</span>}
+          {state.kind === 'error' && <span className="font-semibold text-up">{state.message}</span>}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function KeyField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm font-semibold">
@@ -209,7 +241,7 @@ export function KeyField({ value, onChange }: { value: string; onChange: (value:
         autoComplete="current-password"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-lg border border-line px-3 font-normal"
+        className="dd-field w-full"
       />
     </label>
   )

@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, Check, ChevronRight, Hourglass, Info, Min
 import { basisOptions, type Basis, type Figure, type Period } from '../data/analysis'
 import { YEAR, type MonthApproval } from '../data/model'
 import { direction, directionWords, monthName, moneyParts, percent, signedMoney, wholeManats } from '../lib/format'
+import { Select } from './Select'
 
 // ---- figures ------------------------------------------------------------------------------------------------------
 
@@ -168,7 +169,7 @@ export function ViewTabs({ label, tabs }: { label: string; tabs: TabItem[] }) {
   )
 }
 
-/** What the month is compared with. A native select: it is the most familiar control on every device. */
+/** What the month is compared with: the app's own dropdown, as every other list. */
 export function ComparisonSelect({ basis, onChange, period, label = 'Müqayisə', inline = false }: {
   basis: Basis
   onChange: (basis: Basis) => void
@@ -181,16 +182,14 @@ export function ComparisonSelect({ basis, onChange, period, label = 'Müqayisə'
   return (
     <div className={`flex min-w-0 ${inline ? 'flex-wrap items-center gap-x-3 gap-y-1' : 'flex-col gap-1'}`}>
       <label htmlFor="comparison" className={`font-semibold ${inline ? 'text-sm text-ink-2' : 'text-xs text-muted'}`}>{label}</label>
-      <select
+      <Select
         id="comparison"
+        label={label}
         value={basis}
-        onChange={(event) => onChange(event.target.value as Basis)}
-        className={`w-full min-w-0 rounded-md border border-line-2 bg-paper px-3 pr-8 min-h-11 text-[15px] text-ink sm:w-80`}
-      >
-        {basisOptions.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
+        options={basisOptions}
+        onChange={(value) => onChange(value as Basis)}
+        className="w-full min-w-0 text-[15px] sm:w-80"
+      />
       {period && <PeriodNote period={period} />}
     </div>
   )

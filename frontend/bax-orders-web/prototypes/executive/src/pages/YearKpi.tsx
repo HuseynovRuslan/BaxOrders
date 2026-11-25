@@ -97,8 +97,9 @@ export function KpiStrip({ reading, kpi }: { reading: YearReading; kpi: KpiPanel
 
   return (
     <div onKeyDown={onKeyDown} className="flex flex-col gap-2">
-      {/* As many columns as cards: a year with no month waiting (any past year) has three, and leaves no empty cell. */}
-      <div role="group" aria-label="İlin göstəriciləri" className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-(--y-line) bg-(--y-line) ${stripColumns[cards.length] ?? stripColumns[4]}`}>
+      {/* As many columns as cards: a year with no month waiting (any past year) has three, and leaves no empty cell. Each
+          figure is a card of its own (owner, 2026-11-17), a short gap apart. */}
+      <div role="group" aria-label="İlin göstəriciləri" className={`grid grid-cols-2 gap-3 ${stripColumns[cards.length] ?? stripColumns[4]}`}>
         {cards.map((card) => (
           <button
             key={card.panel}
@@ -108,7 +109,7 @@ export function KpiStrip({ reading, kpi }: { reading: YearReading; kpi: KpiPanel
             aria-expanded={kpi.panel === card.panel}
             aria-controls="kpi-panel"
             onClick={() => kpi.toggle(card.panel)}
-            className={`group flex min-w-0 cursor-pointer flex-col items-start bg-(--y-surface) px-5 py-3.5 text-left transition-colors hover:bg-(--y-band)/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--y-bar) aria-expanded:bg-(--y-band) aria-expanded:shadow-[inset_0_-3px_0_var(--y-bar)] ${card.span ?? ''}`}
+            className={`group flex min-w-0 cursor-pointer flex-col items-start rounded-xl border border-(--y-line) bg-(--y-surface) px-5 py-4 text-left shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition-colors hover:border-(--y-bar)/50 hover:bg-(--y-band)/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--y-bar) aria-expanded:border-(--y-bar)/70 aria-expanded:bg-(--y-band) aria-expanded:shadow-[inset_0_-3px_0_var(--y-bar)] ${card.span ?? ''}`}
           >
             <span className="flex w-full items-start justify-between gap-2">
               <span className="text-xs font-semibold text-(--y-muted)">{card.label}</span>
@@ -132,8 +133,8 @@ function cardsFor(reading: YearReading): Card[] {
   const { whole } = moneyParts(Math.round(total.amount))
   const value = (text: string, note: string, tone = '') => (
     <>
-      <span className={`tnum mt-1.5 text-lg font-bold leading-none ${tone}`}>{text}</span>
-      <span className="mt-1 text-xs text-(--y-muted)">{note}</span>
+      <span className={`tnum mt-2 text-[22px] font-extrabold leading-none tracking-[-0.01em] ${tone}`}>{text}</span>
+      <span className="mt-1.5 text-xs text-(--y-muted)">{note}</span>
     </>
   )
   const cards: Card[] = [{
@@ -142,7 +143,7 @@ function cardsFor(reading: YearReading): Card[] {
     span: 'col-span-2 lg:col-span-1',
     body: (
       <>
-        <span className="tnum mt-1 text-[30px] font-extrabold leading-none tracking-[-0.02em]">
+        <span className="tnum mt-1.5 text-[32px] font-extrabold leading-none tracking-[-0.02em]">
           {reading.hasOrders ? <>{whole}<span className="text-[0.5em] font-bold text-(--y-ink-2)"> ₼</span></> : <span className="text-(--y-muted)">—</span>}
         </span>
         {kind === 'all' && reading.hasOrders && <span className="mt-1 text-xs text-(--y-muted)">Ümumi xərc, təsdiq ediləcək məbləğ deyil</span>}

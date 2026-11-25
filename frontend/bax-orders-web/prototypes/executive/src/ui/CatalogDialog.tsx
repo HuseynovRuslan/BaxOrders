@@ -3,6 +3,8 @@ import { X } from 'lucide-react'
 import { categories, LAST_MONTH_WITH_DATA, linesOfEveryYear, sites, YEAR, type Line, type Product } from '../data/model'
 import { money, moneyParts, monthName, monthNames } from '../lib/format'
 import { callApi, ChangeLines, ErrorBox, KeyField, keyRequired, OutcomeBox, ReopenButton, type Changes } from './ImportButton'
+import { Select } from './Select'
+import { SuggestField } from './SuggestField'
 
 /**
  * One edit in «Mallar» (owner, 2026-10-28): a product's price from a month of the year on screen on (the later years
@@ -40,33 +42,34 @@ interface Picked { root: string; mid: string; leaf: string }
 const byName = (left: { name: string }, right: { name: string }) => left.name.localeCompare(right.name, 'az')
 const level = (n: number, parent?: string) => [...categories.values()].filter((item) => item.level === n && (parent === undefined || item.parentId === parent)).sort(byName)
 
-/** Ana → Orta → Alt as three lists, each narrowed by the one before. */
-export function CategoryPicker({ value, onChange, allowAll = false, className = '' }: { value: Picked; onChange: (next: Picked) => void; allowAll?: boolean; className?: string }) {
-  const select = 'h-10 min-w-0 rounded-lg border border-line bg-paper px-2 text-sm font-normal text-ink'
-  const empty = allowAll ? 'Hamısı' : 'Seçin…'
+/**
+ * Ana → Orta → Alt as three lists, each narrowed by the one before. Its labels follow where it stands: the quiet small
+ * ones of a filter bar, or a form's own.
+ */
+export function CategoryPicker({ value, onChange, allowAll = false, labels = 'form', className = '' }: {
+  value: Picked
+  onChange: (next: Picked) => void
+  allowAll?: boolean
+  labels?: 'filter' | 'form'
+  className?: string
+}) {
+  const empty = { value: '', label: allowAll ? 'Hamısı' : 'Seçin…' }
+  const choices = (items: { id: string; name: string }[]) => [empty, ...items.map((item) => ({ value: item.id, label: item.name }))]
+  const box = labels === 'filter' ? 'flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-muted' : 'flex min-w-0 flex-col gap-1.5 text-sm font-semibold'
   return (
-    <div className={`grid gap-2 sm:grid-cols-3 ${className}`}>
-      <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted">
+    <div className={`grid gap-3 sm:grid-cols-3 ${className}`}>
+      <div className={box}>
         Ana kateqoriya
-        <select value={value.root} onChange={(event) => onChange({ root: event.target.value, mid: '', leaf: '' })} className={select}>
-          <option value="">{empty}</option>
-          {level(1).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      </label>
-      <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted">
+        <Select label="Ana kateqoriya" value={value.root} options={choices(level(1))} onChange={(root) => onChange({ root, mid: '', leaf: '' })} className="w-full" />
+      </div>
+      <div className={box}>
         Orta kateqoriya
-        <select value={value.mid} disabled={!value.root} onChange={(event) => onChange({ ...value, mid: event.target.value, leaf: '' })} className={`${select} disabled:opacity-50`}>
-          <option value="">{empty}</option>
-          {value.root && level(2, value.root).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      </label>
-      <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted">
+        <Select label="Orta kateqoriya" value={value.mid} disabled={!value.root} options={choices(value.root ? level(2, value.root) : [])} onChange={(mid) => onChange({ ...value, mid, leaf: '' })} className="w-full" />
+      </div>
+      <div className={box}>
         Alt kateqoriya
-        <select value={value.leaf} disabled={!value.mid} onChange={(event) => onChange({ ...value, leaf: event.target.value })} className={`${select} disabled:opacity-50`}>
-          <option value="">{empty}</option>
-          {value.mid && level(3, value.mid).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      </label>
+        <Select label="Alt kateqoriya" value={value.leaf} disabled={!value.mid} options={choices(value.mid ? level(3, value.mid) : [])} onChange={(leaf) => onChange({ ...value, leaf })} className="w-full" />
+      </div>
     </div>
   )
 }
@@ -137,7 +140,9 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
     else void call('check')
   }
 
-  const field = 'h-10 rounded-lg border border-line bg-paper px-3 text-sm font-normal text-ink'
+  // Every text field is drawn as the dialog's dropdowns are (select.css), so the form reads as one set.
+  const field = 'dd-field w-full'
+  const monthChoices = monthNames.map((month, index) => ({ value: String(index + 1), label: `${month} ${YEAR}` }))
   const label = 'flex min-w-0 flex-col gap-1.5 text-sm font-semibold'
   const editing = status.kind !== 'checked' && status.kind !== 'done'
   const confirm = { price: 'Təsdiq et', edit: 'Təsdiq et', delete: 'Təsdiq et və sil', add: 'Təsdiq et və əlavə et' }[task.kind]
@@ -147,7 +152,7 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
       ref={dialog}
       aria-labelledby="catalog-title"
       onClose={onClose}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[min(38rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-paper p-0 text-ink shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] backdrop:bg-ink/40"
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[min(38rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-line bg-paper p-0 text-ink shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] backdrop:bg-[rgb(6_14_24/0.55)]"
     >
       <form onSubmit={submit} className="flex flex-col gap-4 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -171,19 +176,15 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
                 Yeni qiymət, ₼
                 <input inputMode="decimal" required value={price} onChange={(event) => change(setPrice)(event.target.value)} className={field} />
               </label>
-              <label className={label}>
+              <div className={label}>
                 Hansı aydan
-                <select value={fromMonth} onChange={(event) => change(setFromMonth)(Number(event.target.value))} className={field}>
-                  {monthNames.map((month, index) => <option key={month} value={index + 1}>{month} {YEAR}</option>)}
-                </select>
-              </label>
+                <Select label="Hansı aydan" value={String(fromMonth)} options={monthChoices} onChange={(value) => change(setFromMonth)(Number(value))} className="w-full" />
+              </div>
               {row.units.length > 1 && (
-                <label className={label}>
+                <div className={label}>
                   Vahid
-                  <select value={unit} onChange={(event) => change(setUnit)(event.target.value)} className={field}>
-                    {row.units.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </label>
+                  <Select label="Vahid" value={unit} options={row.units.map((item) => ({ value: item, label: item }))} onChange={change(setUnit)} className="w-full" />
+                </div>
               )}
             </div>
           </>
@@ -215,11 +216,11 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
             </label>
             <CategoryPicker value={picked} onChange={change(setPicked)} />
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className={label}>
+              {/* Any unit may be typed; those already in the orders are offered. */}
+              <div className={label}>
                 Vahid
-                <input required list="catalog-units" value={newUnit} onChange={(event) => change(setNewUnit)(event.target.value)} className={field} />
-                <datalist id="catalog-units">{units.map((item) => <option key={item} value={item} />)}</datalist>
-              </label>
+                <SuggestField label="Vahid" required value={newUnit} suggestions={units} onChange={change(setNewUnit)} />
+              </div>
               <label className={label}>
                 Qiymət, ₼
                 <input inputMode="decimal" required value={price} onChange={(event) => change(setPrice)(event.target.value)} className={field} />
@@ -229,30 +230,35 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
               <legend className="px-1 text-sm font-semibold">Sifarişə də əlavə et <span className="font-normal text-muted">(könüllü)</span></legend>
               <p className="-mt-1 text-xs text-muted">Obyekt seçməsəniz, mal yalnız siyahıya düşür və rəqəmlər dəyişmir.</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className={label}>
+                <div className={label}>
                   Obyekt
-                  <select value={line.siteId} onChange={(event) => change(setLine)({ ...line, siteId: event.target.value })} className={field}>
-                    <option value="">— əlavə etmə —</option>
-                    {[...sites.values()].sort(byName).map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
-                  </select>
-                </label>
-                <label className={label}>
+                  <Select
+                    label="Obyekt"
+                    value={line.siteId}
+                    options={[{ value: '', label: '— əlavə etmə —' }, ...[...sites.values()].sort(byName).map((site) => ({ value: site.id, label: site.name }))]}
+                    onChange={(siteId) => change(setLine)({ ...line, siteId })}
+                    className="w-full"
+                  />
+                </div>
+                <div className={label}>
                   Ay
-                  <select value={line.month} disabled={!line.siteId} onChange={(event) => change(setLine)({ ...line, month: event.target.value })} className={`${field} disabled:opacity-50`}>
-                    {monthNames.map((month, index) => <option key={month} value={index + 1}>{month} {YEAR}</option>)}
-                  </select>
-                </label>
+                  <Select label="Ay" value={line.month} disabled={!line.siteId} options={monthChoices} onChange={(month) => change(setLine)({ ...line, month })} className="w-full" />
+                </div>
                 <label className={label}>
                   Miqdar
-                  <input inputMode="decimal" disabled={!line.siteId} required={Boolean(line.siteId)} value={line.qty} onChange={(event) => change(setLine)({ ...line, qty: event.target.value })} className={`${field} disabled:opacity-50`} />
+                  <input inputMode="decimal" disabled={!line.siteId} required={Boolean(line.siteId)} value={line.qty} onChange={(event) => change(setLine)({ ...line, qty: event.target.value })} className={field} />
                 </label>
-                <label className={label}>
+                <div className={label}>
                   Növ
-                  <select value={line.kind} disabled={!line.siteId} onChange={(event) => change(setLine)({ ...line, kind: event.target.value })} className={`${field} disabled:opacity-50`}>
-                    <option value="monthly">Aylıq sifariş</option>
-                    <option value="outside">Aylıqdan kənar</option>
-                  </select>
-                </label>
+                  <Select
+                    label="Növ"
+                    value={line.kind}
+                    disabled={!line.siteId}
+                    options={[{ value: 'monthly', label: 'Aylıq sifariş' }, { value: 'outside', label: 'Aylıqdan kənar' }]}
+                    onChange={(kind) => change(setLine)({ ...line, kind })}
+                    className="w-full"
+                  />
+                </div>
               </div>
             </fieldset>
           </>
@@ -282,11 +288,11 @@ export function CatalogDialog({ task, keyValue, onKey, onClose }: { task: Catalo
                 type="button"
                 onClick={status.kind === 'checked' ? reset : () => dialog.current?.close()}
                 disabled={busy}
-                className="min-h-10 rounded-lg border border-line px-4 text-sm font-semibold hover:bg-stone-2 disabled:opacity-50"
+                className="min-h-10 rounded-lg border border-line-2 px-4 text-sm font-semibold transition-colors hover:bg-stone-2 disabled:opacity-50"
               >
                 {status.kind === 'checked' ? 'Geri' : 'Ləğv et'}
               </button>
-              <button type="submit" disabled={busy || !ready} className={`min-h-10 rounded-lg px-4 text-sm font-semibold text-paper disabled:opacity-50 ${task.kind === 'delete' && status.kind === 'checked' ? 'bg-up' : 'bg-ink'}`}>
+              <button type="submit" disabled={busy || !ready} className={`min-h-10 rounded-lg px-4 text-sm font-semibold text-paper transition-opacity enabled:hover:opacity-90 disabled:opacity-50 ${task.kind === 'delete' && status.kind === 'checked' ? 'bg-up' : 'bg-ink'}`}>
                 {status.kind === 'checked' || (status.kind === 'busy' && status.step === 'apply') ? confirm : 'Yoxla'}
               </button>
             </>

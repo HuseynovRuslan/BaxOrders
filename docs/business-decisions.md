@@ -42,8 +42,9 @@ later confirmed something similar. It is upgraded only by an answer about that e
 
 Two rounds of answers are recorded here. **CB-01 … CB-24** answered the questions raised on the original
 workbook (2026-09-22). **CB-25 … CB-37** answered the questions the corrected workbook raised, including
-the July–September ones, and are marked by id in each table below. **CB-38 … CB-40** are the last answers, given while Task 3G-B was
-being prepared.
+the July–September ones, and are marked by id in each table below. **CB-38 … CB-40** were given while Task 3G-B was
+being prepared. **CB-41 … CB-43** answered the questions the merged 2022–2026 workbook raised (2026-11-24); they also
+link the areas map's location records LOC-0002, LOC-0018 and LOC-0031 to their objects.
 
 ### Locations
 
@@ -62,6 +63,9 @@ being prepared.
 | CB-38 | `Qafur Məmmədov`, `Bayıl yolu`, `Novxanı`, `Bibiheybət`, `Axundov`, `Muzey Mərkəzi`, `Qara Qarayev`, `EXPO`, `ADNSU`, `İDEA`, `Space Tv qarşısı` | **each as written** | Business: a stable operational name is enough to be canonical; a formal or legal long name is not a precondition. | Create each `Location` exactly as the sheet spells it. **No expansion is invented for `EXPO`, `ADNSU` or `İDEA`.** A fuller display name can be set later without changing the record's identity, so this closes UR-04. |
 | CB-39 | `Qala baza` | a **Location** *and* a **Supplier** | Business: the name is valid in both roles. | Two records in two catalogs: `Location` "Qala baza" (60 rows) and `Supplier` "Qala baza" (197 rows). The entity types are never merged; sharing a name is not a conflict. Closes UR-02. |
 | CB-35 | `Azpetrol baza`, `Bağ`, `Mehdiabad` | three **separate** locations | Business answer. | Three distinct `Location` records; never merged with each other. `Mehtabad`, if it appears, is a spelling candidate for **Mehdiabad only** where the source row supports exactly that location — never assumed. |
+| CB-41 | `MDU` (423 rows, 2022-11 … 2026-08), `Moskva Dövlət Universiteti` (15 rows, 2026-09 … 2026-10) | **Moskva Dövlət Universiteti** | Business (2026-11-24): one and the same location. The two names never share a month, so the name changed in September 2026. The areas map's record LOC-0002 «MQU Universiteti» is this location. | One location; `MDU` becomes an alias. The owner writes the full name in the workbook's «Obyekt» column. Map: LOC-0002 → `moskva-dovlet-universiteti`. |
+| CB-42 | `Azərsu` (1222 rows, 2022-10 … 2026-01), `Yasamal (Azərsu)` (148 rows, 2026-02 … 2026-10) | **Azərsu** | Business (2026-11-24): one and the same location. The two names never share a month. The owner chose the short name. | One location; `Yasamal (Azərsu)` becomes an alias. The owner writes «Azərsu» in the workbook. No map record names it. |
+| CB-43 | `Bibiheybət`, `Bibiheybət məscidi` | two **separate** locations | Business (2026-11-24): two objects. Both order in the same months (35 of them). `Bibiheybət` is the areas map's LOC-0031 «Bibiheybət qəsəbəsi». `Bibiheybət məscidi` is LOC-0018, which has the same name. | Two `Location` records, never merged (NM-18). Map: LOC-0031 → `bibiheybet`, LOC-0018 → `bibiheybet-mescidi`. This closes the map's question of which pin «Bibiheybət» belongs to. |
 
 Answers CB-02 … CB-06 and CB-25 all chose the **longer, fuller form** as the canonical display name. That
 convention is applied to the data-backed location pairs below (DB-04).
@@ -347,6 +351,7 @@ propose them, and a bulk operation must not collapse them.
 | NM-15 | `ESPA` ≠ `Marsu` | **Business answer** (CB-28): different companies. No relationship may be inferred from product or brand names. |
 | NM-16 | `FAB` is never merged into another product | **Business answer** (CB-37). It replaces the retired DB-10 hypothesis that `FAB` meant `Şampun əl üçün D2`, whose only evidence was the June duplicate pairing that no longer exists. |
 | NM-17 | `Azpetrol baza` ≠ `Bağ` ≠ `Mehdiabad` (locations) | **Business answer** (CB-35): three separate objects. |
+| NM-18 | `Bibiheybət` ≠ `Bibiheybət məscidi` (locations) | **Business answer** (CB-43): two objects, the settlement and the mosque. One name containing the other is no reason to merge them. |
 
 ---
 
