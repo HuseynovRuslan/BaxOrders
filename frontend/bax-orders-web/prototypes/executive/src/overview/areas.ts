@@ -2,10 +2,10 @@ import type { AreaLocation } from '../data/areaLocations'
 import { FINANCE_LINK_CANDIDATES, FINANCE_LINKS, type FinanceLink, type FinanceLinkCandidate } from '../data/areaFinanceLinks'
 import type { Kind } from '../data/analysis'
 import { VISIBLE_LOCATIONS } from '../data/locationVisibility'
-import { allSuppliers, linesOfEveryYear, sites, type Line } from '../data/model'
+import { allSuppliers, linesOfEveryYear, monthsWithDataIn, sites, type Line } from '../data/model'
 import {
-  approvalSplit, hasMonth, isInProgress, linesIn, monthPairs, shareBy, statusOf,
-  type ApprovalSplit, type MonthPair, type ShareRow,
+  approvalSplit, hasMonth, isInProgress, linesIn, monthPairs, shareBy, statusOf, yearTotals,
+  type ApprovalSplit, type MonthPair, type ShareRow, type YearTotal,
 } from './metrics'
 import { amountFor, comparePeriod, type CompareMode, type PeriodComparison, type YearMonth } from './compare'
 
@@ -266,5 +266,56 @@ export function areaFigures(siteId: string, year: number, months: readonly numbe
       .sort((left, right) => right.amount - left.amount)
       .slice(0, 5),
     everOrdered: orderedEver.has(siteId),
+  }
+}
+
+/* ---- The object's years ------------------------------------------------------------------------------------------- */
+
+/** One year of an object, as the overview reads every object's years (`yearTotals`). */
+export type AreaYear = YearTotal
+
+/**
+ * Every year with figures, oldest first, for one object and one kind of order. A year it ordered nothing in is a real 0.
+ * With a focus year that is not whole, every other year also carries its amount over the focus year's months.
+ */
+export function areaYears(siteId: string, kind: Kind, focusYear: number): AreaYear[] {
+  return yearTotals(kind, focusYear, { siteId })
+}
+
+/** The object within its year: its part of every object's spending, its place among them and its monthly average. */
+export interface AreaYearFacts {
+  year: number
+  months: readonly number[]
+  amount: number
+  /** Every object's amount over the same months and kind. */
+  total: number
+  /** Null when nothing was spent at all. */
+  share: number | null
+  /** Its place among the objects that spent in those months, largest first; null when it spent nothing. */
+  rank: number | null
+  /** How many objects spent in those months. */
+  ranked: number
+  /** Over the months with figures; null for a year of one month. */
+  average: number | null
+  inProgress: boolean
+}
+
+export function areaYearFacts(siteId: string, year: number, kind: Kind): AreaYearFacts | null {
+  const months = monthsWithDataIn(year)
+  if (months.length === 0) return null
+  const rows = shareBy(year, months, kind, 'site')
+  const total = round2(rows.reduce((sum, row) => sum + row.amount, 0))
+  const index = rows.findIndex((row) => row.id === siteId)
+  const amount = index >= 0 ? rows[index].amount : 0
+  return {
+    year,
+    months,
+    amount,
+    total,
+    share: total > 0 ? amount / total : null,
+    rank: index >= 0 ? index + 1 : null,
+    ranked: rows.length,
+    average: months.length > 1 ? round2(amount / months.length) : null,
+    inProgress: months.some((month) => isInProgress(year, month)),
   }
 }

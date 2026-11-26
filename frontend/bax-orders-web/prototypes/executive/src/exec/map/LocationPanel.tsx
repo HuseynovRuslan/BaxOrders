@@ -11,17 +11,19 @@ import { money, monthName, percent, quantity, signedMoney } from '../../lib/form
 import { kindNames } from '../../lib/year'
 import { overviewLinks } from '../../overview/links'
 import { approvalDrifts, hasMonth, isInProgress } from '../../overview/metrics'
-import { ordersOf, type AreaFigures, type AreaOrder, type AreaRow, type MapArea } from '../../overview/areas'
+import { areaYearFacts, areaYears, ordersOf, type AreaFigures, type AreaOrder, type AreaRow, type MapArea } from '../../overview/areas'
 import { comparePeriod, isFuture, modeLabel, monthLabel, rangeLabel, type CompareMode, type PeriodComparison, type YearMonth } from '../../overview/compare'
 import { ChangeChip, FilterSelect } from '../ui'
 import { AreaMonthChart } from './AreaMonthChart'
+import { AreaYears } from './AreaYears'
 
 /*
  * «Ərazi analitikası» for one location. The head is the record itself — its name, id, «Ərazi rəhbəri», coordinates, the
  * source's review status and the way to open it on a map. The money comes only from the financial object the location is
  * linked to (overview/areas): without a confirmed link the panel says so and shows no figure. Three tabs: «İcmal» (the
  * period against its comparison, the twelve months, the categories), «Sifarişlər» (the period's orders, or one month's:
- * a click on a month of the chart opens it here) and «Məhsullar».
+ * a click on a month of the chart opens it here) and «Məhsullar». «İcmal» opens on the object's years («İllər üzrə»), so the
+ * period on screen is always read against its whole year and the years before it.
  */
 
 export type PanelTab = 'icmal' | 'sifarisler' | 'mehsullar'
@@ -56,7 +58,7 @@ export interface PanelContext {
   mode: CompareMode
 }
 
-export function LocationPanel({ row, figures, context, tab, drill, onView, onClose, onSelect, related }: {
+export function LocationPanel({ row, figures, context, tab, drill, onView, onYear, onClose, onSelect, related }: {
   row: AreaRow
   /** The linked object's figures over the period; null without a confirmed link. */
   figures: AreaFigures | null
@@ -65,6 +67,8 @@ export function LocationPanel({ row, figures, context, tab, drill, onView, onClo
   drill: number | null
   /** Shows a tab and/or a month's orders (null: the whole period's), in one step. */
   onView: (view: { tab?: PanelTab; drill?: number | null }) => void
+  /** Opens another year for the same location. */
+  onYear: (year: number) => void
   onClose: () => void
   onSelect: (id: string) => void
   /**
@@ -124,7 +128,7 @@ export function LocationPanel({ row, figures, context, tab, drill, onView, onClo
           </div>
           <Context context={context} comparison={row.comparison!} drill={tab === 'sifarisler' ? drill : null} />
           <div id="area-tabpanel" role="tabpanel" aria-labelledby={`area-tab-${tab}`} className="flex min-w-0 flex-col gap-3">
-            {tab === 'icmal' && <Summary row={row} figures={figures} context={context} drill={drill} onDrill={(month) => onView({ tab: 'sifarisler', drill: month })} onOrders={() => onView({ tab: 'sifarisler', drill: null })} />}
+            {tab === 'icmal' && <Summary row={row} figures={figures} context={context} drill={drill} onDrill={(month) => onView({ tab: 'sifarisler', drill: month })} onOrders={() => onView({ tab: 'sifarisler', drill: null })} onYear={onYear} />}
             {tab === 'sifarisler' && <Orders row={row} figures={figures} context={context} drill={drill} onDrill={(month) => onView({ drill: month })} onBack={() => onView({ tab: 'icmal', drill: null })} />}
             {tab === 'mehsullar' && <Products row={row} figures={figures} context={context} />}
           </div>
@@ -213,19 +217,28 @@ function Context({ context, comparison, drill }: { context: PanelContext; compar
 
 /* ---- İcmal -------------------------------------------------------------------------------------------------------- */
 
-function Summary({ row, figures, context, drill, onDrill, onOrders }: {
+function Summary({ row, figures, context, drill, onDrill, onOrders, onYear }: {
   row: AreaRow
   figures: AreaFigures | null
   context: PanelContext
   drill: number | null
   onDrill: (month: number) => void
   onOrders: () => void
+  onYear: (year: number) => void
 }) {
   const comparison = row.comparison!
+  const siteId = row.area.finance.state === 'linked' ? row.area.finance.siteId : null
+  const years = useMemo(() => (siteId ? areaYears(siteId, context.kind, context.year) : []), [siteId, context.kind, context.year])
+  const facts = useMemo(() => (siteId ? areaYearFacts(siteId, context.year, context.kind) : null), [siteId, context.year, context.kind])
   if (!figures) return null
   const single = context.span.length === 1
+  // The period chosen above, when it is only part of its year: where it stands in the year.
+  const part = facts && comparison.amount !== null && context.months.length > 0 && context.months.length < facts.months.length
+    ? { label: rangeLabel(context.span), amount: comparison.amount }
+    : null
   return (
     <>
+      {facts && <AreaYears years={years} facts={facts} kind={context.kind} period={part} onYear={onYear} />}
       <Kpis comparison={comparison} context={context} single={single} />
       <ComparisonNotes comparison={comparison} context={context} />
       <AreaMonthChart

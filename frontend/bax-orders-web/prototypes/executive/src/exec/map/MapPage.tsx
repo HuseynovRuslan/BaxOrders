@@ -64,7 +64,7 @@ export function MapPage() {
   const options = periodOptions(year)
   const asked = readPeriod(search)
   // Without a period in the address the year opens whole: «Bütün il» for a finished year, «İlin əvvəlindən» for the
-  // running one. A single month is one choice away.
+  // running one. A single month is one choice away, and never read without its year («İllər üzrə» in the panel).
   const period = options.find((option) => option.id === asked) ?? options[0] ?? null
   const span = useMemo(() => (period ? spanOf(year, period.span, lastMonth) : []), [period?.id, year, lastMonth]) // eslint-disable-line react-hooks/exhaustive-deps
   const months = useMemo(() => (period ? period.months.filter((month) => hasMonth(year, month)) : []), [period?.id, year]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -125,6 +125,8 @@ export function MapPage() {
     setSearch(next, { replace: true, preventScrollReset: true })
   }
   const select = (id: string | null) => write({ [params.area]: id, [params.drill]: null })
+  /** Another year, the same view: its period opens whole, as the year filter does. */
+  const chooseYear = (value: number) => write({ [params.year]: value === years.at(-1) ? null : String(value), [params.period]: null, [params.legacyMonth]: null, [params.drill]: null })
 
   // The address names the record on screen: an older link to a hidden duplicate is rewritten to the one shown.
   useEffect(() => {
@@ -209,7 +211,7 @@ export function MapPage() {
       <Heading
         filters={(
           <>
-            <FilterSelect icon={CalendarDays} label="İl" value={String(year)} options={[...years].reverse().map((item) => ({ value: String(item), label: String(item) }))} onChange={(value) => write({ [params.year]: value === String(years.at(-1)) ? null : value, [params.period]: null, [params.legacyMonth]: null, [params.drill]: null })} />
+            <FilterSelect icon={CalendarDays} label="İl" value={String(year)} options={[...years].reverse().map((item) => ({ value: String(item), label: String(item) }))} onChange={(value) => chooseYear(Number(value))} />
             <FilterSelect icon={CalendarDays} label="Dövr" value={period.id} options={periodChoices} onChange={(value) => write({ [params.period]: value, [params.legacyMonth]: null, [params.drill]: null })} />
             <FilterSelect
               icon={TrendingUp}
@@ -337,6 +339,7 @@ export function MapPage() {
                 ...(view.tab ? { [params.tab]: view.tab === 'icmal' ? null : view.tab } : {}),
                 ...(view.drill !== undefined ? { [params.drill]: view.drill === null ? null : String(view.drill) } : {}),
               })}
+              onYear={chooseYear}
               onClose={() => select(null)}
               onSelect={(id) => chooseFromList(id)}
               related={related}

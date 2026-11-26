@@ -459,13 +459,90 @@ describe('«Ərazilər xəritəsi», a page of its own', () => {
   })
 })
 
-describe('a year on the map', () => {
+describe('a location within its years', () => {
+  const years = () => screen.getByRole('heading', { level: 3, name: 'İllər üzrə' }).closest('section')!
+  const row = (year: number) => years().querySelector<HTMLButtonElement>(`button[data-year="${year}"]`)!
+
   it('opens the year whole when the address names no period: «İlin əvvəlindən» now, «Bütün il» for a finished year', async () => {
     await open('/xerite?erazi=LOC-0049')
     expect(screen.getByRole('combobox', { name: 'Dövr' })).toHaveTextContent('İlin əvvəlindən')
     cleanup()
     await open('/xerite?il=2025&erazi=LOC-0049')
     expect(screen.getByRole('combobox', { name: 'Dövr' })).toHaveTextContent('Bütün il')
+  })
+
+  it('says what the object spent in the year, its part of every object’s spending, its place and its monthly average', async () => {
+    await open('/xerite?erazi=LOC-0049')
+    await waitFor(panel)
+    const block = years()
+    // Alfa in 2026, monthly: 9 × 120 + 200 = 1.280 ₼ over ten months (July has no figures); with Beta's 450 ₼, 1.730 ₼.
+    expect(within(block).getByText('2026, Yan–Noy, İyl yoxdur:')).toBeInTheDocument()
+    expect(within(block).getAllByText('1.280 ₼').length).toBeGreaterThan(0)
+    expect(within(block).getByText('74,0%')).toBeInTheDocument()
+    expect(within(block).getByText('(1.730 ₼)')).toBeInTheDocument()
+    expect(within(block).getByText('1-ci')).toBeInTheDocument()
+    expect(within(block).getByText('(2 obyekt arasında)')).toBeInTheDocument()
+    expect(within(block).getByText('128 ₼')).toBeInTheDocument()
+    expect(within(block).getByText('(10 ay)')).toBeInTheDocument()
+    // Every year with figures: 2025 whole, 2026 not — said, and not set against the whole year. Under 2025's whole
+    // 1.200 ₼, its amount over 2026's months — the 1.000 ₼ the comparison above stands on.
+    expect(row(2025)).toHaveTextContent('Yan–Dek')
+    expect(row(2025)).toHaveTextContent('1.200 ₼')
+    expect(row(2025)).toHaveTextContent('Yan–Noy, İyl yoxdur: 1.000 ₼')
+    expect(within(panel()).getAllByRole('definition').some((item) => item.textContent === '1.000 ₼')).toBe(true)
+    expect(row(2026)).toHaveTextContent('Yan–Noy, İyl yoxdur')
+    expect(row(2026)).toHaveAttribute('aria-current', 'true')
+    expect(within(block).getByText(/^2026 natamamdır \(Yan–Noy, İyl yoxdur\): hər ilin altındakı «Yan–Noy, İyl yoxdur» məbləği/)).toBeInTheDocument()
+    expect(within(block).getByText(/Noyabr 2026 davam edir/)).toBeInTheDocument()
+    expect(block.textContent).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('places a month within its year', async () => {
+    await open('/xerite?erazi=LOC-0049&dovr=m4')
+    await waitFor(panel)
+    // April 2026: 200 ₼ of Alfa's 1.280 ₼.
+    expect(within(years()).getByText('Aprel 2026 bu ilin:')).toBeInTheDocument()
+    expect(within(years()).getByText('15,6%')).toBeInTheDocument()
+    expect(within(years()).getByText('(200 ₼)')).toBeInTheDocument()
+  })
+
+  it('reads the second place, and an object that ordered nothing of the kind as such — never 0 ₼', async () => {
+    await open('/xerite?erazi=LOC-0046')
+    await waitFor(panel)
+    // Beta: 450 ₼ of 1.730 ₼ in 2026.
+    expect(within(years()).getByText('2-ci')).toBeInTheDocument()
+    expect(within(years()).getByText('26,0%')).toBeInTheDocument()
+    cleanup()
+
+    // Delta has no monthly order at all.
+    await open('/xerite?erazi=LOC-0018')
+    await waitFor(panel)
+    expect(within(years()).getByText('bu il sifariş verilməyib')).toBeInTheDocument()
+    expect(row(2025)).toHaveTextContent('sifariş yoxdur')
+    expect(row(2026)).toHaveTextContent('sifariş yoxdur')
+    expect(within(years()).queryByText('Aylıq orta:')).not.toBeInTheDocument()
+    cleanup()
+
+    // Every kind: Alfa 1.320 ₼, Beta 450 ₼, Delta's 20 ₼ in January — the third of three.
+    await open('/xerite?erazi=LOC-0018&nov=hamisi')
+    await waitFor(panel)
+    expect(within(years()).getByText('3-cü')).toBeInTheDocument()
+    expect(within(years()).getByText('(3 obyekt arasında)')).toBeInTheDocument()
+  })
+
+  it('opens another year from the list, the location and its view kept', async () => {
+    const router = await open('/xerite?erazi=LOC-0049&dovr=m4&muq=evvelki')
+    await waitFor(panel)
+    await userEvent.click(row(2025))
+    expect(params(router).get('il')).toBe('2025')
+    expect(params(router).get('dovr')).toBeNull()
+    expect(params(router).get('erazi')).toBe('LOC-0049')
+    expect(params(router).get('muq')).toBe('evvelki')
+    expect(row(2025)).toHaveAttribute('aria-current', 'true')
+    expect(within(years()).getByText('2025, bütün il:')).toBeInTheDocument()
+    // A whole focus year needs no same-months figure beside the others.
+    expect(years().textContent).not.toMatch(/Yan–Dek: /)
+    expect(within(years()).queryByText(/eyni aylarıdır/)).not.toBeInTheDocument()
   })
 })
 
