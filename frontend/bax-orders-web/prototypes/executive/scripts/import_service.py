@@ -264,6 +264,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.reply(409, dict(error='Rəqəmlər yoxlamadan sonra dəyişib. Yenidən yoxlayın. Rəqəmlər dəyişmədi.'))
         return True
 
+    def refused_code(self, code, closed='bu addım bağlıdır'):
+        """Replies and says so unless the Rəhbər's code is right; a guesser is slowed down, and stopped for a while."""
+        if not REHBER_CODE:
+            self.reply(403, dict(error=f'Rəhbər kodu serverdə təyin edilməyib: {closed}.'))
+            return True
+        now = time.monotonic()
+        code_failures[:] = [t for t in code_failures if now - t < 600]
+        if len(code_failures) >= 10:
+            self.reply(429, dict(error='Çox səhv kod cəhdi oldu. 10 dəqiqə sonra yenidən yoxlayın.'))
+            return True
+        if not hmac.compare_digest(str(code or '').strip().encode(), REHBER_CODE):
+            code_failures.append(now)
+            time.sleep(1)
+            self.reply(401, dict(error='Rəhbər kodu səhvdir.'))
+            return True
+        return False
+
     def import_workbook(self, workbook, mode):
         if not workbook:
             return self.reply(400, dict(error='Fayl boşdur.'))
@@ -355,16 +372,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         action = request.get('action', 'approve')
         if not 1 <= month <= 12 or not 2000 <= year <= 2100 or action not in ('approve', 'revoke'):
             return self.reply(400, dict(error='Sorğu oxunmadı.'))
-        if not REHBER_CODE:
-            return self.reply(403, dict(error='Rəhbər kodu serverdə təyin edilməyib: təsdiq bağlıdır.'))
-        now = time.monotonic()
-        code_failures[:] = [t for t in code_failures if now - t < 600]
-        if len(code_failures) >= 10:
-            return self.reply(429, dict(error='Çox səhv kod cəhdi oldu. 10 dəqiqə sonra yenidən yoxlayın.'))
-        if not hmac.compare_digest(str(request.get('code', '')).strip().encode(), REHBER_CODE):
-            code_failures.append(now)
-            time.sleep(1)
-            return self.reply(401, dict(error='Rəhbər kodu səhvdir.'))
+        if self.refused_code(request.get('code', ''), closed='təsdiq bağlıdır'):
+            return
 
         raw = current_bytes()
         data = json.loads(raw) if raw else {}
