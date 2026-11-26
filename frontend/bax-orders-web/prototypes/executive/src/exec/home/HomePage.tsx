@@ -7,8 +7,8 @@ import { kindNames, updatedText } from '../../lib/year'
 import { buildInsights } from '../../overview/insights'
 import { kindParam, overviewLinks } from '../../overview/links'
 import {
-  approvalSplit, compareYears, isInProgress, latestYear, monthPairs, monthsFor, periodById, periodOptions, periodTotal, previousYearOf, shareBy, shortRange,
-  type StatusFilter,
+  approvalSplit, compareYears, isInProgress, latestYear, monthPairs, monthsFor, periodById, periodOptions, periodTotal, previousYearOf, reportingYears,
+  shareBy, shortRange, type StatusFilter,
 } from '../../overview/metrics'
 import { freshness } from '../../overview/status'
 import { EmptyNote, FilterSelect, type SelectOption } from '../ui'
@@ -16,12 +16,14 @@ import { ApprovalStatus, InsightList, KpiCards, Methodology, ShareCard, UpdateHi
 import { YoyChart } from './YoyChart'
 
 /*
- * «Ümumi baxış» (Konsept A.3): the executive's first screen. The latest year against the year before over the same
- * months, what waits for approval, month by month, where the money went, and how current the figures are. One set of
- * filters — the period, the kind of order, the approval — lives in the address and every card reads it, so no two
- * cards ever speak of different months. The year cards open the year screens as they are (`/2025`, `/2026`).
+ * «Ümumi baxış» (Konsept A.3): the executive's first screen. A year — the latest unless «İl» names another — against the
+ * year before over the same months, what waits for approval, month by month,
+ * where the money went, and how current the figures are. One set of filters — the year, the period, the kind of order,
+ * the approval — lives in the address and every card reads it, so no two cards ever speak of different months. The year
+ * cards open the year screens as they are (`/2025`, `/2026`).
  */
 
+const yearParam = 'il'
 const periodParam = 'dovr'
 const statusParam = 'status'
 const statusValues: Record<StatusFilter, string> = { all: '', approved: 'tesdiq', pending: 'gozleyir' }
@@ -32,7 +34,11 @@ export function readStatus(value: string | null): StatusFilter {
 
 export function HomePage() {
   const [params, setParams] = useSearchParams()
-  const focusYear = latestYear()
+  // The years with a monthly package, from the figures themselves; the latest unless the address names another.
+  const years = reportingYears()
+  const latest = years.at(-1) ?? latestYear()
+  const askedYear = Number(params.get(yearParam))
+  const focusYear = years.includes(askedYear) ? askedYear : latest
   const previousYear = previousYearOf(focusYear)
   const kind = readKind(params.get(kindParam))
   // Approval is the monthly package's: under another kind the filter has nothing to choose.
@@ -67,6 +73,9 @@ export function HomePage() {
     setParams(next, { replace: true, preventScrollReset: true })
   }
 
+  /** Another year on screen: its period opens whole, the kind and the approval filter stay. */
+  const chooseYear = (year: number) => write({ [yearParam]: year === latest ? null : String(year), [periodParam]: null })
+
   const fresh = freshness()
   const total = view.sites.reduce((sum, row) => sum + row.amount, 0)
 
@@ -98,6 +107,13 @@ export function HomePage() {
         fresh={fresh}
         filters={(
           <>
+            <FilterSelect
+              icon={CalendarDays}
+              label="İl"
+              value={String(focusYear)}
+              options={[...years].reverse().map((year) => ({ value: String(year), label: String(year) }))}
+              onChange={(value) => chooseYear(Number(value))}
+            />
             <FilterSelect icon={CalendarDays} label="Dövr" value={period.id} options={periodChoices} onChange={(value) => write({ [periodParam]: value === 'ytd' ? null : value })} />
             <FilterSelect
               icon={Filter}
@@ -157,7 +173,7 @@ export function HomePage() {
               hrefOf={(row) => overviewLinks.siteYear(focusYear, row.id, kind)}
               more={(
                 <span className="flex gap-4">
-                  <Link to={overviewLinks.map()} className="inline-flex items-center gap-1.5 font-semibold text-(--x-link) underline-offset-4 hover:underline"><MapIcon aria-hidden="true" className="size-4" />Xəritədə</Link>
+                  <Link to={overviewLinks.map(focusYear === latest ? undefined : { il: String(focusYear) })} className="inline-flex items-center gap-1.5 font-semibold text-(--x-link) underline-offset-4 hover:underline"><MapIcon aria-hidden="true" className="size-4" />Xəritədə</Link>
                   <Link to={overviewLinks.grouped(focusYear, 'obyekt', kind)} className="font-semibold text-(--x-link) underline-offset-4 hover:underline">Hamısı ({view.sites.length})</Link>
                 </span>
               )}

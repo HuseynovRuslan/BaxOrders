@@ -192,3 +192,24 @@ describe('the overview’s filters', () => {
     expect(screen.getByRole('link', { name: /^2026 ilinin paneli: Aylıqdan kənar/ })).toHaveAttribute('href', '/2026?nov=kenar')
   })
 })
+
+describe('the overview’s years', () => {
+  it('puts another year on screen from «İl», and names no year before the first', async () => {
+    const router = open('/')
+    await screen.findByRole('heading', { level: 1, name: 'İdarəetmə mərkəzi' })
+    await choose('İl', '2025')
+    expect(new URLSearchParams(router.state.location.search).get('il')).toBe('2025')
+    expect(screen.getByRole('link', { name: /^2025 ilinin paneli/ })).toHaveAttribute('href', '/2025')
+    expect(screen.getAllByText('2025 məlumatın ilk ilidir — müqayisə yoxdur').length).toBeGreaterThan(0)
+    expect(screen.getByText('Əvvəlki il')).toBeInTheDocument()
+    // With no year before it, none of its months is «left out of the comparison»: its card says what it covers.
+    expect(screen.queryByText(/müqayisəyə daxil deyil/)).not.toBeInTheDocument()
+    expect(screen.getByText('Tam il · 12 ay')).toBeInTheDocument()
+    expect(screen.getByRole('main').textContent).not.toContain('2024')
+    expect(screen.getByRole('link', { name: 'Xəritədə' })).toHaveAttribute('href', '/xerite?il=2025')
+
+    await choose('İl', '2026')
+    expect(new URLSearchParams(router.state.location.search).get('il')).toBeNull()
+    expect(screen.getByRole('link', { name: /^2026 ilinin paneli/ })).toHaveAttribute('href', '/2026')
+  })
+})
