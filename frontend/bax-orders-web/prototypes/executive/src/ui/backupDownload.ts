@@ -14,7 +14,8 @@ export type BackupState =
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-function save(bytes: Uint8Array, fileName: string) {
+/** Hands an Excel file to the browser to save, under its name. */
+export function saveExcel(bytes: Uint8Array, fileName: string) {
   const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: XLSX }))
   const link = document.createElement('a')
   link.href = url
@@ -39,7 +40,7 @@ export function useBackupDownload() {
       // A moment for «Hazırlanır…» to show before the file is made in one go.
       await new Promise((resolve) => window.setTimeout(resolve, 0))
       const { bytes, fileName, lines } = siteBackup(new Date())
-      save(bytes, fileName)
+      saveExcel(bytes, fileName)
       setState({ kind: 'done', fileName, lines })
     } catch (error) {
       const reason = error instanceof Error && error.name === 'BackupError' ? ` ${error.message}` : ' Səhifəni yeniləyib yenidən yoxlayın.'
