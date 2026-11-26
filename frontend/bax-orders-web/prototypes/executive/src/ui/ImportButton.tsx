@@ -34,10 +34,10 @@ interface Moved { year?: number; month: number; monthName: string; kind: 'monthl
 export interface Changes { linesBefore: number; linesAfter: number; moved: Moved[] }
 interface Version { source: string | null; importedAt: string | null; edits: number; lastEdit: { at: string; text: string } | null }
 /** The server's answer to a check or an apply: an import carries the report, an undo the two versions. */
-interface Answer { ok: true; mode: 'check' | 'apply'; base?: string; report?: Report; changes: Changes; current?: Version; restore?: Version; editsLost?: number }
+export interface Answer { ok: true; mode: 'check' | 'apply'; base?: string; report?: Report; changes: Changes; current?: Version; restore?: Version; editsLost?: number }
 
 /** One step against the import service: the key, the check's fingerprint on an apply, and the answer or why not. */
-export async function callApi(path: 'import' | 'undo' | 'catalog' | 'approve', step: 'check' | 'apply', key: string, init: { body?: BodyInit | null; headers?: Record<string, string>; base?: string } = {}) {
+export async function callApi(path: 'import' | 'undo' | 'catalog' | 'approve' | 'history/restore', step: 'check' | 'apply', key: string, init: { body?: BodyInit | null; headers?: Record<string, string>; base?: string } = {}) {
   const headers: Record<string, string> = { ...(key ? { 'X-Import-Key': key } : {}), ...init.headers }
   if (init.base) headers['X-Base'] = init.base
   try {
@@ -325,12 +325,16 @@ export function OutcomeBox({ done, heading, children }: { done: boolean; heading
   )
 }
 
+const doneHeadings: Record<Action | 'restore', string> = {
+  import: 'Yükləndi: rəqəmlər hamı üçün yeniləndi.',
+  undo: 'Geri qaytarıldı: əvvəlki rəqəmlər bərpa olundu.',
+  restore: 'Qaytarıldı: rəqəmlər hamı üçün bu faylın rəqəmləridir.',
+}
+
 /** What a check found, or what an apply did: the file or the versions, the months that move, and what to watch. */
-function Outcome({ answer, action, done }: { answer: Answer; action: Action; done: boolean }) {
+export function Outcome({ answer, action, done }: { answer: Answer; action: Action | 'restore'; done: boolean }) {
   const { report, changes } = answer
-  const heading = done
-    ? action === 'import' ? 'Yükləndi: rəqəmlər hamı üçün yeniləndi.' : 'Geri qaytarıldı: əvvəlki rəqəmlər bərpa olundu.'
-    : 'Yoxlandı — hələ heç nə dəyişməyib.'
+  const heading = done ? doneHeadings[action] : 'Yoxlandı — hələ heç nə dəyişməyib.'
   const months = report ? Object.keys(report.months).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) : []
   const sum = (kind: 'monthly' | 'outside') => months.reduce((total, month) => total + report!.months[month][kind], 0)
   const lost = changes.moved.filter((item) => item.before > 0 && item.after === 0)
