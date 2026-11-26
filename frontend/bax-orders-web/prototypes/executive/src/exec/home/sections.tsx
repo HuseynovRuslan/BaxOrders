@@ -67,7 +67,8 @@ function CardShell({ icon: Icon, label, children, note, href, linkLabel }: {
 
 /** «Eyni 11 ay üzrə müqayisə» — or why there is no comparison. */
 function alignedNote(comparison: YearComparison): string {
-  if (comparison.previousYear === null) return `${comparison.focusYear - 1} üçün məlumat yoxdur — müqayisə mümkün deyil`
+  // A year before the figures' first is never named: it has no figures, not even 0 (owner, 2026-11-24).
+  if (comparison.previousYear === null) return YEARS[0] === comparison.focusYear ? `${comparison.focusYear} məlumatın ilk ilidir — müqayisə yoxdur` : 'Əvvəlki ilin məlumatı yoxdur — müqayisə mümkün deyil'
   if (comparison.aligned.length === 0) return 'Bu aylar üçün əvvəlki ildə məlumat yoxdur'
   const count = comparison.aligned.length
   return count === 1 ? `Eyni ay üzrə müqayisə: ${monthName(comparison.aligned[0])}` : `Eyni ${count} ay üzrə müqayisə`
@@ -128,14 +129,14 @@ export function KpiCards({ comparison, kind, pending, period, status, previousTo
         label={`${focusYear} · ${range}`}
         href={hasYear(focusYear) ? overviewLinks.year(focusYear, kind) : undefined}
         linkLabel={`${focusYear} ilinin paneli: ${kindNames[kind]}, ${longRange(comparison.months)} — ${money(comparison.current)}`}
-        note={comparison.unmatched.length ? `${comparison.unmatched.map(monthName).join(', ')} müqayisəyə daxil deyil` : focusNote}
+        note={previousYear !== null && comparison.unmatched.length ? `${comparison.unmatched.map(monthName).join(', ')} müqayisəyə daxil deyil` : focusNote}
       >
         <Amount value={comparison.current} />
       </CardShell>
 
       <CardShell
         icon={CalendarDays}
-        label={`${previousYear ?? focusYear - 1} · ${earlier && earlier.months.length ? earlier.range : range}`}
+        label={previousYear === null ? 'Əvvəlki il' : `${previousYear} · ${earlier && earlier.months.length ? earlier.range : range}`}
         href={previousYear !== null ? overviewLinks.year(previousYear, kind) : undefined}
         linkLabel={earlier ? `${previousYear} ilinin paneli: ${kindNames[kind]}, ${longRange(earlier.months)} — ${money(earlier.amount)}` : undefined}
         note={earlier?.note ?? note}

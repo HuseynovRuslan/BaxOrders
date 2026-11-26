@@ -16,7 +16,9 @@ describe('the overview with a single year', () => {
   it('says there is nothing to compare with instead of inventing a comparison', async () => {
     render(<RouterProvider router={createMemoryRouter(appRoutes(''), { initialEntries: ['/'] })} />)
     expect(await screen.findByRole('heading', { level: 1, name: 'İdarəetmə mərkəzi' })).toBeInTheDocument()
-    expect(screen.getAllByText('2025 üçün məlumat yoxdur — müqayisə mümkün deyil').length).toBeGreaterThan(0)
+    // The year before the first is never named: it has no figures, not even 0.
+    expect(screen.getAllByText('2026 məlumatın ilk ilidir — müqayisə yoxdur').length).toBeGreaterThan(0)
+    expect(screen.getByText('Əvvəlki il')).toBeInTheDocument()
     expect(screen.getByText('Müqayisə yoxdur')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^2025 ilinin paneli/ })).not.toBeInTheDocument()
     expect(screen.getByText(/Demo məlumat/)).toBeInTheDocument()
