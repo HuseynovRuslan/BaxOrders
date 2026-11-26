@@ -194,7 +194,21 @@ describe('the overview’s filters', () => {
 })
 
 describe('the overview’s years', () => {
-  it('puts another year on screen from «İl», and names no year before the first', async () => {
+  const chart = () => screen.getByRole('heading', { level: 2, name: /İllər üzrə xərc/ }).closest('section')!
+  const bar = (year: number) => chart().querySelector<HTMLButtonElement>(`button[data-year="${year}"]`)!
+
+  it('draws every year whole, and under a year that is not whole the others over its months — the base of the change', async () => {
+    open('/')
+    await screen.findByRole('heading', { level: 1, name: 'İdarəetmə mərkəzi' })
+    expect(bar(2026)).toHaveAttribute('aria-current', 'true')
+    // 2025 whole: 12 × 150 ₼. Over 2026's ten months (July has no figures): 1.500 ₼, against 2026's 1.730 ₼.
+    expect(bar(2025)).toHaveAccessibleName('2025, Yan–Dek: 1.800 ₼; Yan–Noy, İyl yoxdur: 1.500 ₼')
+    expect(bar(2026)).toHaveAccessibleName('2026, Yan–Noy, İyl yoxdur: 1.730 ₼; 2025 ilinə görə, Yan–Noy, İyl yoxdur: +230 ₼, +15,3%; il davam edir; ekrandadır')
+    expect(within(chart()).getByText(/^2026 natamamdır \(Yan–Noy, İyl yoxdur\): sütunların alt hissəsi digər illərin eyni aylarıdır/)).toBeInTheDocument()
+    expect(chart().textContent).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('puts another year on screen from «İl» or from its bar, and names no year before the first', async () => {
     const router = open('/')
     await screen.findByRole('heading', { level: 1, name: 'İdarəetmə mərkəzi' })
     await choose('İl', '2025')
@@ -207,9 +221,11 @@ describe('the overview’s years', () => {
     expect(screen.getByText('Tam il · 12 ay')).toBeInTheDocument()
     expect(screen.getByRole('main').textContent).not.toContain('2024')
     expect(screen.getByRole('link', { name: 'Xəritədə' })).toHaveAttribute('href', '/xerite?il=2025')
+    // A whole year on screen: no year needs a same-months figure.
+    expect(bar(2025)).toHaveAccessibleName('2025, Yan–Dek: 1.800 ₼; ekrandadır')
 
-    await choose('İl', '2026')
+    await userEvent.click(bar(2026))
     expect(new URLSearchParams(router.state.location.search).get('il')).toBeNull()
-    expect(screen.getByRole('link', { name: /^2026 ilinin paneli/ })).toHaveAttribute('href', '/2026')
+    expect(bar(2026)).toHaveAttribute('aria-current', 'true')
   })
 })

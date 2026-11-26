@@ -8,16 +8,17 @@ import { buildInsights } from '../../overview/insights'
 import { kindParam, overviewLinks } from '../../overview/links'
 import {
   approvalSplit, compareYears, isInProgress, latestYear, monthPairs, monthsFor, periodById, periodOptions, periodTotal, previousYearOf, reportingYears,
-  shareBy, shortRange, type StatusFilter,
+  shareBy, shortRange, yearTotals, type StatusFilter,
 } from '../../overview/metrics'
 import { freshness } from '../../overview/status'
 import { EmptyNote, FilterSelect, type SelectOption } from '../ui'
 import { ApprovalStatus, InsightList, KpiCards, Methodology, ShareCard, UpdateHistory } from './sections'
+import { YearsChart } from './YearsChart'
 import { YoyChart } from './YoyChart'
 
 /*
  * «Ümumi baxış» (Konsept A.3): the executive's first screen. A year — the latest unless «İl» names another — against the
- * year before over the same months, what waits for approval, month by month,
+ * year before over the same months, every year beside it («İllər üzrə xərc»), what waits for approval, month by month,
  * where the money went, and how current the figures are. One set of filters — the year, the period, the kind of order,
  * the approval — lives in the address and every card reads it, so no two cards ever speak of different months. The year
  * cards open the year screens as they are (`/2025`, `/2026`).
@@ -59,7 +60,8 @@ export function HomePage() {
     // is still read over the months both years have. Under an approval filter the months are the focus year's choice, so
     // the earlier year is read over the same ones and this stays null.
     const previousTotal = previousYear !== null && period && status === 'all' ? periodTotal(previousYear, period.span, kind) : null
-    return { months, comparison, pairs, pending: { amount: pendingSplit.pending, months: pendingSplit.pendingMonths }, sites, roots, insights, running, previousTotal }
+    const totals = yearTotals(kind, focusYear)
+    return { months, comparison, pairs, pending: { amount: pendingSplit.pending, months: pendingSplit.pendingMonths }, sites, roots, insights, running, previousTotal, totals }
     // The period is looked up afresh each render; its id is what changes the figures.
   }, [focusYear, previousYear, period?.id, status, kind]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -154,6 +156,10 @@ export function HomePage() {
             running={view.running}
           />
           <Methodology comparison={view.comparison} kind={kind} inProgress={view.running} previousTotal={view.previousTotal} />
+
+          {view.totals.length > 1 && (
+            <YearsChart years={view.totals} focusYear={focusYear} kind={kind} filtered={status !== 'all' || period.id !== 'ytd'} onYear={chooseYear} />
+          )}
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
             <YoyChart key={`${period.id}-${kind}-${status}`} pairs={view.pairs} focusYear={focusYear} previousYear={previousYear} kind={kind} />
