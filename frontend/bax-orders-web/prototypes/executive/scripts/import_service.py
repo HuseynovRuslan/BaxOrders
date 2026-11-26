@@ -54,9 +54,11 @@ APPROVALS_FILE = os.path.join(DATA_DIR, 'approvals.json')
 REHBER_CODE = os.environ.get('REHBER_CODE', '').encode()
 REHBER_NAME = os.environ.get('REHBER_NAME', '') or 'Rəhbər'
 MAX_BYTES = 25 * 1024 * 1024
-KEEP = 100  # history entries kept, by time
+KEEP = 100  # history entries kept, by time — every uploaded workbook is kept besides, for good (owner, 2026-11-25)
 BAKU = datetime.timezone(datetime.timedelta(hours=4))
 BEFORE = '-oncesi.json'  # the figures an import replaced: what an undo restores
+WORKBOOK_META = '.meta.json'  # beside a kept workbook: its name as uploaded, when, its lines and years
+STAMP = re.compile(r'^(\d{8}T\d{6})(\d{6})-')
 
 lock = threading.Lock()
 failures = []  # when a wrong key came, for slowing a guesser down
@@ -148,10 +150,17 @@ def new_stamp(now):
     return stamp
 
 
+def is_workbook(entry):
+    """A workbook as it was uploaded — «<stamp>-<name>»; the history's other entries are figures and notes (.json)."""
+    return bool(STAMP.match(entry)) and not entry.endswith(('.json', '.geri', '.tmp'))
+
+
 def prune():
-    """The oldest history entries go; a failure here is logged — the figures have already changed."""
+    """The oldest history entries go, but never a workbook or its note: every workbook ever uploaded can be downloaded
+    and brought back (owner, 2026-11-25). A failure here is logged — the figures have already changed."""
     try:
-        entries = sorted(os.listdir(HISTORY_DIR))
+        entries = sorted(entry for entry in os.listdir(HISTORY_DIR)
+                         if not is_workbook(entry) and not entry.endswith(WORKBOOK_META))
         for old in sorted({entry.split('-', 1)[0] for entry in entries})[:-KEEP]:
             for entry in entries:
                 if entry.split('-', 1)[0] == old:
@@ -311,7 +320,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             if raw:
                 before = keep(f'{stamp}{BEFORE}', raw)  # the current figures are kept before anything changes
-            keep(f'{stamp}-{re.sub(r"[^A-Za-z0-9._-]+", "_", name)[-120:] or "kitab.xlsx"}', workbook)
+            entry = f'{stamp}-{re.sub(r"[^A-Za-z0-9._-]+", "_", name)[-120:] or "kitab.xlsx"}'
+            keep(entry, workbook)
+            keep(entry + WORKBOOK_META, json.dumps(dict(
+                file=name, importedAt=data['meta']['importedAt'], lines=report['lines'], years=data['meta'].get('years'),
+                sha256=data['meta'].get('sha256')), ensure_ascii=False).encode())
             write_figures(json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode())
         except OSError:
             traceback.print_exc()
