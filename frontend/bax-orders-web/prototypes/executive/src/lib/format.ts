@@ -75,6 +75,16 @@ export function percent(value: number | null | undefined, signed = true): string
   return `${sign}${text}%`
 }
 
+const unitSuffixes = ['', 'ci', 'ci', 'cü', 'cü', 'ci', 'cı', 'ci', 'ci', 'cu']
+const tenSuffixes = ['', 'cu', 'ci', 'cu', 'cı', 'ci', 'cı', 'ci', 'ci', 'cı']
+
+/** «1-ci», «3-cü», «6-cı», «9-cu», «40-cı», «100-cü»: the suffix follows the last word of the number said aloud. */
+export function ordinal(value: number): string {
+  const n = Math.abs(Math.trunc(value))
+  const suffix = n % 10 ? unitSuffixes[n % 10] : n % 100 ? tenSuffixes[(n % 100) / 10] : n % 1000 ? 'cü' : 'ci'
+  return `${group(String(n))}-${suffix}`
+}
+
 export function quantity(value: number | null | undefined, unit?: string | null): string {
   if (value === null || value === undefined) return '—'
   const whole = Math.abs(value - Math.round(value)) < 0.05
