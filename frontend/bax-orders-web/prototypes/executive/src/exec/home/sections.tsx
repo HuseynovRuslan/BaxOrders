@@ -14,6 +14,8 @@ import {
 import type { Insight } from '../../overview/insights'
 import { sourceInfo } from '../../overview/status'
 import { useBackupDownload } from '../../ui/backupDownload'
+import { importEnabled } from '../../ui/ImportButton'
+import { KeptWorkbooks } from '../../ui/KeptWorkbooks'
 import { CardTitle, ChangeChip, Swatch } from '../ui'
 
 /* ---- KPI cards ------------------------------------------------------------------------------------------------------- */
@@ -494,6 +496,8 @@ export function UpdateHistory() {
               </ul>
             )}
           </div>
+          {/* Every workbook ever uploaded, to download or bring back (owner, 2026-11-25); only where the service runs. */}
+          {importEnabled && <div className="md:col-span-2"><KeptWorkbooks editsSince={info.edits.length} /></div>}
         </div>
       )}
     </section>
