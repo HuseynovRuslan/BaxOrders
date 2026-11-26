@@ -12,8 +12,9 @@ import type { AreaYear, AreaYearFacts } from '../../overview/areas'
  * not-whole year on screen («2026 · Yan–Noy») every year that has those months also shows its amount over them
  * («Yan–Noy: 1.000 ₼», the left part of its bar): the figure the comparison above stands on, so «2025» is never two
  * unexplained numbers. Beside a whole year on screen, a year that is not whole is only outlined: shown, never read
- * against it. A year the object ordered nothing in is a real 0 — «sifariş yoxdur» — since the year has figures.
- * A click on a year opens it.
+ * against it. A year the object ordered nothing in is a real 0 — «sifariş yoxdur» — since the year has figures; the
+ * years before an object's first order are said in one line with that first order («2022–2025 … — ilk sifariş Aprel
+ * 2026»), and its monthly average counts only the months since. A click on a year opens it.
  */
 
 export function AreaYears({ years, facts, kind, period, onYear }: {
@@ -26,11 +27,18 @@ export function AreaYears({ years, facts, kind, period, onYear }: {
 }) {
   const largest = Math.max(0, ...years.map((item) => item.amount))
   const whole = facts.months.length === 12
-  const partial = years.some((item) => !item.whole && item.year !== facts.year)
+  const partial = years.some((item) => !item.whole && item.year !== facts.year && item.amount > 0)
   const running = facts.months.find((month) => isInProgress(facts.year, month)) ?? null
   // The focus year's months: beside a whole year, its amount over these is the one the comparison above uses.
   const focusRange = monthsLabel(facts.months)
-  const sameMonths = years.some((item) => item.sameMonths !== null)
+  const sameMonths = years.some((item) => item.sameMonths !== null && item.amount > 0)
+  // An object that came in after the figures begin: its first order is said, and the years before it are one line.
+  const { firstOrder, firstFigures } = facts
+  const newcomer = firstOrder !== null && firstFigures !== null
+    && (firstOrder.year > firstFigures.year || (firstOrder.year === firstFigures.year && firstOrder.month > firstFigures.month))
+  const lead = years.findIndex((item) => item.amount > 0)
+  const before = lead > 0 && years.slice(0, lead).every((item) => item.year !== facts.year) ? years.slice(0, lead) : []
+  const shown = years.slice(before.length)
 
   return (
     <section aria-labelledby="area-years" className="flex min-w-0 flex-col gap-3 rounded-xl border border-(--x-line) px-3.5 pb-3 pt-3">
@@ -57,8 +65,11 @@ export function AreaYears({ years, facts, kind, period, onYear }: {
         {facts.average !== null && facts.rank !== null && (
           <li className="flex flex-wrap gap-x-1.5">
             <span className="text-(--x-ink-2)">Aylıq orta:</span><span className="tnum font-bold">{money(facts.average)}</span>
-            <span className="text-(--x-muted)">({facts.months.length} ay)</span>
+            <span className="text-(--x-muted)">({facts.averageMonths.length < facts.months.length ? `${monthsLabel(facts.averageMonths)}, ` : ''}{facts.averageMonths.length} ay)</span>
           </li>
+        )}
+        {newcomer && facts.firstOrder && (
+          <li className="flex flex-wrap gap-x-1.5"><span className="text-(--x-ink-2)">İlk sifariş:</span><span className="font-bold">{monthName(facts.firstOrder.month)} {facts.firstOrder.year}</span></li>
         )}
         {period && facts.amount > 0 && (
           <li className="flex flex-wrap gap-x-1.5"><span className="text-(--x-ink-2)">{period.label} bu ilin:</span><span className="tnum font-bold">{percent(period.amount / facts.amount, false)}</span><span className="tnum text-(--x-muted)">({money(period.amount)})</span></li>
@@ -66,7 +77,14 @@ export function AreaYears({ years, facts, kind, period, onYear }: {
       </ul>
 
       <ol aria-label="İllər" className="flex flex-col gap-1">
-        {years.map((item) => {
+        {before.length > 0 && (
+          // Years before the object's first order: real zeros, said once rather than as a row of empty bars.
+          <li data-before className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-lg px-2 py-1.5 text-[13px] text-(--x-ink-2)">
+            <span className="tnum font-semibold">{before.length > 1 ? `${before[0].year}–${before.at(-1)!.year}` : before[0].year}</span>
+            <span>sifariş yoxdur{newcomer && firstOrder ? ` — ilk sifariş ${monthName(firstOrder.month)} ${firstOrder.year}` : ''}</span>
+          </li>
+        )}
+        {shown.map((item) => {
           const current = item.year === facts.year
           const width = largest > 0 ? Math.max(item.amount > 0 ? 1.5 : 0, (item.amount / largest) * 100) : 0
           // The year on screen is drawn solid, whole or not; another year that is not whole is only outlined.
@@ -97,7 +115,7 @@ export function AreaYears({ years, facts, kind, period, onYear }: {
                 </span>
                 <span className="tnum text-right leading-tight">
                   <span className={`block whitespace-nowrap text-[14px] ${item.amount ? 'font-bold' : 'text-(--x-muted)'}`}>{item.amount ? money(item.amount) : 'sifariş yoxdur'}</span>
-                  {item.sameMonths !== null && (
+                  {item.sameMonths !== null && item.amount > 0 && (
                     <span className="block whitespace-nowrap text-[11.5px] text-(--x-ink-2)" title={`${facts.year} ilinin ayları ilə eyni aylar: müqayisə bu məbləğlə aparılır`}>
                       {focusRange}: {money(item.sameMonths)}
                     </span>

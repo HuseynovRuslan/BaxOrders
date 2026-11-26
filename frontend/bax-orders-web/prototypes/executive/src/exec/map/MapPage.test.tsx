@@ -528,6 +528,12 @@ describe('a location within its years', () => {
     await waitFor(panel)
     expect(within(years()).getByText('3-cü')).toBeInTheDocument()
     expect(within(years()).getByText('(3 obyekt arasında)')).toBeInTheDocument()
+    // Delta came in after the figures begin: its first order is said, and 2025 — a real 0 before it — is one line.
+    expect(within(years()).getByText('Yanvar 2026')).toBeInTheDocument()
+    expect(years().querySelector('[data-before]')).toHaveTextContent('2025sifariş yoxdur — ilk sifariş Yanvar 2026')
+    expect(row(2025)).toBeNull()
+    expect(row(2026)).toHaveTextContent('20 ₼')
+    expect(years().textContent).not.toContain(': 0 ₼')
   })
 
   it('opens another year from the list, the location and its view kept', async () => {

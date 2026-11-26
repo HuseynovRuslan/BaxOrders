@@ -4,7 +4,7 @@ import type { Kind } from '../data/analysis'
 import { VISIBLE_LOCATIONS } from '../data/locationVisibility'
 import { allSuppliers, linesOfEveryYear, monthsWithDataIn, sites, type Line } from '../data/model'
 import {
-  approvalSplit, hasMonth, isInProgress, linesIn, monthPairs, shareBy, statusOf, yearTotals,
+  approvalSplit, hasMonth, isInProgress, linesIn, monthPairs, reportingYears, shareBy, statusOf, yearTotals,
   type ApprovalSplit, type MonthPair, type ShareRow, type YearTotal,
 } from './metrics'
 import { amountFor, comparePeriod, type CompareMode, type PeriodComparison, type YearMonth } from './compare'
@@ -295,9 +295,28 @@ export interface AreaYearFacts {
   rank: number | null
   /** How many objects spent in those months. */
   ranked: number
-  /** Over the months with figures; null for a year of one month. */
+  /**
+   * Per month with figures since the object's first order: a park first served in April is not averaged over the
+   * months before it existed. Null for fewer than two such months.
+   */
   average: number | null
+  /** The months the average is over. */
+  averageMonths: readonly number[]
   inProgress: boolean
+  /** The object's first month with an order of the kind, in any year; null when it never had one. */
+  firstOrder: YearMonth | null
+  /** The figures' own first month: an object whose first order is later came in after them. */
+  firstFigures: YearMonth | null
+}
+
+/** The object's first month with an order of the kind, across every year; null when it never had one. */
+export function firstOrderOf(siteId: string, kind: Kind): YearMonth | null {
+  let first: YearMonth | null = null
+  for (const line of linesOfEveryYear) {
+    if (line.siteId !== siteId || (kind !== 'all' && line.type !== kind)) continue
+    if (!first || line.year < first.year || (line.year === first.year && line.month < first.month)) first = { year: line.year, month: line.month }
+  }
+  return first
 }
 
 export function areaYearFacts(siteId: string, year: number, kind: Kind): AreaYearFacts | null {
@@ -307,6 +326,9 @@ export function areaYearFacts(siteId: string, year: number, kind: Kind): AreaYea
   const total = round2(rows.reduce((sum, row) => sum + row.amount, 0))
   const index = rows.findIndex((row) => row.id === siteId)
   const amount = index >= 0 ? rows[index].amount : 0
+  const firstOrder = firstOrderOf(siteId, kind)
+  const averageMonths = firstOrder && firstOrder.year === year ? months.filter((month) => month >= firstOrder.month) : months
+  const firstYear = reportingYears()[0]
   return {
     year,
     months,
@@ -315,7 +337,10 @@ export function areaYearFacts(siteId: string, year: number, kind: Kind): AreaYea
     share: total > 0 ? amount / total : null,
     rank: index >= 0 ? index + 1 : null,
     ranked: rows.length,
-    average: months.length > 1 ? round2(amount / months.length) : null,
+    average: averageMonths.length > 1 ? round2(amount / averageMonths.length) : null,
+    averageMonths,
     inProgress: months.some((month) => isInProgress(year, month)),
+    firstOrder,
+    firstFigures: firstYear === undefined || monthsWithDataIn(firstYear).length === 0 ? null : { year: firstYear, month: monthsWithDataIn(firstYear)[0] },
   }
 }
