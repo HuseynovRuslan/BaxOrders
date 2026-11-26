@@ -190,3 +190,13 @@ describe('freshness', () => {
     expect(freshness()).toMatchObject({ state: 'current', year: 2026, month: 11 })
   })
 })
+
+describe('a run of months said as a span', () => {
+  it('names the run and the month missing inside it', () => {
+    expect(metrics.monthsLabel([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])).toBe('Yan–Noy')
+    expect(metrics.monthsLabel(dataMonths2026)).toBe('Yan–Noy, İyl yoxdur')
+    expect(metrics.monthsLabel([4])).toBe('Apr')
+    expect(metrics.monthsLabel([12, 3, 1, 2])).toBe('Yan–Dek, Apr–Noy yoxdur')
+    expect(metrics.monthsLabel([])).toBe('—')
+  })
+})

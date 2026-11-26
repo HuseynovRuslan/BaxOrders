@@ -108,6 +108,17 @@ export function shortRange(months: readonly number[]): string {
   return sorted.map((month) => shortMonthNames[month - 1]).join(', ')
 }
 
+/** «Yan–Noy», or «Yan–Noy, İyl yoxdur» for a run with a month missing inside it: a year's months, said as a span. */
+export function monthsLabel(months: readonly number[]): string {
+  if (months.length === 0) return '—'
+  const sorted = [...months].sort((a, b) => a - b)
+  const first = sorted[0]
+  const last = sorted.at(-1)!
+  const missing = Array.from({ length: last - first + 1 }, (_, index) => first + index).filter((month) => !sorted.includes(month))
+  const run = first === last ? shortMonthNames[first - 1] : `${shortMonthNames[first - 1]}–${shortMonthNames[last - 1]}`
+  return missing.length ? `${run}, ${shortRange(missing)} yoxdur` : run
+}
+
 /** «Yanvar–Noyabr», «Oktyabr». */
 export function longRange(months: readonly number[]): string {
   if (months.length === 0) return '—'
