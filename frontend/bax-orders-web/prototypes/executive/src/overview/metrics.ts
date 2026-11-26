@@ -261,6 +261,50 @@ export function compareYears(focusYear: number, months: readonly number[], kind:
   }
 }
 
+/* ---- Year by year --------------------------------------------------------------------------------------------------- */
+
+/** One year whole — every month it has figures for — beside the others («İllər üzrə xərc»). */
+export interface YearTotal {
+  year: number
+  /** The year's reporting months. */
+  months: readonly number[]
+  /** All twelve months have figures. A year that is not whole is never set against one that is. */
+  whole: boolean
+  amount: number
+  /** The running month is one of them: the amount can still grow. */
+  inProgress: boolean
+  /**
+   * When the focus year is not whole, this year over the focus year's months — the figure the focus year is compared
+   * on. Null for the focus year, when the focus year is whole, or when this year lacks one of those months.
+   */
+  sameMonths: number | null
+  /** Against the year before over the months both have, as `compareYears` reads it; null for the first year. */
+  change: { previousYear: number; aligned: number[]; previous: number; current: number; delta: number; pct: number | null } | null
+}
+
+/** Every year with figures, oldest first, for one kind of order (and an optional object or category). */
+export function yearTotals(kind: Kind, focusYear: number, scope: Omit<Scope, 'kind'> = {}): YearTotal[] {
+  const full: Scope = { ...scope, kind }
+  const focusMonths = monthsWithDataIn(focusYear)
+  const partialFocus = focusMonths.length > 0 && focusMonths.length < 12
+  return reportingYears().map((year) => {
+    const months = monthsWithDataIn(year)
+    const comparison = compareYears(year, months, kind, scope)
+    const comparable = partialFocus && year !== focusYear && focusMonths.every((month) => months.includes(month))
+    return {
+      year,
+      months,
+      whole: months.length === 12,
+      amount: amountOver(year, months, full),
+      inProgress: months.some((month) => isInProgress(year, month)),
+      sameMonths: comparable ? amountOver(year, focusMonths, full) : null,
+      change: comparison.previousYear !== null && comparison.previous !== null && comparison.delta !== null
+        ? { previousYear: comparison.previousYear, aligned: comparison.aligned, previous: comparison.previous, current: comparison.currentAligned, delta: comparison.delta, pct: comparison.pct }
+        : null,
+    }
+  })
+}
+
 /* ---- Month by month ------------------------------------------------------------------------------------------------- */
 
 export interface MonthPair {

@@ -200,3 +200,22 @@ describe('a run of months said as a span', () => {
     expect(metrics.monthsLabel([])).toBe('—')
   })
 })
+
+describe('every year side by side', () => {
+  it('reads each year over its own months, and beside a year that is not whole the others over its months', () => {
+    const [y2025, y2026] = metrics.yearTotals('monthly', 2026)
+    // 2025 whole: 12 × 150 ₼; over 2026's ten months: 1.500 ₼. No year before it, so no change.
+    expect(y2025).toMatchObject({ year: 2025, whole: true, amount: 1800, sameMonths: 1500, change: null, inProgress: false })
+    // 2026 against 2025 over the ten months both have — the change the overview's card shows.
+    expect(y2026).toMatchObject({ year: 2026, whole: false, amount: 1730, sameMonths: null, inProgress: true })
+    expect(y2026.change).toMatchObject({ previousYear: 2025, aligned: dataMonths2026, previous: 1500, current: 1730, delta: 230 })
+    expect(y2026.months).toEqual(dataMonths2026)
+  })
+
+  it('needs no same-months figure beside a whole year, and reads one object alone', () => {
+    expect(metrics.yearTotals('monthly', 2025).map((item) => item.sameMonths)).toEqual([null, null])
+    const [alfa2025, alfa2026] = metrics.yearTotals('monthly', 2026, { siteId: 'alfa' })
+    expect(alfa2025).toMatchObject({ amount: 1200, sameMonths: 1000 })
+    expect(alfa2026.change).toMatchObject({ previous: 1000, current: 1280, delta: 280 })
+  })
+})
