@@ -1,7 +1,7 @@
 """
 The «Excel yüklə» button's server side (owner, 2026-10-28): the site's figures change for everyone when the owner
 uploads a workbook. Runs in its own container on the QRLog VPS, reachable only through the site's nginx at
-/api/import, /api/undo, /api/catalog and /api/approve.
+/api/import, /api/undo, /api/catalog, /api/approve, /api/history, /api/history/excel and /api/history/restore.
 
 Two steps, so a wrong file is seen before it counts (owner, 2026-10-28):
 
@@ -14,6 +14,14 @@ Two steps, so a wrong file is seen before it counts (owner, 2026-10-28):
     POST /approve             the Rəhbər approves a month's monthly orders, or takes the approval back — with the
                               Rəhbər's code (REHBER_CODE), never without one (owner, 2026-11-02)
 
+Every workbook ever uploaded is kept for good, beside a note of its name, time, lines and years (owner, 2026-11-25):
+
+    GET  /history                     the kept workbooks, newest first, and which one the site's figures came from
+    POST /history/excel               one of them as it was uploaded — with the Rəhbər's code: the workbook carries
+                                      columns the site never shows («Cavabdeh şəxs»)
+    POST /history/restore?mode=check  the site's figures back to one of them, checked and applied as an upload is,
+    POST /history/restore             with the Rəhbər's code, and undone by /undo the same way
+
 Approvals live in their own file (approvals.json), so a new workbook or an edit never touches them: each keeps the
 amount and lines it approved, and the site shows when a month's figures moved after its approval. A month is keyed by
 its year and number («2026-11»); a file from before years came in keyed it by the number alone («11»), which is
@@ -21,7 +29,7 @@ its year and number («2026-11»); a file from before years came in keyed it by 
 left it, and the program approved every month up to September 2026.
 
 With IMPORT_KEY set, every request carries it (header X-Import-Key). Empty, the steps are open to anyone who has the
-site's address — the owner's choice (2026-10-28) — and the history (100 steps back) and the baseline copy kept outside
+site's address — the owner's choice (2026-10-28) — and the history (100 steps back, every workbook) and the baseline copy kept outside
 it are what stands between a visitor and the figures management reads. An apply carries X-Base, the fingerprint of the figures its
 check saw: if someone changed them in between, it is refused and checked again. The workbook is read by
 import_workbook.convert and refused whole if it does not hang together. Before figures change, the ones they replace
@@ -58,6 +66,7 @@ KEEP = 100  # history entries kept, by time — every uploaded workbook is kept 
 BAKU = datetime.timezone(datetime.timedelta(hours=4))
 BEFORE = '-oncesi.json'  # the figures an import replaced: what an undo restores
 WORKBOOK_META = '.meta.json'  # beside a kept workbook: its name as uploaded, when, its lines and years
+XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 STAMP = re.compile(r'^(\d{8}T\d{6})(\d{6})-')
 
 lock = threading.Lock()
@@ -198,6 +207,56 @@ def undo_target():
     return os.path.join(HISTORY_DIR, names[-1]) if names else None
 
 
+def workbook_note(entry):
+    """What was noted beside a workbook when it came in; a workbook from before notes were kept has none."""
+    try:
+        with open(os.path.join(HISTORY_DIR, entry + WORKBOOK_META), encoding='utf-8') as note:
+            return json.load(note)
+    except (OSError, ValueError):
+        return {}
+
+
+def workbooks():
+    """Every workbook ever uploaded, newest first: when, its name, its size, its lines and years when noted, and
+    whether the figures on the site came from it."""
+    if not os.path.isdir(HISTORY_DIR):
+        return []
+    raw = current_bytes()
+    meta = json.loads(raw).get('meta', {}) if raw else {}
+    found = []
+    for entry in sorted(os.listdir(HISTORY_DIR), reverse=True):
+        path = os.path.join(HISTORY_DIR, entry)
+        if not is_workbook(entry) or not os.path.isfile(path):
+            continue
+        note = workbook_note(entry)
+        stamp = STAMP.match(entry).group(1)
+        at = datetime.datetime.strptime(stamp, '%Y%m%dT%H%M%S').replace(tzinfo=BAKU).isoformat(timespec='minutes')
+        sha = note.get('sha256')
+        if not sha:
+            with open(path, 'rb') as workbook:
+                sha = hashlib.sha256(workbook.read()).hexdigest()
+        found.append(dict(id=entry, file=note.get('file') or entry[STAMP.match(entry).end():], at=note.get('importedAt') or at,
+                          size=os.path.getsize(path), lines=note.get('lines'), years=note.get('years'), sha256=sha))
+    # The figures on the site came from the newest workbook with their fingerprint (a file uploaded twice is one).
+    seen = False
+    for item in found:
+        sha = item.pop('sha256')
+        item['current'] = not seen and bool(meta.get('sha256')) and sha == meta.get('sha256')
+        seen = seen or item['current']
+        if item['current'] and item['lines'] is None and not meta.get('edits'):
+            # A workbook from before notes were kept: the site's figures came from it, unedited, and say its lines and years.
+            item['lines'], item['years'] = meta.get('lines'), meta.get('years')
+    return found
+
+
+def workbook_path(entry):
+    """The kept workbook by its id, only ever one of the listed ones: no path can be made of it."""
+    if not isinstance(entry, str) or os.path.basename(entry) != entry or not is_workbook(entry):
+        return None
+    path = os.path.join(HISTORY_DIR, entry)
+    return path if os.path.isfile(path) else None
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = 'executive-import'
     sys_version = ''
@@ -215,9 +274,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         client = self.headers.get('X-Forwarded-For', self.client_address[0]) if self.headers else self.client_address[0]
         sys.stderr.write(f'{datetime.datetime.now(BAKU):%Y-%m-%d %H:%M:%S} {client} {format % args}\n')
 
+    def send_workbook(self, payload, name):
+        """A kept workbook as a download, under the name it was uploaded with."""
+        plain = re.sub(r'[^A-Za-z0-9._-]+', '_', name).strip('_') or 'kitab.xlsx'
+        self.send_response(200)
+        self.send_header('Content-Type', XLSX_TYPE)
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Disposition', f'attachment; filename="{plain}"; filename*=UTF-8\'\'{urllib.parse.quote(name)}')
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self):
         if self.path == '/health':
             return self.reply(200, dict(ok=True))
+        if self.path == '/history':
+            # The list says when and what; the files themselves come only with the Rəhbər's code (POST /history/excel).
+            try:
+                return self.reply(200, dict(ok=True, workbooks=workbooks()))
+            except Exception:
+                traceback.print_exc()
+                return self.reply(500, dict(error='Tarixçə oxunmadı: server xətası.'))
         served = dict(zip(('/data/real-data.json', '/data/approvals.json'), (DATA_FILE, APPROVALS_FILE))).get(self.path)
         if served and os.path.exists(served):
             # For development (IMPORT_DEV=1 in vite.config.ts); on the server nginx serves the files itself.
@@ -234,7 +311,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         url = urllib.parse.urlsplit(self.path)
         mode = urllib.parse.parse_qs(url.query).get('mode', ['apply'])[0]
-        if url.path not in ('/import', '/undo', '/catalog', '/approve') or mode not in ('check', 'apply'):
+        if url.path not in ('/import', '/undo', '/catalog', '/approve', '/history/excel', '/history/restore') or mode not in ('check', 'apply'):
             return self.reply(404, dict(error='Tapılmadı.'))
         length = int(self.headers.get('Content-Length') or 0)
         if length > MAX_BYTES:
@@ -261,6 +338,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.catalog(body, mode)
                 if url.path == '/approve':
                     return self.approve(body, mode)
+                if url.path == '/history/excel':
+                    return self.history_excel(body)
+                if url.path == '/history/restore':
+                    return self.history_restore(body, mode)
                 return self.undo(mode)
             except Exception:
                 traceback.print_exc()
@@ -296,6 +377,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         name = urllib.parse.unquote(self.headers.get('X-File-Name', '') or 'kitab.xlsx')[:200]
         if not workbook.startswith(b'PK'):
             return self.reply(400, dict(error='Bu, .xlsx faylı deyil. Excel-də «.xlsx» kimi saxlayıb yenidən yükləyin.'))
+        return self.take_in(workbook, name, mode)
+
+    def take_in(self, workbook, name, mode, kept=None):
+        """A workbook's figures in place of the site's: checked first, then applied. A new upload is kept for good;
+        a kept one brought back (`kept`, its id) is not kept twice."""
         try:
             data, report = convert(workbook, name)
         except WorkbookError as error:
@@ -315,16 +401,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         imported = datetime.datetime.now(BAKU)
         data['meta']['importedAt'] = imported.isoformat(timespec='minutes')
+        if kept:
+            data['meta']['restoredFrom'] = kept
         stamp = new_stamp(imported)
         before = None
         try:
             if raw:
                 before = keep(f'{stamp}{BEFORE}', raw)  # the current figures are kept before anything changes
-            entry = f'{stamp}-{re.sub(r"[^A-Za-z0-9._-]+", "_", name)[-120:] or "kitab.xlsx"}'
-            keep(entry, workbook)
-            keep(entry + WORKBOOK_META, json.dumps(dict(
-                file=name, importedAt=data['meta']['importedAt'], lines=report['lines'], years=data['meta'].get('years'),
-                sha256=data['meta'].get('sha256')), ensure_ascii=False).encode())
+            if not kept:
+                entry = f'{stamp}-{re.sub(r"[^A-Za-z0-9._-]+", "_", name)[-120:] or "kitab.xlsx"}'
+                keep(entry, workbook)
+                keep(entry + WORKBOOK_META, json.dumps(dict(
+                    file=name, importedAt=data['meta']['importedAt'], lines=report['lines'], years=data['meta'].get('years'),
+                    sha256=data['meta'].get('sha256')), ensure_ascii=False).encode())
             write_figures(json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode())
         except OSError:
             traceback.print_exc()
@@ -332,8 +421,49 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 os.remove(before)  # no import happened: nothing for an undo to go back to
             return self.reply(500, dict(error='Fayl yazılmadı: server xətası. Rəqəmlər dəyişmədi.'))
         prune()
-        self.log_message('imported %s: %d lines', name, report['lines'])
+        self.log_message('%s %s: %d lines', 'restored' if kept else 'imported', name, report['lines'])
         self.reply(200, dict(ok=True, mode='apply', importedAt=data['meta']['importedAt'], report=report, changes=moved))
+
+    def kept_request(self, body):
+        """A request about a kept workbook: its id and the Rəhbər's code. Replies and gives None unless both hold."""
+        try:
+            request = json.loads(body or b'{}')
+        except ValueError:
+            self.reply(400, dict(error='Sorğu oxunmadı.'))
+            return None
+        if not isinstance(request, dict):
+            self.reply(400, dict(error='Sorğu oxunmadı.'))
+            return None
+        if self.refused_code(request.get('code')):
+            return None
+        path = workbook_path(request.get('id'))
+        if path is None:
+            self.reply(404, dict(error='Bu fayl serverdə tapılmadı.'))
+            return None
+        return request['id'], path
+
+    def history_excel(self, body):
+        """A kept workbook as it was uploaded — with the Rəhbər's code: it carries what the site never shows."""
+        found = self.kept_request(body)
+        if not found:
+            return
+        entry, path = found
+        with open(path, 'rb') as workbook:
+            payload = workbook.read()
+        name = workbook_note(entry).get('file') or entry[STAMP.match(entry).end():]
+        self.log_message('downloaded %s', entry)
+        self.send_workbook(payload, name)
+
+    def history_restore(self, body, mode):
+        """The site's figures back to a kept workbook's — checked and applied as an upload is, and undone the same way."""
+        found = self.kept_request(body)
+        if not found:
+            return
+        entry, path = found
+        with open(path, 'rb') as workbook:
+            payload = workbook.read()
+        name = workbook_note(entry).get('file') or entry[STAMP.match(entry).end():]
+        return self.take_in(payload, name, mode, kept=entry)
 
     def catalog(self, body, mode):
         try:
