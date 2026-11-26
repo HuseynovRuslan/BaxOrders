@@ -63,7 +63,9 @@ export function MapPage() {
   const lastMonth = available.at(-1) ?? 0
   const options = periodOptions(year)
   const asked = readPeriod(search)
-  const period = options.find((option) => option.id === asked) ?? options.find((option) => option.id === `m${lastMonth}`) ?? options[0] ?? null
+  // Without a period in the address the year opens whole: «Bütün il» for a finished year, «İlin əvvəlindən» for the
+  // running one. A single month is one choice away.
+  const period = options.find((option) => option.id === asked) ?? options[0] ?? null
   const span = useMemo(() => (period ? spanOf(year, period.span, lastMonth) : []), [period?.id, year, lastMonth]) // eslint-disable-line react-hooks/exhaustive-deps
   const months = useMemo(() => (period ? period.months.filter((month) => hasMonth(year, month)) : []), [period?.id, year]) // eslint-disable-line react-hooks/exhaustive-deps
   const kind = readKind(search.get(kindParam))

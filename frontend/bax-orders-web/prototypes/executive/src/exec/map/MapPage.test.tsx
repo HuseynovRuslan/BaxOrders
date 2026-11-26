@@ -108,7 +108,7 @@ describe('the areas map', () => {
   })
 
   it('shows the period against the same month a year before, then against the month before — January against December', async () => {
-    const router = await open('/xerite?erazi=LOC-0049')
+    const router = await open('/xerite?erazi=LOC-0049&dovr=m11')
     const area = await waitFor(panel)
     // November 2026 (the latest month): Alfa 120 ₼ against 100 ₼ in November 2025.
     const kpis = within(area).getAllByRole('definition')
@@ -323,7 +323,7 @@ describe('one place, one pin: the duplicate the owner had hidden', () => {
   })
 
   it('counts the same money with the duplicate hidden: four linked places, each object once', async () => {
-    await open('/xerite')
+    await open('/xerite?dovr=m11')
     const overview = (await screen.findByRole('heading', { level: 2, name: 'Ərazi analitikası' })).closest('section')!
     // November 2026, monthly: Alfa 120 + Beta 50 + (Delta has no monthly order) = 170 ₼ on the map, nothing left over.
     expect(within(overview).getByText('Xəritədəki 4 nöqtənin obyektləri')).toBeInTheDocument()
@@ -456,6 +456,16 @@ describe('«Ərazilər xəritəsi», a page of its own', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'İllik icmal 2026' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/2026')
     expect(screen.queryByRole('dialog', { name: 'Menyu' })).not.toBeInTheDocument()
+  })
+})
+
+describe('a year on the map', () => {
+  it('opens the year whole when the address names no period: «İlin əvvəlindən» now, «Bütün il» for a finished year', async () => {
+    await open('/xerite?erazi=LOC-0049')
+    expect(screen.getByRole('combobox', { name: 'Dövr' })).toHaveTextContent('İlin əvvəlindən')
+    cleanup()
+    await open('/xerite?il=2025&erazi=LOC-0049')
+    expect(screen.getByRole('combobox', { name: 'Dövr' })).toHaveTextContent('Bütün il')
   })
 })
 
